@@ -67,7 +67,7 @@ pub use pdfcraft_forms::{
 };
 
 pub use pdfcraft_a11y as a11y;
-pub use pdfcraft_edit::{BlockKey, BlockStyle, PageImage, RangeStyle, TextBlock, TextLine, block_overlapping, first_undrawable};
+pub use pdfcraft_edit::{BlockKey, BlockStyle, PageImage, PathOutline, PathStyle, RangeStyle, TextBlock, TextLine, block_overlapping, first_undrawable};
 pub use pdfcraft_measure as measure;
 pub use pdfcraft_xfa::Report as XfaLayout;
 
@@ -301,6 +301,9 @@ fn scope_of(edit: &Edit) -> Scope {
         // Page content, resources and added content/marks only: the page tree, annotations,
         // fields, links and document metadata are untouched (see `refresh_content`).
         Edit::MoveObjects { .. }
+        | Edit::DeletePaths { .. }
+        | Edit::StylePaths { .. }
+        | Edit::MovePathPoint { .. }
         | Edit::EditTextLine { .. }
         | Edit::EditTextBlock { .. }
         | Edit::EditPageImage { .. }
@@ -1678,6 +1681,24 @@ pub enum Edit {
         objects: Vec<ObjectTarget>,
         offset: [f64; 2],
     },
+    /// Delete vector paths on `page` (indexes of `ObjectKind::Path` objects from `Document::editable_objects`).
+    DeletePaths {
+        page: usize,
+        paths: Vec<usize>,
+    },
+    /// Change the colour and/or line width of vector paths.
+    StylePaths {
+        page: usize,
+        paths: Vec<usize>,
+        style: PathStyle,
+    },
+    /// Drag one point of a vector path to `to` (user-space point).
+    MovePathPoint {
+        page: usize,
+        path: usize,
+        point: usize,
+        to: [f64; 2],
+    },
     /// Edit text in a paragraph box: replace paragraph `block` (from `Document::text_blocks`),
     /// rewrapped to the box's width.
     EditTextBlock {
@@ -2123,6 +2144,9 @@ impl Edit {
             Edit::EditTextLine { .. } | Edit::EditTextBlock { .. } => Label::of("Edit text"),
             Edit::RegisterTextFont { .. } => Label::of("Load document font"),
             Edit::MoveObjects { objects, .. } => plural("Move object", "Move objects", objects.len()),
+            Edit::DeletePaths { paths, .. } => plural("Delete line", "Delete lines", paths.len()),
+            Edit::StylePaths { paths, .. } => plural("Format line", "Format lines", paths.len()),
+            Edit::MovePathPoint { .. } => Label::of("Move line point"),
             Edit::EditPageImage { change, .. } => Label::of(match change {
                 ImageEdit::Move(_) => "Move image",
                 ImageEdit::Rotate(_) | ImageEdit::RotateBy(_) => "Rotate image",
@@ -2285,6 +2309,9 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::AddImage { .. }
         | Edit::UpdateContent { .. }
         | Edit::MoveObjects { .. }
+        | Edit::DeletePaths { .. }
+        | Edit::StylePaths { .. }
+        | Edit::MovePathPoint { .. }
         | Edit::DeleteContent { .. }
         | Edit::ReplaceImage { .. }
         | Edit::ClearRedactions
@@ -2675,6 +2702,9 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             pdfcraft_edit::change_image(doc, *page, *index, &c)?;
         }
         Edit::MoveObjects { page, objects, offset } => pdfcraft_edit::move_objects(doc, *page, objects, *offset)?,
+        Edit::DeletePaths { page, paths } => pdfcraft_edit::delete_paths(doc, *page, paths)?,
+        Edit::StylePaths { page, paths, style } => pdfcraft_edit::style_paths(doc, *page, paths, *style)?,
+        Edit::MovePathPoint { page, path, point, to } => pdfcraft_edit::move_path_point(doc, *page, *path, *point, *to)?,
         Edit::EditTextBlock { page, block, text, style } => {
             pdfcraft_edit::rewrite_block(doc, *page, *block, Some(text), style)?;
         }
