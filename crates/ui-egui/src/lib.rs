@@ -134,6 +134,7 @@ pub(crate) fn date_text_for_pdf(session: &Session) -> Result<String, String> {
 /// The longest author name kept (Preferences ▸ Identity, restored settings).
 pub(crate) const MAX_AUTHOR_CHARS: usize = 200;
 
+pub mod app_icon;
 #[cfg(not(target_arch = "wasm32"))]
 mod open_worker;
 mod organize_panel;
@@ -628,6 +629,8 @@ pub struct PdfCraftApp {
     pub system_title_bar: bool,
     /// Whether the window currently has the app's header bar (`None` until the first frame).
     app_frame_shown: Option<bool>,
+    #[cfg(not(target_arch = "wasm32"))]
+    window_icon_theme: Option<ThemeKind>,
     pub password_prompt: Option<PasswordPrompt>,
     pub unlock_prompt: Option<UnlockPrompt>,
     pub full_screen: bool,
@@ -1017,6 +1020,8 @@ impl PdfCraftApp {
             window_controls: None,
             system_title_bar: false,
             app_frame_shown: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            window_icon_theme: None,
             password_prompt: None,
             unlock_prompt: None,
             full_screen: false,
@@ -2195,6 +2200,14 @@ impl PdfCraftApp {
         if kind != self.theme {
             self.theme = kind;
             theme::apply(ctx, kind);
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.window_icon_theme != Some(kind) {
+            match app_icon::window_icon(kind == ThemeKind::Dark) {
+                Ok(icon) => ctx.send_viewport_cmd(egui::ViewportCommand::Icon(Some(std::sync::Arc::new(icon)))),
+                Err(error) => log::warn!("window icon: {error}"),
+            }
+            self.window_icon_theme = Some(kind);
         }
         // Let egui theme the Windows frame too; System releases a manual override.
         #[cfg(target_os = "windows")]
@@ -3376,7 +3389,7 @@ impl eframe::App for PdfCraftApp {
             .active
             .and_then(|i| crate::canvas::tab_label(self, i))
             .or_else(|| self.combine_showing().then(|| tl!("Combine files").to_owned()))
-            .map_or_else(|| "PdfCraft".to_owned(), |name| format!("{name} — PdfCraft"));
+            .unwrap_or_else(|| "PdfCraft".to_owned());
         if title != self.window_title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.window_title = title;

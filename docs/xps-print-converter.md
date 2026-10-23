@@ -2,8 +2,9 @@
 
 This branch converts a supported subset of XPS/OpenXPS packages directly into PDF through
 PdfCraft's COS writer. It does not invoke Microsoft Print to PDF, OCR, or a page rasterizer.
-Windows printer registration is excluded from the personal 0.13.1 release. A native queue,
-spool capture, installation and print-job UI remain future work.
+The personal 0.13.1 combined installer adds an experimental Windows 11 24H2+ x64 native
+queue. The Linux CUPS 2.x plugin instead preserves application-supplied PDF bytes.
+See [printer setup and platform limits](../apps/pdfcraft-printer/README.md).
 
 The engine entry point is `Session::create_from_xps(title, bytes)`. The shared CLI/MCP
 tool is `doc_create` with `from: "xps"` and a package `path`. Save its returned document
@@ -20,7 +21,7 @@ Run in a fresh session with `pdfcraft-cli run --root . --script convert.json`; t
 also work individually through MCP using the returned document ID. XPS is not added to
 GUI Open or batch conversion filters yet.
 
-Supported content includes UTF-8/UTF-16 fixed pages, affine transforms and path clipping;
+Supported content includes whole or interleaved OPC parts, UTF-8/UTF-16 fixed pages, affine transforms and path clipping;
 left-to-right glyph runs with explicit positions/advances and an embedded TrueType font
 (including GUID-obfuscated ODTTF); solid opaque RGB fills/strokes and M/L/H/V/C/Z paths;
 and non-tiled absolute PNG/JPEG image brushes. Text receives `/ToUnicode` mappings for
@@ -45,7 +46,7 @@ Tests generate fixtures using the repository's open Inter font. Unit checks cove
 text, vectors, obfuscated fonts, UTF-16, image objects and malformed/unsupported packages.
 The automation regression converts, finds and highlights words, saves/reopens, renders the
 result and checks root confinement and unchanged document lists after failure. A private
-local Word XPS sample also retained searchable/highlightable text after save/reopen; its
+local Word XPS sample and a captured native print job also retained searchable/highlightable text after save/reopen; their
 proprietary source fonts and output are not repository fixtures.
 
 Format references: [ECMA-388 OpenXPS](https://ecma-international.org/publications-and-standards/standards/ecma-388/)

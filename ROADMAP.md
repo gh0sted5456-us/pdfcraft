@@ -1,10 +1,12 @@
 # PdfCraft roadmap
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** experimental personal printer plugin for Windows and Linux CUPS 2.x; transparent theme-aware lion and document-only window titles. Linux cross-checks pass; native Linux runtime remains unverified. Estimates unchanged.
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** M10 experimental independent XPS conversion core on a separate branch; native printer excluded from personal 0.13.1. Estimates unchanged.
 
 The separate converter preserves supported embedded-font text, solid vector paths and
 PNG/JPEG pictures through the engine and `doc_create`. Unsupported drawing refuses without
-raster fallback. Native printer registration remains planned. See [scope](docs/xps-print-converter.md).
+raster fallback. The personal branch adds an experimental native printer. See [scope](docs/xps-print-converter.md).
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1: object alignment/distribution and drag guides. The separate PDF printer is excluded from this version. Upstream readiness estimates unchanged.
 
@@ -198,6 +200,8 @@ Ranked; detail and the full milestone table in [docs/roadmap.md](docs/roadmap.md
 | 8 | 1.0 polish: performance, right-to-left, missing languages, keyboard-only (M14) | 55–95 |
 
 ## Progress log
+
+- **2026-10-23 (M3/M14, personal 0.13.1):** PdfCraft Printer uses a Windows Print Support App and a separate Linux CUPS 2.x backend. Interleaved OpenXPS conversion and native captured Word text pass search/highlight/save/reopen checks; Linux target compilation and strict linting pass. Native Linux queue operation remains unverified here. Original lion artwork has transparent surroundings and inverted interface palettes; document window titles omit the application suffix.
 
 - **2026-10-23 (M3/M14, personal 0.13.1):** Restores the original engraved lion with a black background and a matching black PDF document badge. App, Home, About and thumbnail type badges share the restored artwork. Workspace, About, executables and installer use version 0.13.1. Existing OCR, Delete-key editing and native Windows caption improvements are retained. Personal-build attribution and upstream credits remain.
 

@@ -6978,11 +6978,11 @@ title = "Print to PDF from other applications"
 area = "J"
 tier = "P3"
 milestone = "M14"
-status = "planned"
+status = "partial"
 commands = []
 tools = []
-evidence = []
-notes = "Native Windows printer queue remains planned and is excluded from personal 0.13.1. The separate experimental XPS conversion core is tracked under create.xps-print-intermediate."
+evidence = ["apps/pdfcraft-printer/src/lib.rs::printer_entry_preserves_unicode_text_and_rejects_bad_jobs", "apps/pdfcraft-printer/src/cups.rs::pdf_bytes_survive_and_repeated_jobs_never_overwrite"]
+notes = "Personal experimental PdfCraft Printer: Windows 11 24H2+ x64 Print Support App and Linux CUPS 2.x backend. Windows converts supported OpenXPS using the independent writer; Linux preserves incoming PDF bytes. Windows queue registration/default preservation and private synthetic Word conversion checked locally. Linux target compilation/lints pass; native CUPS queue smoke workflow is provided but not run on this Windows host. No universal Office fidelity, Linux Save As dialog, CUPS 3.x or public signing claim. See apps/pdfcraft-printer/README.md."
 
 [[feature]]
 id = "create.xps-print-intermediate"

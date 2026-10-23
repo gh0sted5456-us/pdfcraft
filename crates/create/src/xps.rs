@@ -1,7 +1,7 @@
 //! Text/vector XPS print intermediate → PdfCraft's PDF writer. Never renders a page to pixels.
 //! Specification: ECMA-388; Glyphs.Indices follows Microsoft's public XPS documentation.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::io::{Cursor, Read};
 
@@ -25,6 +25,7 @@ fn bad(message: impl Into<String>) -> CreateError {
 
 struct Package<'a> {
     zip: zip::ZipArchive<Cursor<&'a [u8]>>,
+    parts: BTreeMap<String, Vec<usize>>,
     remaining: usize,
     image_bytes: usize,
     glyphs_left: usize,
@@ -42,6 +43,8 @@ impl<'a> Package<'a> {
             return Err(bad("too many package parts"));
         }
         let mut names = BTreeSet::new();
+        let mut parts = BTreeMap::new();
+        let mut pieces: BTreeMap<String, Vec<(usize, bool, usize)>> = BTreeMap::new();
         for i in 0..zip.len() {
             let part = zip.by_index(i).map_err(|e| bad(e.to_string()))?;
             let name = part.name().map_err(|e| bad(e.to_string()))?;
@@ -53,28 +56,59 @@ impl<'a> Package<'a> {
             {
                 return Err(bad("noncanonical or duplicate package part"));
             }
+            let name = name.to_string();
+            if let Some((base, leaf)) = name.rsplit_once('/')
+                && leaf.ends_with(".piece")
+            {
+                let (digits, last) = if let Some(digits) = leaf.strip_suffix("].last.piece") {
+                    (digits, true)
+                } else {
+                    (leaf.strip_suffix("].piece").ok_or_else(|| bad("invalid piece name"))?, false)
+                };
+                let digits = digits.strip_prefix('[').ok_or_else(|| bad("invalid piece name"))?;
+                let number: usize = digits.parse().map_err(|_| bad("invalid piece number"))?;
+                if number.to_string() != digits || base.is_empty() {
+                    return Err(bad("noncanonical piece name"));
+                }
+                pieces.entry(base.to_owned()).or_default().push((number, last, i));
+            } else {
+                parts.insert(name, vec![i]);
+            }
         }
-        Ok(Self { zip, remaining: MAX_TOTAL, image_bytes: MAX_TOTAL, glyphs_left: 500_000 })
+        for (name, mut sequence) in pieces {
+            if parts.contains_key(&name) {
+                return Err(bad("part has both whole and interleaved representations"));
+            }
+            sequence.sort_unstable_by_key(|p| p.0);
+            if sequence.iter().enumerate().any(|(i, (number, last, _))| *number != i || *last != (i + 1 == sequence.len())) {
+                return Err(bad("incomplete or ambiguous interleaved part"));
+            }
+            parts.insert(name, sequence.into_iter().map(|p| p.2).collect());
+        }
+        Ok(Self { zip, parts, remaining: MAX_TOTAL, image_bytes: MAX_TOTAL, glyphs_left: 500_000 })
     }
 
     fn read(&mut self, name: &str) -> Result<Vec<u8>> {
-        let mut part = self.zip.by_name(name).map_err(|e| bad(format!("{name}: {e}")))?;
+        let indices = self.parts.get(name).ok_or_else(|| bad(format!("{name}: package part not found")))?;
         let limit = MAX_PART.min(self.remaining);
-        if part.size() > limit as u64 {
-            return Err(bad("part exceeds the decode budget"));
-        }
         let mut out = Vec::new();
         let mut chunk = [0u8; 8192];
-        loop {
-            let count = part.read(&mut chunk).map_err(|e| bad(e.to_string()))?;
-            if count == 0 {
-                break;
-            }
-            if out.len().checked_add(count).is_none_or(|n| n > limit) {
+        for index in indices {
+            let mut part = self.zip.by_index(*index).map_err(|e| bad(format!("{name}: {e}")))?;
+            if part.size() > limit.saturating_sub(out.len()) as u64 {
                 return Err(bad("part exceeds the decode budget"));
             }
-            out.try_reserve(count).map_err(|_| bad("not enough memory for this package part"))?;
-            out.extend_from_slice(chunk.get(..count).ok_or_else(|| bad("invalid ZIP read size"))?);
+            loop {
+                let count = part.read(&mut chunk).map_err(|e| bad(e.to_string()))?;
+                if count == 0 {
+                    break;
+                }
+                if out.len().checked_add(count).is_none_or(|n| n > limit) {
+                    return Err(bad("part exceeds the decode budget"));
+                }
+                out.try_reserve(count).map_err(|_| bad("not enough memory for this package part"))?;
+                out.extend_from_slice(chunk.get(..count).ok_or_else(|| bad("invalid ZIP read size"))?);
+            }
         }
         self.remaining = self.remaining.saturating_sub(out.len());
         Ok(out)
@@ -742,6 +776,45 @@ mod tests {
         let page = "<FixedPage Width=\"816\" Height=\"1056\"/>";
         let bytes: Vec<u8> = [0xff, 0xfe].into_iter().chain(page.encode_utf16().flat_map(u16::to_le_bytes)).collect();
         assert!(from_xps("Word UTF16", &package_bytes(&bytes)).is_ok());
+    }
+
+    #[test]
+    fn interleaved_print_parts_are_reassembled_and_malformed_sequences_refused() {
+        fn pieces(parts: &[(&str, &[u8])]) -> Vec<u8> {
+            let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+            for (name, data) in parts {
+                zip.start_file(*name, zip::write::SimpleFileOptions::default()).unwrap();
+                zip.write_all(data).unwrap();
+            }
+            zip.finish().unwrap().into_inner()
+        }
+        let bytes = pieces(&[("part/[2].last.piece", b"c"), ("part/[0].piece", b"a"), ("part/[1].piece", b"b")]);
+        assert_eq!(Package::new(&bytes).unwrap().read("part").unwrap(), b"abc");
+        for parts in [
+            vec![("part/[0].piece", b"a".as_slice())],
+            vec![("part/[1].last.piece", b"a".as_slice())],
+            vec![("part/[0].last.piece", b"a".as_slice()), ("part/[1].last.piece", b"b")],
+            vec![("part", b"direct".as_slice()), ("part/[0].last.piece", b"a")],
+            vec![("part/[00].last.piece", b"a".as_slice())],
+        ] {
+            let bytes = pieces(&parts);
+            assert!(Package::new(&bytes).and_then(|mut p| p.read("part")).is_err());
+        }
+        let original = package("<FixedPage Width=\"816\" Height=\"1056\"/>");
+        let mut source = zip::ZipArchive::new(Cursor::new(original)).unwrap();
+        let mut out = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        for i in 0..source.len() {
+            let mut part = source.by_index(i).unwrap();
+            let name = part.name().unwrap().to_string();
+            let mut data = Vec::new();
+            part.read_to_end(&mut data).unwrap();
+            for (n, chunk) in data.chunks(127).enumerate() {
+                out.start_file(format!("{name}/[{n}].piece"), zip::write::SimpleFileOptions::default()).unwrap();
+                out.write_all(chunk).unwrap();
+            }
+            out.start_file(format!("{name}/[{}].last.piece", data.len().div_ceil(127)), zip::write::SimpleFileOptions::default()).unwrap();
+        }
+        assert!(from_xps("Native interleaved print", &out.finish().unwrap().into_inner()).is_ok());
     }
 
     #[test]
