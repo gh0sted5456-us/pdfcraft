@@ -1,5 +1,7 @@
 # PdfCraft roadmap: milestones and what's next
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** M10 experimental independent XPS converter on a separate branch; preserves supported text/vectors/images, refuses unsupported content. Native printer excluded from personal 0.13.1; estimates unchanged. See [scope](xps-print-converter.md).
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1: object alignment/distribution and drag guides. The separate PDF printer is excluded from this version. Upstream readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 (M3/M14: original engraved lion in a black palette; existing functionality and upstream milestone estimates unchanged).

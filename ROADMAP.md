@@ -1,5 +1,11 @@
 # PdfCraft roadmap
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** M10 experimental independent XPS conversion core on a separate branch; native printer excluded from personal 0.13.1. Estimates unchanged.
+
+The separate converter preserves supported embedded-font text, solid vector paths and
+PNG/JPEG pictures through the engine and `doc_create`. Unsupported drawing refuses without
+raster fallback. Native printer registration remains planned. See [scope](docs/xps-print-converter.md).
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1: object alignment/distribution and drag guides. The separate PDF printer is excluded from this version. Upstream readiness estimates unchanged.
 
 **Stage: alpha** · next: beta, ~25% (ready for real work 50% → 75%) and ~400–700 h away
@@ -647,6 +653,7 @@ Newest first: the date, what moved, and the new overall estimate.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | M10 experimental XPS conversion core preserves supported text, vectors and pictures; native printer remains excluded from personal 0.13.1. Estimates unchanged. |
 | 2026-10-20 | minor | M4: initial-view window and interface options resolve indirect boolean ViewerPreferences values; synthetic true/false and save/reopen regressions retain defaults for malformed entries. Estimates unchanged. |
 | 2026-10-20 | minor | M6, #3502: form detection preserves comments across content streams; estimates unchanged. |
 | 2026-10-20 | minor | M10, #3532 partial: vector printing retains existing appearances with absent Subtype; estimates unchanged. |

@@ -6982,7 +6982,19 @@ status = "planned"
 commands = []
 tools = []
 evidence = []
-notes = "Excluded from personal 0.13.1 by user request. A separate text/vector-preserving conversion engine is planned; no renamed Microsoft Print to PDF queue is shipped."
+notes = "Native Windows printer queue remains planned and is excluded from personal 0.13.1. The separate experimental XPS conversion core is tracked under create.xps-print-intermediate."
+
+[[feature]]
+id = "create.xps-print-intermediate"
+title = "Independent XPS print-intermediate conversion"
+area = "J"
+tier = "P3"
+milestone = "M10"
+status = "partial"
+commands = []
+tools = ["doc_create"]
+evidence = ["crates/create/src/xps.rs::xps_creates_real_text_unicode_font_and_vector_paths", "crates/create/src/xps.rs::image_brush_keeps_source_pixels_and_uses_xps_96_dpi_default", "crates/automation/tests/it/automation.rs::xps_print_conversion_retains_highlightable_text_and_vectors_through_save_reopen"]
+notes = "Separate experimental engine/CLI core preserves supported embedded-font text with Unicode mappings, solid vector paths and PNG/JPEG images; unsupported drawing refuses without raster fallback. No native printer queue, GUI import, complex clusters, gradients or general resource brushes. See docs/xps-print-converter.md."
 
 [[feature]]
 id = "create.distiller"
