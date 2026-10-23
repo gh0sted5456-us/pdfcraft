@@ -545,6 +545,8 @@ pub struct PdfCraftApp {
     /// Resolved colours, including the current OS theme when following the system.
     pub theme: ThemeKind,
     pub theme_preference: ThemePreference,
+    #[cfg(target_os = "windows")]
+    native_frame_theme: Option<ThemeKind>,
     /// The reading-colours preference (Preferences ▸ Reading colours): applied to every open
     /// document, and documents open with it (Acrobat's Replace Document Colors).
     pub reading_colors: pdfcraft_render::ReadingColors,
@@ -967,6 +969,8 @@ impl PdfCraftApp {
             comment_prefs: Default::default(),
             theme: ThemeKind::Light,
             theme_preference: ThemePreference::Light,
+            #[cfg(target_os = "windows")]
+            native_frame_theme: None,
             reading_colors: Default::default(),
             #[cfg(target_os = "linux")]
             desktop_theme: None,
@@ -3206,6 +3210,18 @@ impl eframe::App for PdfCraftApp {
             }
         }
         self.sync_theme(ctx);
+        #[cfg(target_os = "windows")]
+        if self.native_frame_theme != Some(self.theme) {
+            use winit::platform::windows::{Color, WindowExtWindows};
+            if let Some(window) = _frame.winit_window() {
+                let t = theme::Tokens::for_kind(self.theme);
+                let color = |c: egui::Color32| Color::from_rgb(c.r(), c.g(), c.b());
+                window.set_title_background_color(Some(color(t.titlebar)));
+                window.set_title_text_color(color(t.text));
+                window.set_border_color(Some(color(t.titlebar)));
+                self.native_frame_theme = Some(self.theme);
+            }
+        }
         let native = ctx.native_pixels_per_point().unwrap_or(1.0);
         ui_scale::sync(ctx, ui_scale::zoom(self.ui_scale, self.system_text_scale, native), &mut self.ui_scale_applied);
         // Remember user work even if its tab is subsequently closed or Home is selected.

@@ -1676,6 +1676,7 @@ dependencies = [
  "ahash",
  "egui",
  "enum-map",
+ "image",
  "itertools",
  "log",
  "profiling",
@@ -4415,6 +4416,7 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
+ "winit",
  "winsafe",
  "xattr",
 ]

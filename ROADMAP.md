@@ -191,6 +191,8 @@ Ranked; detail and the full milestone table in [docs/roadmap.md](docs/roadmap.md
 
 ## Progress log
 
+- **2026-10-23 (M3/M14, personal build):** Original generated orange-and-black lion with transparency replaces the app icon, Home and About branding; upstream trademark marks are removed and original project credits retained. Native Windows 11 caption and border use the tab-strip palette, retaining system window controls. Explorer thumbnails use the embedded lion as a native lower-right type badge; PDF content is unchanged. MSI and native colour checks cover the update.
+
 - **M10 local OCR prompt candidate:** Edit offers Current page / All pages before recognizing an image-only scan; a remembered toggle controls offers. Uses existing local OCR and phrase editing; adds stale-result protection from #1876 and builds on the scan detection in #1609. See `docs/scan-ocr.md`.
 
 - **2026-10-22 (M7/M14, local Windows candidate):** Integrates #4111, #3705 and #1370 for Delete on mixed page selections and first-page Explorer thumbnails. Adds shared atomic `DeleteObjects` / `object_delete`, generation and permission checks, source-preserving paragraph removal, selection retention on refusal, and bounded shared thumbnail input. Tests and native validation are recorded with the candidate; no upstream merge or release is claimed. Estimates unchanged.
