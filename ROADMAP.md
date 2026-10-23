@@ -1,5 +1,7 @@
 # PdfCraft roadmap
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 adopts added-text editor alignment from upstream PR #4178 by @RiceDee; centered/right-aligned text stays anchored when editing, including boxes narrower than the editor minimum. Justified editing remains left-aligned; readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 adds same-page group selection of comments and added content, atomic group dragging/Delete/Undo, a centered theme-aware close prompt with matte hover colors, and persistent red/green document-status dots. Crop-from-grid fix adopted from PR #3974 by @eliets2. Existing readiness estimates and native printer validation limits unchanged.
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** community icon hover says only ArtCraft Community; printer setup uses the Windows GUI subsystem, has no extra success popup, and checks shipped PE headers. Existing printer validation limits and estimates unchanged.
@@ -207,6 +209,7 @@ Ranked; detail and the full milestone table in [docs/roadmap.md](docs/roadmap.md
 
 ## Progress log
 
+- 2026-10-23 — M7 personal build: adopted PR #4178 (@RiceDee), keeping centered/right-aligned added text anchored when its editor opens, including narrow boxes. Both synthetic pixel regressions reproduced the bug before the fix. Justified text remains left-aligned while editing.
 - 2026-10-23 — M5 personal build: square Group select tool with blue marquee and mixed comment/added-content dragging and deletion in one undo step. M4 close prompt centered with Exit/Cancel/Save, theme-matched matte fills and semantic hover colors; preserve keyboard and failed-save behavior. Document tabs show persistent red unsaved/green saved dots beside Close, with accessible status descriptions. Incorporated crop-from-grid PR #3974 (@eliets2), excluding its unrelated lockfile change.
 
 - **2026-10-23 (M3/M14, personal 0.13.1):** PdfCraft Printer uses a Windows Print Support App and a separate Linux CUPS 2.x backend. Interleaved OpenXPS conversion and native captured Word text pass search/highlight/save/reopen checks; Linux target compilation and strict linting pass. Native Linux queue operation remains unverified here. Original lion artwork has transparent surroundings and inverted interface palettes; document window titles omit the application suffix.
