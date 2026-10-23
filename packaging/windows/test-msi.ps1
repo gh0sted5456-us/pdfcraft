@@ -142,6 +142,10 @@ $checked = Read-Row 'SELECT `Value` FROM `CheckBox` WHERE `Property` = ''INSTALL
 Assert-Equal $checked[0] '1' 'Welcome checkbox value'
 $app = Read-Row 'SELECT `KeyPath` FROM `Component` WHERE `Component` = ''PdfcraftApp''' 1
 Assert-Equal $app[0] 'PdfcraftExe' 'Shortcut executable key path'
+$overlay = Read-Row 'SELECT `Root`, `Component_`, `Value` FROM `Registry` WHERE `Key` = ''Software\Classes\PdfCraft.Document'' AND `Name` = ''TypeOverlay''' 3
+Assert-Equal $overlay[0] '2' 'Thumbnail badge machine scope'
+Assert-Equal $overlay[1] 'PdfcraftApp' 'Thumbnail badge follows the app installation'
+Assert-Equal $overlay[2] '"[#PdfcraftExe]",-1' 'Thumbnail badge uses the embedded PdfCraft lion'
 $scope = Read-Row 'SELECT `Value` FROM `Property` WHERE `Property` = ''ALLUSERS''' 1
 Assert-Equal $scope[0] '1' 'Per-machine shortcut scope'
 

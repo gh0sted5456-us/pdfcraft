@@ -30,7 +30,9 @@ dependencies need it, and the workspace `rust-version` states the same minimum.
 Display theme saves System, Light or Dark separately from the palette currently drawn. New
 installations still default to Light. System follows native appearance events on macOS and
 Windows. The Windows title bar and frame follow the saved application theme, including changes
-while the app is open; System returns them to the Windows setting. Other platforms keep their
+while the app is open. On Windows 11, the title-bar background and border use the same colour as
+the tab strip, and the title uses the interface text colour. Older Windows versions retain the
+toolkit's light/dark frame. System follows the Windows setting. Other platforms keep their
 inherited native appearance. Both egui style branches use the selected application palette, so
 desktop changes cannot override a manual choice.
 

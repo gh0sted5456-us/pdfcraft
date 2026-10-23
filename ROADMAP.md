@@ -191,6 +191,8 @@ Ranked; detail and the full milestone table in [docs/roadmap.md](docs/roadmap.md
 
 ## Progress log
 
+- **2026-10-23 (M3/M14, Windows follow-up):** Native Windows 11 caption and border match the app tab-strip palette, retaining native window controls and the older-Windows light/dark fallback. Explorer uses the existing embedded app icon as its native lower-right thumbnail badge. No artwork or project branding changes. MSI regression checks and native light/dark screenshots with matching sampled colors pass locally; the build is unsigned and full CI remains pending. Milestone estimates unchanged.
+
 - **M10 local OCR prompt candidate:** Edit offers Current page / All pages before recognizing an image-only scan; a remembered toggle controls offers. Uses existing local OCR and phrase editing; adds stale-result protection from #1876 and builds on the scan detection in #1609. See `docs/scan-ocr.md`.
 
 - **2026-10-22 (M7/M14, local Windows candidate):** Integrates #4111, #3705 and #1370 for Delete on mixed page selections and first-page Explorer thumbnails. Adds shared atomic `DeleteObjects` / `object_delete`, generation and permission checks, source-preserving paragraph removal, selection retention on refusal, and bounded shared thumbnail input. Tests and native validation are recorded with the candidate; no upstream merge or release is claimed. Estimates unchanged.

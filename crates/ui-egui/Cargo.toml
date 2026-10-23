@@ -65,6 +65,8 @@ plist = "1.10"
 rustix = { version = "1", features = ["fs"] }
 
 [target.'cfg(windows)'.dependencies]
+# Safe access to the existing native window's title-bar colours; already used by eframe.
+winit = { version = "0.30", default-features = false }
 # Auto interface language: the Windows display language, without starting a process.
 sys-locale = "0.3"
 # Region ▸ Measurement system for the default Units, read from the registry without starting reg.exe;
