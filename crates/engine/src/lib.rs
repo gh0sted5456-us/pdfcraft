@@ -67,7 +67,9 @@ pub use pdfcraft_forms::{
 };
 
 pub use pdfcraft_a11y as a11y;
-pub use pdfcraft_edit::{BlockKey, BlockStyle, PageImage, PathOutline, PathStyle, RangeStyle, TextBlock, TextLine, block_overlapping, first_undrawable};
+pub use pdfcraft_edit::{
+    BlockKey, BlockStyle, PageImage, PathOutline, PathStyle, RangeStyle, TextBlock, TextLine, block_overlapping, first_undrawable,
+};
 pub use pdfcraft_measure as measure;
 pub use pdfcraft_xfa::Report as XfaLayout;
 
@@ -301,6 +303,7 @@ fn scope_of(edit: &Edit) -> Scope {
         // Page content, resources and added content/marks only: the page tree, annotations,
         // fields, links and document metadata are untouched (see `refresh_content`).
         Edit::MoveObjects { .. }
+        | Edit::DeleteObjects { .. }
         | Edit::DeletePaths { .. }
         | Edit::StylePaths { .. }
         | Edit::MovePathPoint { .. }
@@ -1681,6 +1684,11 @@ pub enum Edit {
         objects: Vec<ObjectTarget>,
         offset: [f64; 2],
     },
+    /// Delete a mixed selection from `Document::editable_objects`, as one atomic undo step.
+    DeleteObjects {
+        page: usize,
+        objects: Vec<ObjectTarget>,
+    },
     /// Delete vector paths on `page` (indexes of `ObjectKind::Path` objects from `Document::editable_objects`).
     DeletePaths {
         page: usize,
@@ -2144,6 +2152,7 @@ impl Edit {
             Edit::EditTextLine { .. } | Edit::EditTextBlock { .. } => Label::of("Edit text"),
             Edit::RegisterTextFont { .. } => Label::of("Load document font"),
             Edit::MoveObjects { objects, .. } => plural("Move object", "Move objects", objects.len()),
+            Edit::DeleteObjects { .. } => Label::of("Delete content"),
             Edit::DeletePaths { paths, .. } => plural("Delete line", "Delete lines", paths.len()),
             Edit::StylePaths { paths, .. } => plural("Format line", "Format lines", paths.len()),
             Edit::MovePathPoint { .. } => Label::of("Move line point"),
@@ -2309,6 +2318,7 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::AddImage { .. }
         | Edit::UpdateContent { .. }
         | Edit::MoveObjects { .. }
+        | Edit::DeleteObjects { .. }
         | Edit::DeletePaths { .. }
         | Edit::StylePaths { .. }
         | Edit::MovePathPoint { .. }
@@ -2702,6 +2712,7 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             pdfcraft_edit::change_image(doc, *page, *index, &c)?;
         }
         Edit::MoveObjects { page, objects, offset } => pdfcraft_edit::move_objects(doc, *page, objects, *offset)?,
+        Edit::DeleteObjects { page, objects } => pdfcraft_edit::delete_objects(doc, *page, objects)?,
         Edit::DeletePaths { page, paths } => pdfcraft_edit::delete_paths(doc, *page, paths)?,
         Edit::StylePaths { page, paths, style } => pdfcraft_edit::style_paths(doc, *page, paths, *style)?,
         Edit::MovePathPoint { page, path, point, to } => pdfcraft_edit::move_path_point(doc, *page, *path, *point, *to)?,
@@ -4166,7 +4177,7 @@ impl Session {
             matches!(
                 e,
                 Edit::AddText { .. } | Edit::AddImage { .. } | Edit::UpdateContent { .. } | Edit::DeleteContent { .. } | Edit::ReplaceImage { .. }
-            ) || matches!(e, Edit::MoveObjects { objects, .. } if objects.iter().any(|o| o.kind == ObjectKind::Added))
+            ) || matches!(e, Edit::MoveObjects { objects, .. } | Edit::DeleteObjects { objects, .. } if objects.iter().any(|o| o.kind == ObjectKind::Added))
         });
         let touches_marks = edit.is_none_or(|e| {
             matches!(e, Edit::AddHeaderFooter { .. } | Edit::AddWatermark { .. } | Edit::AddBackground { .. } | Edit::RemoveMarks { .. })
