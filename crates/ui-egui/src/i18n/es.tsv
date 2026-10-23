@@ -2842,3 +2842,7 @@ theme	Appearance	Aspecto
 	Line colour	Color de línea
 	Drag a point to reshape the line. Delete removes it.	Arrastra un punto para cambiar la forma de la línea. Con Supr se elimina.
 	This point could not be moved. Try a smaller move.	No se pudo mover este punto. Prueba con un desplazamiento menor.
+	Recognize scanned text automatically	Reconocer automáticamente el texto escaneado
+	Ask whether to recognize the current page or all pages when editing a scan.	Al editar un documento escaneado, preguntar si se debe reconocer la página actual o todas las páginas.
+	Scanned text detected	Se detectó texto escaneado
+	Recognize text on this page or throughout the document?	¿Reconocer el texto de esta página o de todo el documento?

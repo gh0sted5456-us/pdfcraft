@@ -2432,3 +2432,7 @@ animation effects	Off	Выкл
 	Line colour	Цвет линии
 	Drag a point to reshape the line. Delete removes it.	Перетащите точку, чтобы изменить форму линии. Клавиша Delete удаляет линию.
 	This point could not be moved. Try a smaller move.	Не удалось переместить эту точку. Попробуйте меньшее смещение.
+	Recognize scanned text automatically	Автоматически распознавать отсканированный текст
+	Ask whether to recognize the current page or all pages when editing a scan.	При редактировании скана спрашивать, распознать текущую страницу или все страницы.
+	Scanned text detected	Обнаружен отсканированный текст
+	Recognize text on this page or throughout the document?	Распознать текст на этой странице или во всём документе?

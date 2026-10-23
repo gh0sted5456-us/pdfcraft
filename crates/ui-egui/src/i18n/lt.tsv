@@ -2785,3 +2785,7 @@ theme	Appearance	Išvaizda
 	Format line	Formatuoti liniją
 	Format lines	Formatuoti linijas
 	Move line point	Perkelti linijos tašką
+	Recognize scanned text automatically	Automatiškai atpažinti nuskaitytą tekstą
+	Ask whether to recognize the current page or all pages when editing a scan.	Redaguojant nuskaitytą dokumentą paklausti, ar atpažinti dabartinį puslapį, ar visus puslapius.
+	Scanned text detected	Aptiktas nuskaitytas tekstas
+	Recognize text on this page or throughout the document?	Atpažinti tekstą šiame puslapyje ar visame dokumente?

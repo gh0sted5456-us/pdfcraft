@@ -2515,3 +2515,7 @@ animation effects	Off	Kapalı
 	Line colour	Çizgi rengi
 	Drag a point to reshape the line. Delete removes it.	Çizginin şeklini değiştirmek için bir noktayı sürükleyin. Delete tuşu çizgiyi kaldırır.
 	This point could not be moved. Try a smaller move.	Bu nokta taşınamadı. Daha küçük bir kaydırma deneyin.
+	Recognize scanned text automatically	Taranmış metni otomatik tanı
+	Ask whether to recognize the current page or all pages when editing a scan.	Taranmış bir belge düzenlenirken geçerli sayfanın mı yoksa tüm sayfaların mı tanınacağını sor.
+	Scanned text detected	Taranmış metin algılandı
+	Recognize text on this page or throughout the document?	Bu sayfadaki metin mi yoksa belgenin tamamındaki metin mi tanınsın?

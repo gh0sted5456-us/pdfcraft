@@ -2826,3 +2826,7 @@ certificate	Version	Verze
 	Line colour	Barva čáry
 	Drag a point to reshape the line. Delete removes it.	Přetažením bodu změníte tvar čáry. Klávesa Delete ji odstraní.
 	This point could not be moved. Try a smaller move.	Tento bod se nepodařilo přesunout. Zkuste menší posun.
+	Recognize scanned text automatically	Automaticky rozpoznávat naskenovaný text
+	Ask whether to recognize the current page or all pages when editing a scan.	Při úpravě skenu se zeptat, zda rozpoznat aktuální stránku, nebo všechny stránky.
+	Scanned text detected	Byl zjištěn naskenovaný text
+	Recognize text on this page or throughout the document?	Rozpoznat text na této stránce, nebo v celém dokumentu?

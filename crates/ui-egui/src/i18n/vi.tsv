@@ -2789,3 +2789,7 @@ key	Space	Space
 	Format line	Định dạng đường
 	Format lines	Định dạng các đường
 	Move line point	Di chuyển điểm của đường
+	Recognize scanned text automatically	Tự động nhận dạng văn bản đã quét
+	Ask whether to recognize the current page or all pages when editing a scan.	Khi chỉnh sửa tài liệu đã quét, hỏi có nhận dạng trang hiện tại hay tất cả các trang.
+	Scanned text detected	Phát hiện văn bản đã quét
+	Recognize text on this page or throughout the document?	Nhận dạng văn bản trên trang này hay trong toàn bộ tài liệu?

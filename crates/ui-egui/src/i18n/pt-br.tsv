@@ -2804,3 +2804,7 @@ theme	Appearance	Aparência
 	Line colour	Cor da linha
 	Drag a point to reshape the line. Delete removes it.	Arraste um ponto para mudar a forma da linha. A tecla Delete a remove.
 	This point could not be moved. Try a smaller move.	Não foi possível mover este ponto. Tente um deslocamento menor.
+	Recognize scanned text automatically	Reconhecer automaticamente o texto digitalizado
+	Ask whether to recognize the current page or all pages when editing a scan.	Ao editar um documento digitalizado, perguntar se deve reconhecer a página atual ou todas as páginas.
+	Scanned text detected	Texto digitalizado detectado
+	Recognize text on this page or throughout the document?	Reconhecer o texto desta página ou de todo o documento?

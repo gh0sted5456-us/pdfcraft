@@ -2546,3 +2546,7 @@ animation effects	Off	Вимкнено
 	Move line point	Перемістити точку лінії
 	Drag a point to reshape the line. Delete removes it.	Перетягніть точку, щоб змінити форму лінії. Delete видаляє її.
 	This point could not be moved. Try a smaller move.	Цю точку не вдалося перемістити. Спробуйте менше зміщення.
+	Recognize scanned text automatically	Автоматично розпізнавати сканований текст
+	Ask whether to recognize the current page or all pages when editing a scan.	Під час редагування сканованого документа запитувати, чи розпізнати поточну сторінку або всі сторінки.
+	Scanned text detected	Виявлено сканований текст
+	Recognize text on this page or throughout the document?	Розпізнати текст на цій сторінці чи в усьому документі?

@@ -2517,3 +2517,7 @@ animation effects	Off	Өшірулі
 	Line colour	Сызық түсі
 	Drag a point to reshape the line. Delete removes it.	Сызық пішінін өзгерту үшін нүктені сүйреңіз. Delete пернесі оны жояды.
 	This point could not be moved. Try a smaller move.	Бұл нүктені жылжыту мүмкін болмады. Азырақ жылжытып көріңіз.
+	Recognize scanned text automatically	Сканерленген мәтінді автоматты түрде тану
+	Ask whether to recognize the current page or all pages when editing a scan.	Сканерленген құжатты өңдегенде ағымдағы бетті немесе барлық беттерді тану керектігін сұрау.
+	Scanned text detected	Сканерленген мәтін анықталды
+	Recognize text on this page or throughout the document?	Осы беттегі мәтінді немесе бүкіл құжаттағы мәтінді тану керек пе?

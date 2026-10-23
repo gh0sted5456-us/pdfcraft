@@ -345,6 +345,12 @@ pub enum Dialog {
     AccessibilityOptions,
     /// Scan & OCR ▸ Recognize text.
     RecognizeText,
+    /// Edit detected a scan; recognition waits for the user's page choice.
+    RecognizeScan {
+        doc: DocId,
+        page: usize,
+        generation: u64,
+    },
     /// The JavaScript console (⌘J).
     JsConsole,
     /// Document JavaScripts.
@@ -677,6 +683,7 @@ pub struct PdfCraftApp {
     pub a11y_options: a11y_ui::A11yOptions,
     /// Scan & OCR: the Recognize Text choices, the running job, and (tests) run it inline.
     pub ocr_draft: ocr_ui::OcrDraft,
+    pub auto_ocr: bool,
     pub ocr_run: Option<ocr_ui::OcrRun>,
     pub ocr_batch: Option<std::sync::Arc<std::sync::Mutex<ocr_ui::BatchProgress>>>,
     /// Background jobs (OCR, actions, listing pinned folders) run inline instead (tests).
@@ -1038,6 +1045,7 @@ impl PdfCraftApp {
             sig_expanded: Vec::new(),
             a11y_options: a11y_ui::A11yOptions::default(),
             ocr_draft: ocr_ui::OcrDraft::default(),
+            auto_ocr: true,
             ocr_run: None,
             ocr_batch: None,
             run_inline: false,
@@ -2431,6 +2439,7 @@ impl PdfCraftApp {
         // Set outside json! above, which is at serde_json's macro recursion limit.
         v["hide_empty_highlight_hover"] = serde_json::Value::Bool(self.comment_prefs.hide_empty_highlight_hover);
         v["organize_zoom"] = serde_json::json!(self.organize_zoom);
+        v["auto_ocr"] = serde_json::Value::Bool(self.auto_ocr);
         // Canonical names survive changes to the order of PAPERS and do not depend on UI language.
         v["print_paper"] = serde_json::json!(pdfcraft_engine::print::PAPERS.get(self.print_draft.paper).map(|(name, _)| *name));
         v.to_string()
@@ -2484,6 +2493,9 @@ impl PdfCraftApp {
         }
         if let Ok(effects) = serde_json::from_value::<motion::AnimationEffects>(v["animation_effects"].clone()) {
             self.animation_effects = effects;
+        }
+        if let Some(enabled) = v["auto_ocr"].as_bool() {
+            self.auto_ocr = enabled;
         }
         if let Ok(mode) = serde_json::from_value::<Mode>(v["default_mode"].clone()) {
             self.default_mode = mode;
@@ -2644,6 +2656,14 @@ impl PdfCraftApp {
             }
             ("animation_effects", _) => {
                 self.animation_effects = motion::AnimationEffects::parse(value).ok_or("animation_effects must be system, on, or off")?;
+            }
+            ("auto_ocr", _) => {
+                let enabled = match value {
+                    "on" | "true" => true,
+                    "off" | "false" => false,
+                    _ => return Err("auto_ocr must be on or off".into()),
+                };
+                self.set_auto_ocr(enabled);
             }
             ("panel", _) => {
                 self.right = match value {
@@ -3308,6 +3328,7 @@ impl eframe::App for PdfCraftApp {
         }
         self.poll_export();
         self.poll_ocr();
+        self.prompt_scan_ocr();
         self.poll_optimize();
         self.poll_action();
         self.process_file_requests();

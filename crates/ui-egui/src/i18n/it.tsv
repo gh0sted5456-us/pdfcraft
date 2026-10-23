@@ -2751,3 +2751,7 @@ certificate	SHA-256 digest	Impronta SHA-256
 	Line colour	Colore della linea
 	Drag a point to reshape the line. Delete removes it.	Trascina un punto per modificare la forma della linea. Canc la elimina.
 	This point could not be moved. Try a smaller move.	Impossibile spostare questo punto. Prova con uno spostamento più piccolo.
+	Recognize scanned text automatically	Riconosci automaticamente il testo scansionato
+	Ask whether to recognize the current page or all pages when editing a scan.	Durante la modifica di una scansione, chiedi se riconoscere la pagina corrente o tutte le pagine.
+	Scanned text detected	Rilevato testo scansionato
+	Recognize text on this page or throughout the document?	Riconoscere il testo di questa pagina o dell'intero documento?

@@ -2774,3 +2774,11 @@ theme	Appearance	Aspecte
 	field names can't contain a period: {name}	els noms dels camps no poden contenir cap punt: {name}
 	two cells would both be named {name}	dues cel·les es dirien {name}
 	a field named {name} already exists	ja existeix un camp anomenat {name}
+	Recognize scanned text automatically	Reconeix automàticament el text escanejat
+	Ask whether to recognize the current page or all pages when editing a scan.	Pregunta si cal reconèixer la pàgina actual o totes les pàgines en editar un document escanejat.
+	Scanned text detected	S'ha detectat text escanejat
+	Recognize text on this page or throughout the document?	Voleu reconèixer el text d'aquesta pàgina o de tot el document?
+	Drag a point to reshape the line. Delete removes it.	Arrossegueu un punt per canviar la forma de la línia. Supr l'elimina.
+	Line colour	Color de la línia
+	Lines	Línies
+	This point could not be moved. Try a smaller move.	No s'ha pogut moure aquest punt. Proveu un desplaçament més petit.

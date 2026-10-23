@@ -2518,3 +2518,7 @@ animation effects	Off	Ki
 	Line colour	Vonal színe
 	Drag a point to reshape the line. Delete removes it.	Húzzon el egy pontot a vonal alakjának módosításához. A Delete törli a vonalat.
 	This point could not be moved. Try a smaller move.	Ezt a pontot nem sikerült áthelyezni. Próbáljon kisebb elmozdítást.
+	Recognize scanned text automatically	Beolvasott szöveg automatikus felismerése
+	Ask whether to recognize the current page or all pages when editing a scan.	Beolvasott dokumentum szerkesztésekor kérdezzen rá, hogy az aktuális vagy az összes oldalt ismerje-e fel.
+	Scanned text detected	Beolvasott szöveg észlelve
+	Recognize text on this page or throughout the document?	Ezen az oldalon vagy a teljes dokumentumban ismerje fel a szöveget?

@@ -2795,3 +2795,7 @@ certificate	Version	الإصدار
 	Line colour	لون الخط
 	Drag a point to reshape the line. Delete removes it.	اسحب نقطة لتغيير شكل الخط. يحذفه مفتاح Delete.
 	This point could not be moved. Try a smaller move.	تعذّر نقل هذه النقطة. جرّب إزاحة أصغر.
+	Recognize scanned text automatically	التعرّف تلقائيًا على النص الممسوح ضوئيًا
+	Ask whether to recognize the current page or all pages when editing a scan.	السؤال عمّا إذا كان ينبغي التعرّف على الصفحة الحالية أو جميع الصفحات عند تحرير مستند ممسوح ضوئيًا.
+	Scanned text detected	تم اكتشاف نص ممسوح ضوئيًا
+	Recognize text on this page or throughout the document?	هل تريد التعرّف على النص في هذه الصفحة أم في المستند بأكمله؟

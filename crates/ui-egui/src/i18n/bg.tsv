@@ -2482,3 +2482,7 @@ animation effects	Off	Изключени
 	Line colour	Цвят на линията
 	Drag a point to reshape the line. Delete removes it.	Плъзнете точка, за да промените формата на линията. Delete я премахва.
 	This point could not be moved. Try a smaller move.	Тази точка не можа да бъде преместена. Опитайте с по-малко преместване.
+	Recognize scanned text automatically	Автоматично разпознаване на сканиран текст
+	Ask whether to recognize the current page or all pages when editing a scan.	При редактиране на сканиран документ да се пита дали да се разпознае текущата страница или всички страници.
+	Scanned text detected	Открит е сканиран текст
+	Recognize text on this page or throughout the document?	Да се разпознае ли текстът на тази страница или в целия документ?
