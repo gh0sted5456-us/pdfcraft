@@ -98,6 +98,7 @@
     <ComponentGroup Id="PdfcraftFiles" Directory="INSTALLFOLDER">
       <Component Id="PdfcraftApp" Guid="E724C1C6-091F-4E21-A685-80D089FDBE21">
         <File Id="PdfcraftExe" Source="$(var.BinDir)\pdfcraft.exe" KeyPath="yes" />
+        <File Id="PdfcraftBadge" Source="$(var.IconPath)" Name="pdfcraft-badge-$(var.Version).ico" />
 
         <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\pdfcraft.exe" Value="[#PdfcraftExe]" Type="string" />
 
@@ -112,9 +113,8 @@
              Resource 1 is the app's lion; resource 2 is the PDF document (build.rs). -->
         <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document\DefaultIcon" Value="&quot;[#PdfcraftExe]&quot;,-2" Type="string" />
         <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document\shell\open\command" Value="&quot;[#PdfcraftExe]&quot; &quot;%1&quot;" Type="string" />
-        <!-- Explorer draws the existing app lion at the thumbnail's lower-right corner.
-             Keep the PDF document icon separate; -1 selects the stable app icon resource. -->
-        <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document" Name="TypeOverlay" Value="&quot;[#PdfcraftExe]&quot;,-1" Type="string" />
+        <!-- A versioned icon path prevents Explorer retaining the previous release's lion. -->
+        <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document" Name="TypeOverlay" Value="&quot;[#PdfcraftBadge]&quot;,0" Type="string" />
         <RegistryValue Root="HKLM" Key="Software\Classes\.pdf\OpenWithProgids" Name="PdfCraft.Document" Value="" Type="string" />
         <RegistryValue Root="HKLM" Key="Software\Classes\Applications\pdfcraft.exe" Name="FriendlyAppName" Value="PdfCraft" Type="string" />
         <RegistryValue Root="HKLM" Key="Software\Classes\Applications\pdfcraft.exe\DefaultIcon" Value="&quot;[#PdfcraftExe]&quot;,-2" Type="string" />

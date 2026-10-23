@@ -3454,9 +3454,14 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
                 };
                 crate::redact_ui::page_input(ui, &resp, &xf, i, info, over_text, view)
             };
+            if tool == QuickTool::EditText && can_modify {
+                view.objects.prepare_drag(ui, &xf, i, doc);
+            }
             let image_owns_pointer = tool == QuickTool::EditText && crate::edit_text_ui::image_owns_pointer(ui, &xf, i, info, view);
-            let on_objects =
-                !image_owns_pointer && tool == QuickTool::EditText && can_modify && crate::object_ui::page_input(ui, &resp, &xf, i, doc, view);
+            let on_objects = (!image_owns_pointer || ui.input(|i| i.pointer.secondary_pressed()))
+                && tool == QuickTool::EditText
+                && can_modify
+                && crate::object_ui::page_input(ui, &resp, &xf, i, doc, view);
             let lines = if matches!(tool, QuickTool::AddText | QuickTool::EditText) && can_modify {
                 let generation = doc.edit_generation();
                 match view.edit_lines.get(&i) {
@@ -3931,6 +3936,9 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
             view.current = current;
         }
         resp.context_menu(|ui| {
+            if tool == QuickTool::EditText && crate::object_ui::context_menu(ui, doc, view, can_modify) {
+                return;
+            }
             // Preparing a form: the selected field's menu.
             if preparing && let Some((name, wi)) = view.prepare.selected.clone() {
                 // Several fields: Align, Center, Distribute, Set Fields to Same Size.

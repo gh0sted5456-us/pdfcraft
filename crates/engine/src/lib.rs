@@ -73,7 +73,7 @@ pub use pdfcraft_edit::{
 pub use pdfcraft_measure as measure;
 pub use pdfcraft_xfa::Report as XfaLayout;
 
-pub use pdfcraft_edit::{EditableObject, MAX_MOVE_OBJECTS, ObjectKind, ObjectTarget};
+pub use pdfcraft_edit::{EditableObject, MAX_MOVE_OBJECTS, ObjectAlign, ObjectKind, ObjectTarget};
 
 /// A change to an existing page image.
 #[derive(Clone, Debug, PartialEq)]
@@ -303,6 +303,7 @@ fn scope_of(edit: &Edit) -> Scope {
         // Page content, resources and added content/marks only: the page tree, annotations,
         // fields, links and document metadata are untouched (see `refresh_content`).
         Edit::MoveObjects { .. }
+        | Edit::AlignObjects { .. }
         | Edit::DeleteObjects { .. }
         | Edit::DeletePaths { .. }
         | Edit::StylePaths { .. }
@@ -547,6 +548,12 @@ impl Document {
     pub fn editable_objects(&self, page: usize) -> Result<Vec<EditableObject>, String> {
         let editor = self.editor.as_ref().ok_or("the document can't be read")?;
         pdfcraft_edit::editable_objects(&editor.cos, page).map_err(|e| e.to_string())
+    }
+
+    /// Per-object user-space offsets for an alignment; used to retain the UI selection after the edit.
+    pub fn object_alignment_offsets(&self, page: usize, objects: &[ObjectTarget], how: ObjectAlign) -> Result<Vec<(ObjectTarget, [f64; 2])>, String> {
+        let editor = self.editor.as_ref().ok_or("the document can't be read")?;
+        pdfcraft_edit::object_alignment_offsets(&editor.cos, page, objects, how).map_err(|e| e.to_string())
     }
 
     /// Displayed top-left-origin motion to a user-space vector. Use the linear map only,
@@ -1684,6 +1691,12 @@ pub enum Edit {
         objects: Vec<ObjectTarget>,
         offset: [f64; 2],
     },
+    /// Align or distribute mixed page objects without retyping their content.
+    AlignObjects {
+        page: usize,
+        objects: Vec<ObjectTarget>,
+        how: ObjectAlign,
+    },
     /// Delete a mixed selection from `Document::editable_objects`, as one atomic undo step.
     DeleteObjects {
         page: usize,
@@ -2151,7 +2164,7 @@ impl Edit {
             Edit::SetDocumentScript { .. } => Label::of("Edit document JavaScript"),
             Edit::EditTextLine { .. } | Edit::EditTextBlock { .. } => Label::of("Edit text"),
             Edit::RegisterTextFont { .. } => Label::of("Load document font"),
-            Edit::MoveObjects { objects, .. } => plural("Move object", "Move objects", objects.len()),
+            Edit::MoveObjects { objects, .. } | Edit::AlignObjects { objects, .. } => plural("Move object", "Move objects", objects.len()),
             Edit::DeleteObjects { .. } => Label::of("Delete content"),
             Edit::DeletePaths { paths, .. } => plural("Delete line", "Delete lines", paths.len()),
             Edit::StylePaths { paths, .. } => plural("Format line", "Format lines", paths.len()),
@@ -2318,6 +2331,7 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::AddImage { .. }
         | Edit::UpdateContent { .. }
         | Edit::MoveObjects { .. }
+        | Edit::AlignObjects { .. }
         | Edit::DeleteObjects { .. }
         | Edit::DeletePaths { .. }
         | Edit::StylePaths { .. }
@@ -2712,6 +2726,7 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             pdfcraft_edit::change_image(doc, *page, *index, &c)?;
         }
         Edit::MoveObjects { page, objects, offset } => pdfcraft_edit::move_objects(doc, *page, objects, *offset)?,
+        Edit::AlignObjects { page, objects, how } => pdfcraft_edit::align_objects(doc, *page, objects, *how)?,
         Edit::DeleteObjects { page, objects } => pdfcraft_edit::delete_objects(doc, *page, objects)?,
         Edit::DeletePaths { page, paths } => pdfcraft_edit::delete_paths(doc, *page, paths)?,
         Edit::StylePaths { page, paths, style } => pdfcraft_edit::style_paths(doc, *page, paths, *style)?,
@@ -4177,7 +4192,7 @@ impl Session {
             matches!(
                 e,
                 Edit::AddText { .. } | Edit::AddImage { .. } | Edit::UpdateContent { .. } | Edit::DeleteContent { .. } | Edit::ReplaceImage { .. }
-            ) || matches!(e, Edit::MoveObjects { objects, .. } | Edit::DeleteObjects { objects, .. } if objects.iter().any(|o| o.kind == ObjectKind::Added))
+            ) || matches!(e, Edit::MoveObjects { objects, .. } | Edit::AlignObjects { objects, .. } | Edit::DeleteObjects { objects, .. } if objects.iter().any(|o| o.kind == ObjectKind::Added))
         });
         let touches_marks = edit.is_none_or(|e| {
             matches!(e, Edit::AddHeaderFooter { .. } | Edit::AddWatermark { .. } | Edit::AddBackground { .. } | Edit::RemoveMarks { .. })

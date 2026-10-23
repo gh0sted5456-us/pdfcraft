@@ -172,6 +172,12 @@ pub fn tools() -> Vec<ToolDef> {
                     "type":"object","properties":{"kind":{"type":"string","enum":["added","text","image","path"]},"index":{"type":"integer","minimum":1}},"required":["kind","index"],"additionalProperties":false}},
                 "offset":{"type":"array","items":{"type":"number"},"minItems":2,"maxItems":2},
                 "generation":{"type":"integer","minimum":0,"description":"Use generation returned by object_list to reject a stale selection."}}), &["doc","page","objects","offset"])),
+        t("object_align", "Align or distribute objects", "Align 2–1000 mixed objects to an edge or center of their selection, or distribute at least three objects with equal gaps. Uses displayed page orientation; preserves content and object sizes. One atomic undo step. References and optional generation come from object_list; a stale or unsupported selection refuses the entire edit.")
+            .with(schema(json!({"doc":doc(),"page":{"type":"integer","minimum":1},
+                "objects":{"type":"array","minItems":2,"maxItems":1000,"uniqueItems":true,"items":{
+                    "type":"object","properties":{"kind":{"type":"string","enum":["added","text","image","path"]},"index":{"type":"integer","minimum":1}},"required":["kind","index"],"additionalProperties":false}},
+                "alignment":{"type":"string","enum":["left","center_horizontal","right","top","center_vertical","bottom","distribute_horizontal","distribute_vertical"]},
+                "generation":{"type":"integer","minimum":0}}), &["doc","page","objects","alignment"])),
         t("object_delete", "Delete selected objects", "Delete 1–1000 text, image, Form, vector-path or added-content references from object_list as one undo step. A missing, repeated or stale reference refuses the entire edit. This is ordinary editing, not secure redaction.")
             .with(schema(json!({"doc":doc(),"page":{"type":"integer","minimum":1},
                 "objects":{"type":"array","minItems":1,"maxItems":1000,"uniqueItems":true,"items":{

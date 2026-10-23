@@ -1,5 +1,7 @@
 # PdfCraft parity with Adobe Acrobat Pro
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1: object alignment/distribution and drag guides. The separate PDF printer is excluded from this version. Upstream readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-20 · **Change:** minor (M12 #3673: Character encoding CJK mapping routes corrected; scores and estimates unchanged)
 
 > **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (localization ≈59% → ≈68%; weighted readiness 49.25 → 49.7 ≈ 50%) · **Target:** Adobe Acrobat Pro (Acrobat DC, continuous track 26.002.21931, macOS)

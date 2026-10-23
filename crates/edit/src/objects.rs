@@ -124,15 +124,23 @@ pub fn editable_objects(doc: &Document, page: usize) -> Result<Vec<EditableObjec
 /// Move selected mixed objects by a user-space vector as one atomic operation. All targets
 /// refer to the original inventories. A refusal leaves the graph, including overlay, untouched.
 pub fn move_objects(doc: &mut Document, page: usize, targets: &[ObjectTarget], offset: [f64; 2]) -> Result<(), EditError> {
-    if targets.is_empty() || targets.len() > MAX_MOVE_OBJECTS {
+    if targets.len() > MAX_MOVE_OBJECTS {
         return Err(EditError::Invalid("select between 1 and 1000 objects to move".into()));
     }
-    if !offset.iter().all(|v| v.is_finite() && v.abs() <= MAX_COORDINATE) || offset == [0.0, 0.0] {
+    move_objects_each(doc, page, &targets.iter().map(|target| (*target, offset)).collect::<Vec<_>>())
+}
+
+/// Different offsets for references resolved together, before any object moves or paragraphs regroup.
+pub fn move_objects_each(doc: &mut Document, page: usize, moves: &[(ObjectTarget, [f64; 2])]) -> Result<(), EditError> {
+    if moves.is_empty() || moves.len() > MAX_MOVE_OBJECTS {
+        return Err(EditError::Invalid("select between 1 and 1000 objects to move".into()));
+    }
+    if !moves.iter().all(|(_, o)| o.iter().all(|v| v.is_finite() && v.abs() <= MAX_COORDINATE)) || moves.iter().all(|(_, o)| *o == [0.0, 0.0]) {
         return Err(EditError::Invalid("the move must be finite and non-zero".into()));
     }
     let inventory: BTreeMap<_, _> = editable_objects(doc, page)?.into_iter().map(|o| (o.target, o)).collect();
     let mut unique = BTreeSet::new();
-    for target in targets {
+    for (target, offset) in moves {
         if !unique.insert(*target) {
             return Err(EditError::Invalid("an object was selected more than once".into()));
         }
@@ -143,12 +151,12 @@ pub fn move_objects(doc: &mut Document, page: usize, targets: &[ObjectTarget], o
             return Err(EditError::Invalid("the object move is too large".into()));
         }
     }
-    let indexes = |kind| targets.iter().filter(|t| t.kind == kind).map(|t| t.index).collect::<Vec<_>>();
+    let indexes = |kind| moves.iter().filter(|(t, o)| t.kind == kind && *o != [0.0, 0.0]).map(|(t, o)| (t.index, *o)).collect::<Vec<_>>();
     let mut work = doc.clone();
-    crate::text::translate_blocks(&mut work, page, &indexes(ObjectKind::Text), offset)?;
-    crate::images::translate_images(&mut work, page, &indexes(ObjectKind::Image), offset)?;
-    crate::paths::translate_paths(&mut work, page, &indexes(ObjectKind::Path), offset)?;
-    translate_added(&mut work, page, &indexes(ObjectKind::Added), offset)?;
+    crate::text::translate_blocks(&mut work, page, &indexes(ObjectKind::Text))?;
+    crate::images::translate_images(&mut work, page, &indexes(ObjectKind::Image))?;
+    crate::paths::translate_paths_each(&mut work, page, &indexes(ObjectKind::Path))?;
+    translate_added(&mut work, page, &indexes(ObjectKind::Added))?;
     // Placement operators add to size/depth/work budgets, and moving paragraphs can change
     // their grouping. Keep the resulting inventory usable; refuse before swapping otherwise.
     editable_objects(&work, page)?;
@@ -285,8 +293,8 @@ fn added_geometry(doc: &Document, page: usize) -> Result<(Pieces, Vec<AddedGeome
     Ok((pieces, geometry))
 }
 
-fn translate_added(doc: &mut Document, page: usize, indexes: &[usize], offset: [f64; 2]) -> Result<(), EditError> {
-    if indexes.is_empty() {
+fn translate_added(doc: &mut Document, page: usize, moves: &[(usize, [f64; 2])]) -> Result<(), EditError> {
+    if moves.is_empty() {
         return Ok(());
     }
     let p = pdfcraft_model::pages(doc).into_iter().nth(page).ok_or(EditError::NoSuchPage(page))?;
@@ -295,14 +303,14 @@ fn translate_added(doc: &mut Document, page: usize, indexes: &[usize], offset: [
     let ops = pieces.parse().ops;
     let mut replacements = BTreeMap::new();
     let mut parameters = Vec::new();
-    let linear = |inverse: Matrix| {
+    let linear = |inverse: Matrix, offset: [f64; 2]| {
         let [a, b, c, d, _, _] = inverse.0;
         [a * offset[0] + c * offset[1], b * offset[0] + d * offset[1]]
     };
-    for index in indexes {
+    for (index, offset) in moves {
         let g = geometry.get(*index).ok_or_else(|| EditError::Invalid("a selected added item no longer exists".into()))?;
-        let delta = linear(g.origin.then(&g.outside).invert().ok_or_else(|| EditError::Invalid("an added item has no area".into()))?);
-        let outer_delta = linear(g.outside.invert().ok_or_else(|| EditError::Invalid("an added item has no area".into()))?);
+        let delta = linear(g.origin.then(&g.outside).invert().ok_or_else(|| EditError::Invalid("an added item has no area".into()))?, *offset);
+        let outer_delta = linear(g.outside.invert().ok_or_else(|| EditError::Invalid("an added item has no area".into()))?, *offset);
         let current = g.current.then(&Matrix([1.0, 0.0, 0.0, 1.0, outer_delta[0], outer_delta[1]]));
         let r = g.local_rect;
         let rect = [r[0] + delta[0], r[1] + delta[1], r[2] + delta[0], r[3] + delta[1]];

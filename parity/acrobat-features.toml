@@ -2175,11 +2175,11 @@ title = "Align and distribute objects"
 area = "C"
 tier = "P1"
 milestone = "M7"
-status = "planned"
+status = "shipped"
 commands = []
-tools = []
-evidence = []
-notes = ""
+tools = ["object_align"]
+evidence = ["crates/edit/src/align.rs::alignment_follows_the_displayed_orientation", "crates/automation/tests/it/automation.rs::object_align_preserves_text_sizes_and_history_through_save_reopen", "crates/ui-egui/tests/it/object_selection.rs::right_click_selected_objects_offers_alignment_and_distribution"]
+notes = "Same-page mixed selections: right-click Align edges/centres or Distribute equal gaps, one atomic undo step. Source content and sizes retained. Magenta drag guides and snapping for text/images/added content/groups; Alt bypasses snapping. Clipped vector paths and unsupported source text are refused. Alignment core adapted from PR #1990 by @pauliusiv123-rgb."
 
 [[feature]]
 id = "edit.vector-edit"
@@ -6982,7 +6982,7 @@ status = "planned"
 commands = []
 tools = []
 evidence = []
-notes = ""
+notes = "Excluded from personal 0.13.1 by user request. A separate text/vector-preserving conversion engine is planned; no renamed Microsoft Print to PDF queue is shipped."
 
 [[feature]]
 id = "create.distiller"

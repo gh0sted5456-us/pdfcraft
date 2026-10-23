@@ -288,4 +288,29 @@ impl Automation {
         result["moved"] = json!(count);
         Ok(result)
     }
+
+    pub(crate) fn object_align(&mut self, a: &Args) -> Result<Value> {
+        use pdfcraft_engine::ObjectAlign as A;
+        let page = self.page(a)?;
+        let objects = self.object_targets(a)?;
+        let how = match a.get("alignment").and_then(Value::as_str) {
+            Some("left") => A::Left,
+            Some("center_horizontal") => A::CentreHorizontal,
+            Some("right") => A::Right,
+            Some("top") => A::Top,
+            Some("center_vertical") => A::CentreVertical,
+            Some("bottom") => A::Bottom,
+            Some("distribute_horizontal") => A::DistributeHorizontal,
+            Some("distribute_vertical") => A::DistributeVertical,
+            _ => {
+                return Err(bad(
+                    "alignment must be left, center_horizontal, right, top, center_vertical, bottom, distribute_horizontal or distribute_vertical",
+                ));
+            }
+        };
+        let count = objects.len();
+        let mut result = self.apply(a, Edit::AlignObjects { page, objects, how })?;
+        result["aligned"] = json!(count);
+        Ok(result)
+    }
 }

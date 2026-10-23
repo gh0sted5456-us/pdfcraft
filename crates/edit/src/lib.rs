@@ -1021,8 +1021,10 @@ pub fn marks_present(doc: &Document) -> Vec<MarkKind> {
 
 mod background;
 pub use background::page_background;
+mod align;
+pub use align::{ObjectAlign, align_objects, object_alignment_offsets};
 pub mod objects;
-pub use objects::{EditableObject, MAX_MOVE_OBJECTS, ObjectKind, ObjectTarget, delete_objects, editable_objects, move_objects};
+pub use objects::{EditableObject, MAX_MOVE_OBJECTS, ObjectKind, ObjectTarget, delete_objects, editable_objects, move_objects, move_objects_each};
 
 mod flatten;
 pub use flatten::{flatten, flatten_fill_sign};

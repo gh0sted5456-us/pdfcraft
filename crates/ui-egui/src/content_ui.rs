@@ -85,6 +85,7 @@ pub struct ContentView {
     /// Select the item an add creates (the page's item count before it).
     pub select_added: Option<(usize, usize)>,
     grab: Option<(usize, Grab, Pos2)>,
+    move_delta: Option<egui::Vec2>,
     undrawable: UndrawableMemo,
     layout: Option<(AddedText, f32, f64, [f64; 4])>,
 }
@@ -217,7 +218,8 @@ impl MoveBackground {
         let r = screen_rect(xf, info, page, from);
         let to = if let Some((_, grab, start)) = cv.grab {
             let Some(p) = ui.input(|i| i.pointer.hover_pos()) else { return };
-            dragged(r, grab, p - start, self.picture)
+            let delta = if grab == Grab::Move { cv.move_delta.unwrap_or(p - start) } else { p - start };
+            dragged(r, grab, delta, self.picture)
         } else if let Some(to) = self.settling {
             let to = screen_rect(xf, info, page, to);
             // A moved text box keeps its top edge (its height follows its lines).
@@ -339,6 +341,15 @@ pub(crate) fn page_input(
         && gp == page
     {
         consumed = true;
+        if grab == Grab::Move
+            && let Some((sp, si)) = cv.selected
+            && sp == page
+            && let Some((_, item)) = on_page(added, page).into_iter().find(|(i, _)| *i == si)
+        {
+            let rect = screen_rect(xf, info, page, item.content.rect());
+            let target = pdfcraft_engine::ObjectTarget { kind: pdfcraft_engine::ObjectKind::Added, index: si };
+            cv.move_delta = Some(view.objects.snap_drag(ui, xf, page, info, rect, &[target], pointer.unwrap_or(start) - start));
+        }
         if resp.drag_stopped() || !ui.input(|i| i.pointer.primary_down()) {
             cv.grab = None;
             let end = pointer.unwrap_or(start);
@@ -348,7 +359,8 @@ pub(crate) fn page_input(
                 && (end - start).length() >= 1.0
             {
                 let keep = matches!(a.content, AddedContent::Image(_));
-                let r = dragged(screen_rect(xf, info, page, a.content.rect()), grab, end - start, keep);
+                let delta = if grab == Grab::Move { cv.move_delta.unwrap_or(end - start) } else { end - start };
+                let r = dragged(screen_rect(xf, info, page, a.content.rect()), grab, delta, keep);
                 let (p0, p1) = (to_display(xf, info, page, r.left_bottom()), to_display(xf, info, page, r.right_top()));
                 let mut rect = [p0[0], p0[1], p1[0], p1[1]];
                 if let AddedContent::Text(t) = &a.content
@@ -408,6 +420,7 @@ pub(crate) fn page_input(
         ui.ctx().set_cursor_icon(egui::CursorIcon::Move);
     }
     if resp.drag_started() {
+        cv.move_delta = None;
         let origin = ui.input(|i| i.pointer.press_origin()).unwrap_or(p);
         if let Some((_, left, top)) = selected_rect.and_then(|r| handles(r).into_iter().find(|(c, ..)| c.distance(origin) <= 6.0)) {
             cv.grab = Some((page, Grab::Corner(left, top), origin));
@@ -464,7 +477,8 @@ pub(crate) fn paint_page(ui: &egui::Ui, painter: &egui::Painter, xf: &PageXform,
             && let (Some((gp, g, start)), Some(p)) = (cv.grab, pointer)
             && gp == page
         {
-            r = dragged(r, g, p - start, matches!(a.content, AddedContent::Image(_)));
+            let delta = if g == Grab::Move { cv.move_delta.unwrap_or(p - start) } else { p - start };
+            r = dragged(r, g, delta, matches!(a.content, AddedContent::Image(_)));
         }
         if selected {
             painter.rect_stroke(r.expand(1.0), CornerRadius::ZERO, Stroke::new(1.5, SELECT_BLUE), egui::StrokeKind::Outside);

@@ -145,7 +145,10 @@ Assert-Equal $app[0] 'PdfcraftExe' 'Shortcut executable key path'
 $overlay = Read-Row 'SELECT `Root`, `Component_`, `Value` FROM `Registry` WHERE `Key` = ''Software\Classes\PdfCraft.Document'' AND `Name` = ''TypeOverlay''' 3
 Assert-Equal $overlay[0] '2' 'Thumbnail badge machine scope'
 Assert-Equal $overlay[1] 'PdfcraftApp' 'Thumbnail badge follows the app installation'
-Assert-Equal $overlay[2] '"[#PdfcraftExe]",-1' 'Thumbnail badge uses the embedded PdfCraft lion'
+Assert-Equal $overlay[2] '"[#PdfcraftBadge]",0' 'Thumbnail badge uses the cache-independent PdfCraft lion file'
+$badge = Read-Row 'SELECT `FileName` FROM `File` WHERE `File` = ''PdfcraftBadge''' 1
+$version = Read-Row 'SELECT `Value` FROM `Property` WHERE `Property` = ''ProductVersion''' 1
+if ($badge[0] -notlike ('*pdfcraft-badge-' + $version[0] + '.ico')) { throw 'Thumbnail badge filename must include the product version' }
 $scope = Read-Row 'SELECT `Value` FROM `Property` WHERE `Property` = ''ALLUSERS''' 1
 Assert-Equal $scope[0] '1' 'Per-machine shortcut scope'
 

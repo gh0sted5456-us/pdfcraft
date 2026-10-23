@@ -1,4 +1,4 @@
-# Select, move and delete page objects
+# Select, align, move and delete page objects
 
 In **Edit a PDF → Edit text & images**, select several items on the same page:
 
@@ -11,6 +11,11 @@ In **Edit a PDF → Edit text & images**, select several items on the same page:
   A selected image can be deleted even after the pointer moves away from it.
 - Drag the selection to move all its items by the same distance. Blue outlines preview the move;
   releasing commits it as **one undo step**. Escape cancels the gesture or clears the selection.
+- Magenta guides appear when a moving box's edge or centre lines up with another object. The
+  box snaps within six screen points, at every zoom. Hold **Alt** while dragging to bypass snapping.
+- Right-click an object or selection for **Align**, **Distribute**, and **Delete**. Alignment uses
+  the selection's outer edges or centre. Distribution keeps the outermost objects and makes the
+  gaps equal. Select two objects to align, or three to distribute. Each action has one undo step.
 - Switching tabs, opening Home or a modal dialog, or losing window focus cancels a drag preview.
   Returning to the document keeps the selection without committing a release from elsewhere.
 - Modifier-clicks prefer added items and text over background artwork, so labels remain selectable.
@@ -24,7 +29,7 @@ contain at most 1,000 items; pages with more than 10,000 recognised objects are 
 selection. Content streams must decode completely within 64 MiB each and 128 MiB per page, with
 a 1,024-level graphics-state limit and 100,000 content operations. These limits apply to both the
 original page and the moved result; unreadable or missing streams are refused. Moving between pages,
-inline images, group resizing, align/distribute,
+inline images, group resizing,
 and vertical or clipping text are outside this operation's scope. A refusal changes nothing.
 
 Added streams move by changing their outer placement, preserving drawing bytes, fonts, crop paths,
@@ -56,6 +61,16 @@ to the user-space vector required by the edit, accounting for the crop box, `/Ro
 A frontend with an additional view rotation converts its pointer positions to displayed page space
 first. Duplicate, missing, non-finite, oversized, or unsupported targets fail atomically. Engine callers
 re-list after changes; the automation generation guard detects stale references before the edit.
+
+`Edit::AlignObjects { page, objects, how }` plans a separate translation for each selected object
+and commits them together. The headless `object_align` tool takes the same references and optional
+generation as `object_move`, plus `alignment`: `left`, `center_horizontal`, `right`, `top`,
+`center_vertical`, `bottom`, `distribute_horizontal`, or `distribute_vertical`. Clipped vector
+paths are refused; source glyph bytes and object sizes are retained. Detection can regroup source
+paragraphs after movement, so re-list references after every edit.
+
+The alignment core builds on [PR #1990](https://github.com/storytold/pdfcraft/pull/1990),
+commit `c20efc57`, by @pauliusiv123-rgb, adapted to this branch's mixed-object inventory.
 
 ## CLI and MCP
 

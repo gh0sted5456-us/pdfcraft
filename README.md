@@ -1,14 +1,14 @@
 # PdfCraft personal build
 
 Personal daily-use fork by @gh0sted5456-us, based on [PdfCraft by the ArtCraft team and community](https://github.com/storytold/pdfcraft).
-Includes an original orange-and-black lion, Windows PDF thumbnails with a lion badge, Delete-key object removal,
+Version 0.13.1 uses the original engraved lion on a black background, Windows PDF thumbnails with a lion badge, Delete-key object removal,
 automatic OCR page choices, and Windows title-bar colors matching the app. This is an unsigned personal build;
 upstream download and community links below refer to the original project.
 
 
 
 <p align="center">
-  <img src="assets/app-icon/hicolor/256x256/apps/ai.storyteller.pdfcraft.png" width="128" height="128" alt="Personal PdfCraft icon: orange-and-black lion on transparency">
+  <img src="assets/app-icon/hicolor/256x256/apps/ai.storyteller.pdfcraft.png" width="128" height="128" alt="PdfCraft 0.13.1 icon: original engraved lion on black">
 </p>
 
 <h1 align="center">PdfCraft</h1>
@@ -585,7 +585,7 @@ the Japanese fonts of [craft-fonts](https://github.com/storytold/craft-fonts/blo
 (SIL Open Font License 1.1).
 
 The ArtCraft name and upstream logos remain trademarks of the ArtCraft Team. This personal
-fork uses its own lion and preserves the original project's credits. The upstream trademark
+fork uses the original lion in a black palette and preserves the original project's credits. The upstream trademark
 terms are retained in [`docs/brand/LICENSE-brand.txt`](docs/brand/LICENSE-brand.txt).
 
 
@@ -600,3 +600,6 @@ A center `move` can include `before` (panel ID or null to append) for tab order.
 The equivalent `{"action": ...}` form accepts a serialized shared docking action;
 this is also the form emitted by the renderer. Protected-canvas and app-specific panel
 rules apply equally to both forms.
+
+Personal 0.13.1 also adds [alignment menus and drag guides](docs/editing-multiple-objects.md).
+CraftPDF Printer is excluded from 0.13.1 while a separate conversion engine is developed.

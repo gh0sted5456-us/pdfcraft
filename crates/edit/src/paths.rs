@@ -6,7 +6,7 @@
 //! operators in place (points) or wrap them in `q … Q` (style); everything else is copied byte
 //! for byte. Paths inside Form XObjects belong to the form, which is edited as a whole.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
 use pdfcraft_content::{Matrix, Op, Pieces, num, serialize_ops};
@@ -65,6 +65,7 @@ pub(crate) struct ScannedPath {
     ctm: Matrix,
     pub outline: PathOutline,
     pub rect: [f64; 4],
+    clipped: bool,
     /// For each anchor point: the operator (an index into the page's operators) and where in it.
     refs: Vec<(usize, Slot)>,
 }
@@ -75,6 +76,7 @@ struct State {
     stroke: Option<[f64; 3]>,
     fill: Option<[f64; 3]>,
     width: f64,
+    clipped: bool,
 }
 
 struct Building {
@@ -112,7 +114,7 @@ pub(crate) fn scan(doc: &Document, page: usize, ops: &[Op]) -> Vec<ScannedPath> 
         .nth(page)
         .and_then(|p| p.dict.get(b"Resources").map(|r| doc.resolve(r)).and_then(|r| r.as_dict().cloned()))
         .unwrap_or_default();
-    let mut state = State { matrix: Matrix::IDENTITY, stroke: Some([0.0; 3]), fill: Some([0.0; 3]), width: 1.0 };
+    let mut state = State { matrix: Matrix::IDENTITY, stroke: Some([0.0; 3]), fill: Some([0.0; 3]), width: 1.0, clipped: false };
     let mut stack: Vec<State> = Vec::new();
     let mut building: Option<Building> = None;
     let mut found = Vec::new();
@@ -210,6 +212,7 @@ pub(crate) fn scan(doc: &Document, page: usize, ops: &[Op]) -> Vec<ScannedPath> 
                 }
             }
             b"W" | b"W*" => {
+                state.clipped = true;
                 if let Some(b) = building.as_mut() {
                     b.clip = true;
                 }
@@ -261,6 +264,7 @@ fn finish(mut b: Building, state: &State, paint_op: usize, paint: &[u8]) -> Opti
         ctm: b.ctm,
         outline: PathOutline { points, closed: b.closed, stroked, filled, width, stroke: state.stroke, fill: state.fill },
         rect,
+        clipped: state.clipped,
         refs: b.anchors.into_iter().map(|(_, r)| r).collect(),
     })
 }
@@ -311,12 +315,25 @@ fn local_offset(ctm: &Matrix, offset: [f64; 2]) -> Result<[f64; 2], EditError> {
 
 /// Move the paths `indexes` by `offset` (page user space): their coordinates are rewritten.
 pub fn translate_paths(doc: &mut Document, page: usize, indexes: &[usize], offset: [f64; 2]) -> Result<(), EditError> {
-    if indexes.is_empty() {
+    if indexes.len() > MAX_PAGE_PATHS {
+        return Err(EditError::Invalid("too many paths to move".into()));
+    }
+    translate_paths_each(doc, page, &indexes.iter().map(|index| (*index, offset)).collect::<Vec<_>>())
+}
+
+pub(crate) fn translate_paths_each(doc: &mut Document, page: usize, moves: &[(usize, [f64; 2])]) -> Result<(), EditError> {
+    if moves.is_empty() {
         return Ok(());
     }
     rewrite(doc, page, |_, ops, paths| {
         let mut edits = Vec::new();
-        for path in chosen(paths, indexes)? {
+        let moves: BTreeMap<_, _> = moves.iter().copied().collect();
+        for (index, offset) in moves {
+            let path = paths.get(index).ok_or_else(|| EditError::Invalid("a selected path no longer exists; select it again".into()))?;
+            // shortcut: moving a clipped path needs a clip-aware inventory and rewrite.
+            if path.clipped {
+                return Err(EditError::Invalid("a vector path under a clipping path cannot be moved or aligned".into()));
+            }
             let [dx, dy] = local_offset(&path.ctm, offset)?;
             // The painting operator, last, has no coordinates.
             for &i in path.ops.split_last().map_or(&[][..], |(_, construction)| construction) {

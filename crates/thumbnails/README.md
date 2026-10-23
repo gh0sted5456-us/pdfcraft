@@ -17,8 +17,9 @@ First-page thumbnails of PDF files for the operating system's file manager.
       (default) = {68E114F4-EB01-42A6-BD92-1695F3711CD1}
   ```
 
-  Explorer adds the embedded PdfCraft lion as its native lower-right thumbnail badge
-  (`PdfCraft.Document\TypeOverlay`); the page renderer and PDF content stay unchanged.
+  Explorer adds the installed PdfCraft lion as its native lower-right thumbnail badge
+  (`PdfCraft.Document\TypeOverlay`). The MSI gives its ICO a versioned filename so updates
+  do not reuse an old cached badge; the page renderer and PDF content stay unchanged.
 
 macOS draws PDF thumbnails itself (Quick Look), and Linux file managers use their own
 thumbnailers, so there the crate is only the shared rendering function.

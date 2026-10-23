@@ -1,5 +1,7 @@
 # PdfCraft roadmap
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1: object alignment/distribution and drag guides. The separate PDF printer is excluded from this version. Upstream readiness estimates unchanged.
+
 **Stage: alpha** · next: beta, ~25% (ready for real work 50% → 75%) and ~400–700 h away
 
 > **Last reviewed:** 2026-10-22 · **Last updated:** 2026-10-22 · **Change:** minor (M14, #3558: rebase guarded macOS per-file association recovery onto current main; estimates unchanged)
@@ -190,6 +192,8 @@ Ranked; detail and the full milestone table in [docs/roadmap.md](docs/roadmap.md
 | 8 | 1.0 polish: performance, right-to-left, missing languages, keyboard-only (M14) | 55–95 |
 
 ## Progress log
+
+- **2026-10-23 (M3/M14, personal 0.13.1):** Restores the original engraved lion with a black background and a matching black PDF document badge. App, Home, About and thumbnail type badges share the restored artwork. Workspace, About, executables and installer use version 0.13.1. Existing OCR, Delete-key editing and native Windows caption improvements are retained. Personal-build attribution and upstream credits remain.
 
 - **2026-10-23 (M3/M14, personal build):** Original generated orange-and-black lion with transparency replaces the app icon, Home and About branding; upstream trademark marks are removed and original project credits retained. Native Windows 11 caption and border use the tab-strip palette, retaining system window controls. Explorer thumbnails use the embedded lion as a native lower-right type badge; PDF content is unchanged. MSI and native colour checks cover the update.
 

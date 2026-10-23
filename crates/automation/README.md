@@ -238,3 +238,6 @@ behavior. Back/Forward
 returns to page tops, does not restore zoom, does not switch documents, and is not saved across
 restarts. Standalone engine/MCP sessions have no viewport, so they do not have a separate
 navigation-history tool; use the opt-in UI control channel to navigate the displayed document.
+
+`object_align` aligns selection edges/centres or distributes equal gaps with one undo step.
+See the selection guide above. The independent CraftPDF Printer is not included in 0.13.1.

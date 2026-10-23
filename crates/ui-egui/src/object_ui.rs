@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use egui::{Color32, Pos2, Rect, Stroke};
-use pdfcraft_engine::{Document, Edit, EditableObject, MAX_MOVE_OBJECTS, ObjectKind, ObjectTarget, PathOutline, PathStyle};
+use pdfcraft_engine::{Document, Edit, EditableObject, MAX_MOVE_OBJECTS, ObjectAlign, ObjectKind, ObjectTarget, PathOutline, PathStyle};
 use pdfcraft_render::DocInfo;
 
 use crate::canvas::{DocView, PageXform};
@@ -24,6 +24,9 @@ pub(crate) struct ObjectSelection {
     pub hold_editor: bool,
     blocked_page: Option<usize>,
     input_blocked: bool,
+    menu: bool,
+    guide_page: Option<usize>,
+    guides: [Option<[Pos2; 2]>; 2],
     /// One point of the selected path being dragged.
     vertex: Option<VertexDrag>,
 }
@@ -66,10 +69,12 @@ impl ObjectSelection {
         self.pending = None;
         self.blocked_page = None;
         self.vertex = None;
+        self.menu = false;
     }
 
     pub fn prepare(&mut self, doc: &Document, enabled: bool, ctx: &egui::Context) {
         self.hold_editor = false;
+        self.guides = [None; 2];
         if !enabled {
             self.clear();
             return;
@@ -112,7 +117,10 @@ impl ObjectSelection {
             // A refused edit keeps the generation and the original selection.
             self.pending = None;
         }
-        if self.page.is_some() && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+        if ctx.input(|i| i.pointer.secondary_pressed()) {
+            self.menu = false;
+        }
+        if self.page.is_some() && !egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
             self.clear();
         }
     }
@@ -128,6 +136,30 @@ impl ObjectSelection {
         }
         self.pending = Some(expected);
         Edit::MoveObjects { page, objects: self.selected.iter().map(|o| o.target).collect(), offset }
+    }
+
+    fn align_edit(&mut self, doc: &Document, how: ObjectAlign) -> Option<Edit> {
+        let page = self.page?;
+        let objects: Vec<_> = self.selected.iter().map(|o| o.target).collect();
+        match doc.object_alignment_offsets(page, &objects, how) {
+            Ok(moves) => {
+                let mut expected = self.selected.clone();
+                for object in &mut expected {
+                    if let Some((_, [dx, dy])) = moves.iter().find(|(target, _)| *target == object.target) {
+                        object.rect = [object.rect[0] + dx, object.rect[1] + dy, object.rect[2] + dx, object.rect[3] + dy];
+                        for p in object.outline.iter_mut().flat_map(|o| o.points.iter_mut()) {
+                            *p = [p[0] + dx, p[1] + dy];
+                        }
+                    }
+                }
+                self.pending = Some(expected);
+                Some(Edit::AlignObjects { page, objects, how })
+            }
+            Err(error) => {
+                self.notice = Some(error);
+                None
+            }
+        }
     }
 
     /// The selected vector paths and their page, when the selection is made of paths only.
@@ -149,6 +181,41 @@ impl ObjectSelection {
             self.cache.clear();
         }
         self.cache.entry(page).or_insert_with(|| doc.editable_objects(page)).clone()
+    }
+
+    pub(crate) fn prepare_drag(&mut self, ui: &egui::Ui, xf: &PageXform, page: usize, doc: &Document) {
+        if !self.input_blocked
+            && ui.input(|i| i.pointer.primary_pressed())
+            && ui
+                .input(|i| i.pointer.interact_pos())
+                .is_some_and(|p| xf.rect.contains(p) && ui.clip_rect().contains(p) && ui.ctx().layer_id_at(p) == Some(ui.layer_id()))
+        {
+            let _ = self.inventory(doc, page);
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn snap_drag(
+        &mut self,
+        ui: &egui::Ui,
+        xf: &PageXform,
+        page: usize,
+        info: &DocInfo,
+        moving: Rect,
+        excluded: &[ObjectTarget],
+        delta: egui::Vec2,
+    ) -> egui::Vec2 {
+        self.guide_page = Some(page);
+        self.guides = [None; 2];
+        if self.input_blocked || ui.input(|i| i.modifiers.alt) {
+            return delta;
+        }
+        let Some(Ok(objects)) = self.cache.get(&page) else { return delta };
+        let excluded: std::collections::BTreeSet<_> = excluded.iter().copied().collect();
+        let targets = objects.iter().filter(|o| !excluded.contains(&o.target)).map(|o| screen(xf, info, page, o));
+        let snap = crate::alignment::snap(moving, delta, targets);
+        self.guides = snap.guides;
+        snap.delta
     }
 }
 
@@ -267,6 +334,14 @@ fn leave_single(view: &mut DocView) {
     view.block_drag = None;
 }
 
+fn hit_object<'a>(objects: &'a [EditableObject], xf: &PageXform, info: &DocInfo, page: usize, p: Pos2) -> Option<&'a EditableObject> {
+    [ObjectKind::Added, ObjectKind::Text]
+        .into_iter()
+        .find_map(|kind| objects.iter().rev().find(|o| o.target.kind == kind && screen(xf, info, page, o).expand(2.0).contains(p)))
+        .or_else(|| objects.iter().rev().find(|o| path_hit(xf, info, page, o, p)))
+        .or_else(|| objects.iter().rev().find(|o| o.target.kind == ObjectKind::Image && screen(xf, info, page, o).expand(2.0).contains(p)))
+}
+
 /// Returns true while group selection owns the interaction. Ordinary clicks still reach the
 /// single-object text/resize tools. A text draft is finished or discarded through its editor.
 pub(crate) fn page_input(ui: &egui::Ui, resp: &egui::Response, xf: &PageXform, page: usize, doc: &Document, view: &mut DocView) -> bool {
@@ -338,6 +413,11 @@ fn input(s: &mut ObjectSelection, ui: &egui::Ui, resp: &egui::Response, xf: &Pag
     {
         if let Some(p) = pointer {
             gesture.now = p;
+            if !gesture.marquee {
+                let moving = s.selected.iter().fold(Rect::NOTHING, |r, o| r.union(screen(xf, info, page, o)));
+                let targets: Vec<_> = s.selected.iter().map(|o| o.target).collect();
+                gesture.now = gesture.start + s.snap_drag(ui, xf, page, info, moving, &targets, p - gesture.start);
+            }
         }
         if !down {
             if !gesture.marquee && gesture.start.distance(gesture.now) <= 3.0 && resp.double_clicked() {
@@ -391,9 +471,29 @@ fn input(s: &mut ObjectSelection, ui: &egui::Ui, resp: &egui::Response, xf: &Pag
         ui.ctx().set_cursor_icon(if gesture.marquee { egui::CursorIcon::Crosshair } else { egui::CursorIcon::Move });
         return true;
     }
-    let Some(p) = pointer.filter(|p| xf.rect.contains(*p) && ui.clip_rect().contains(*p) && resp.rect.contains(*p)) else {
+    let Some(p) = pointer
+        .filter(|p| xf.rect.contains(*p) && ui.clip_rect().contains(*p) && resp.rect.contains(*p) && ui.ctx().layer_id_at(*p) == Some(ui.layer_id()))
+    else {
         return s.page == Some(page) && !s.selected.is_empty();
     };
+    if ui.input(|i| i.pointer.secondary_pressed()) {
+        if !(s.page == Some(page) && !s.selected.is_empty() && on_selection(s, xf, info, page, p)) {
+            let Ok(objects) = s.inventory(doc, page) else { return false };
+            let Some(hit) = hit_object(&objects, xf, info, page, p) else { return false };
+            s.clear();
+            s.page = Some(page);
+            s.selected.push(hit.clone());
+        }
+        // A single picture keeps its existing Crop/Rotate/Copy menu. Mixed selections use ours.
+        if matches!(s.selected.as_slice(), [object] if object.target.kind == ObjectKind::Image) {
+            s.clear();
+            return false;
+        }
+        s.menu = true;
+        leave_single(view);
+        view.current = page;
+        return true;
+    }
     if !pressed {
         if s.page == Some(page) && !s.selected.is_empty() {
             if near_point(s, xf, info, page, p).is_some() {
@@ -425,13 +525,7 @@ fn input(s: &mut ObjectSelection, ui: &egui::Ui, resp: &egui::Response, xf: &Pag
     let additive = modified(ui);
     // A page-sized background image must not hide editable labels or added notes.
     // Within each kind, prefer the last object as the ordinary single-item tools do.
-    let hit = [ObjectKind::Added, ObjectKind::Text]
-        .into_iter()
-        .find_map(|kind| objects.iter().rev().find(|o| o.target.kind == kind && screen(xf, info, page, o).expand(2.0).contains(p)))
-        // A line or shape is taken by its drawing, not its frame; it comes before pictures, which
-        // may be page-sized backgrounds.
-        .or_else(|| objects.iter().rev().find(|o| path_hit(xf, info, page, o, p)))
-        .or_else(|| objects.iter().rev().find(|o| o.target.kind == ObjectKind::Image && screen(xf, info, page, o).expand(2.0).contains(p)));
+    let hit = hit_object(&objects, xf, info, page, p);
     if additive {
         if s.page != Some(page) {
             s.clear();
@@ -593,7 +687,61 @@ pub(crate) fn delete_keys(ctx: &egui::Context, view: &mut DocView, doc: &Documen
     view.pending_edit = Some(Edit::DeleteObjects { page, objects: targets });
 }
 
+pub(crate) fn context_menu(ui: &mut egui::Ui, doc: &Document, view: &mut DocView, can_modify: bool) -> bool {
+    if !view.objects.menu || view.objects.selected.is_empty() {
+        return false;
+    }
+    let mut action = None;
+    let count = view.objects.count();
+    ui.add_enabled_ui(can_modify && view.pending_edit.is_none(), |ui| {
+        ui.add_enabled_ui(count >= 2, |ui| {
+            ui.menu_button(tl!("Align"), |ui| {
+                for (how, label) in [
+                    (ObjectAlign::Left, "Left"),
+                    (ObjectAlign::CentreHorizontal, "Center"),
+                    (ObjectAlign::Right, "Right"),
+                    (ObjectAlign::Top, "Top"),
+                    (ObjectAlign::CentreVertical, "Middle"),
+                    (ObjectAlign::Bottom, "Bottom"),
+                ] {
+                    if ui.button(tl!(label)).clicked() {
+                        action = Some(how);
+                        ui.close();
+                    }
+                }
+            });
+        });
+        ui.add_enabled_ui(count >= 3, |ui| {
+            ui.menu_button(tl!("Distribute"), |ui| {
+                for (how, label) in [(ObjectAlign::DistributeHorizontal, "Horizontally"), (ObjectAlign::DistributeVertical, "Vertically")] {
+                    if ui.button(tl!(label)).clicked() {
+                        action = Some(how);
+                        ui.close();
+                    }
+                }
+            });
+        });
+        ui.separator();
+        if ui.button(tl!("Delete")).clicked() {
+            if let Some(page) = view.objects.page {
+                view.pending_edit = Some(Edit::DeleteObjects { page, objects: view.objects.selected.iter().map(|o| o.target).collect() });
+            }
+            ui.close();
+        }
+    });
+    if let Some(how) = action {
+        view.pending_edit = view.objects.align_edit(doc, how);
+        ui.close();
+    }
+    true
+}
+
 pub(crate) fn paint(painter: &egui::Painter, xf: &PageXform, page: usize, info: &DocInfo, selection: &ObjectSelection) {
+    if selection.guide_page == Some(page) {
+        for line in selection.guides.into_iter().flatten() {
+            painter.line_segment(line, Stroke::new(1.0, Color32::from_rgb(0xC2, 0x38, 0xAB)));
+        }
+    }
     if selection.page != Some(page) {
         return;
     }

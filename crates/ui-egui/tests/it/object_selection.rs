@@ -120,6 +120,35 @@ fn marquee(h: &mut Harness<'static, PdfCraftApp>) {
     h.run_steps(4);
     h.get_by_label("3 objects selected");
 }
+
+#[test]
+fn right_click_selected_objects_offers_alignment_and_distribution() {
+    let mut h = harness();
+    let before = objects(&h);
+    marquee(&mut h);
+    let p = at(&h, 70.0, 145.0);
+    h.hover_at(p);
+    h.run_steps(2);
+    for pressed in [true, false] {
+        h.event(egui::Event::PointerButton { pos: p, button: egui::PointerButton::Secondary, pressed, modifiers: Modifiers::NONE });
+    }
+    h.run_steps(4);
+    h.get_by_label("Distribute ⏵");
+    h.get_by_label("Align ⏵").hover();
+    h.run_steps(5);
+    h.get_by_label("Left").click();
+    h.run_steps(5);
+    let after = objects(&h);
+    for old in before.iter().filter(|o| o.text.as_deref() != Some("Keep here")) {
+        let new = after.iter().find(|o| o.text == old.text && o.target.kind == old.target.kind).unwrap();
+        assert!((new.rect[0] - 40.0).abs() < 0.01, "{new:?}");
+        assert!((new.rect[1] - old.rect[1]).abs() < 0.01);
+        assert!(((new.rect[2] - new.rect[0]) - (old.rect[2] - old.rect[0])).abs() < 0.01);
+    }
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+    assert_eq!(objects(&h), before);
+}
 fn drag(h: &mut Harness<'static, PdfCraftApp>, a: Pos2, b: Pos2) {
     h.hover_at(a);
     h.run_steps(2);
@@ -129,6 +158,25 @@ fn drag(h: &mut Harness<'static, PdfCraftApp>, a: Pos2, b: Pos2) {
     h.run_steps(2);
     h.drop_at(b);
     h.run_steps(4);
+}
+
+#[test]
+fn image_drag_snaps_to_added_text_and_alt_bypasses_it() {
+    for (mods, expected) in [(Modifiers::NONE, 130.0), (Modifiers::ALT, 127.0)] {
+        let mut h = harness();
+        let (a, b) = (at(&h, 60.0, 145.0), at(&h, 147.0, 145.0));
+        click(&mut h, a, Modifiers::NONE);
+        h.event_modifiers(egui::Event::PointerButton { pos: a, button: egui::PointerButton::Primary, pressed: true, modifiers: mods }, mods);
+        h.run_steps(2);
+        for step in 1..=20 {
+            h.event_modifiers(egui::Event::PointerMoved(a + (b - a) * (step as f32 / 20.0)), mods);
+            h.run_steps(2);
+        }
+        h.event_modifiers(egui::Event::PointerButton { pos: b, button: egui::PointerButton::Primary, pressed: false, modifiers: mods }, mods);
+        h.run_steps(4);
+        let image = objects(&h).into_iter().find(|o| o.target.kind == pdfcraft_engine::ObjectKind::Image).unwrap();
+        assert!((image.rect[0] - expected).abs() < 0.02, "{mods:?}: {image:?}");
+    }
 }
 
 #[test]

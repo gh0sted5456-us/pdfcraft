@@ -7179,6 +7179,41 @@ fn object_move_rejects_invalid_nested_references_without_any_change() {
 }
 
 #[test]
+fn object_align_preserves_text_sizes_and_history_through_save_reopen() {
+    let dir = workdir("object-align");
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({"path":"a.pdf"}))["doc"].as_u64().unwrap();
+    for (text, rect) in [("First label", [40, 100, 150, 130]), ("Second label", [140, 200, 260, 230])] {
+        ok(&mut a, "page_add_text", json!({"doc":doc,"page":1,"text":text,"rect":rect}));
+    }
+    let before = ok(&mut a, "object_list", json!({"doc":doc,"page":1}));
+    let refs: Vec<_> = before["objects"].as_array().unwrap().iter().map(|o| json!({"kind":o["kind"],"index":o["index"]})).collect();
+    for objects in [json!([refs[0].clone()]), json!([refs[0].clone(), refs[0].clone()]), json!([refs[0].clone(),{"kind":"image","index":999}])] {
+        assert!(a.call("object_align", &json!({"doc":doc,"page":1,"objects":objects,"alignment":"left"})).is_err());
+        assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1})), before);
+    }
+    let result = ok(&mut a, "object_align", json!({"doc":doc,"page":1,"objects":refs,"generation":before["generation"],"alignment":"left"}));
+    assert_eq!(result["aligned"], 3);
+    let after = ok(&mut a, "object_list", json!({"doc":doc,"page":1}));
+    let left = after["objects"][0]["rect"][0].as_f64().unwrap();
+    for (old, new) in before["objects"].as_array().unwrap().iter().zip(after["objects"].as_array().unwrap()) {
+        assert!((new["rect"][0].as_f64().unwrap() - left).abs() < 0.02);
+        assert_eq!(old["text"], new["text"]);
+        let width = |o: &Value| o["rect"][2].as_f64().unwrap() - o["rect"][0].as_f64().unwrap();
+        assert!((width(old) - width(new)).abs() < 0.02);
+    }
+    assert!(a.call("object_align", &json!({"doc":doc,"page":1,"objects":refs,"generation":before["generation"],"alignment":"right"})).is_err());
+    ok(&mut a, "edit_undo", json!({"doc":doc}));
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1}))["objects"], before["objects"]);
+    ok(&mut a, "edit_redo", json!({"doc":doc}));
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"aligned.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"aligned.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":reopened,"page":1}))["objects"], after["objects"]);
+    let rendered = a.call("page_render", &json!({"doc":reopened,"page":1,"dpi":72})).unwrap();
+    assert!(rendered.iter().any(|c| matches!(c,Content::Png{data,..} if !data.is_empty())));
+}
+
+#[test]
 fn a_deleted_image_is_not_kept_by_reduce_or_optimize() {
     let dir = workdir("deleted-image");
     let (w, h) = (600u32, 400u32);
