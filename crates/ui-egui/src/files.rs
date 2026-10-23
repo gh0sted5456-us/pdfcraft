@@ -874,13 +874,14 @@ impl PdfCraftApp {
         }
         let Some(doc) = self.session.get(id) else { return };
         let stem = doc.name.trim_end_matches(".pdf").trim_end_matches(".PDF").to_string();
+        let folder = doc.path.clone();
         let bytes = doc.export_office(format);
-        self.save_export_file(&stem, format.extension(), bytes);
+        self.save_export_file(&stem, format.extension(), folder, bytes);
     }
 
     /// Ask where to save an exported file named after the document (`save_override` in tests),
-    /// then write it; on the web, download it.
-    pub(crate) fn save_export_file(&mut self, stem: &str, ext: &'static str, bytes: Vec<u8>) {
+    /// starting in the document's folder (`folder`, its path), then write it; on the web, download it.
+    pub(crate) fn save_export_file(&mut self, stem: &str, ext: &'static str, folder: Option<String>, bytes: Vec<u8>) {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let write = move |app: &mut Self, path: std::path::PathBuf| match crate::editing::write_atomically(&path.to_string_lossy(), &bytes) {
@@ -894,6 +895,7 @@ impl PdfCraftApp {
                         .set_title(tl!("Export").to_string())
                         .add_filter(ext.to_uppercase(), &[ext])
                         .set_file_name(format!("{stem}.{ext}"));
+                    let dialog = crate::editing::in_document_folder(dialog, folder.as_deref());
                     self.ask_one(crate::pickers::Ask::Save(dialog), None, write);
                 }
             }
@@ -976,6 +978,7 @@ impl PdfCraftApp {
         let stem = doc.name.trim_end_matches(".pdf").trim_end_matches(".PDF").to_string();
         #[cfg(not(target_arch = "wasm32"))]
         {
+            let folder = doc.path.clone();
             let xfa = doc.info.xfa.is_some();
             let write = move |app: &mut Self, path: std::path::PathBuf| {
                 // Include what was typed while the save panel was open (#166).
@@ -1015,6 +1018,7 @@ impl PdfCraftApp {
                             .add_filter("CSV", &["csv"])
                             .add_filter(tl!("Text").to_string(), &["txt"])
                     };
+                    let d = crate::editing::in_document_folder(d, folder.as_deref());
                     self.ask_one(crate::pickers::Ask::Save(d), None, write);
                 }
             }

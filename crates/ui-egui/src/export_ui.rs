@@ -257,8 +257,9 @@ impl PdfCraftApp {
         if kind == ExportKind::Excel {
             let stem = doc.name.trim_end_matches(".pdf").trim_end_matches(".PDF").to_string();
             let pages = self.export_draft.range.pages(doc.info.pages.len());
+            let folder = doc.path.clone();
             let bytes = doc.export_xlsx(self.export_draft.sheets, Some(&pages));
-            self.save_export_file(&stem, "xlsx", bytes);
+            self.save_export_file(&stem, "xlsx", folder, bytes);
             return;
         }
         let src = doc.export_source();
