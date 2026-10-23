@@ -2191,6 +2191,13 @@ impl PdfCraftApp {
             self.theme = kind;
             theme::apply(ctx, kind);
         }
+        // Let egui theme the Windows frame too; System releases a manual override.
+        #[cfg(target_os = "windows")]
+        ctx.set_theme(match self.theme_preference {
+            ThemePreference::System => egui::ThemePreference::System,
+            ThemePreference::Light => egui::ThemePreference::Light,
+            ThemePreference::Dark => egui::ThemePreference::Dark,
+        });
     }
 
     /// Run a catalogue command. Commands that aren't implemented yet say which milestone ships them.
