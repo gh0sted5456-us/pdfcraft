@@ -158,13 +158,19 @@ pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, look: &mut AddedText, extras:
         let align = flyout(ui, t, align);
         egui::Popup::menu(&align).show(|ui| {
             ui.horizontal(|ui| {
-                for (a, icon, tip) in [
-                    (TextAlign::Left, "align-left", tl!("Align left")),
-                    (TextAlign::Center, "align-center", tl!("Centre")),
-                    (TextAlign::Right, "align-right", tl!("Align right")),
-                    (TextAlign::Justify, "align-justify", tl!("Justify")),
+                for (a, icon, tip, key) in [
+                    (TextAlign::Left, "align-left", tl!("Align left"), Some(egui::Key::L)),
+                    (TextAlign::Center, "align-center", tl!("Centre"), Some(egui::Key::E)),
+                    (TextAlign::Right, "align-right", tl!("Align right"), Some(egui::Key::R)),
+                    (TextAlign::Justify, "align-justify", tl!("Justify"), None),
                 ] {
-                    if icons::button(ui, icon, 30.0, look.align == a, tip).clicked() {
+                    let button = icons::button(ui, icon, 30.0, look.align == a, tip);
+                    let button = if let Some(key) = key {
+                        button.on_hover_text(ui.ctx().format_shortcut(&egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, key)))
+                    } else {
+                        button
+                    };
+                    if button.clicked() {
                         look.align = a;
                         ui.close();
                     }

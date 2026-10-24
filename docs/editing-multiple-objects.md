@@ -48,6 +48,13 @@ In **Edit a PDF → Edit text & images**, select several items on the same page:
 - Clear the selection or double-click an item to return to ordinary text editing and image resizing.
   Finish or discard a text draft before starting a multi-selection.
 
+While editing an original paragraph or an added text box, **Ctrl+L**, **Ctrl+E** and **Ctrl+R**
+set its alignment to left, centre and right (Command on macOS). They also work on a selected
+added text box. These use the existing whole-paragraph/whole-box formatting; highlighting a
+few characters does not give those characters a separate alignment. Drafts stay open, and the
+style is saved when the text is finished. Formatting committed text is undoable. Search, form
+fields and other inputs keep their keys; outside document text, Ctrl+L still toggles full screen.
+
 The supported items are the existing paragraph boxes, raster Image XObjects, whole Form artwork,
 vector paths painted into the page, and text/images added by PdfCraft. A Form remains one item, including its nested artwork and
 resources. Added items appear once in the selection inventory. Selections stay on one page and

@@ -1,5 +1,7 @@
 # Where PdfCraft falls short of Acrobat Pro
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** context-sensitive Ctrl+L/E/R aligns an original paragraph, a selected added text box or an open text draft; existing formatting and Undo paths are reused, other text inputs keep their shortcuts, and Ctrl+L remains full screen outside document text. Estimates and printer runtime limits unchanged.
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** Edit-mode Group select includes original editable text, images and paths with annotations and added content; atomic move/delete and arrow-key nudging (one point, Shift ten), repeated-move remapping and preserved/refused text drafts. Content batches also refresh warmed added-content caches. Outside Edit it remains additions-only. Estimates and printer runtime limits unchanged.
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 adopts added-text editor alignment from upstream PR #4178 by @RiceDee; centered/right-aligned text stays anchored when editing, including boxes narrower than the editor minimum. Justified editing remains left-aligned; readiness estimates unchanged.

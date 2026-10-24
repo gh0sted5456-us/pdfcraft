@@ -1962,8 +1962,8 @@ milestone = "M7"
 status = "shipped"
 commands = ["edit.edit_text", "edit.text"]
 tools = ["text_edit", "content_update"]
-evidence = ["crates/edit/src/tests.rs::justify_underline_and_spacing", "crates/edit/src/tests.rs::paragraphs_take_new_formatting", "crates/edit/src/tests.rs::a_one_row_title_keeps_its_centre_when_it_grows_and_when_it_wraps", "crates/ui-egui/tests/it/editing.rs::the_format_panel_restyles_the_paragraph_being_edited"]
-notes = "left, centre, right and justify (word spacing per line, last line left) for existing paragraphs and added text. A centred paragraph is found either from its ragged rows or, for a one row title, from its centre sitting on the page's own centre away from the edge the rest of the text uses, so growing or wrapping it keeps that centre (#2581)"
+evidence = ["crates/ui-egui/tests/it/content.rs::alignment_shortcuts_change_selected_added_text_and_keep_full_screen_outside_text", "crates/ui-egui/tests/it/content.rs::alignment_shortcuts_keep_the_added_text_draft_open_and_save_its_style", "crates/ui-egui/tests/it/object_selection.rs::alignment_shortcuts_format_the_open_original_paragraph_and_preserve_its_text", "crates/edit/src/tests.rs::justify_underline_and_spacing", "crates/edit/src/tests.rs::paragraphs_take_new_formatting", "crates/edit/src/tests.rs::a_one_row_title_keeps_its_centre_when_it_grows_and_when_it_wraps", "crates/ui-egui/tests/it/editing.rs::the_format_panel_restyles_the_paragraph_being_edited"]
+notes = "Ctrl+L/E/R (Command on macOS) aligns an active paragraph, selected added text box or open text draft using existing whole-paragraph/box formatting. Other inputs retain their keys; Ctrl+L remains full screen outside document text. left, centre, right and justify (word spacing per line, last line left) for existing paragraphs and added text. A centred paragraph is found either from its ragged rows or, for a one row title, from its centre sitting on the page's own centre away from the edge the rest of the text uses, so growing or wrapping it keeps that centre (#2581)"
 
 [[feature]]
 id = "edit.line-paragraph-spacing"

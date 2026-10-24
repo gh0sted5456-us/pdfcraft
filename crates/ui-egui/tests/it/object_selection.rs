@@ -122,6 +122,28 @@ fn marquee(h: &mut Harness<'static, PdfCraftApp>) {
 }
 
 #[test]
+fn alignment_shortcuts_format_the_open_original_paragraph_and_preserve_its_text() {
+    use pdfcraft_engine::TextAlign;
+    let mut h = harness();
+    let p = at(&h, 55.0, 70.0);
+    click(&mut h, p, Modifiers::NONE);
+    assert!(h.state().views[0].line_editor.is_some());
+    for (key, align) in [(Key::E, TextAlign::Center), (Key::R, TextAlign::Right), (Key::L, TextAlign::Left)] {
+        h.key_press_modifiers(Modifiers::COMMAND, key);
+        h.run_steps(4);
+        let editor = h.state().views[0].line_editor.as_ref().unwrap();
+        assert_eq!(editor.look.align, align);
+        assert_eq!(editor.text, "Group headline");
+        assert!(!h.state().full_screen);
+    }
+    h.key_press(Key::Escape);
+    h.run_steps(4);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+    assert!(objects(&h).iter().any(|o| o.text.as_deref() == Some("Group headline")));
+}
+
+#[test]
 fn right_click_selected_objects_offers_alignment_and_distribution() {
     let mut h = harness();
     let before = objects(&h);

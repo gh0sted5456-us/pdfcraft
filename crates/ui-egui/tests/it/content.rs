@@ -58,6 +58,78 @@ fn added(h: &Harness<'static, PdfCraftApp>) -> Vec<pdfcraft_engine::Added> {
     s.session.get(s.views[0].id).unwrap().added().to_vec()
 }
 
+#[test]
+fn alignment_shortcuts_keep_the_added_text_draft_open_and_save_its_style() {
+    use egui::{Key, Modifiers};
+    use pdfcraft_engine::{AddedContent, TextAlign};
+    let mut h = harness();
+    assert!(h.state_mut().execute("edit.text"));
+    h.run_steps(3);
+    let p = at(&h, 40.0, 100.0);
+    click(&mut h, p);
+    h.event(egui::Event::Text("Keep these words".into()));
+    h.run_steps(4);
+    for (key, align) in [(Key::E, TextAlign::Center), (Key::R, TextAlign::Right), (Key::L, TextAlign::Left), (Key::E, TextAlign::Center)] {
+        h.key_press_modifiers(Modifiers::COMMAND, key);
+        h.run_steps(4);
+        let draft = h.state().views[0].content.draft.as_ref().unwrap();
+        assert_eq!(draft.style.align, align);
+        assert_eq!(draft.text, "Keep these words");
+        assert!(!h.state().full_screen);
+    }
+    h.get_by_label("Done adding text").click();
+    h.run_steps(4);
+    let items = added(&h);
+    let AddedContent::Text(text) = &items[0].content else { panic!("text") };
+    assert_eq!(text.align, TextAlign::Center);
+    assert_eq!(text.text, "Keep these words");
+}
+
+#[test]
+fn alignment_shortcuts_change_selected_added_text_and_keep_full_screen_outside_text() {
+    use egui::{Key, Modifiers};
+    use pdfcraft_engine::{AddedContent, AddedText, Edit, TextAlign};
+    let mut h = harness();
+    h.state_mut()
+        .apply_edit(Edit::AddText { page: 0, text: AddedText { text: "Align me".into(), rect: [40.0, 250.0, 230.0, 280.0], ..Default::default() } });
+    assert!(h.state_mut().execute("edit.edit_text"));
+    h.state_mut().views[0].content.selected = Some((0, 0));
+    h.run_steps(4);
+    for (key, align) in [(Key::E, TextAlign::Center), (Key::R, TextAlign::Right), (Key::L, TextAlign::Left)] {
+        h.key_press_modifiers(Modifiers::COMMAND, key);
+        h.run_steps(4);
+        let items = added(&h);
+        let AddedContent::Text(text) = &items[0].content else { panic!("text") };
+        assert_eq!(text.align, align);
+        assert!(!h.state().full_screen, "Ctrl+L belongs to the selected text");
+        assert_eq!(text.text, "Align me");
+    }
+    let id = h.state().views[0].id;
+    let generation = h.state().session.get(id).unwrap().edit_generation();
+    assert!(h.state_mut().execute("edit.find"));
+    h.run_steps(3);
+    assert!(h.state().views[0].find.is_some());
+    assert!(h.state().views[0].content.selected.is_some());
+    // Ctrl+L keeps its existing global full-screen action in Find.
+    for key in [Key::E, Key::R] {
+        h.key_press_modifiers(Modifiers::COMMAND, key);
+        h.run_steps(2);
+    }
+    assert_eq!(h.state().session.get(id).unwrap().edit_generation(), generation, "search owns its shortcuts");
+    assert!(!h.state().full_screen);
+    h.key_press(Key::Escape);
+    h.run_steps(3);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+    let items = added(&h);
+    let AddedContent::Text(text) = &items[0].content else { panic!("text") };
+    assert_eq!(text.align, TextAlign::Right, "one Undo restores the previous alignment");
+    h.state_mut().views[0].content.selected = None;
+    h.key_press_modifiers(Modifiers::COMMAND, Key::L);
+    h.run_steps(4);
+    assert!(h.state().full_screen, "outside text, the existing shortcut stays available");
+}
+
 /// A click whose press and release arrive in the same frame, as a quick real mouse click does.
 fn quick_click(h: &mut Harness<'static, PdfCraftApp>, p: Pos2) {
     h.hover_at(p);

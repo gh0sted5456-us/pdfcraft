@@ -70,6 +70,10 @@ pub struct TextDraft {
     pub focus: bool,
 }
 
+pub(crate) fn editor_id(doc: pdfcraft_engine::DocId) -> egui::Id {
+    egui::Id::new(("added-text-edit", doc.0))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Grab {
     Move,
@@ -602,7 +606,7 @@ pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, ad
                         .background_color(if background_ready { Color32::TRANSPARENT } else { Color32::WHITE })
                         .text_color(Color32::from_rgb(cr, cg, cb))
                         .hint_text(tl!("Type text"))
-                        .id_salt("added-text-edit"),
+                        .id(editor_id(view.id)),
                 );
                 if t.focus {
                     resp.request_focus();

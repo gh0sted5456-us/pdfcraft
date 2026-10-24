@@ -3053,6 +3053,7 @@ impl PdfCraftApp {
         {
             return;
         }
+        self.text_alignment_keys(ctx);
         self.registry_shortcuts(ctx);
         // (Esc closes a Combine file shown large first.)
         if self.full_screen && self.combine_tab.preview.is_none() && ctx.input(|i| i.key_pressed(Key::Escape)) {
