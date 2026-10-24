@@ -114,6 +114,7 @@ const FIND_MAX_WARNING_BYTES: usize = 1024;
 
 /// A headless PdfCraft session driven by tool calls.
 pub struct Automation {
+    network: bool,
     session: Session,
     root: Option<PathBuf>,
     /// The read and write folders of `--automation-read-root` / `--automation-write-root`.
@@ -139,7 +140,12 @@ impl Default for Automation {
 impl Automation {
     pub fn new() -> Self {
         Self {
-            session: Session::new(),
+            network: false,
+            session: {
+                let mut session = Session::new();
+                session.set_timestamp_certificates(pdfcraft_platform::timestamp::trusted_certificates());
+                session
+            },
             root: None,
             roots: None,
             renderers: HashMap::new(),
@@ -170,6 +176,12 @@ impl Automation {
     /// Use a fixed clock for saves (deterministic output in tests).
     pub fn with_clock(mut self, clock: fn() -> i64) -> Self {
         self.session = std::mem::take(&mut self.session).with_clock(clock);
+        self
+    }
+
+    /// Allow explicitly invoked timestamp tools to contact the supplied server. Off by default.
+    pub fn with_network(mut self, enabled: bool) -> Self {
+        self.network = enabled;
         self
     }
 
@@ -826,6 +838,8 @@ impl Automation {
             "comment_reply" => self.comment_reply(&a)?,
             "comment_set_status" => self.comment_set_status(&a)?,
             "sign_list" => self.sign_list(&a)?,
+            "sign_removable" => self.sign_removable(&a)?,
+            "sign_clear" => self.sign_clear(&a)?,
             "accessibility_check" => self.a11y_check(&a)?,
             "accessibility_find_untagged" => self.a11y_find_untagged(&a)?,
             "accessibility_autotag_preview" => self.accessibility_autotag_preview(&a)?,
@@ -875,6 +889,7 @@ impl Automation {
             "accessibility_move_tag" => self.accessibility_move_tag(&a)?,
             "sign_id_create" => self.sign_id_create(&a)?,
             "sign_document" => self.sign_document(&a)?,
+            "doc_timestamp" => self.doc_timestamp(&a)?,
             "sign_keychain_ids" => {
                 #[cfg(target_os = "macos")]
                 let ids: Vec<Value> = pdfcraft_engine::sign::keychain::identities(None)
@@ -1051,8 +1066,9 @@ impl Automation {
             }
         };
         let same_file = doc.path.as_deref().is_some_and(|p| Path::new(p) == target);
-        // Saving to a new file is a full rewrite unless asked otherwise, like Save As.
-        let full = a.opt_bool("full")?.unwrap_or(!same_file);
+        // Saving to a new file is a full rewrite unless asked otherwise, like Save As; a document
+        // that is still signed is appended to instead, since a rewrite would break its signatures.
+        let full = a.opt_bool("full")?.unwrap_or(!same_file && !doc.is_signed());
         let flatten_fill_sign = a.opt_bool("flatten_fill_sign")?.unwrap_or(false);
         if flatten_fill_sign {
             self.apply(a, Edit::FlattenFillSign)?;

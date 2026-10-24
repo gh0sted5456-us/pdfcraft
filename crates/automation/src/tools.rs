@@ -147,7 +147,7 @@ pub fn tools() -> Vec<ToolDef> {
         t(
             "doc_save",
             "Save a document",
-            "Save to its own file (an incremental update, which keeps signatures valid) or to a new path (a full rewrite). The write is atomic. flatten_fill_sign bakes Fill & Sign text, marks and signatures into the page first and removes those annotations; other comments and form fields stay. Omit it, or pass false, to leave them editable.",
+            "Save to its own file (an incremental update, which keeps signatures valid) or to a new path (a full rewrite, or an incremental update when the document is signed: a rewrite would break the signatures). The write is atomic. flatten_fill_sign bakes Fill & Sign text, marks and signatures into the page first and removes those annotations; other comments and form fields stay. Omit it, or pass false, to leave them editable.",
         )
         .destructive()
         .cmd("file.save")
@@ -729,6 +729,13 @@ pub fn tools() -> Vec<ToolDef> {
         t("sign_list", "List and validate signatures", "Every signature field with its validation: status (valid, unknown = intact but the signer isn't trusted, invalid, unsigned), signer and certificate, date, reason, location, certification level, page and rect, the revision it covers and changes made after signing (none, allowed, disallowed), with Acrobat-style explanations.")
             .ro()
             .with(schema(json!({ "doc": doc() }), &["doc"])),
+        t("sign_removable", "List removable signatures", "The signatures Remove Signature can take out (Acrobat: Clear Signature), each with what removing it does: digital and certification signatures (a signature field's value), document timestamps (listed, never removable on their own) and Fill & Sign signatures or initials (visual: annotations, with no cryptography). removable is false, with the reason in blocked, when another signature's certification or field lock doesn't permit it, or the document can't be changed. effects say what else changes: other signatures will report the change and must be checked again, a certification ends, and whether the removed signature stays recoverable in an earlier revision of the saved file. A signature drawn into a page's content is never listed. status is what validation found; it is not a claim that the signature is valid.")
+            .ro()
+            .with(schema(json!({ "doc": doc() }), &["doc"])),
+        t("sign_clear", "Remove a signature", "Remove one signature from sign_removable, chosen by field (a digital signature) or item (its index there, any kind). By default a digital signature's field and its widgets are removed from the form; with keep_field: true only its value and appearance go, leaving an empty field to sign again; a certification entry naming it goes too. A visual signature's annotation is deleted. Refused, changing nothing, when sign_removable says it isn't removable. Nothing is written until the document is saved: save to a new path to keep the original. With no signature left, Save As to a new file writes a clean copy without earlier revisions; otherwise the save is incremental and the removed signature stays recoverable in the earlier revision. Undoable.")
+            .destructive()
+            .cmd("sign.remove")
+            .with(schema(json!({ "doc": doc(), "field": { "type": "string" }, "item": { "type": "integer", "minimum": 0 }, "keep_field": { "type": "boolean" } }), &["doc"])),
         t("sign_id_create", "Create a digital ID", "Create a self-signed digital ID and save it as a password-protected .p12 file (Acrobat: Configure a new digital ID ▸ Create a new digital ID ▸ Save to file). Default key: 2048-bit RSA, valid 5 years.").with(schema(
             json!({
                 "name": { "type": "string", "minLength": 1 },
@@ -751,12 +758,17 @@ pub fn tools() -> Vec<ToolDef> {
             .ro()
             .cmd("sign.digital")
             .with(schema(json!({}), &[])),
+        t("doc_timestamp", "Timestamp a document", "Append an RFC 3161 document timestamp and atomically save to out. Requires --network and an explicit HTTPS server. No signing identity is needed; TSA trust is reported by sign_list, never assumed.")
+            .cmd("sign.timestamp")
+            .with(schema(json!({ "doc": doc(), "out": {"type": "string"}, "timestamp_server": {"type": "string"} }), &["doc", "out", "timestamp_server"])),
         t("sign_document", "Sign a document", "Sign with a digital ID (a .p12/.pfx path, or on macOS a Keychain identity: \"keychain:<common name or fingerprint>\" from sign_keychain_ids, or on Windows a store identity: \"windows:<common name or fingerprint>\" from sign_windows_ids) and save the signed file to `out` (signing always saves, as in Acrobat; the document then shows the signed file). Sign an existing empty signature field (`field`), or a new one on `page` at `rect` (omit rect for an invisible signature). certify: no_changes, form_fill or comments makes a certification signature. graphic shows a picture where the signer's name would be large (Acrobat: Configure Signature Appearance): {\"image\": path} (PNG or JPEG), {\"text\": name} (typed in the Fill & Sign script font) or {\"strokes\": [[[x, y], …], …]} (y up, the drawing pad 1 wide); it needs a visible signature. appearance chooses what a visible signature shows (default: name, date and labels; reason, location and distinguished_name are off unless turned on). labels gives the words of its labels, e.g. in another language (default English: \"Digitally signed by\", \"DN: \", \"Reason: \", \"Location: \", \"Date: \"; include the separator); each must be in Western European characters (Windows-1252), the only ones the signature's font draws, or the call is refused naming the label and character. PAdES B-B, SHA-256 (SHA-384 for P-384 keys).")
             .cmd("sign.digital")
             .with(schema(
                 json!({
                     "doc": doc(),
                     "id": { "type": "string", "description": "Digital ID file (.p12 / .pfx), keychain: reference on macOS, or windows: reference on Windows." },
+                    "background": { "description": "Subdued watermark behind signature details: pdfcraft for the lion, or a graphic object like graphic. Independent of the left graphic." },
+                    "timestamp_server": { "type": "string", "description": "Optional HTTPS RFC 3161 server; requires --network. Failure never falls back to an unstamped signature." },
                     "password": { "type": "string" },
                     "field": { "type": "string" },
                     "page": { "type": "integer", "minimum": 1 },

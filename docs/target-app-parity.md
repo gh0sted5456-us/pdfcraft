@@ -1,5 +1,7 @@
 # PdfCraft parity with Adobe Acrobat Pro
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** personal M9 signing: independent subdued lion/custom background, reviewed unsigned copies and a matching-ID page menu, plus opt-in RFC 3161 timestamps with a Sectigo HTTPS default, fresh nonces and timestamp-only OS trust. 2,504 scoped tests, strict lint, Windows and wasm checks pass; live Sectigo signing/document timestamps validate. Native Linux/CAC checks remain pending; Linux cross-check needs a C toolchain. Readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** context-sensitive Ctrl+L/E/R aligns an original paragraph, a selected added text box or an open text draft; existing formatting and Undo paths are reused, other text inputs keep their shortcuts, and Ctrl+L remains full screen outside document text. Estimates and printer runtime limits unchanged.
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** Edit-mode Group select includes original editable text, images and paths with annotations and added content; atomic move/delete and arrow-key nudging (one point, Shift ten), repeated-move remapping and preserved/refused text drafts. Content batches also refresh warmed added-content caches. Outside Edit it remains additions-only. Estimates and printer runtime limits unchanged.

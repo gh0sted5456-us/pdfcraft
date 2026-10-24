@@ -3958,7 +3958,36 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         if view.continuous {
             view.current = current;
         }
+        if resp.secondary_clicked() {
+            let signed_fields: HashSet<&str> = doc.signatures.iter().filter(|s| s.signed && !s.doc_timestamp).map(|s| s.field.as_str()).collect();
+            view.sign.context = resp.interact_pointer_pos().and_then(|at| {
+                view.screen_xforms.iter().rev().find_map(|(page, xf)| {
+                    if !xf.rect.contains(at) || info.pages.get(*page).is_none() {
+                        return None;
+                    }
+                    form.iter()
+                        .rev()
+                        .find(|field| {
+                            signed_fields.contains(field.name.as_str())
+                                && field.widgets.iter().any(|widget| {
+                                    widget.page == Some(*page)
+                                        && !widget.hidden
+                                        && widget.rect.iter().all(|n| n.is_finite() && n.abs() < f32::MAX as f64)
+                                        && xf.user_rect(info, *page, widget.rect.map(|n| n as f32)).contains(at)
+                                })
+                        })
+                        .map(|field| field.name.clone())
+                })
+            });
+        }
         resp.context_menu(|ui| {
+            if let Some(field) = view.sign.context.clone() {
+                if ui.button("Clear my signature…").clicked() {
+                    view.sign.clear = Some(field);
+                    ui.close();
+                }
+                ui.separator();
+            }
             if tool == QuickTool::EditText && crate::object_ui::context_menu(ui, doc, view, can_modify) {
                 return;
             }
@@ -4334,6 +4363,9 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     }
     if let Some(done) = app.views[index].marquee_done.take() {
         app.finish_marquee(index, done);
+    }
+    if let Some(field) = app.views[index].sign.clear.take() {
+        app.start_remove_own_signature(&field);
     }
     // A signature rectangle was drawn, or an empty signature field clicked.
     let drawn = app.views[index].sign.drawn.take();

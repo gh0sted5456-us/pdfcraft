@@ -264,4 +264,20 @@ restarts. Standalone engine/MCP sessions have no viewport, so they do not have a
 navigation-history tool; use the opt-in UI control channel to navigate the displayed document.
 
 `object_align` aligns selection edges/centres or distributes equal gaps with one undo step.
-See the selection guide above. The independent CraftPDF Printer is not included in 0.13.1.
+See the selection guide above. The personal build includes the experimental PdfCraft Printer plugin for Windows and Linux CUPS 2.x.
+
+## Signature appearance, timestamps and removal
+
+`sign_document.background` chooses an independent 12% watermark behind the details:
+`"pdfcraft"` for the lion or a graphic object such as `{"image":"watermark.png"}`.
+`doc_timestamp {doc, out, timestamp_server}` appends an RFC 3161 document timestamp;
+`sign_document.timestamp_server` adds a signature timestamp. Both require host opt-in
+(`Automation::with_network(true)`, CLI `run --network` / `mcp --network`). Remote URLs
+require HTTPS, redirects are refused, and failures never produce an unstamped fallback.
+OS trust anchors validate timestamp authorities only; ordinary signer trust remains
+explicit. See [appearance and timestamps](../../docs/signature-appearance-and-timestamps.md).
+
+`sign_removable` lists removal targets and their effects/restrictions. `sign_clear`
+applies one undoable removal; `doc_save` writes it. A saved document with remaining
+signatures defaults to an incremental update even at a new path; an explicit full
+rewrite is still refused. See [removing signatures](../../docs/removing-signatures.md).

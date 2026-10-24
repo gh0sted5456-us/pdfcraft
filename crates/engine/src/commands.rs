@@ -305,10 +305,14 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("form.add.image", "Add an image field", None, None, Modification, "image"),
     c("form.add.date", "Add a date field", None, None, Modification, "clock-3"),
     c("form.add.signature", "Add a digital signature field", None, None, Modification, "signature"),
+    c("sign.timestamp", "Timestamp", None, None, Document, "clock-3"),
     c("sign.digital", "Digitally sign", None, None, Document, "signature"),
     c("sign.certify", "Certify (visible signature)", None, None, Document, "badge-check"),
     c("sign.certify_invisible", "Certify (invisible signature)", None, None, Document, "badge-check"),
     c("sign.validate", "Validate all signatures", None, None, Document, "badge-check"),
+    // Document, not Modification: a visual signature only needs annotation rights, and the dialog
+    // says, per signature, what the document's security doesn't allow.
+    c("sign.remove", "Remove signature…", None, None, Document, "eraser"),
     c("sign.panel", "Signatures panel", VIEW, None, Document, "signature"),
     c("sign.fill.text", "Fill & Sign: add text", None, None, Annotate, "type"),
     c("sign.fill.check", "Fill & Sign: checkmark", None, None, Annotate, "check"),

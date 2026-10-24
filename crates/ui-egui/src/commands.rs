@@ -531,6 +531,11 @@ impl PdfCraftApp {
                 self.apply_trusted_certificates(certs);
                 self.choose_right_panel(Some(RightPanel::Signatures));
             }
+            "sign.timestamp" => {
+                self.timestamp_error = None;
+                self.dialog = Some(Dialog::Timestamp);
+            }
+            "sign.remove" => self.start_remove_signature(None),
             "sign.panel" => self.choose_right_panel(Some(RightPanel::Signatures)),
             "optimize.advanced" => self.dialog = Some(Dialog::Optimize),
             "view.fit_visible" => {

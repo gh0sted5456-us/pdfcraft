@@ -143,6 +143,7 @@ fn drawing_a_signature_creating_an_id_signing_and_trusting() {
     assert!(dir.join("contract_signed.pdf").exists());
     let doc = s.session.get(s.views[0].id).unwrap();
     assert_eq!(doc.name, "contract_signed.pdf");
+    assert!(doc.bytes.windows(b"/Watermark".len()).any(|s| s == b"/Watermark"), "the default lion reaches the signed PDF");
     let sig = doc.signatures.iter().find(|x| x.signed).expect("signed");
     assert_eq!((sig.status, sig.reason.as_deref(), sig.page), (SignatureStatus::Unknown, Some("I approve"), Some(0)));
     assert_eq!(s.right, Some(RightPanel::Signatures));
@@ -493,6 +494,7 @@ fn os_store_identities_are_not_persisted() {
     app.set_option("language", "en").unwrap();
     for path in ["windows:Store signer", "keychain:Store signer", "file-id.p12"] {
         app.digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+            fingerprint: String::new(),
             path: path.into(),
             name: "Signer".into(),
             issuer: "Test issuer".into(),
@@ -518,6 +520,7 @@ fn windows_store_identity_does_not_ask_for_a_file_password() {
     h.state_mut().start_signing(0, None, None, None);
     // A synthetic picker entry exercises the dialog without a real Windows identity.
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "windows:No Such Signer".into(),
         name: "Store signer".into(),
         issuer: "Test issuer".into(),
@@ -548,6 +551,7 @@ fn long_digital_id_names_stay_inside_the_picker() {
     h.state_mut().start_signing(0, None, None, None);
     let long = "a certificate subject much longer than the picker is wide ".repeat(4);
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "windows:No Such Signer".into(),
         name: long.clone(),
         issuer: long,
@@ -585,6 +589,7 @@ fn an_unusable_id_is_shown_with_its_reason_and_cannot_be_chosen() {
     let mut h = harness(dir());
     // Not a `windows:` path: those are replaced by the real store listing when signing starts.
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "store-test:broken".into(),
         name: "Broken signer".into(),
         issuer: String::new(),
@@ -605,6 +610,7 @@ fn an_unusable_id_is_shown_with_its_reason_and_cannot_be_chosen() {
     assert_eq!(h.state().sign_draft.as_ref().unwrap().step, SignStep::Choose);
     // A usable ID after it is the one selected to begin with.
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "store-test:fine".into(),
         name: "Working signer".into(),
         issuer: "Test issuer".into(),

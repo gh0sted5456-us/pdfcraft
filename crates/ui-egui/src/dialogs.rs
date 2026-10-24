@@ -22,6 +22,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     remote_link_prompt(app, ctx);
     full_screen_prompt(app, ctx);
     crate::updates::dialog(app, ctx);
+    crate::timestamp_ui::progress(app, ctx);
     if app.dialog != Some(Dialog::WordCount) {
         app.word_count_draft.cancel();
     }
@@ -763,6 +764,14 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 if crate::optimize_ui::audit_body(ui, &app.space_audit, &t) {
                     next = Dialog::Optimize;
                 }
+                return;
+            }
+            Dialog::Timestamp => {
+                close = crate::timestamp_ui::body(ui, app);
+                return;
+            }
+            Dialog::RemoveSignature => {
+                close = crate::sign_ui::remove_dialog(ui, app, &t);
                 return;
             }
             Dialog::Sign => {

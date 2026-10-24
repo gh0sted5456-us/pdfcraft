@@ -3,7 +3,7 @@
 //! displayed page.
 
 use pdfcraft_engine::sign::{self, Certificate, DigitalId, Modification, Name, PrivateKey};
-use pdfcraft_engine::{SignOptions, SignatureInfo, SignatureStatus};
+use pdfcraft_engine::{Edit, SignOptions, SignatureInfo, SignatureStatus};
 use serde_json::{Value, json};
 
 use crate::{Args, Automation, Result, ToolError, failed, write_atomic};
@@ -197,6 +197,7 @@ impl Automation {
     }
 
     pub(crate) fn sign_document(&mut self, a: &Args) -> Result<Value> {
+        let tsa = self.timestamp_server(a)?;
         let id = self.open_id(a)?;
         let doc = self.doc(a)?;
         let doc_id = doc.id;
@@ -244,6 +245,18 @@ impl Automation {
             Some(_) if !visible => return Err(bad("labels needs a visible signature: pass rect or field")),
             Some(v) => labels_arg(v)?,
         };
+        let background = match a.get("background") {
+            None | Some(Value::Null) => None,
+            Some(_) if !visible => return Err(bad("background needs a visible signature")),
+            Some(Value::String(name)) if name == "pdfcraft" => Some(
+                pdfcraft_engine::SignatureImage::read(std::io::Cursor::new(include_bytes!(
+                    "../../../assets/app-icon/hicolor/256x256/apps/ai.storyteller.pdfcraft.png"
+                )))
+                .map_err(|e| bad(e.to_string()))?
+                .graphic(),
+            ),
+            Some(graphic) => Some(self.signature_graphic(graphic)?),
+        };
         let out = self.resolve(a.str("out")?, true)?;
         let opts = SignOptions {
             field,
@@ -256,9 +269,14 @@ impl Automation {
             appearance,
             appearance_labels,
             graphic,
+            background,
             ..SignOptions::default()
         };
-        let signed = self.session.sign(doc_id, &id, opts).map_err(|e| match e {
+        let signed = match tsa {
+            Some(tsa) => self.session.sign_with_timestamp(doc_id, &id, opts, &tsa),
+            None => self.session.sign(doc_id, &id, opts),
+        }
+        .map_err(|e| match e {
             // A graphic the signer refuses is the caller's to fix.
             pdfcraft_engine::EditError::Sign(m) if m.starts_with("the signature graphic") => bad(m),
             e => failed(e),
@@ -269,6 +287,24 @@ impl Automation {
         let doc = self.doc(a)?;
         let newest = doc.signatures.iter().filter(|s| s.signed).max_by_key(|s| s.revision).cloned();
         Ok(json!({ "path": path, "bytes": signed.len(), "signature": newest.map(|s| self.sig_json(a, &s)).transpose()? }))
+    }
+
+    fn timestamp_server(&self, a: &Args) -> Result<Option<pdfcraft_platform::timestamp::TimestampServer>> {
+        let Some(url) = a.opt_str("timestamp_server")? else { return Ok(None) };
+        if !self.network {
+            return Err(failed("Timestamping needs explicit network permission: start pdfcraft-cli with --network."));
+        }
+        pdfcraft_platform::timestamp::TimestampServer::new(url).map(Some).map_err(|e| bad(e.to_string()))
+    }
+
+    pub(crate) fn doc_timestamp(&mut self, a: &Args) -> Result<Value> {
+        let id = self.doc(a)?.id;
+        let out = self.resolve(a.str("out")?, true)?;
+        let tsa = self.timestamp_server(a)?.ok_or_else(|| bad("timestamp_server is required"))?;
+        let bytes = self.session.timestamp_document(id, &tsa, String::new()).map_err(failed)?;
+        write_atomic(&out, &bytes)?;
+        self.session.mark_signed(id, bytes.clone(), Some(out.to_string_lossy().into_owned())).map_err(failed)?;
+        Ok(json!({ "path": out.to_string_lossy(), "bytes": bytes.len() }))
     }
 
     /// `{"image": path}` (PNG or JPEG), `{"text": name}` (typed in the script font) or
@@ -336,5 +372,79 @@ impl Automation {
         }
         self.session.set_trusted_certificates(certs);
         Ok(json!({ "trusted": self.session.trusted_certificates().iter().map(cert_json).collect::<Vec<_>>() }))
+    }
+}
+
+impl Automation {
+    pub(crate) fn sign_removable(&self, a: &Args) -> Result<Value> {
+        use pdfcraft_engine::clear_signature::{Kind, Target, said};
+        let doc = self.doc(a)?;
+        let list = self.session.removable_signatures(doc.id).map_err(failed)?;
+        let items: Vec<Value> = list
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                let (kind, certify) = match r.kind {
+                    Kind::Digital => ("digital", None),
+                    Kind::Certification(p) => ("certification", Some(p)),
+                    Kind::DocumentTimestamp => ("document_timestamp", None),
+                    Kind::Visual { initials: false } => ("visual", None),
+                    Kind::Visual { initials: true } => ("visual_initials", None),
+                };
+                let annotation = match r.target {
+                    // 1-based, as comment_list and comment_delete number them.
+                    Target::Annotation { page, index } => Some(json!({ "page": page + 1, "index": index + 1 })),
+                    _ => None,
+                };
+                json!({
+                    "item": i,
+                    "kind": kind,
+                    "certify": certify,
+                    "field": r.field,
+                    "annotation": annotation,
+                    "page": r.page.map(|p| p + 1),
+                    "signer": r.signer,
+                    "date": r.date,
+                    "status": r.status.map(|s| match s { SignatureStatus::Valid => "valid", SignatureStatus::Unknown => "unknown", SignatureStatus::Invalid => "invalid" }),
+                    "revision": r.revision,
+                    "removable": r.blocked.is_none(),
+                    "blocked": r.blocked.as_ref().map(|b| said(b.wording())),
+                    "effects": r.effects.iter().map(|e| said(e.wording())).collect::<Vec<_>>(),
+                })
+            })
+            .collect();
+        Ok(json!({ "count": items.len(), "items": items }))
+    }
+
+    /// Remove one signature listed by `sign_removable`, by `field` or by `item`. Undoable; the
+    /// file on disk changes only when the document is saved (doc_save, preferably to a new path).
+    pub(crate) fn sign_clear(&mut self, a: &Args) -> Result<Value> {
+        use pdfcraft_engine::clear_signature::{Kind, Target, said};
+        let id = self.doc(a)?.id;
+        let list = self.session.removable_signatures(id).map_err(failed)?;
+        let chosen = match (a.opt_str("field")?, a.opt_int("item")?) {
+            (Some(f), None) => list.iter().find(|r| r.field.as_deref() == Some(f)).ok_or_else(|| {
+                failed(format!("{f:?} has no signature to remove (see sign_removable; an unsigned field can be deleted with form_delete_field)"))
+            })?,
+            (None, Some(i)) => usize::try_from(i)
+                .ok()
+                .and_then(|i| list.get(i))
+                .ok_or_else(|| bad(format!("item {i} is not in sign_removable's list ({} items)", list.len())))?,
+            _ => return Err(bad("give either field or item (from sign_removable)")),
+        };
+        if let Some(b) = &chosen.blocked {
+            return Err(failed(said(b.wording())));
+        }
+        let keep_field = a.opt_bool("keep_field")?.unwrap_or(false);
+        let edit = match (&chosen.target, &chosen.kind) {
+            (Target::Field(f), _) => Edit::ClearSignature { field: f.clone(), remove_field: !keep_field },
+            (Target::Annotation { page, index }, Kind::Visual { .. }) => Edit::DeleteAnnotation { page: *page, index: *index },
+            _ => return Err(failed("this signature can't be removed on its own")),
+        };
+        let effects: Vec<String> = chosen.effects.iter().map(|e| said(e.wording())).collect();
+        let mut out = self.apply(a, edit)?;
+        out["effects"] = json!(effects);
+        out["signed"] = json!(self.doc(a)?.is_signed());
+        Ok(out)
     }
 }

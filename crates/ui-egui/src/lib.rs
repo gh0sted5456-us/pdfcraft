@@ -68,6 +68,7 @@ mod search_ui;
 mod sign_ui;
 mod stamps_ui;
 mod standards_ui;
+mod timestamp_ui;
 mod zoom_snap;
 /// Header & footer / watermark / background dialog types (tests and automation).
 pub mod marks {
@@ -339,6 +340,7 @@ pub enum Dialog {
     SummarizeComments,
     /// Sign with a Digital ID ▸ Configure ▸ Sign as.
     Sign,
+    Timestamp,
     /// Optimize PDF ▸ Advanced optimization.
     Optimize,
     /// Prepare a form ▸ right-click a field ▸ Duplicate.
@@ -375,6 +377,7 @@ pub enum Dialog {
     AuditSpace,
     /// Signatures ▸ Show certificate.
     CertificateViewer,
+    RemoveSignature,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -683,6 +686,10 @@ pub struct PdfCraftApp {
     pub summary_sort: pdfcraft_engine::SummarySort,
     /// The signing dialogs' state.
     pub sign_draft: Option<SignDraft>,
+    pub remove_sig: Option<crate::sign_ui::RemoveSigDraft>,
+    pub timestamp_server: String,
+    pub(crate) timestamp_run: Option<timestamp_ui::TimestampRun>,
+    pub(crate) timestamp_error: Option<String>,
     /// Digital ID files the user has created or added.
     pub digital_ids: Vec<DigitalIdEntry>,
     /// Signatures panel: expanded entries (field names).
@@ -828,6 +835,8 @@ pub struct PdfCraftApp {
     pub(crate) saved_signature_previews: [Option<(fill_sign::SavedSig, egui::TextureHandle)>; 2],
     /// What visible digital signatures show on their left, and its preview in Sign as.
     pub sign_graphic: sign_ui::SignGraphic,
+    pub sign_background: sign_ui::SignBackground,
+    pub(crate) sign_background_preview: Option<(fill_sign::SavedSig, egui::TextureHandle)>,
     pub(crate) sign_graphic_preview: Option<(fill_sign::SavedSig, egui::TextureHandle)>,
     #[cfg(target_arch = "wasm32")]
     pub(crate) signature_images: fill_sign::ImageInbox,
@@ -951,7 +960,11 @@ pub enum OpenOutcome {
 impl PdfCraftApp {
     pub fn new() -> Self {
         Self {
-            session: Session::new(),
+            session: {
+                let mut session = Session::new();
+                session.set_timestamp_certificates(pdfcraft_platform::timestamp::trusted_certificates());
+                session
+            },
             views: Vec::new(),
             closed_tabs: Vec::new(),
             active: None,
@@ -1053,6 +1066,10 @@ impl PdfCraftApp {
             rotate_draft: RotateDraft::default(),
             summary_sort: Default::default(),
             sign_draft: None,
+            remove_sig: None,
+            timestamp_server: pdfcraft_platform::timestamp::DEFAULT_SERVER.into(),
+            timestamp_run: None,
+            timestamp_error: None,
             digital_ids: Vec::new(),
             sig_expanded: Vec::new(),
             a11y_options: a11y_ui::A11yOptions::default(),
@@ -1136,6 +1153,8 @@ impl PdfCraftApp {
             signature_photo: None,
             saved_signature_previews: [None, None],
             sign_graphic: sign_ui::SignGraphic::Name,
+            sign_background: sign_ui::SignBackground::Lion,
+            sign_background_preview: None,
             sign_graphic_preview: None,
             #[cfg(target_arch = "wasm32")]
             signature_images: Default::default(),
@@ -2073,6 +2092,7 @@ impl PdfCraftApp {
             || self.pending_link.is_some()
             || self.pending_remote_link.is_some()
             || self.updates.open
+            || self.timestamp_run.is_some()
     }
 
     /// Enable the UI control channel on `ctx` (opt-in; see [`control`]). Returns a client that
@@ -2448,6 +2468,8 @@ impl PdfCraftApp {
             "signature_image": match &self.signature { Some(s @ fill_sign::SavedSig::Image(_)) => Some(s), _ => None },
             "initials": self.initials,
             "sign_graphic": self.sign_graphic,
+            "sign_background": self.sign_background,
+            "timestamp_server": self.timestamp_server,
             // macOS Keychain and Windows store identities are read from their OS key stores each time.
             "digital_ids": self.digital_ids.iter().filter(|e| !e.path.starts_with("keychain:") && !e.path.starts_with("windows:")).collect::<Vec<_>>(),
             "trusted": trusted,
@@ -2637,6 +2659,9 @@ impl PdfCraftApp {
         }
         // An unreadable choice (a damaged image) falls back to the name.
         self.sign_graphic = serde_json::from_value(v["sign_graphic"].clone()).unwrap_or_default();
+        self.sign_background = serde_json::from_value(v["sign_background"].clone()).unwrap_or_default();
+        self.timestamp_server =
+            v["timestamp_server"].as_str().filter(|s| s.len() <= 2048).unwrap_or(pdfcraft_platform::timestamp::DEFAULT_SERVER).to_string();
         if let Ok(ids) = serde_json::from_value::<Vec<DigitalIdEntry>>(v["digital_ids"].clone()) {
             self.digital_ids = ids;
         }
@@ -2752,6 +2777,10 @@ impl PdfCraftApp {
                     "pdfa" => Some(Dialog::PdfA),
                     "signature" => Some(Dialog::Signature),
                     "optimize" => Some(Dialog::Optimize),
+                    "remove-signature" => {
+                        self.start_remove_signature(None);
+                        self.dialog
+                    }
                     "sign" | "certify" => {
                         // Sign with a Digital ID for an invisible signature on the current page.
                         let page = self.active.map_or(0, |i| self.views[i].current);
@@ -3380,6 +3409,7 @@ impl eframe::App for PdfCraftApp {
         self.poll_ocr();
         self.prompt_scan_ocr();
         self.poll_optimize();
+        self.poll_timestamp();
         self.poll_action();
         self.process_file_requests();
         #[cfg(not(target_arch = "wasm32"))]
