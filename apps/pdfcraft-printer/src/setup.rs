@@ -25,13 +25,6 @@ pub fn run() -> Result<(), String> {
     #[cfg(feature = "bundle")]
     {
         install(&args)?;
-        if !args.iter().any(|a| a == "--quiet") {
-            message(
-                "PdfCraft setup complete",
-                "PdfCraft and PdfCraft Printer are ready. Choose PdfCraft Printer from another application's Print dialog to create a PDF.",
-                false,
-            );
-        }
         Ok(())
     }
     #[cfg(not(feature = "bundle"))]

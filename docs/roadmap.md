@@ -1,5 +1,7 @@
 # PdfCraft roadmap: milestones and what's next
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** community icon hover says only ArtCraft Community; printer setup uses the Windows GUI subsystem, has no extra success popup, and checks shipped PE headers. Existing printer validation limits and estimates unchanged.
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** M10/M14 draft: independent XPS conversion, experimental Windows and Linux printer components, and a themed Discord brand icon. Native printer validation remains incomplete; estimates unchanged.
 
 > **Last reviewed:** 2026-10-22 · **Last updated:** 2026-10-22 · **Change:** minor (M14, #3558: rebase guarded macOS per-file association recovery onto current main; estimates unchanged)
