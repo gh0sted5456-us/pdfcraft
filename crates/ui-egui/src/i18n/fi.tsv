@@ -2791,3 +2791,16 @@ theme	Appearance	Teema
 	Line colour	Viivan väri
 	Lines	Viivat
 	This point could not be moved. Try a smaller move.	Tätä pistettä ei voitu siirtää. Kokeile pienempää siirtoa.
+
+# Group selection and document save status.
+	Exit	Poistu
+	Group select	Ryhmävalinta
+	Return to document	Palaa asiakirjaan
+	Saved	Tallennettu
+	Saves document	Tallentaa asiakirjan
+	Unsaved changes	Tallentamattomia muutoksia
+	Delete line	Poista viiva
+	Delete lines	Poista viivat
+	Format line	Muotoile viiva
+	Format lines	Muotoile viivat
+	Move line point	Siirrä viivan pistettä

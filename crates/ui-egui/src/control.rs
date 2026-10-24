@@ -693,6 +693,7 @@ impl Host for crate::PdfCraftApp {
                 "page_errors": v.page_errors().iter().map(|(p, e)| json!({ "page": p + 1, "error": e })).collect::<Vec<_>>(),
                 // Where pages are on screen (points), to aim ui.click / ui.drag at page content.
                 "pages_on_screen": v.visible_page_rects().iter().map(|(p, r)| json!({ "page": p + 1, "rect": [r.min.x, r.min.y, r.max.x, r.max.y] })).collect::<Vec<_>>(),
+                "group_selection_count": v.group_selection_count(),
                 "selected_comment": v.comments.selected.map(|(p, i)| json!({ "page": p + 1, "index": i + 1 })),
                 "comment_composer_open": v.comments.composer.is_some(),
             })),
@@ -710,6 +711,7 @@ impl Host for crate::PdfCraftApp {
             "quick_tool": match self.quick_tool {
                 crate::QuickTool::Measure(t) => format!("measure-{}", t.name()),
                 crate::QuickTool::Select => "select".to_string(),
+                crate::QuickTool::GroupSelect => "group-select".to_string(),
                 crate::QuickTool::Hand => "hand".to_string(),
                 crate::QuickTool::Crop => "crop".to_string(),
                 crate::QuickTool::EnhanceCamera => "enhance-camera".to_string(),

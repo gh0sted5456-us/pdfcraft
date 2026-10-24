@@ -2519,3 +2519,11 @@ animation effects	Off	Kapalı
 	Ask whether to recognize the current page or all pages when editing a scan.	Taranmış bir belge düzenlenirken geçerli sayfanın mı yoksa tüm sayfaların mı tanınacağını sor.
 	Scanned text detected	Taranmış metin algılandı
 	Recognize text on this page or throughout the document?	Bu sayfadaki metin mi yoksa belgenin tamamındaki metin mi tanınsın?
+
+# Group selection and document save status.
+	Exit	Çıkış
+	Group select	Grup seçimi
+	Return to document	Belgeye dön
+	Saved	Kaydedildi
+	Saves document	Belgeyi kaydeder
+	Unsaved changes	Kaydedilmemiş değişiklikler

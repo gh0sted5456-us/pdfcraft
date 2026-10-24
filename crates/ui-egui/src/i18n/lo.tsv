@@ -2429,3 +2429,11 @@ animation effects	Off	ປິດ
 	Make properties default	ກຳນົດຄຸນສົມບັດເປັນຄ່າເລີ່ມຕົ້ນ
 	Pages selected	ໜ້າທີ່ເລືອກ
 	Page properties	ຄຸນສົມບັດໜ້າ
+
+# Group selection and document save status.
+	Exit	ອອກ
+	Group select	ເລືອກກຸ່ມ
+	Return to document	ກັບໄປຫາເອກະສານ
+	Saved	ບັນທຶກແລ້ວ
+	Saves document	ບັນທຶກເອກະສານ
+	Unsaved changes	ການປ່ຽນແປງທີ່ຍັງບໍ່ໄດ້ບັນທຶກ

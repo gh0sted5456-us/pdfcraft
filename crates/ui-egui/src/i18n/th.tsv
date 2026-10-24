@@ -2681,3 +2681,11 @@ key	Space	Space
 	Page properties	คุณสมบัติหน้า
 	The password must have at least 8 characters.	รหัสผ่านต้องมีอย่างน้อย 8 ตัวอักษร
 theme	Appearance	ลักษณะที่ปรากฏ
+
+# Group selection and document save status.
+	Exit	ออก
+	Group select	เลือกกลุ่ม
+	Return to document	กลับไปที่เอกสาร
+	Saved	บันทึกแล้ว
+	Saves document	บันทึกเอกสาร
+	Unsaved changes	การเปลี่ยนแปลงที่ยังไม่ได้บันทึก

@@ -11,6 +11,26 @@ use serde_json::{Value, json};
 
 use crate::{Args, Automation, Content, DEFAULT_DPI, MAX_DPI, Result, ToolError, encode_png, failed};
 
+fn group_positions(a: &Args, key: &str) -> Result<Vec<usize>> {
+    let Some(value) = a.get(key) else { return Ok(Vec::new()) };
+    let values = value.as_array().ok_or_else(|| ToolError::InvalidArgs(format!("{key} must be an array")))?;
+    if values.len() > 1_000 {
+        return Err(ToolError::InvalidArgs("select between 1 and 1000 additions".into()));
+    }
+    let mut indices = values
+        .iter()
+        .map(|v| {
+            v.as_u64()
+                .and_then(|n| n.checked_sub(1))
+                .and_then(|n| usize::try_from(n).ok())
+                .ok_or_else(|| ToolError::InvalidArgs(format!("{key} must contain 1-based positions")))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    indices.sort_unstable();
+    indices.dedup();
+    Ok(indices)
+}
+
 /// Author used when a tool call names none.
 pub(crate) const DEFAULT_AUTHOR: &str = "PdfCraft";
 
@@ -666,9 +686,39 @@ impl Automation {
         self.apply(a, edit)
     }
 
+    pub(crate) fn additions_move(&mut self, a: &Args) -> Result<Value> {
+        let indices = group_positions(a, "indices")?;
+        let content = group_positions(a, "content_indices")?;
+        let page = self.page(a)?;
+        let offset = a.need::<2>("offset", "a move in displayed-page points")?;
+        let edit = self.doc(a)?.move_additions(page, &indices, &content, offset).map_err(failed)?;
+        self.apply(a, edit)
+    }
+
     pub(crate) fn comment_delete(&mut self, a: &Args) -> Result<Value> {
-        let (page, index) = self.comment_target(a)?;
-        self.apply(a, Edit::DeleteAnnotation { page, index })
+        if a.get("indices").is_some() || a.get("content_indices").is_some() {
+            if a.get("index").is_some() || a.get("id").is_some() {
+                return Err(ToolError::InvalidArgs("use group indices with page, or a single id/index, not both".into()));
+            }
+            let indices = group_positions(a, "indices")?;
+            let content = group_positions(a, "content_indices")?;
+            if indices.len() + content.len() == 0 || indices.len() + content.len() > 1_000 {
+                return Err(ToolError::InvalidArgs("select between 1 and 1000 additions to delete".into()));
+            }
+            let page = self.page(a)?;
+            if content.is_empty() {
+                return self.apply(a, Edit::DeleteAnnotations { page, indices });
+            }
+            let mut edits = Vec::new();
+            if !indices.is_empty() {
+                edits.push(Edit::DeleteAnnotations { page, indices });
+            }
+            edits.extend(content.into_iter().rev().map(|index| Edit::DeleteContent { page, index }));
+            self.apply(a, Edit::Batch { label: "Delete additions".into(), edits })
+        } else {
+            let (page, index) = self.comment_target(a)?;
+            self.apply(a, Edit::DeleteAnnotation { page, index })
+        }
     }
 }
 

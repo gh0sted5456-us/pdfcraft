@@ -2465,3 +2465,11 @@ animation effects	Off	關
 	field names can't contain a period: {name}	欄位名稱不能包含句點：{name}
 	two cells would both be named {name}	兩個儲存格的名稱都會是 {name}
 	a field named {name} already exists	已有名為 {name} 的欄位
+
+# Group selection and document save status.
+	Exit	結束
+	Group select	群組選取
+	Return to document	返回文件
+	Saved	已儲存
+	Saves document	儲存文件
+	Unsaved changes	未儲存的變更

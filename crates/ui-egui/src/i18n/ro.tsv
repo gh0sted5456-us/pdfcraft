@@ -2774,3 +2774,24 @@ theme	Appearance	Aspect
 	field names can't contain a period: {name}	numele câmpurilor nu pot conține punct: {name}
 	two cells would both be named {name}	două celule s-ar numi amândouă {name}
 	a field named {name} already exists	există deja un câmp numit {name}
+
+# Group selection and document save status.
+	Exit	Ieșire
+	Group select	Selectare grup
+	Return to document	Înapoi la document
+	Saved	Salvat
+	Saves document	Salvează documentul
+	Unsaved changes	Modificări nesalvate
+	Delete line	Șterge linia
+	Delete lines	Șterge liniile
+	Format line	Formatează linia
+	Format lines	Formatează liniile
+	Move line point	Mută punctul liniei
+	Ask whether to recognize the current page or all pages when editing a scan.	Întreabă dacă se recunoaște pagina curentă sau toate paginile la editarea unei scanări.
+	Drag a point to reshape the line. Delete removes it.	Trageți un punct pentru a modifica forma liniei. Tasta Delete îl elimină.
+	Line colour	Culoarea liniei
+	Lines	Linii
+	Recognize scanned text automatically	Recunoaște automat textul scanat
+	Recognize text on this page or throughout the document?	Recunoașteți textul de pe această pagină sau din întregul document?
+	Scanned text detected	S-a detectat text scanat
+	This point could not be moved. Try a smaller move.	Acest punct nu a putut fi mutat. Încercați o deplasare mai mică.

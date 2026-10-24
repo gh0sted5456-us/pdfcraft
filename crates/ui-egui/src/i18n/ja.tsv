@@ -2523,3 +2523,11 @@ animation effects	Off	オフ
 	Ask whether to recognize the current page or all pages when editing a scan.	スキャンした文書の編集時に、現在のページとすべてのページのどちらを認識するか確認します。
 	Scanned text detected	スキャンしたテキストを検出しました
 	Recognize text on this page or throughout the document?	このページのテキストを認識しますか、それとも文書全体を認識しますか？
+
+# Group selection and document save status.
+	Exit	終了
+	Group select	グループ選択
+	Return to document	文書に戻る
+	Saved	保存済み
+	Saves document	文書を保存します
+	Unsaved changes	未保存の変更

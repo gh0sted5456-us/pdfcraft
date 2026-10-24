@@ -575,7 +575,7 @@ fn closing_a_dirty_tab_asks_and_cancel_keeps_it() {
 
     h.key_press_modifiers(Modifiers::COMMAND, Key::W);
     h.run_steps(3);
-    h.get_by_label("Don't save").click();
+    h.get_by_label("Exit").click();
     h.run_steps(3);
     assert!(h.state().views.is_empty(), "discarding closes the tab");
 }
@@ -765,7 +765,7 @@ fn clean_tabs_close_without_asking() {
     h.key_press_modifiers(Modifiers::COMMAND, Key::W);
     h.run_steps(3);
     assert!(h.state().views.is_empty());
-    assert!(h.query_by_label("Don't save").is_none());
+    assert!(h.query_by_label("Exit").is_none());
 }
 
 #[test]
@@ -782,10 +782,10 @@ fn quitting_with_unsaved_changes_asks_for_each_document() {
     h.state_mut().close_request = Some(CloseRequest::Quit);
     h.run_steps(3);
     h.get_by_label_contains("Save changes to “doc.pdf”");
-    h.get_by_label("Don't save").click();
+    h.get_by_label("Exit").click();
     h.run_steps(3);
     h.get_by_label_contains("Save changes to “second.pdf”");
-    h.get_by_label("Don't save").click();
+    h.get_by_label("Exit").click();
     h.run_steps(3);
     assert!(h.state().views.is_empty());
     assert!(h.state().close_request.is_none());
@@ -878,7 +878,7 @@ fn quitting_with_unsaved_changes_still_remembers_every_file() {
     h.run_steps(3);
     // Each unsaved tab closes as it is answered, before PdfCraft quits.
     for _ in 0..2 {
-        h.get_by_label("Don't save").click();
+        h.get_by_label("Exit").click();
         h.run_steps(3);
     }
     assert!(h.state().views.is_empty());
@@ -1021,7 +1021,7 @@ fn save_prompt_stays_inside_the_screen_for_a_long_filename() {
     let title = h.get_by_label_contains("Save changes to");
     let title_rect = title.rect();
     assert!(inside(title_rect), "the title rect {title_rect:?} leaves the screen");
-    for button in ["Save", "Cancel", "Don't save"] {
+    for button in ["Save", "Cancel", "Exit"] {
         let rect = h.get_by_label(button).rect();
         assert!(inside(rect), "the {button} button rect {rect:?} leaves the screen");
     }
@@ -1061,7 +1061,7 @@ fn save_prompt_fits_the_smallest_window_whatever_the_name() {
             h.query_by(|n| n.value().is_some_and(|l| l.starts_with(&opening) && l.contains('…') && l.contains(".pdf” before closing?"))).is_some(),
             "{start}…: the title keeps the start and the extension"
         );
-        for button in ["Save", "Cancel", "Don't save"] {
+        for button in ["Save", "Cancel", "Exit"] {
             let rect = h.get_by_label(button).rect();
             assert!(inside(rect), "{start}…: the {button} button rect {rect:?} leaves the screen");
         }
@@ -3921,7 +3921,8 @@ fn drag_paragraph(h: &mut Harness<'static, PdfCraftApp>, text: &str, offset: [f6
         "no objects selected"
     );
     assert!(h.state().views[0].line_editor.is_none());
-    drag(h, from, to);
+    // Exact offsets exercise source preservation independently of alignment snapping.
+    page_drag(h, from, to, Modifiers::ALT);
     assert!(h.state().views[0].line_editor.is_none(), "a body drag must not open the typing editor");
     assert!(
         h.query_all_by_label_contains("object selected").next().is_none() && h.query_all_by_label_contains("objects selected").next().is_none(),
@@ -6033,5 +6034,41 @@ fn a_paragraph_selected_by_its_frame_deletes_with_one_key() {
         assert!(h.state_mut().execute("edit.undo"));
         h.run_steps(2);
         assert_eq!(blocks(&h).iter().map(|b| b.text.as_str()).collect::<Vec<_>>(), ["Page 1"], "undo restores it");
+    }
+}
+
+#[test]
+fn save_prompt_centers_the_message_and_colored_actions_in_both_themes() {
+    let _gpu = crate::gpu();
+    for theme in ["light", "dark"] {
+        let mut h = dirty_prompt();
+        h.state_mut().set_option("theme", theme).unwrap();
+        h.run_steps(4);
+        let title = h.get_by_label_contains("Save changes to").rect();
+        let warning = h.get_by_label("Your changes will be lost if you don't save them.").rect();
+        let discard = h.get_by_label("Exit").rect();
+        let cancel = h.get_by_label("Cancel").rect();
+        let save = h.get_by_label("Save").rect();
+        assert!((warning.center().x - title.center().x).abs() < 2.0);
+        assert!(((discard.left() + save.right()) * 0.5 - title.center().x).abs() < 2.0);
+        assert!(warning.top() > title.bottom() + 16.0);
+        assert!(cancel.top() > warning.bottom() + 24.0);
+        assert!((discard.center().y - save.center().y).abs() < 0.1);
+        assert!((cancel.center().y - save.center().y).abs() < 0.1);
+        assert!(((cancel.left() - discard.right()) - (save.left() - cancel.right())).abs() < 0.1);
+        let idle = h.render().unwrap();
+        h.hover_at(save.center());
+        h.run_steps(12);
+        let hovered = h.render().unwrap();
+        let pixel = |image: &image::RgbaImage| image.get_pixel((save.left() + 10.0) as u32, save.center().y as u32).0;
+        assert_ne!(pixel(&idle), pixel(&hovered), "Save gains a matte green fill on hover");
+        h.get_by_label("Saves document");
+        h.hover_at(cancel.center());
+        h.run_steps(12);
+        h.get_by_label("Return to document");
+        if let Ok(dir) = std::env::var("PDFCRAFT_DIALOG_PREVIEW_DIR") {
+            idle.save(std::path::Path::new(&dir).join(format!("save-prompt-{theme}.png"))).unwrap();
+            hovered.save(std::path::Path::new(&dir).join(format!("save-prompt-{theme}-hover.png"))).unwrap();
+        }
     }
 }

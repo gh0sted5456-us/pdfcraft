@@ -2755,3 +2755,11 @@ certificate	SHA-256 digest	Impronta SHA-256
 	Ask whether to recognize the current page or all pages when editing a scan.	Durante la modifica di una scansione, chiedi se riconoscere la pagina corrente o tutte le pagine.
 	Scanned text detected	Rilevato testo scansionato
 	Recognize text on this page or throughout the document?	Riconoscere il testo di questa pagina o dell'intero documento?
+
+# Group selection and document save status.
+	Exit	Esci
+	Group select	Selezione di gruppo
+	Return to document	Torna al documento
+	Saved	Salvato
+	Saves document	Salva il documento
+	Unsaved changes	Modifiche non salvate

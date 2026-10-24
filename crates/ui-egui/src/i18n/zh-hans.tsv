@@ -2487,3 +2487,11 @@ animation effects	Off	关
 	Ask whether to recognize the current page or all pages when editing a scan.	编辑扫描文档时，询问是识别当前页还是所有页面。
 	Scanned text detected	检测到扫描文本
 	Recognize text on this page or throughout the document?	识别此页还是整个文档中的文本？
+
+# Group selection and document save status.
+	Exit	退出
+	Group select	框选组
+	Return to document	返回文档
+	Saved	已保存
+	Saves document	保存文档
+	Unsaved changes	未保存的更改

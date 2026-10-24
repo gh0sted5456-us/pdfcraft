@@ -536,6 +536,7 @@ pub struct DocView {
     /// Edit text & images: the images per page (by document generation), and the selected one.
     pub(crate) edit_images: HashMap<usize, (u64, Vec<pdfcraft_engine::PageImage>)>,
     pub(crate) objects: crate::object_ui::ObjectSelection,
+    pub(crate) group: crate::group_select::GroupSelection,
     pub image_selection: Option<crate::edit_text_ui::ImageSelection>,
     /// Select tool: the picture clicked, to copy in its original format.
     pub picked_image: Option<crate::image_pick::PickedImage>,
@@ -689,6 +690,11 @@ pub enum ViewAction {
 }
 
 impl DocView {
+    /// Number of comments and added items in the current group selection.
+    pub fn group_selection_count(&self) -> usize {
+        self.group.count()
+    }
+
     pub fn raster_memory(&self) -> RasterMemory {
         RasterMemory {
             thumbnail_count: self.thumbs.len(),
@@ -815,6 +821,7 @@ impl DocView {
             move_background: Default::default(),
             edit_images: HashMap::new(),
             objects: Default::default(),
+            group: Default::default(),
             image_selection: None,
             picked_image: None,
             block_drag: None,
@@ -3015,7 +3022,8 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         QuickTool::Comment(t) => t.markup().is_some() || t == comments::CommentTool::ReplaceText,
         QuickTool::Select => !preparing,
         QuickTool::Redact | QuickTool::ColumnSelect => true,
-        QuickTool::Hand
+        QuickTool::GroupSelect
+        | QuickTool::Hand
         | QuickTool::Measure(_)
         | QuickTool::Crop
         | QuickTool::EnhanceCamera
@@ -3086,6 +3094,13 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         view.prepare.selected = None;
     }
     view.objects.prepare(doc, tool == QuickTool::EditText && can_modify, ui.ctx());
+    view.group.prepare(doc, tool == QuickTool::GroupSelect, ui.ctx());
+    if tool == QuickTool::GroupSelect {
+        view.comments.selected = None;
+        view.content.selected = None;
+        view.selection = None;
+        view.picked_image = None;
+    }
     view.text_background.prepare(ui.ctx(), doc, view.line_editor.as_ref(), view.content.draft.as_ref(), scale);
     let added = if editing_content { doc.added().to_vec() } else { Vec::new() };
     let doc_links = if tool == QuickTool::Link { doc.links().to_vec() } else { Vec::new() };
@@ -3544,7 +3559,9 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
             {
                 view.links.context = Some((i, l.index));
             }
-            let consumed = on_objects || on_edit_text || on_link || on_content || boxing || on_field || comments::page_input(ui, &resp, &pcx, view);
+            let on_group = tool == QuickTool::GroupSelect && crate::group_select::page_input(ui, &pcx, doc, view);
+            let consumed =
+                on_group || on_objects || on_edit_text || on_link || on_content || boxing || on_field || comments::page_input(ui, &resp, &pcx, view);
 
             let preview_target =
                 (matches!(tool, QuickTool::Select | QuickTool::Fill(_)) && !comments_hidden).then_some(view.comments.selected).flatten();
@@ -3736,6 +3753,9 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
                 crate::redact_ui::paint(ui, painter, i, view);
             }
             comments::paint_page(ui, painter, &pcx, view);
+            if tool == QuickTool::GroupSelect {
+                crate::group_select::paint(painter, &pcx, doc, &view.group);
+            }
             if editing_content {
                 crate::content_ui::paint_page(ui, painter, &xf, i, info, &added, view);
             }
@@ -4233,6 +4253,12 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     // One crop, then back to selecting (as Acrobat does).
     let cropped = view.pending_edit.as_ref().is_some_and(|e| matches!(e, pdfcraft_engine::Edit::SetPageBox { .. }));
     let mut tool = app.quick_tool;
+    if tool == QuickTool::GroupSelect {
+        crate::group_select::keys(ui.ctx(), view);
+    }
+    if let Some(why) = view.group.notice.take() {
+        refused = Some(why);
+    }
     comments::keys(ui.ctx(), view, &mut tool, allowed);
     if preparing {
         crate::prepare::keys(ui.ctx(), view);
@@ -4988,6 +5014,19 @@ fn quick_bar(app: &mut PdfCraftApp, area: Rect, ui: &mut egui::Ui) {
                 ui.vertical(|ui| {
                     if icons::button(ui, "mouse-pointer-2", 32.0, app.quick_tool == QuickTool::Select, tl!("Select (V)")).clicked() {
                         app.quick_tool = QuickTool::Select;
+                    }
+                    let group_count = app.active.and_then(|i| app.views.get(i)).map_or(0, DocView::group_selection_count);
+                    let group_label = if group_count == 0 {
+                        tl!("Group select").to_owned()
+                    } else {
+                        format!(
+                            "{} · {}",
+                            tl!("Group select"),
+                            crate::i18n::trn(crate::i18n::current(), group_count as u64, "{n} object selected", "{n} objects selected")
+                        )
+                    };
+                    if icons::button(ui, "square-dashed", 32.0, app.quick_tool == QuickTool::GroupSelect, &group_label).clicked() {
+                        app.quick_tool = QuickTool::GroupSelect;
                     }
                     if icons::button(ui, "hand", 32.0, app.quick_tool == QuickTool::Hand, tl!("Hand (H)")).clicked() {
                         app.quick_tool = QuickTool::Hand;

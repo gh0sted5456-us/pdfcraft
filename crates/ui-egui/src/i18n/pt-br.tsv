@@ -2808,3 +2808,16 @@ theme	Appearance	Aparência
 	Ask whether to recognize the current page or all pages when editing a scan.	Ao editar um documento digitalizado, perguntar se deve reconhecer a página atual ou todas as páginas.
 	Scanned text detected	Texto digitalizado detectado
 	Recognize text on this page or throughout the document?	Reconhecer o texto desta página ou de todo o documento?
+
+# Group selection and document save status.
+	Exit	Sair
+	Group select	Seleção de grupo
+	Return to document	Voltar ao documento
+	Saved	Salvo
+	Saves document	Salva o documento
+	Unsaved changes	Alterações não salvas
+	Delete line	Excluir linha
+	Delete lines	Excluir linhas
+	Format line	Formatar linha
+	Format lines	Formatar linhas
+	Move line point	Mover ponto da linha

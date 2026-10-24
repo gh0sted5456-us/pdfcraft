@@ -284,6 +284,7 @@ fn scope_of(edit: &Edit) -> Scope {
         | Edit::AddAnnotation(_)
         | Edit::AddCustomStamp { .. }
         | Edit::DeleteAnnotation { .. }
+        | Edit::DeleteAnnotations { .. }
         | Edit::SetAnnotationContents { .. }
         | Edit::ReplyToAnnotation { .. }
         | Edit::SetAnnotationStatus { .. }
@@ -614,6 +615,36 @@ impl Document {
     pub fn measurement_to_view(&self, page: usize, point: measure::Point) -> Result<measure::Point, String> {
         let e = self.editor.as_ref().ok_or("the document can't be read")?;
         measure::user_to_view(&e.cos, page, point).map_err(|e| e.to_string())
+    }
+
+    /// Move a page's comments and PdfCraft-added content together. Indices are zero-based;
+    /// offset is in displayed-page points, x right/y down (before any view-only rotation).
+    pub fn move_additions(&self, page: usize, annotations: &[usize], content: &[usize], offset: [f64; 2]) -> Result<Edit, String> {
+        if annotations.len().saturating_add(content.len()) == 0 || annotations.len().saturating_add(content.len()) > 1_000 {
+            return Err("select between 1 and 1000 additions to move".into());
+        }
+        if !offset.iter().all(|v| v.is_finite() && v.abs() <= 10_000_000.0) || offset == [0.0, 0.0] {
+            return Err("the move must be finite, non-zero and at most 10000000 points".into());
+        }
+        let [dx, dy] = self.object_move_offset(page, offset)?;
+        let mut edits = Vec::new();
+        for index in annotations.iter().copied().collect::<std::collections::BTreeSet<_>>() {
+            if !self.info.annotations.iter().any(|a| a.page == page && a.index == index && a.subtype != "Popup") {
+                return Err("that comment no longer exists; select it again".into());
+            }
+            edits.push(Edit::MoveAnnotation { page, index, dx, dy });
+        }
+        let added: Vec<_> = self.added().iter().filter(|a| a.page == page).collect();
+        for index in content.iter().copied().collect::<std::collections::BTreeSet<_>>() {
+            let item = added.get(index).ok_or("that added content no longer exists; select it again")?;
+            let r = item.content.rect();
+            let rect = [r[0] + offset[0], r[1] - offset[1], r[2] + offset[0], r[3] - offset[1]];
+            if !rect.iter().all(|v| v.is_finite()) {
+                return Err("invalid move offset".into());
+            }
+            edits.push(Edit::UpdateContent { page, index, content: item.content.with_rect(rect) });
+        }
+        Ok(Edit::Batch { label: "Move additions".into(), edits })
     }
     pub fn measurement_paths(&self, page: usize) -> Result<measure::snap::Geometry, String> {
         let e = self.editor.as_ref().ok_or("the document can't be read")?;
@@ -1465,6 +1496,11 @@ pub enum Edit {
         page: usize,
         index: usize,
     },
+    /// Delete original annotation indices together, so cascading replies cannot shift targets.
+    DeleteAnnotations {
+        page: usize,
+        indices: Vec<usize>,
+    },
     SetAnnotationContents {
         page: usize,
         index: usize,
@@ -2113,7 +2149,7 @@ impl Edit {
             Edit::SetMeasurementScale { .. } => Label::of("Set measurement scale"),
             Edit::AddAnnotation(a) => Label::of(add_annotation(&a.shape)),
             Edit::AddCustomStamp { .. } => Label::of("Add stamp"),
-            Edit::DeleteAnnotation { .. } => Label::of("Delete comment"),
+            Edit::DeleteAnnotation { .. } | Edit::DeleteAnnotations { .. } => Label::of("Delete comment"),
             Edit::SetAnnotationContents { .. } => Label::of("Edit comment"),
             Edit::ReplyToAnnotation { .. } => Label::of("Reply"),
             // The state's name is part of the wording: a language may need to agree it with the rest.
@@ -2285,6 +2321,7 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::AddAnnotation(_)
         | Edit::AddCustomStamp { .. }
         | Edit::DeleteAnnotation { .. }
+        | Edit::DeleteAnnotations { .. }
         | Edit::SetAnnotationContents { .. }
         | Edit::ReplyToAnnotation { .. }
         | Edit::SetAnnotationStatus { .. }
@@ -2549,6 +2586,7 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             pdfcraft_annot::orient_image_stamp(doc, *page, index, rotation)?;
         }
         Edit::DeleteAnnotation { page, index } => pdfcraft_annot::delete_annotation(doc, *page, *index)?,
+        Edit::DeleteAnnotations { page, indices } => pdfcraft_annot::delete_annotations(doc, *page, indices)?,
         Edit::SetAnnotationContents { page, index, text } => pdfcraft_annot::set_contents(doc, *page, *index, text, &cx.meta())?,
         Edit::ReplyToAnnotation { page, index, text, author } => {
             pdfcraft_annot::add_reply(doc, *page, *index, text, author, &cx.meta())?;

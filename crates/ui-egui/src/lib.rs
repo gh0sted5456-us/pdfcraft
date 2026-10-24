@@ -74,6 +74,7 @@ pub mod marks {
     pub use crate::marks_ui::{MarksDraft, PageRange, Subset};
 }
 mod content_ui;
+mod group_select;
 mod link_ui;
 mod object_ui;
 pub use create_ui::Clip;
@@ -224,6 +225,7 @@ pub enum RightPanel {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QuickTool {
     Select,
+    GroupSelect,
     Hand,
     /// A commenting tool (Add comments).
     Comment(comments::CommentTool),
@@ -2898,6 +2900,7 @@ impl PdfCraftApp {
                 // `--quick select|hand|note|freetext|highlight|underline|strikeout|ink|line|arrow|square|circle`
                 self.quick_tool = match value {
                     "select" => QuickTool::Select,
+                    "group-select" => QuickTool::GroupSelect,
                     measure if measure.starts_with("measure-") => QuickTool::Measure(
                         measure_ui::Tool::from_name(measure.trim_start_matches("measure-")).ok_or_else(|| format!("unknown tool {measure}"))?,
                     ),
@@ -3349,6 +3352,7 @@ impl eframe::App for PdfCraftApp {
         let blocked = self.modal_open() || self.palette_open || !ctx.input(|i| i.focused);
         for (index, view) in self.views.iter_mut().enumerate() {
             view.objects.set_input_blocked(blocked || self.active != Some(index));
+            view.group.set_input_blocked(blocked || self.active != Some(index));
             if blocked || self.active != Some(index) {
                 view.auto_scroll.cancel();
             }

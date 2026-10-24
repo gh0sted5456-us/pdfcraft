@@ -7344,3 +7344,60 @@ fn deleting_objects_respects_modification_permissions() {
     assert!(doc.can_undo().is_none());
     assert!(!doc.dirty);
 }
+
+#[test]
+fn additions_move_honours_crop_rotation_units_permissions_and_undo() {
+    use pdfcraft_cos::{Document as CosDocument, ObjRef, Object, SaveOptions, write_full};
+    for rotation in [0, 90, 180, 270] {
+        let mut pdf = CosDocument::open(Arc::new(fixture(1))).unwrap();
+        let mut page = pdf.get(ObjRef::new(4, 0)).as_dict().unwrap().clone();
+        page.set("CropBox", Object::Array([10, 20, 190, 280].map(Object::Int).to_vec()));
+        page.set("Rotate", Object::Int(rotation));
+        page.set("UserUnit", Object::Int(2));
+        pdf.set(ObjRef::new(4, 0), page);
+        let mut s = Session::new();
+        let id = s.open("units.pdf", None, Arc::new(write_full(&pdf, &SaveOptions::default()).unwrap()), None).unwrap();
+        s.apply(
+            id,
+            Edit::AddAnnotation(NewAnnotation {
+                page: 0,
+                shape: Shape::Rectangle { rect: [30.0, 60.0, 60.0, 90.0] },
+                style: Style::default(),
+                contents: "Move".into(),
+                author: "Tester".into(),
+            }),
+        )
+        .unwrap();
+        s.apply(id, Edit::AddText { page: 0, text: AddedText { rect: [40.0, 60.0, 150.0, 85.0], text: "Words".into(), ..Default::default() } })
+            .unwrap();
+        let doc = s.get(id).unwrap();
+        let index = doc.info.annotations.iter().find(|a| a.subtype == "Square").unwrap().index;
+        let before = doc.info.pages[0].user_to_view(30.0, 60.0);
+        let added = doc.added()[0].content.rect();
+        for offset in [[f64::NAN, 0.0], [0.0, f64::INFINITY], [0.0, 0.0]] {
+            assert!(doc.move_additions(0, &[index], &[0], offset).is_err());
+        }
+        let edit = doc.move_additions(0, &[index], &[0], [10.0, 15.0]).unwrap();
+        s.apply(id, edit).unwrap();
+        let doc = s.get(id).unwrap();
+        let r = doc.info.annotations.iter().find(|a| a.index == index).unwrap().rect;
+        let after = doc.info.pages[0].user_to_view(r[0], r[1]);
+        assert!((after[0] - before[0] - 10.0).abs() < 0.01 && (after[1] - before[1] - 15.0).abs() < 0.01);
+        let moved = doc.added()[0].content.rect();
+        assert!((moved[0] - added[0] - 10.0).abs() < 0.01 && (moved[1] - added[1] + 15.0).abs() < 0.01);
+        s.undo(id).unwrap();
+        assert_eq!(s.get(id).unwrap().added()[0].content.rect(), added);
+        let mut p = protection(None, Some("owner"));
+        p.changes = Changes::None;
+        s.apply(id, Edit::Protect(p)).unwrap();
+        let bytes = s.save_bytes(id).unwrap();
+        let mut reader = Session::new();
+        let restricted = reader.open("restricted.pdf", None, bytes, None).unwrap();
+        let doc = reader.get(restricted).unwrap();
+        let generation = doc.edit_generation();
+        let edit = doc.move_additions(0, &[index], &[0], [10.0, 15.0]).unwrap();
+        assert!(reader.apply(restricted, edit).is_err());
+        let doc = reader.get(restricted).unwrap();
+        assert!(!doc.dirty && doc.can_undo().is_none() && doc.edit_generation() == generation);
+    }
+}

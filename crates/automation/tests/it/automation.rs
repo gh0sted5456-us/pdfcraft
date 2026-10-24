@@ -8306,3 +8306,87 @@ fn object_delete_is_atomic_undoable_and_rejects_stale_references() {
     assert_eq!(ok(&mut a, "object_list", json!({"doc":reopened,"page":1}))["count"], 0);
     assert!(page_text(&mut a, reopened)[1].contains("Page 2"));
 }
+
+#[test]
+fn comment_delete_group_validates_atomically_and_undoes_and_reopens() {
+    let dir = workdir("comment-delete-group");
+    std::fs::write(dir.join("in.pdf"), fixture(1)).unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({"path":"in.pdf"}))["doc"].as_u64().unwrap();
+    for x in [20, 70, 120] {
+        ok(&mut a, "comment_add", json!({"doc":doc,"page":1,"type":"note","at":[x,20],"contents":format!("Note {x}")}));
+    }
+    for y in [80, 110] {
+        ok(&mut a, "page_add_text", json!({"doc":doc,"page":1,"at":[20,y],"text":"Added words"}));
+    }
+    let list = ok(&mut a, "comment_list", json!({"doc":doc}));
+    let indices: Vec<_> = list["comments"].as_array().unwrap().iter().take(2).map(|c| c["index"].clone()).collect();
+    for bad in [json!([]), json!([0]), json!([-1]), json!([1, 999]), json!([1.5]), json!(["1"]), json!(vec![1; 1001])] {
+        assert!(a.call("comment_delete", &json!({"doc":doc,"page":1,"indices":bad})).is_err());
+        assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 3);
+    }
+    ok(&mut a, "comment_lock", json!({"doc":doc,"page":1,"index":indices[1]}));
+    assert!(a.call("comment_delete", &json!({"doc":doc,"page":1,"indices":indices,"content_indices":[1,2,1]})).is_err());
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 3);
+    ok(&mut a, "comment_lock", json!({"doc":doc,"page":1,"index":indices[1],"locked":false}));
+    ok(&mut a, "comment_delete", json!({"doc":doc,"page":1,"indices":indices,"content_indices":[1,2,1]}));
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 1);
+    assert_eq!(ok(&mut a, "content_list", json!({"doc":doc}))["count"], 0);
+    ok(&mut a, "edit_undo", json!({"doc":doc}));
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 3);
+    assert_eq!(ok(&mut a, "content_list", json!({"doc":doc}))["count"], 2);
+    ok(&mut a, "edit_redo", json!({"doc":doc}));
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"group.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"group.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":reopened}))["count"], 1);
+    assert_eq!(ok(&mut a, "content_list", json!({"doc":reopened}))["count"], 0);
+}
+
+#[test]
+fn additions_move_preserves_spacing_validates_atomically_and_reopens() {
+    for rotation in [0, 90, 180, 270] {
+        let dir = workdir(&format!("additions-move-{rotation}"));
+        std::fs::write(dir.join("in.pdf"), fixture(1)).unwrap();
+        let mut a = auto(&dir);
+        let doc = ok(&mut a, "doc_open", json!({"path":"in.pdf"}))["doc"].as_u64().unwrap();
+        ok(&mut a, "page_rotate", json!({"doc":doc,"pages":[1],"degrees":rotation}));
+        for x in [20, 70] {
+            ok(&mut a, "comment_add", json!({"doc":doc,"page":1,"type":"note","at":[x,20],"contents":"Move me"}));
+        }
+        ok(&mut a, "page_add_text", json!({"doc":doc,"page":1,"at":[20,80],"text":"Move text"}));
+        let before = ok(&mut a, "comment_list", json!({"doc":doc}));
+        let content = ok(&mut a, "content_list", json!({"doc":doc}));
+        let rect = |list: &Value, index: &Value| list["comments"].as_array().unwrap().iter().find(|c| &c["index"] == index).unwrap()["rect"].clone();
+        let index = before["comments"][0]["index"].clone();
+        let blocked = before["comments"][1]["index"].clone();
+        for bad in [json!([]), json!([0]), json!([1, 999]), json!(["1"]), json!(vec![1; 1001])] {
+            assert!(a.call("additions_move", &json!({"doc":doc,"page":1,"indices":bad,"offset":[10,15]})).is_err());
+            assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc})), before);
+        }
+        ok(&mut a, "comment_lock", json!({"doc":doc,"page":1,"index":blocked}));
+        let locked = ok(&mut a, "comment_list", json!({"doc":doc}));
+        assert!(a.call("additions_move", &json!({"doc":doc,"page":1,"indices":[index,blocked],"content_indices":[1],"offset":[10,15]})).is_err());
+        assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc})), locked);
+        assert_eq!(ok(&mut a, "content_list", json!({"doc":doc})), content);
+        ok(&mut a, "comment_lock", json!({"doc":doc,"page":1,"index":blocked,"locked":false}));
+        ok(&mut a, "additions_move", json!({"doc":doc,"page":1,"indices":[index,index],"content_indices":[1],"offset":[10,15]}));
+        let moved = ok(&mut a, "comment_list", json!({"doc":doc}));
+        let moved_content = ok(&mut a, "content_list", json!({"doc":doc}));
+        for (i, delta) in [(0, 10.0), (1, 15.0), (2, 10.0), (3, 15.0)] {
+            assert!(
+                (rect(&moved, &index)[i].as_f64().unwrap() - rect(&before, &index)[i].as_f64().unwrap() - delta).abs() < 0.01,
+                "rotation={rotation}, coordinate={i}, before={before}, moved={moved}"
+            );
+        }
+        assert_eq!(rect(&moved, &blocked), rect(&before, &blocked));
+        assert_ne!(moved_content, content);
+        ok(&mut a, "edit_undo", json!({"doc":doc}));
+        assert_eq!(rect(&ok(&mut a, "comment_list", json!({"doc":doc})), &index), rect(&before, &index));
+        assert_eq!(ok(&mut a, "content_list", json!({"doc":doc})), content);
+        ok(&mut a, "edit_redo", json!({"doc":doc}));
+        ok(&mut a, "doc_save", json!({"doc":doc,"path":"moved.pdf"}));
+        let reopened = ok(&mut a, "doc_open", json!({"path":"moved.pdf"}))["doc"].as_u64().unwrap();
+        assert_eq!(rect(&ok(&mut a, "comment_list", json!({"doc":reopened})), &index), rect(&moved, &index));
+        assert_eq!(ok(&mut a, "content_list", json!({"doc":reopened}))["items"], moved_content["items"]);
+    }
+}

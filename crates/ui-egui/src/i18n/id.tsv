@@ -2751,3 +2751,21 @@ theme	Appearance	Tampilan
 	field names can't contain a period: {name}	nama kolom tidak boleh berisi titik: {name}
 	two cells would both be named {name}	dua sel akan sama-sama bernama {name}
 	a field named {name} already exists	kolom bernama {name} sudah ada
+
+# Group selection and document save status.
+	Exit	Keluar
+	Group select	Pilih grup
+	Return to document	Kembali ke dokumen
+	Saved	Tersimpan
+	Saves document	Menyimpan dokumen
+	Unsaved changes	Perubahan belum disimpan
+
+# Existing scan-recognition and line-editing controls.
+	Ask whether to recognize the current page or all pages when editing a scan.	Tanyakan apakah ingin mengenali halaman saat ini atau semua halaman saat mengedit hasil pindaian.
+	Drag a point to reshape the line. Delete removes it.	Seret titik untuk mengubah bentuk garis. Delete menghapusnya.
+	Line colour	Warna garis
+	Lines	Garis
+	Recognize scanned text automatically	Kenali teks pindaian secara otomatis
+	Recognize text on this page or throughout the document?	Kenali teks pada halaman ini atau di seluruh dokumen?
+	Scanned text detected	Teks pindaian terdeteksi
+	This point could not be moved. Try a smaller move.	Titik ini tidak dapat dipindahkan. Coba perpindahan yang lebih kecil.

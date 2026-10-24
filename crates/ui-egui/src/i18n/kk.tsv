@@ -2521,3 +2521,11 @@ animation effects	Off	Өшірулі
 	Ask whether to recognize the current page or all pages when editing a scan.	Сканерленген құжатты өңдегенде ағымдағы бетті немесе барлық беттерді тану керектігін сұрау.
 	Scanned text detected	Сканерленген мәтін анықталды
 	Recognize text on this page or throughout the document?	Осы беттегі мәтінді немесе бүкіл құжаттағы мәтінді тану керек пе?
+
+# Group selection and document save status.
+	Exit	Шығу
+	Group select	Топты таңдау
+	Return to document	Құжатқа оралу
+	Saved	Сақталған
+	Saves document	Құжатты сақтайды
+	Unsaved changes	Сақталмаған өзгерістер

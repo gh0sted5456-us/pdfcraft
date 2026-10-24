@@ -149,7 +149,7 @@ fn quitting_cleanly_leaves_nothing_behind() {
     // Quit → "Don't save" → the app closes and the autosave is removed.
     h.state_mut().close_request = Some(pdfcraft_ui_egui::CloseRequest::Quit);
     h.run_steps(2);
-    h.get_by_label("Don't save").click();
+    h.get_by_label("Exit").click();
     h.run_steps(4);
     assert!(h.state().views.is_empty());
     h.state_mut().shutdown_recovery();

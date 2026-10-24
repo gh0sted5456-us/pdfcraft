@@ -2789,3 +2789,11 @@ theme	Appearance	Išvaizda
 	Ask whether to recognize the current page or all pages when editing a scan.	Redaguojant nuskaitytą dokumentą paklausti, ar atpažinti dabartinį puslapį, ar visus puslapius.
 	Scanned text detected	Aptiktas nuskaitytas tekstas
 	Recognize text on this page or throughout the document?	Atpažinti tekstą šiame puslapyje ar visame dokumente?
+
+# Group selection and document save status.
+	Exit	Išeiti
+	Group select	Grupės pasirinkimas
+	Return to document	Grįžti į dokumentą
+	Saved	Įrašyta
+	Saves document	Įrašo dokumentą
+	Unsaved changes	Neįrašyti pakeitimai

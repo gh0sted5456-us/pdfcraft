@@ -2750,3 +2750,21 @@ theme	Appearance	모양
 	field names can't contain a period: {name}	필드 이름에는 마침표를 쓸 수 없습니다: {name}
 	two cells would both be named {name}	두 셀의 이름이 모두 {name}이(가) 됩니다
 	a field named {name} already exists	{name}(이)라는 필드가 이미 있습니다
+
+# Group selection and document save status.
+	Exit	종료
+	Group select	그룹 선택
+	Return to document	문서로 돌아가기
+	Saved	저장됨
+	Saves document	문서를 저장합니다
+	Unsaved changes	저장하지 않은 변경 사항
+
+# Existing scan-recognition and line-editing controls.
+	Ask whether to recognize the current page or all pages when editing a scan.	스캔을 편집할 때 현재 페이지 또는 모든 페이지의 텍스트를 인식할지 묻습니다.
+	Drag a point to reshape the line. Delete removes it.	점을 끌어 선의 모양을 바꿉니다. Delete 키로 점을 삭제합니다.
+	Line colour	선 색상
+	Lines	선
+	Recognize scanned text automatically	스캔한 텍스트 자동 인식
+	Recognize text on this page or throughout the document?	이 페이지의 텍스트를 인식할까요, 문서 전체의 텍스트를 인식할까요?
+	Scanned text detected	스캔한 텍스트 감지됨
+	This point could not be moved. Try a smaller move.	이 점을 이동할 수 없습니다. 더 짧은 거리로 이동해 보세요.

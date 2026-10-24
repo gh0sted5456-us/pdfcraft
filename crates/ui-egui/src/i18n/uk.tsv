@@ -2550,3 +2550,11 @@ animation effects	Off	Вимкнено
 	Ask whether to recognize the current page or all pages when editing a scan.	Під час редагування сканованого документа запитувати, чи розпізнати поточну сторінку або всі сторінки.
 	Scanned text detected	Виявлено сканований текст
 	Recognize text on this page or throughout the document?	Розпізнати текст на цій сторінці чи в усьому документі?
+
+# Group selection and document save status.
+	Exit	Вийти
+	Group select	Вибір групи
+	Return to document	Повернутися до документа
+	Saved	Збережено
+	Saves document	Зберігає документ
+	Unsaved changes	Незбережені зміни

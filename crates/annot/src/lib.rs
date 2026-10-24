@@ -1607,13 +1607,29 @@ fn touch(d: &mut Dict, meta: &Meta) {
 
 /// Delete a comment together with its pop-up and its replies (and theirs), as Acrobat does.
 pub fn delete_annotation(doc: &mut Document, page: usize, index: usize) -> Result<(), AnnotError> {
+    delete_annotations(doc, page, &[index])
+}
+
+/// Delete a group addressed in the original `/Annots` array, including pop-ups and replies.
+pub fn delete_annotations(doc: &mut Document, page: usize, indices: &[usize]) -> Result<(), AnnotError> {
+    if indices.is_empty() || indices.len() > 1_000 {
+        return Err(AnnotError::Invalid("select between 1 and 1000 comments to delete".into()));
+    }
     let p = page_ref(doc, page)?;
     let list = annots(doc, p);
-    let target = list.get(index).cloned().ok_or(AnnotError::NoSuchAnnotation { page, index })?;
-    if let Some(r) = target.as_ref() {
-        unlocked(doc, r)?;
+    let selected: std::collections::BTreeSet<usize> = indices.iter().copied().collect();
+    let mut doomed: Vec<ObjRef> = Vec::new();
+    for &index in &selected {
+        let target = list.get(index).ok_or(AnnotError::NoSuchAnnotation { page, index })?;
+        if doc.resolve(target).as_dict().is_some_and(|d| annotation_flags(doc, d) & FLAG_LOCKED != 0) {
+            return Err(AnnotError::Invalid("the comment is locked".into()));
+        }
+        if let Some(r) = target.as_ref()
+            && !doomed.contains(&r)
+        {
+            doomed.push(r);
+        }
     }
-    let mut doomed: Vec<ObjRef> = target.as_ref().into_iter().collect();
     // Replies (`/IRT`) and pop-ups (`/Parent`) of anything doomed, to a fixpoint.
     loop {
         let before = doomed.len();
@@ -1640,8 +1656,12 @@ pub fn delete_annotation(doc: &mut Document, page: usize, index: usize) -> Resul
             break;
         }
     }
-    let kept: Vec<Object> =
-        list.into_iter().enumerate().filter(|(i, e)| *i != index && !e.as_ref().is_some_and(|r| doomed.contains(&r))).map(|(_, e)| e).collect();
+    let kept: Vec<Object> = list
+        .into_iter()
+        .enumerate()
+        .filter(|(i, e)| !selected.contains(i) && !e.as_ref().is_some_and(|r| doomed.contains(&r)))
+        .map(|(_, e)| e)
+        .collect();
     set_annots(doc, p, kept)
 }
 

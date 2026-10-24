@@ -2750,3 +2750,21 @@ theme	Appearance	स्वरूप
 	field names can't contain a period: {name}	फ़ील्ड के नामों में पूर्ण विराम (.) नहीं हो सकता: {name}
 	two cells would both be named {name}	दो सेल का नाम {name} हो जाएगा
 	a field named {name} already exists	{name} नाम का फ़ील्ड पहले से मौजूद है
+
+# Group selection and document save status.
+	Exit	बाहर निकलें
+	Group select	समूह चयन
+	Return to document	दस्तावेज़ पर लौटें
+	Saved	सहेजा गया
+	Saves document	दस्तावेज़ सहेजता है
+	Unsaved changes	न सहेजे गए बदलाव
+
+# Existing scan-recognition and line-editing controls.
+	Ask whether to recognize the current page or all pages when editing a scan.	स्कैन संपादित करते समय पूछें कि वर्तमान पृष्ठ का पाठ पहचानना है या सभी पृष्ठों का।
+	Drag a point to reshape the line. Delete removes it.	रेखा का आकार बदलने के लिए बिंदु खींचें। Delete से बिंदु हटता है।
+	Line colour	रेखा का रंग
+	Lines	रेखाएँ
+	Recognize scanned text automatically	स्कैन किए गए पाठ को अपने आप पहचानें
+	Recognize text on this page or throughout the document?	इस पृष्ठ के पाठ को पहचानें या पूरे दस्तावेज़ के पाठ को?
+	Scanned text detected	स्कैन किया गया पाठ मिला
+	This point could not be moved. Try a smaller move.	यह बिंदु नहीं खिसकाया जा सका। कम दूरी तक खिसकाकर देखें।

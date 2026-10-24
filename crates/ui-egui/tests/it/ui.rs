@@ -473,7 +473,7 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
         }
     });
     let open = h.get_by_label("Open").rect();
-    let discord = h.get_by_label("Discord").rect();
+    let discord = h.get_by_label("ArtCraft Community").rect();
     assert!(open.right() <= discord.left(), "Open {open:?} must not run under Discord {discord:?}");
     let mut previous_right = f32::MIN;
     for i in 0..5 {
@@ -498,14 +498,14 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
     assert_eq!(enabled(&h, "Scroll tabs right"), Some(true), "and then there is more to the right");
     let open = h.get_by_label("Open").rect();
     let right = h.get_by_label("Scroll tabs right").rect();
-    assert!(right.right() <= open.left() + 0.5 && open.right() <= h.get_by_label("Discord").rect().left());
+    assert!(right.right() <= open.left() + 0.5 && open.right() <= h.get_by_label("ArtCraft Community").rect().left());
     // Twenty: Open stays in sight left of Discord.
     for i in 0..13 {
         h.state_mut().open_bytes(&format!("more-{i:02}.pdf"), None, FIXTURE.to_vec()).unwrap();
     }
     h.run_steps(4);
     let open = h.get_by_label("Open").rect();
-    let discord = h.get_by_label("Discord").rect();
+    let discord = h.get_by_label("ArtCraft Community").rect();
     assert!(open.left() > 0.0 && open.right() <= discord.left(), "Open {open:?} stays in sight left of Discord {discord:?}");
 }
 
@@ -1265,7 +1265,7 @@ fn cancelling_then_discarding_an_earlier_dirty_tab_preserves_the_selected_docume
     assert_eq!(h.state().active_ids().map(|(_, id)| id), Some(ids[1]));
     assert!(h.state().session.get(ids[0]).unwrap().dirty);
     close_named_tab(&mut h, "first.pdf (edited)");
-    h.get_by_label("Don't save").click();
+    h.get_by_label("Exit").click();
     h.run_steps(3);
     assert_eq!(h.state().active_ids().map(|(_, id)| id), Some(ids[1]));
     assert_eq!(h.state().views.iter().map(|view| view.id).collect::<Vec<_>>(), [ids[1], ids[2]]);
@@ -1569,4 +1569,41 @@ fn short_window_rail_buttons_scroll_clear_of_page_navigation() {
     let tags = rail(&h, "Tags");
     assert!(tags.bottom() <= page.top(), "Tags {tags:?} scrolls into view above the page field {page:?}");
     assert_eq!(h.get(By::new().role(egui::accesskit::Role::TextInput).value("1")).rect(), page, "navigation stays put");
+}
+
+#[test]
+fn document_tabs_keep_red_unsaved_and_green_saved_dots_in_both_themes() {
+    let _gpu = crate::gpu();
+    for theme in ["light", "dark"] {
+        let mut h = harness(move |app| {
+            app.set_option("theme", theme).unwrap();
+            app.open_bytes("saved.pdf", None, FIXTURE.to_vec()).unwrap();
+            app.open_bytes("edited.pdf", None, FIXTURE.to_vec()).unwrap();
+            app.apply_edit(pdfcraft_engine::Edit::SetInfo { key: "Title".into(), value: "Changed".into() });
+        });
+        let saved = h.get_by_label("saved.pdf").rect();
+        let edited = h.get_by_label("edited.pdf (edited)").rect();
+        assert_eq!(h.get_by_label("saved.pdf").accesskit_node().description().as_deref(), Some("Saved"));
+        assert_eq!(h.get_by_label("edited.pdf (edited)").accesskit_node().description().as_deref(), Some("Unsaved changes"));
+        let dot = |image: &image::RgbaImage, tab: egui::Rect| image.get_pixel((tab.right() - 34.0) as u32, tab.center().y as u32).0;
+        let image = h.render().unwrap();
+        assert_eq!(dot(&image, saved), [54, 143, 92, 255]);
+        assert_eq!(dot(&image, edited), [200, 70, 85, 255]);
+        h.hover_at(edited.right_center() - egui::vec2(16.0, 0.0));
+        h.run_steps(4);
+        assert_eq!(dot(&h.render().unwrap(), edited), [200, 70, 85, 255], "hovering Close does not hide status");
+        if let Ok(dir) = std::env::var("PDFCRAFT_DIALOG_PREVIEW_DIR") {
+            image.save(std::path::Path::new(&dir).join(format!("tab-status-{theme}.png"))).unwrap();
+        }
+        let out = std::env::temp_dir().join(format!("pdfcraft-tab-status-{theme}-{}.pdf", std::process::id()));
+        h.state_mut().save_override = Some(out.to_string_lossy().into_owned());
+        assert!(h.state_mut().save_active(pdfcraft_ui_egui::SaveTarget::As));
+        h.run_steps(4);
+        let app = h.state();
+        let name = app.session.get(app.views[1].id).unwrap().name.clone();
+        let tab = h.get_by_role_and_label(egui::accesskit::Role::Tab, &name).rect();
+        assert_eq!(dot(&h.render().unwrap(), tab), [54, 143, 92, 255], "successful save changes red to green");
+        assert_eq!(h.get_by_role_and_label(egui::accesskit::Role::Tab, &name).accesskit_node().description().as_deref(), Some("Saved"));
+        let _ = std::fs::remove_file(out);
+    }
 }

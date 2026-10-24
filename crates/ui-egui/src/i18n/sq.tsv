@@ -2508,3 +2508,11 @@ animation effects	Off	Joaktiv
 	Line colour	Ngjyra e vijës
 	Lines	Vija
 	This point could not be moved. Try a smaller move.	Kjo pikë nuk mund të zhvendosej. Provoni një zhvendosje më të vogël.
+
+# Group selection and document save status.
+	Exit	Dil
+	Group select	Përzgjedhje grupi
+	Return to document	Kthehu te dokumenti
+	Saved	Ruajtur
+	Saves document	Ruan dokumentin
+	Unsaved changes	Ndryshime të paruajtura

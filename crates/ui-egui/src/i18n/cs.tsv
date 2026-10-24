@@ -2830,3 +2830,11 @@ certificate	Version	Verze
 	Ask whether to recognize the current page or all pages when editing a scan.	Při úpravě skenu se zeptat, zda rozpoznat aktuální stránku, nebo všechny stránky.
 	Scanned text detected	Byl zjištěn naskenovaný text
 	Recognize text on this page or throughout the document?	Rozpoznat text na této stránce, nebo v celém dokumentu?
+
+# Group selection and document save status.
+	Exit	Ukončit
+	Group select	Výběr skupiny
+	Return to document	Zpět k dokumentu
+	Saved	Uloženo
+	Saves document	Uloží dokument
+	Unsaved changes	Neuložené změny

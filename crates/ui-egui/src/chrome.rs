@@ -332,8 +332,8 @@ fn appearance_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     }
 }
 
-/// A tab's chrome around its name: the icon on the left, the close button on the right.
-const TAB_CHROME: f32 = 64.0;
+/// Room for the file icon, name, persistent save-status dot and close button.
+const TAB_CHROME: f32 = 78.0;
 /// The narrowest a tab shrinks to before the strip scrolls: room for most of a name.
 const TAB_MIN_WIDTH: f32 = 180.0;
 /// The arrows either side of tabs that don't fit.
@@ -461,14 +461,17 @@ fn tab(
         );
         ui.painter().text(rect.min + vec2(28.0, rect.height() / 2.0), Align2::LEFT_CENTER, label, font, if active { t.text } else { t.text_muted });
     });
+    if draggable {
+        // Document status stays visible while hovering the separate close button.
+        let color = if dirty { Color32::from_rgb(200, 70, 85) } else { Color32::from_rgb(54, 143, 92) };
+        ui.painter().circle_filled(rect.right_center() - vec2(34.0, 0.0), 3.5, color);
+        ui.ctx().accesskit_node_builder(id, |node| node.set_description(if dirty { tl!("Unsaved changes") } else { tl!("Saved") }));
+    }
     let x_rect = Rect::from_center_size(rect.right_center() - vec2(16.0, 0.0), vec2(20.0, 20.0));
     let x = ui.interact(x_rect, id.with("close"), Sense::click());
     let x_press = theme::Press::track(ui, &x);
     x_press.wash(ui, x_rect, 4, false);
-    // Unsaved changes: a dot where the close button sits, until the tab is hovered.
-    if dirty && !resp.hovered() && !x.hovered() {
-        ui.painter().circle_filled(x_rect.center(), 4.0, if active { t.text } else { t.text_muted });
-    } else if active || resp.hovered() || x.hovered() {
+    if active || resp.hovered() || x.hovered() {
         icons::paint(ui, x_rect.translate(x_press.offset()), "x", 13.0, t.text_muted);
     }
     if theme::hand(x).clicked() {

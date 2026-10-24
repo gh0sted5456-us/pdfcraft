@@ -1,5 +1,7 @@
 # PdfCraft roadmap
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 adds same-page group selection of comments and added content, atomic group dragging/Delete/Undo, a centered theme-aware close prompt with matte hover colors, and persistent red/green document-status dots. Crop-from-grid fix adopted from PR #3974 by @eliets2. Existing readiness estimates and native printer validation limits unchanged.
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** community icon hover says only ArtCraft Community; printer setup uses the Windows GUI subsystem, has no extra success popup, and checks shipped PE headers. Existing printer validation limits and estimates unchanged.
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** Windows desktop and printer setup launch without consoles in all builds; remove the extra printer completion message and validate packaged PE headers. Printer runtime limits and readiness estimates unchanged.
@@ -204,6 +206,8 @@ Ranked; detail and the full milestone table in [docs/roadmap.md](docs/roadmap.md
 | 8 | 1.0 polish: performance, right-to-left, missing languages, keyboard-only (M14) | 55–95 |
 
 ## Progress log
+
+- 2026-10-23 — M5 personal build: square Group select tool with blue marquee and mixed comment/added-content dragging and deletion in one undo step. M4 close prompt centered with Exit/Cancel/Save, theme-matched matte fills and semantic hover colors; preserve keyboard and failed-save behavior. Document tabs show persistent red unsaved/green saved dots beside Close, with accessible status descriptions. Incorporated crop-from-grid PR #3974 (@eliets2), excluding its unrelated lockfile change.
 
 - **2026-10-23 (M3/M14, personal 0.13.1):** PdfCraft Printer uses a Windows Print Support App and a separate Linux CUPS 2.x backend. Interleaved OpenXPS conversion and native captured Word text pass search/highlight/save/reopen checks; Linux target compilation and strict linting pass. Native Linux queue operation remains unverified here. Original lion artwork has transparent surroundings and inverted interface palettes; document window titles omit the application suffix.
 

@@ -29,6 +29,17 @@ its undo/redo history.
 
 `Content` is `Json(Value)` or `Png { data, width, height }`. Errors are `UnknownTool`, `InvalidArgs` (the call didn't match the schema) or `Failed` (a readable message for the agent).
 
+`comment_delete` also accepts `page` with `indices` (original 1-based annotation positions
+from `comment_list`) and/or `content_indices` (page-local positions from `content_list`).
+Up to 1,000 additions are deleted together as one undo step. Popups and replies cascade once;
+missing or locked targets refuse the whole edit. Single-comment `id`/`index` calls still work.
+This is ordinary editing; use redaction when the content must be securely removed.
+
+`additions_move` accepts the same page-local `indices` and/or `content_indices`, plus
+`offset: [right, down]` in displayed-page points. Comments and added content keep their
+relative spacing across crop, document rotation and UserUnit. The entire move is one Undo;
+locked or restricted targets refuse it atomically. Re-list positions after unrelated edits.
+
 ## Conventions
 
 - Tool names are `snake_case` (`page_rotate`): MCP clients reject dots. `ToolDef::command` links a tool to the registry id it automates (`page.rotate`), and `command_list` reports the link.

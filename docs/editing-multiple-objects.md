@@ -1,5 +1,21 @@
 # Select, align, move and delete page objects
 
+## Group-select additions
+
+The square **Group select** button in the floating tool strip draws a translucent blue
+rectangle. It selects visible top-level comments (including sticky notes, strikeouts,
+text boxes and stamps) and PdfCraft-added text/images that the rectangle touches. Original
+page artwork and a scanned background are left alone. Click selects one item; Shift/Ctrl/Command
+adds to or toggles the selection. Escape clears it. Delete/Backspace removes the group in
+one undo step. Hidden comments are excluded; locked or missing targets refuse the entire edit.
+Drag any selected item or the group frame to move the whole selection; blue outlines preview
+the new positions. One move is one Undo, and the selection remains for another move.
+Selections stay on one page and clear after an unrelated edit, undo or tool change. Interrupted
+drags are cancelled on tab/focus changes and dialogs. Group resizing is not included.
+The control channel accepts `set quick=group-select` and reports `group_selection_count`.
+Headless callers use `comment_delete` or `additions_move` with `indices` and/or `content_indices`.
+`additions_move.offset` is [right, down] in displayed-page points, before view-only rotation.
+
 In **Edit a PDF → Edit text & images**, select several items on the same page:
 
 - **Shift-click**, **Ctrl-click**, or **Command-click** toggles an item. An ordinary selected

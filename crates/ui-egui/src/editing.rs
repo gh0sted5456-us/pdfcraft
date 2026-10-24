@@ -53,6 +53,7 @@ impl PdfCraftApp {
                 let Some(doc) = self.session.get(id) else { return true };
                 let info = &doc.info;
                 let view = &mut self.views[i];
+                view.group.committed(&edit, doc.edit_generation());
                 view.applied_editor = None;
                 // A picture picked with the Select tool may be the one this edit removed or moved:
                 // drop its highlight now, not on the next frame (which only comes with the next input).

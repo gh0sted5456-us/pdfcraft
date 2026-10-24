@@ -2522,3 +2522,11 @@ animation effects	Off	Ki
 	Ask whether to recognize the current page or all pages when editing a scan.	Beolvasott dokumentum szerkesztésekor kérdezzen rá, hogy az aktuális vagy az összes oldalt ismerje-e fel.
 	Scanned text detected	Beolvasott szöveg észlelve
 	Recognize text on this page or throughout the document?	Ezen az oldalon vagy a teljes dokumentumban ismerje fel a szöveget?
+
+# Group selection and document save status.
+	Exit	Kilépés
+	Group select	Csoportos kijelölés
+	Return to document	Vissza a dokumentumhoz
+	Saved	Mentve
+	Saves document	Menti a dokumentumot
+	Unsaved changes	Nem mentett módosítások

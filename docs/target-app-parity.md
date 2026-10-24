@@ -1,5 +1,7 @@
 # PdfCraft parity with Adobe Acrobat Pro
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 adds same-page group selection of comments and added content, atomic group dragging/Delete/Undo, a centered theme-aware close prompt with matte hover colors, and persistent red/green document-status dots. Crop-from-grid fix adopted from PR #3974 by @eliets2. Existing readiness estimates and native printer validation limits unchanged.
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** experimental personal Windows printer and Linux CUPS 2.x backend; Linux cross-target checks pass, native Linux queue testing remains pending. No readiness estimate change.
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1: object alignment/distribution and drag guides. The separate PDF printer is excluded from this version. Upstream readiness estimates unchanged.

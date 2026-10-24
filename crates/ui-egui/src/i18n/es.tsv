@@ -2846,3 +2846,11 @@ theme	Appearance	Aspecto
 	Ask whether to recognize the current page or all pages when editing a scan.	Al editar un documento escaneado, preguntar si se debe reconocer la página actual o todas las páginas.
 	Scanned text detected	Se detectó texto escaneado
 	Recognize text on this page or throughout the document?	¿Reconocer el texto de esta página o de todo el documento?
+
+# Group selection and document save status.
+	Exit	Salir
+	Group select	Selección de grupo
+	Return to document	Volver al documento
+	Saved	Guardado
+	Saves document	Guarda el documento
+	Unsaved changes	Cambios sin guardar

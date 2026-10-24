@@ -253,7 +253,7 @@ pub fn default_style() -> AddedText {
 }
 
 /// Display-space rect → screen.
-fn screen_rect(xf: &PageXform, info: &DocInfo, page: usize, r: [f64; 4]) -> Rect {
+pub(crate) fn screen_rect(xf: &PageXform, info: &DocInfo, page: usize, r: [f64; 4]) -> Rect {
     let ph = info.pages[page].height as f64;
     xf.view_rect([r[0] as f32, (ph - r[3]) as f32, r[2] as f32, (ph - r[1]) as f32])
 }

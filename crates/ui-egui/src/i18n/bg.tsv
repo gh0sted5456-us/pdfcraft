@@ -2486,3 +2486,11 @@ animation effects	Off	Изключени
 	Ask whether to recognize the current page or all pages when editing a scan.	При редактиране на сканиран документ да се пита дали да се разпознае текущата страница или всички страници.
 	Scanned text detected	Открит е сканиран текст
 	Recognize text on this page or throughout the document?	Да се разпознае ли текстът на тази страница или в целия документ?
+
+# Group selection and document save status.
+	Exit	Изход
+	Group select	Групово избиране
+	Return to document	Връщане към документа
+	Saved	Запазено
+	Saves document	Запазва документа
+	Unsaved changes	Незапазени промени

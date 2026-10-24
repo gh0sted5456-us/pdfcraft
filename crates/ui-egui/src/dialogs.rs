@@ -1577,9 +1577,11 @@ fn save_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let shown = shorten_middle(&name, 80);
     let mut choice: Option<Option<bool>> = None;
     let modal = widgets::show_modal(ctx, "save_prompt", |ui| {
-        ui.set_width(420.0);
-        ui.horizontal(|ui| {
-            ui.add(crate::icons::image("save", 22.0, t.accent));
+        ui.set_width(440.0);
+        ui.vertical_centered(|ui| {
+            ui.add_space(4.0);
+            ui.add(crate::icons::image("save", 34.0, t.accent));
+            ui.add_space(16.0);
             let title = ui.add(
                 egui::Label::new(
                     egui::RichText::new(crate::i18n::fmt(tl!("Save changes to “{name}” before closing?"), &[("name", &shown)]))
@@ -1590,22 +1592,36 @@ fn save_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
             if shown != name {
                 title.on_hover_text(&name);
             }
-        });
-        ui.add_space(6.0);
-        ui.label(egui::RichText::new(tl!("Your changes will be lost if you don't save them.")).color(t.text_muted));
-        ui.add_space(14.0);
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let chosen = app.save_prompt_button;
-            if widgets::pill_button_marked(ui, tl!("Save"), true, chosen == PromptButton::Save).clicked() {
-                choice = Some(Some(true));
-            }
-            if widgets::pill_button_marked(ui, tl!("Cancel"), false, chosen == PromptButton::Cancel).clicked() {
-                choice = Some(None);
-            }
             ui.add_space(24.0);
-            if widgets::pill_button_marked(ui, tl!("Don't save"), false, chosen == PromptButton::DontSave).clicked() {
-                choice = Some(Some(false));
+            ui.label(egui::RichText::new(tl!("Your changes will be lost if you don't save them.")).color(t.text_muted));
+            ui.add_space(36.0);
+            let chosen = app.save_prompt_button;
+            // Measure the translated labels so the complete row stays centered.
+            {
+                let labels = [tl!("Exit"), tl!("Cancel"), tl!("Save")];
+                let font = theme::medium(12.5);
+                let width: f32 =
+                    labels.iter().map(|label| ui.fonts_mut(|f| f.layout_no_wrap((*label).into(), font.clone(), t.text).size().x) + 26.0).sum();
+                ui.allocate_ui_with_layout(egui::vec2(width + 32.0, 28.0), Layout::left_to_right(Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.x = 16.0;
+                    if prompt_action(ui, labels[0], egui::Color32::from_rgb(175, 79, 88), chosen == PromptButton::DontSave)
+                        .on_hover_text(tl!("Don't save"))
+                        .clicked()
+                    {
+                        choice = Some(Some(false));
+                    }
+                    if prompt_action(ui, labels[1], t.accent, chosen == PromptButton::Cancel).on_hover_text(tl!("Return to document")).clicked() {
+                        choice = Some(None);
+                    }
+                    if prompt_action(ui, labels[2], egui::Color32::from_rgb(68, 135, 91), chosen == PromptButton::Save)
+                        .on_hover_text(tl!("Saves document"))
+                        .clicked()
+                    {
+                        choice = Some(Some(true));
+                    }
+                });
             }
+            ui.add_space(4.0);
         });
     });
     if choice.is_none() && modal.should_close() {
@@ -1614,6 +1630,26 @@ fn save_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
     if let Some(c) = choice {
         app.resolve_close(ctx, c);
     }
+}
+
+/// Coloured close actions keep their labels and keyboard choice visible in both themes.
+fn prompt_action(ui: &mut egui::Ui, label: &str, color: egui::Color32, chosen: bool) -> egui::Response {
+    let t = Tokens::get(ui.ctx());
+    let font = theme::medium(12.5);
+    let width = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), font.clone(), t.text).size().x) + 26.0;
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 28.0), egui::Sense::click());
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
+    let press = theme::Press::track(ui, &response);
+    let hover = t.field.lerp_to_gamma(color, if t.dark() { 0.38 } else { 0.20 });
+    let down = t.field.lerp_to_gamma(color, if t.dark() { 0.50 } else { 0.30 });
+    ui.painter().rect_filled(rect, 14, press.fill(t.field, hover, down));
+    let edge = if chosen { color.lerp_to_gamma(t.text, 0.35) } else { t.border.lerp_to_gamma(color, press.hover) };
+    ui.painter().rect_stroke(rect.expand(3.0), 17, egui::Stroke::new(if chosen { 2.0 } else { 1.0 }, edge), egui::StrokeKind::Outside);
+    ui.painter().text(rect.translate(press.offset()).center(), egui::Align2::CENTER_CENTER, label, font, t.text);
+    if chosen {
+        response.request_focus();
+    }
+    theme::hand(response)
 }
 
 /// `name` cut to at most `max` characters by replacing its middle with "…", keeping the start and

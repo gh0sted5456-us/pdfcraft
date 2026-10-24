@@ -2619,3 +2619,11 @@ animation effects	Off	Wyłączone
 	Line colour	Kolor linii
 	Lines	Linie
 	This point could not be moved. Try a smaller move.	Nie udało się przesunąć tego punktu. Spróbuj mniejszego przesunięcia.
+
+# Group selection and document save status.
+	Exit	Wyjdź
+	Group select	Zaznaczanie grupy
+	Return to document	Wróć do dokumentu
+	Saved	Zapisano
+	Saves document	Zapisuje dokument
+	Unsaved changes	Niezapisane zmiany

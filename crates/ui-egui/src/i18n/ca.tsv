@@ -2782,3 +2782,16 @@ theme	Appearance	Aspecte
 	Line colour	Color de la línia
 	Lines	Línies
 	This point could not be moved. Try a smaller move.	No s'ha pogut moure aquest punt. Proveu un desplaçament més petit.
+
+# Group selection and document save status.
+	Exit	Surt
+	Group select	Selecció de grup
+	Return to document	Torna al document
+	Saved	Desat
+	Saves document	Desa el document
+	Unsaved changes	Canvis sense desar
+	Delete line	Suprimeix la línia
+	Delete lines	Suprimeix les línies
+	Format line	Formata la línia
+	Format lines	Formata les línies
+	Move line point	Mou un punt de la línia

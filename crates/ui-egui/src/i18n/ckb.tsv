@@ -2713,3 +2713,11 @@ certificate	Version	وەشان
 	Make properties default	کردنی تایبەتمەندییەکان بە بنەڕەتی
 	Pages selected	پەڕە هەڵبژێردراوەکان
 	Page properties	تایبەتمەندییەکانی پەڕە
+
+# Group selection and document save status.
+	Exit	دەرچوون
+	Group select	هەڵبژاردنی کۆمەڵە
+	Return to document	گەڕانەوە بۆ بەڵگەنامە
+	Saved	پاشەکەوت کراوە
+	Saves document	بەڵگەنامەکە پاشەکەوت دەکات
+	Unsaved changes	گۆڕانکارییە پاشەکەوت نەکراوەکان
