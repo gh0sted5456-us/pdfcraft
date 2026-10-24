@@ -224,7 +224,7 @@ impl Automation {
         Ok(json!({"page":page+1,"generation":doc.edit_generation(),"count":items.len(),"objects":items}))
     }
 
-    fn object_targets(&self, a: &Args) -> Result<Vec<pdfcraft_engine::ObjectTarget>> {
+    pub(crate) fn object_targets(&self, a: &Args) -> Result<Vec<pdfcraft_engine::ObjectTarget>> {
         use pdfcraft_engine::{MAX_MOVE_OBJECTS, ObjectKind, ObjectTarget};
         let rows = a
             .get("objects")

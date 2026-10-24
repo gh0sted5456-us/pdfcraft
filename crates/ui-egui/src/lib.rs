@@ -2896,11 +2896,15 @@ impl PdfCraftApp {
                 v.select_pages(&pages);
             }
             ("notice", Some(v)) => v.notice_dismissed = value == "off",
+            ("quick", _) if value == "group-select" => {
+                if !self.activate_group_select() {
+                    return Err("finish or correct the open text before selecting a group".into());
+                }
+            }
             ("quick", _) => {
                 // `--quick select|hand|note|freetext|highlight|underline|strikeout|ink|line|arrow|square|circle`
                 self.quick_tool = match value {
                     "select" => QuickTool::Select,
-                    "group-select" => QuickTool::GroupSelect,
                     measure if measure.starts_with("measure-") => QuickTool::Measure(
                         measure_ui::Tool::from_name(measure.trim_start_matches("measure-")).ok_or_else(|| format!("unknown tool {measure}"))?,
                     ),
@@ -3071,11 +3075,15 @@ impl PdfCraftApp {
                 }
             }
             self.tool_keys(i, ctx);
-            if self.quick_tool == QuickTool::EditText
-                && let Some(doc) = self.session.get(self.views[i].id).filter(|d| d.allows_modification())
+            if matches!(self.quick_tool, QuickTool::EditText | QuickTool::GroupSelect)
+                && let Some(doc) = self.session.get(self.views[i].id)
             {
-                object_ui::nudge_keys(ctx, &mut self.views[i], doc);
-                object_ui::delete_keys(ctx, &mut self.views[i], doc);
+                if doc.allows_modification() || self.quick_tool == QuickTool::GroupSelect {
+                    object_ui::nudge_keys(ctx, &mut self.views[i], doc);
+                }
+                if self.quick_tool == QuickTool::EditText && doc.allows_modification() {
+                    object_ui::delete_keys(ctx, &mut self.views[i], doc);
+                }
             }
             // A selected field moves with the arrows too (Prepare a form, #2608), before the view
             // turns the page with them.

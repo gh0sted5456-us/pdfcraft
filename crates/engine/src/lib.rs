@@ -620,8 +620,25 @@ impl Document {
     /// Move a page's comments and PdfCraft-added content together. Indices are zero-based;
     /// offset is in displayed-page points, x right/y down (before any view-only rotation).
     pub fn move_additions(&self, page: usize, annotations: &[usize], content: &[usize], offset: [f64; 2]) -> Result<Edit, String> {
-        if annotations.len().saturating_add(content.len()) == 0 || annotations.len().saturating_add(content.len()) > 1_000 {
-            return Err("select between 1 and 1000 additions to move".into());
+        self.move_selection(page, annotations, content, &[], offset)
+    }
+
+    /// Move comments, added content and original editable page objects as one transaction.
+    /// Original-object references come from `editable_objects`; added items use `content`.
+    pub fn move_selection(
+        &self,
+        page: usize,
+        annotations: &[usize],
+        content: &[usize],
+        objects: &[ObjectTarget],
+        offset: [f64; 2],
+    ) -> Result<Edit, String> {
+        let count = annotations.len().saturating_add(content.len()).saturating_add(objects.len());
+        if objects.iter().any(|o| o.kind == ObjectKind::Added) {
+            return Err("use content indices for added text and images".into());
+        }
+        if count == 0 || count > 1_000 {
+            return Err("select between 1 and 1000 objects to move".into());
         }
         if !offset.iter().all(|v| v.is_finite() && v.abs() <= 10_000_000.0) || offset == [0.0, 0.0] {
             return Err("the move must be finite, non-zero and at most 10000000 points".into());
@@ -644,7 +661,11 @@ impl Document {
             }
             edits.push(Edit::UpdateContent { page, index, content: item.content.with_rect(rect) });
         }
-        Ok(Edit::Batch { label: "Move additions".into(), edits })
+        if !objects.is_empty() {
+            edits.push(Edit::MoveObjects { page, objects: objects.to_vec(), offset: [dx, dy] });
+        }
+        let label = if objects.is_empty() { "Move additions" } else { "Move objects" };
+        Ok(Edit::Batch { label: label.into(), edits })
     }
     pub fn measurement_paths(&self, page: usize) -> Result<measure::snap::Geometry, String> {
         let e = self.editor.as_ref().ok_or("the document can't be read")?;
@@ -4226,6 +4247,13 @@ impl Session {
     /// Which derived lists a content-only edit can change: added content (`None`, from
     /// undo/redo, re-reads both: always correct, rarely paid).
     fn content_refresh_lists(edit: Option<&Edit>) -> (bool, bool) {
+        if let Some(Edit::Batch { edits, .. }) = edit {
+            return edits.iter().fold((false, false), |(added, marks), edit| {
+                // Nested batches conservatively refresh both lists, keeping recursion bounded.
+                let (a, m) = if matches!(edit, Edit::Batch { .. }) { (true, true) } else { Self::content_refresh_lists(Some(edit)) };
+                (added || a, marks || m)
+            });
+        }
         let touches_added = edit.is_none_or(|e| {
             matches!(
                 e,

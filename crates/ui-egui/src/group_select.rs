@@ -1,9 +1,9 @@
-//! Select additions without catching the original page or a scanned background.
+//! Select additions, or all editable objects in Edit mode, and move them together.
 
 use std::collections::BTreeSet;
 
 use egui::{Color32, Key, Modifiers, Pos2, Rect, Stroke};
-use pdfcraft_engine::{Document, Edit};
+use pdfcraft_engine::{Document, Edit, EditableObject, ObjectKind, ObjectTarget};
 
 use crate::{canvas::DocView, comments::PageCx};
 
@@ -11,6 +11,7 @@ use crate::{canvas::DocView, comments::PageCx};
 enum Target {
     Annotation(usize),
     Added(usize),
+    Object(ObjectTarget),
 }
 
 struct Gesture {
@@ -28,6 +29,8 @@ pub(crate) struct GroupSelection {
     generation: Option<u64>,
     blocked: bool,
     pending_move: bool,
+    pending_objects: Option<Vec<EditableObject>>,
+    include_original: bool,
     pub notice: Option<String>,
 }
 
@@ -43,23 +46,37 @@ impl GroupSelection {
         }
     }
 
-    pub fn prepare(&mut self, doc: &Document, enabled: bool, ctx: &egui::Context) {
-        self.pending_move = false;
-        if !enabled || self.generation != Some(doc.edit_generation()) {
+    pub fn prepare(&mut self, doc: &Document, enabled: bool, include_original: bool, edit_queued: bool, ctx: &egui::Context) {
+        // Keyboard moves are queued before the canvas; keep their remapping until commit.
+        if !edit_queued {
+            self.pending_move = false;
+            self.pending_objects = None;
+        }
+        if !enabled || self.generation != Some(doc.edit_generation()) || self.include_original != include_original {
             self.selected.clear();
             self.page = None;
             self.gesture = None;
         }
+        self.include_original = include_original;
         self.generation = Some(doc.edit_generation());
         if !ctx.input(|i| i.pointer.primary_down() || i.pointer.primary_released()) {
             self.gesture = None;
         }
     }
 
-    pub fn committed(&mut self, edit: &Edit, generation: u64) {
-        if self.pending_move && matches!(edit, Edit::Batch { label, .. } if label == "Move additions") {
-            // Moves replace existing streams/dictionaries in place, so selected indices stay valid.
-            self.generation = Some(generation);
+    pub fn committed(&mut self, edit: &Edit, doc: &Document) {
+        if self.pending_move && matches!(edit, Edit::Batch { label, .. } if label == "Move additions" || label == "Move objects") {
+            if let Some(expected) = self.pending_objects.take() {
+                let moved = self.page.and_then(|page| crate::object_ui::remap_objects(doc, page, &expected));
+                if let Some(objects) = moved {
+                    self.selected.retain(|target| !matches!(target, Target::Object(_)));
+                    self.selected.extend(objects.into_iter().map(|o| Target::Object(o.target)));
+                } else {
+                    // Regrouped or ambiguous content must be selected again, never moved by a stale index.
+                    self.selected.clear();
+                }
+            }
+            self.generation = Some(doc.edit_generation());
         }
         self.pending_move = false;
     }
@@ -85,6 +102,30 @@ impl GroupSelection {
         selected
     }
 
+    pub(crate) fn selected_page(&self) -> Option<usize> {
+        self.page.filter(|_| !self.blocked && self.gesture.is_none() && !self.selected.is_empty())
+    }
+
+    pub(crate) fn move_by(&mut self, doc: &Document, offset: [f64; 2]) -> Result<Edit, String> {
+        let page = self.page.ok_or("Select objects first")?;
+        if self.generation != Some(doc.edit_generation()) {
+            return Err("The document changed; select the objects again".into());
+        }
+        let annotations: Vec<_> = self.selected.iter().filter_map(|t| if let Target::Annotation(i) = t { Some(*i) } else { None }).collect();
+        let content: Vec<_> = self.selected.iter().filter_map(|t| if let Target::Added(i) = t { Some(*i) } else { None }).collect();
+        let objects: Vec<_> = self.selected.iter().filter_map(|t| if let Target::Object(o) = t { Some(*o) } else { None }).collect();
+        let edit = doc.move_selection(page, &annotations, &content, &objects, offset)?;
+        self.pending_objects = if objects.is_empty() {
+            None
+        } else {
+            let user_offset = doc.object_move_offset(page, offset)?;
+            let selected: Vec<_> = doc.editable_objects(page)?.into_iter().filter(|o| objects.contains(&o.target)).collect();
+            Some(crate::object_ui::moved_objects(&selected, user_offset))
+        };
+        self.pending_move = true;
+        Ok(edit)
+    }
+
     fn delete_edit(&self) -> Result<Edit, &'static str> {
         let page = self.page.ok_or("Select additions first")?;
         if self.selected.is_empty() || self.selected.len() > 1_000 {
@@ -102,18 +143,34 @@ impl GroupSelection {
         if !indices.is_empty() {
             edits.push(Edit::DeleteAnnotations { page, indices });
         }
-        // Added-content indices are page-local; remove from the end to keep earlier ones stable.
-        for target in self.selected.iter().rev() {
-            if let Target::Added(index) = target {
-                edits.push(Edit::DeleteContent { page, index: *index });
-            }
+        let objects: Vec<_> = self
+            .selected
+            .iter()
+            .filter_map(|target| match target {
+                Target::Added(index) => Some(ObjectTarget { kind: ObjectKind::Added, index: *index }),
+                Target::Object(target) => Some(*target),
+                _ => None,
+            })
+            .collect();
+        let originals = self.selected.iter().any(|t| matches!(t, Target::Object(_)));
+        if originals {
+            edits.push(Edit::DeleteObjects { page, objects });
+        } else {
+            // Added-only deletion must not depend on parsing unrelated original artwork.
+            edits.extend(objects.into_iter().rev().map(|o| Edit::DeleteContent { page, index: o.index }));
         }
-        Ok(Edit::Batch { label: "Delete additions".into(), edits })
+        let label = if originals { "Delete objects" } else { "Delete additions" };
+        Ok(Edit::Batch { label: label.into(), edits })
     }
 }
 
-fn items(pcx: &PageCx<'_>, doc: &Document) -> Vec<(Target, Rect)> {
-    let mut out: Vec<_> = pcx.comments().flat_map(|a| pcx.screen_rects(a).map(move |r| (Target::Annotation(a.index), r))).collect();
+fn items(pcx: &PageCx<'_>, doc: &Document, originals: &[EditableObject]) -> Vec<(Target, Rect)> {
+    let mut out: Vec<_> = originals
+        .iter()
+        .filter(|o| o.target.kind != ObjectKind::Added)
+        .map(|o| (Target::Object(o.target), pcx.xf.user_rect(pcx.info, pcx.page, o.rect.map(|v| v as f32))))
+        .collect();
+    out.extend(pcx.comments().flat_map(|a| pcx.screen_rects(a).map(move |r| (Target::Annotation(a.index), r))));
     out.extend(
         doc.added()
             .iter()
@@ -129,7 +186,20 @@ pub(crate) fn page_input(ui: &egui::Ui, pcx: &PageCx<'_>, doc: &Document, view: 
         return true;
     }
     let Some(pointer) = ui.input(|i| i.pointer.interact_pos()) else { return true };
-    let items = items(pcx, doc);
+    let originals = if view.group.include_original {
+        match view.objects.inventory(doc, pcx.page) {
+            Ok(objects) => objects,
+            Err(why) => {
+                if ui.input(|i| i.pointer.primary_pressed()) {
+                    view.group.notice = Some(why);
+                }
+                Vec::new()
+            }
+        }
+    } else {
+        Vec::new()
+    };
+    let items = items(pcx, doc, &originals);
     if ui.input(|i| i.pointer.primary_pressed()) && pcx.xf.rect.contains(pointer) && ui.clip_rect().contains(pointer) {
         if view.group.page != Some(pcx.page) {
             view.group.selected.clear();
@@ -137,14 +207,9 @@ pub(crate) fn page_input(ui: &egui::Ui, pcx: &PageCx<'_>, doc: &Document, view: 
         view.group.page = Some(pcx.page);
         let additive = ui.input(|i| i.modifiers.shift || i.modifiers.command || i.modifiers.ctrl);
         let hit = items.iter().rev().find(|(_, r)| r.expand(3.0).contains(pointer)).map(|(t, _)| *t);
-        let moving = !additive && (hit.is_some() || view.group.bounds(&items).is_some_and(|r| r.expand(6.0).contains(pointer)));
-        if moving
-            && let Some(target) = hit
-            && !view.group.selected.contains(&target)
-        {
-            view.group.selected.clear();
-            view.group.selected.insert(target);
-        }
+        let moving = !additive
+            && (hit.is_some_and(|target| view.group.selected.contains(&target))
+                || view.group.bounds(&items).is_some_and(|r| r.expand(6.0).contains(pointer)));
         view.group.gesture = Some(Gesture { start: pointer, now: pointer, additive, moving });
         view.comments.selected = None;
         view.content.selected = None;
@@ -157,14 +222,9 @@ pub(crate) fn page_input(ui: &egui::Ui, pcx: &PageCx<'_>, doc: &Document, view: 
         if ui.input(|i| i.pointer.primary_released()) {
             if g.moving && g.start.distance(g.now) >= 3.0 {
                 let (a, b) = (pcx.xf.screen_to_view(g.start), pcx.xf.screen_to_view(g.now));
-                let annotations: Vec<_> =
-                    view.group.selected.iter().filter_map(|t| if let Target::Annotation(i) = t { Some(*i) } else { None }).collect();
-                let content: Vec<_> = view.group.selected.iter().filter_map(|t| if let Target::Added(i) = t { Some(*i) } else { None }).collect();
-                match doc.move_additions(pcx.page, &annotations, &content, [(b.0 - a.0) as f64, (b.1 - a.1) as f64]) {
-                    Ok(edit) => {
-                        view.pending_edit = Some(edit);
-                        view.group.pending_move = true;
-                    }
+                let offset = [f64::from(b.0 - a.0), f64::from(b.1 - a.1)];
+                match view.group.move_by(doc, offset) {
+                    Ok(edit) => view.pending_edit = Some(edit),
                     Err(why) => view.group.notice = Some(why),
                 }
             } else {
@@ -187,11 +247,13 @@ pub(crate) fn page_input(ui: &egui::Ui, pcx: &PageCx<'_>, doc: &Document, view: 
     true
 }
 
-pub(crate) fn paint(painter: &egui::Painter, pcx: &PageCx<'_>, doc: &Document, group: &GroupSelection) {
+pub(crate) fn paint(painter: &egui::Painter, pcx: &PageCx<'_>, doc: &Document, view: &DocView) {
+    let group = &view.group;
     if group.page != Some(pcx.page) {
         return;
     }
-    let items = items(pcx, doc);
+    let originals = if group.include_original { view.objects.cached_objects(pcx.page) } else { &[] };
+    let items = items(pcx, doc, originals);
     let selected = group.preview(&items);
     let delta = group.gesture.as_ref().filter(|g| g.moving).map_or(egui::Vec2::ZERO, |g| g.now - g.start);
     let blue = Color32::from_rgb(65, 140, 250);

@@ -205,6 +205,9 @@ fn open(p: RightPanel) -> (Harness<'static, PdfCraftApp>, &'static str) {
             h.state_mut().views[0].find.as_mut().expect("Advanced Search opens a search").query = "sample".into();
             support::wait_until(&mut h, "both pages searched", |app| app.views[0].find.as_ref().is_some_and(|f| f.matches.len() == 2));
             h.run_steps(2);
+            // Search finishes asynchronously; pin the selected result that the snapshot describes.
+            h.get_by_label("…Panel sample Draft notes…").click();
+            h.run_steps(2);
             return (h, "search");
         }
         RightPanel::Compare => {

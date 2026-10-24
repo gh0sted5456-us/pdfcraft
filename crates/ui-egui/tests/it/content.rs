@@ -763,6 +763,35 @@ fn the_text_editor_aligns_a_narrow_box_to_its_own_edge() {
     );
 }
 
+#[test]
+fn group_tool_finishes_added_text_and_keeps_a_refused_draft() {
+    let mut h = harness();
+    let rect = [40.0, 195.0, 240.0, 210.0];
+    h.state_mut().apply_edit(pdfcraft_engine::Edit::AddText {
+        page: 0,
+        text: pdfcraft_engine::AddedText { rect, text: "Original added text".into(), ..Default::default() },
+    });
+    h.state_mut().execute("edit.text");
+    h.run_steps(3);
+    let point = at(&h, 100.0, 195.0);
+    click(&mut h, point);
+    h.state_mut().views[0].content.draft.as_mut().unwrap().text = "Keep these edits".into();
+    h.state_mut().set_option("quick", "group-select").unwrap();
+    h.run_steps(4);
+    assert!(h.state().views[0].content.draft.is_none());
+    assert!(texts(&h).iter().any(|s| s == "Keep these edits"));
+    h.state_mut().execute("edit.text");
+    h.run_steps(3);
+    click(&mut h, point);
+    h.state_mut().views[0].content.draft.as_mut().unwrap().text = "Keep unsupported \u{10FFFF}".into();
+    let generation = h.state().session.get(h.state().views[0].id).unwrap().edit_generation();
+    assert!(h.state_mut().set_option("quick", "group-select").is_err());
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].content.draft.as_ref().unwrap().text, "Keep unsupported \u{10FFFF}");
+    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().edit_generation(), generation);
+    assert_ne!(h.state().quick_tool, QuickTool::GroupSelect);
+}
+
 /// Where a mode bar tab is, by its label.
 fn mode_tab(h: &Harness<'static, PdfCraftApp>, label: &str) -> egui::Rect {
     h.get_all_by_role_and_label(egui::accesskit::Role::Button, label).map(|n| n.rect()).find(|r| r.bottom() < 120.0).expect("a mode tab")

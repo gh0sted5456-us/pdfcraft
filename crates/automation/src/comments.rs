@@ -686,35 +686,62 @@ impl Automation {
         self.apply(a, edit)
     }
 
+    fn selection_objects(&self, a: &Args) -> Result<Vec<pdfcraft_engine::ObjectTarget>> {
+        if a.get("objects").is_none() {
+            if let Some(generation) = a.get("generation") {
+                let generation =
+                    generation.as_u64().ok_or_else(|| ToolError::InvalidArgs("generation must be a non-negative integer from object_list".into()))?;
+                if generation != self.doc(a)?.edit_generation() {
+                    return Err(failed("the document changed; call object_list again before editing"));
+                }
+            }
+            return Ok(Vec::new());
+        }
+        let objects = self.object_targets(a)?;
+        if objects.iter().any(|o| o.kind == pdfcraft_engine::ObjectKind::Added) {
+            return Err(ToolError::InvalidArgs("use content_indices for added text and images".into()));
+        }
+        Ok(objects)
+    }
+
     pub(crate) fn additions_move(&mut self, a: &Args) -> Result<Value> {
         let indices = group_positions(a, "indices")?;
         let content = group_positions(a, "content_indices")?;
         let page = self.page(a)?;
         let offset = a.need::<2>("offset", "a move in displayed-page points")?;
-        let edit = self.doc(a)?.move_additions(page, &indices, &content, offset).map_err(failed)?;
+        let objects = self.selection_objects(a)?;
+        let edit = self.doc(a)?.move_selection(page, &indices, &content, &objects, offset).map_err(failed)?;
         self.apply(a, edit)
     }
 
     pub(crate) fn comment_delete(&mut self, a: &Args) -> Result<Value> {
-        if a.get("indices").is_some() || a.get("content_indices").is_some() {
+        if a.get("indices").is_some() || a.get("content_indices").is_some() || a.get("objects").is_some() {
             if a.get("index").is_some() || a.get("id").is_some() {
                 return Err(ToolError::InvalidArgs("use group indices with page, or a single id/index, not both".into()));
             }
             let indices = group_positions(a, "indices")?;
             let content = group_positions(a, "content_indices")?;
-            if indices.len() + content.len() == 0 || indices.len() + content.len() > 1_000 {
+            let mut objects = self.selection_objects(a)?;
+            let count = indices.len().saturating_add(content.len()).saturating_add(objects.len());
+            if count == 0 || count > 1_000 {
                 return Err(ToolError::InvalidArgs("select between 1 and 1000 additions to delete".into()));
             }
             let page = self.page(a)?;
-            if content.is_empty() {
+            if content.is_empty() && objects.is_empty() {
                 return self.apply(a, Edit::DeleteAnnotations { page, indices });
             }
             let mut edits = Vec::new();
             if !indices.is_empty() {
                 edits.push(Edit::DeleteAnnotations { page, indices });
             }
-            edits.extend(content.into_iter().rev().map(|index| Edit::DeleteContent { page, index }));
-            self.apply(a, Edit::Batch { label: "Delete additions".into(), edits })
+            let label = if objects.is_empty() { "Delete additions" } else { "Delete objects" };
+            if objects.is_empty() {
+                edits.extend(content.into_iter().rev().map(|index| Edit::DeleteContent { page, index }));
+            } else {
+                objects.extend(content.into_iter().map(|index| pdfcraft_engine::ObjectTarget { kind: pdfcraft_engine::ObjectKind::Added, index }));
+                edits.push(Edit::DeleteObjects { page, objects });
+            }
+            self.apply(a, Edit::Batch { label: label.into(), edits })
         } else {
             let (page, index) = self.comment_target(a)?;
             self.apply(a, Edit::DeleteAnnotation { page, index })

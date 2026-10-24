@@ -149,6 +149,154 @@ fn right_click_selected_objects_offers_alignment_and_distribution() {
     h.run_steps(4);
     assert_eq!(objects(&h), before);
 }
+
+#[test]
+fn square_group_tool_in_edit_mode_moves_original_artwork_and_additions_together() {
+    use pdfcraft_engine::{NewAnnotation, NoteIcon, Shape, Style};
+    let mut h = harness_bytes(fixture_with_shape(false, false, true));
+    h.state_mut().apply_edit(Edit::AddAnnotation(NewAnnotation {
+        page: 0,
+        shape: Shape::Note { at: [190.0, 460.0], icon: NoteIcon::Note },
+        style: Style::default(),
+        contents: "Group note".into(),
+        author: "Tester".into(),
+    }));
+    h.state_mut().set_option("mode", "edit").unwrap();
+    h.run_steps(4);
+    h.get_by_label("Group select").click();
+    h.run_steps(4);
+    let before = objects(&h);
+    let note = h.state().session.get(h.state().views[0].id).unwrap().info.annotations.iter().find(|a| a.subtype == "Text").unwrap().rect;
+    let (a, b) = (at(&h, 25.0, 25.0), at(&h, 330.0, 185.0));
+    drag(&mut h, a, b);
+    assert_eq!(h.state().views[0].group_selection_count(), 5, "original paragraph, picture, path, added text and note");
+    for (from, to, total) in [((55.0, 70.0), (65.0, 80.0), 10.0), ((65.0, 80.0), (75.0, 90.0), 20.0)] {
+        let (a, b) = (at(&h, from.0, from.1), at(&h, to.0, to.1));
+        drag(&mut h, a, b);
+        assert_eq!(h.state().views[0].group_selection_count(), 5, "selection follows repeated moves");
+        for old in &before {
+            let after = objects(&h);
+            let new = after.iter().find(|o| o.target.kind == old.target.kind && o.text == old.text).unwrap();
+            let shift = if old.text.as_deref() == Some("Keep here") { 0.0 } else { total };
+            for i in 0..4 {
+                assert!((new.rect[i] - old.rect[i] - if i % 2 == 0 { shift } else { -shift }).abs() < 0.02, "{old:?} -> {new:?}");
+            }
+        }
+        let app = h.state();
+        let doc = app.session.get(app.views[0].id).unwrap();
+        let moved = doc.info.annotations.iter().find(|a| a.subtype == "Text").unwrap().rect;
+        assert!((moved[0] - note[0] - total as f32).abs() < 0.02 && (moved[1] - note[1] + total as f32).abs() < 0.02);
+        assert_eq!(doc.can_undo(), Some("Move objects"));
+    }
+    h.key_press(Key::Delete);
+    h.run_steps(4);
+    assert_eq!(objects(&h).len(), 1, "only the unselected paragraph remains");
+    assert!(h.state().session.get(h.state().views[0].id).unwrap().info.annotations.is_empty());
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+    assert_eq!(objects(&h).len(), 5);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+    let restored = objects(&h).into_iter().find(|o| o.text.as_deref() == Some("Group headline")).unwrap();
+    let original = before.iter().find(|o| o.text.as_deref() == Some("Group headline")).unwrap();
+    assert!((restored.rect[0] - original.rect[0] - 10.0).abs() < 0.02, "one undo per move");
+}
+
+#[test]
+fn square_group_arrow_keys_nudge_the_selection_and_shift_moves_ten_points() {
+    use pdfcraft_engine::{NewAnnotation, NoteIcon, Shape, Style};
+    for edit_mode in [false, true] {
+        let mut h = harness_bytes(fixture_with_shape(false, false, true));
+        h.state_mut().apply_edit(Edit::AddAnnotation(NewAnnotation {
+            page: 0,
+            shape: Shape::Note { at: [190.0, 460.0], icon: NoteIcon::Note },
+            style: Style::default(),
+            contents: "Nudge me".into(),
+            author: "Tester".into(),
+        }));
+        h.get_by_label("All tools").click();
+        h.run_steps(4);
+        h.state_mut().set_option("mode", if edit_mode { "edit" } else { "all" }).unwrap();
+        h.state_mut().set_option("left", "closed").unwrap();
+        h.state_mut().set_option("zoom", "75").unwrap();
+        h.run_steps(4);
+        h.get_by_label("Group select").click();
+        h.run_steps(4);
+        let before = objects(&h);
+        let id = h.state().views[0].id;
+        let note = h.state().session.get(id).unwrap().info.annotations.iter().find(|a| a.subtype == "Text").unwrap().rect;
+        let (a, b) = (at(&h, 25.0, 25.0), at(&h, 330.0, 185.0));
+        drag(&mut h, a, b);
+        let count = if edit_mode { 5 } else { 2 };
+        assert_eq!(h.state().views[0].group_selection_count(), count);
+        for (modifiers, key, shift) in [
+            (Modifiers::NONE, Key::ArrowRight, [1.0, 0.0]),
+            (Modifiers::SHIFT, Key::ArrowDown, [1.0, -10.0]),
+            (Modifiers::NONE, Key::ArrowLeft, [0.0, -10.0]),
+            (Modifiers::SHIFT, Key::ArrowUp, [0.0, 0.0]),
+        ] {
+            h.key_press_modifiers(modifiers, key);
+            h.run_steps(4);
+            assert_eq!(h.state().views[0].group_selection_count(), count);
+            let after = objects(&h);
+            for old in &before {
+                let new = after.iter().find(|o| o.target.kind == old.target.kind && o.text == old.text).unwrap();
+                let moving = old.text.as_deref() != Some("Keep here") && (edit_mode || old.target.kind == pdfcraft_engine::ObjectKind::Added);
+                let offset = if moving { shift } else { [0.0, 0.0] };
+                assert!(new.rect.iter().enumerate().all(|(i, value)| (value - old.rect[i] - offset[i % 2]).abs() < 0.02), "{old:?} -> {new:?}");
+            }
+            let moved = h.state().session.get(id).unwrap().info.annotations.iter().find(|a| a.subtype == "Text").unwrap().rect;
+            assert!(moved.iter().enumerate().all(|(i, value)| (f64::from(value - note[i]) - shift[i % 2]).abs() < 0.02));
+        }
+        let generation = h.state().session.get(id).unwrap().edit_generation();
+        assert!(h.state_mut().execute("app.preferences"));
+        h.run_steps(4);
+        h.key_press(Key::ArrowRight);
+        h.run_steps(4);
+        assert_eq!(h.state().session.get(id).unwrap().edit_generation(), generation, "a modal owns its arrow keys");
+        h.key_press(Key::Escape);
+        h.run_steps(4);
+        h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+        h.run_steps(4);
+        let added = objects(&h).into_iter().find(|o| o.target.kind == pdfcraft_engine::ObjectKind::Added).unwrap();
+        let original = before.iter().find(|o| o.target.kind == pdfcraft_engine::ObjectKind::Added).unwrap();
+        assert!((added.rect[1] - original.rect[1] + 10.0).abs() < 0.02, "one undo per nudge");
+    }
+}
+
+#[test]
+fn square_group_tool_refuses_a_clipped_original_without_moving_the_added_content() {
+    use pdfcraft_engine::{NewAnnotation, NoteIcon, Shape, Style};
+    let mut h = harness_bytes(fixture_with_shape(true, false, true));
+    h.state_mut().apply_edit(Edit::AddAnnotation(NewAnnotation {
+        page: 0,
+        shape: Shape::Note { at: [190.0, 460.0], icon: NoteIcon::Note },
+        style: Style::default(),
+        contents: "Group note".into(),
+        author: "Tester".into(),
+    }));
+    h.state_mut().set_option("mode", "edit").unwrap();
+    h.run_steps(4);
+    h.get_by_label("Group select").click();
+    h.run_steps(4);
+    let (a, b) = (at(&h, 25.0, 25.0), at(&h, 330.0, 185.0));
+    drag(&mut h, a, b);
+    assert_eq!(h.state().views[0].group_selection_count(), 5);
+    let doc = h.state().session.get(h.state().views[0].id).unwrap();
+    let bytes = doc.bytes.clone();
+    let generation = doc.edit_generation();
+    let (a, b) = (at(&h, 55.0, 70.0), at(&h, 65.0, 80.0));
+    drag(&mut h, a, b);
+    let doc = h.state().session.get(h.state().views[0].id).unwrap();
+    assert_eq!(doc.edit_generation(), generation);
+    assert_eq!(doc.bytes, bytes, "an unsupported original refuses the complete mixed move");
+    assert_eq!(h.state().views[0].group_selection_count(), 5);
+    h.key_press(Key::ArrowRight);
+    h.run_steps(4);
+    let doc = h.state().session.get(h.state().views[0].id).unwrap();
+    assert_eq!(doc.edit_generation(), generation);
+    assert_eq!(doc.bytes, bytes, "an unsupported original refuses the complete mixed nudge");
+}
 fn drag(h: &mut Harness<'static, PdfCraftApp>, a: Pos2, b: Pos2) {
     h.hover_at(a);
     h.run_steps(2);

@@ -1,5 +1,7 @@
 # PdfCraft roadmap
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** Edit-mode Group select includes original editable text, images and paths with annotations and added content; atomic move/delete and arrow-key nudging (one point, Shift ten), repeated-move remapping and preserved/refused text drafts. Content batches also refresh warmed added-content caches. Outside Edit it remains additions-only. Estimates and printer runtime limits unchanged.
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 adopts added-text editor alignment from upstream PR #4178 by @RiceDee; centered/right-aligned text stays anchored when editing, including boxes narrower than the editor minimum. Justified editing remains left-aligned; readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 adds same-page group selection of comments and added content, atomic group dragging/Delete/Undo, a centered theme-aware close prompt with matte hover colors, and persistent red/green document-status dots. Crop-from-grid fix adopted from PR #3974 by @eliets2. Existing readiness estimates and native printer validation limits unchanged.
@@ -209,6 +211,7 @@ Ranked; detail and the full milestone table in [docs/roadmap.md](docs/roadmap.md
 
 ## Progress log
 
+- 2026-10-23 — M5/M7 personal build: corrected Group select in Edit mode to include original paragraphs, artwork and vector paths with notes and added content. It owns its gestures, preserves pending text edits, remaps source references after moves and applies mixed changes atomically. Regression reproduced selecting only 2 of 5 objects before the fix. Arrow keys nudge one displayed point, Shift ten, through the same atomic move; the keyboard regression failed before the fix. Fixed a shared warmed-content cache invalidation bug for content batches, also reproduced before the fix. Validation: 2,223 scoped engine/automation/UI tests, clippy, wasm and layer/asset/parity checks pass. The search-panel snapshot now explicitly picks its first result instead of depending on asynchronous search timing.
 - 2026-10-23 — M7 personal build: adopted PR #4178 (@RiceDee), keeping centered/right-aligned added text anchored when its editor opens, including narrow boxes. Both synthetic pixel regressions reproduced the bug before the fix. Justified text remains left-aligned while editing.
 - 2026-10-23 — M5 personal build: square Group select tool with blue marquee and mixed comment/added-content dragging and deletion in one undo step. M4 close prompt centered with Exit/Cancel/Save, theme-matched matte fills and semantic hover colors; preserve keyboard and failed-save behavior. Document tabs show persistent red unsaved/green saved dots beside Close, with accessible status descriptions. Incorporated crop-from-grid PR #3974 (@eliets2), excluding its unrelated lockfile change.
 

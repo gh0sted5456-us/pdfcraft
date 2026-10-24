@@ -39,6 +39,49 @@ pub enum SaveTarget {
 }
 
 impl PdfCraftApp {
+    /// Put page text editors down before the group tool owns their pointer and keyboard.
+    pub(crate) fn activate_group_select(&mut self) -> bool {
+        if let Some((i, id)) = self.active_ids() {
+            if let Some(c) = self.views.get_mut(i).and_then(|v| {
+                let c = v.content.blocked()?;
+                v.content.hold_blocked();
+                Some(c)
+            }) {
+                self.notify(crate::content_ui::undrawable_message(c));
+                return false;
+            }
+            if !self.commit_form_typing() {
+                return false;
+            }
+            let mut edits = Vec::new();
+            if let Some(edit) = self.views.get(i).and_then(|v| v.line_editor.clone()).and_then(crate::edit_text_ui::finished_edit) {
+                edits.push(edit);
+            }
+            let added = self.session.get(id).map(|d| d.added().to_vec()).unwrap_or_default();
+            if let Some(edit) = self.views.get(i).and_then(|v| v.content.clone().finish_draft(&added)) {
+                edits.push(edit);
+            }
+            if !edits.is_empty() && !self.apply_edit(Edit::Batch { label: "Edit content".into(), edits }) {
+                return false;
+            }
+            if let Some(view) = self.views.get_mut(i) {
+                view.line_editor = None;
+                view.content.draft = None;
+                view.content.select_added = None;
+                view.block_drag = None;
+            }
+        }
+        if let Some(ctx) = &self.ctx {
+            ctx.memory_mut(|m| {
+                if let Some(id) = m.focused() {
+                    m.surrender_focus(id);
+                }
+            });
+        }
+        self.quick_tool = crate::QuickTool::GroupSelect;
+        true
+    }
+
     /// Apply an edit to the active document. Returns `true` on success; failures are shown.
     pub fn apply_edit(&mut self, edit: Edit) -> bool {
         let Some((i, id)) = self.active_ids() else { return false };
@@ -53,7 +96,7 @@ impl PdfCraftApp {
                 let Some(doc) = self.session.get(id) else { return true };
                 let info = &doc.info;
                 let view = &mut self.views[i];
-                view.group.committed(&edit, doc.edit_generation());
+                view.group.committed(&edit, doc);
                 view.applied_editor = None;
                 // A picture picked with the Select tool may be the one this edit removed or moved:
                 // drop its highlight now, not on the next frame (which only comes with the next input).

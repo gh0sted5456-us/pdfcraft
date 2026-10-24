@@ -42,6 +42,10 @@ fn point() -> Value {
     json!({ "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2, "description": "[x, y] in points from the top-left of the displayed page." })
 }
 
+fn selection_objects() -> Value {
+    json!({"type":"array","minItems":1,"maxItems":1000,"uniqueItems":true,"description":"Original page-object references from object_list; use content_indices for added content.","items":{"type":"object","properties":{"kind":{"type":"string","enum":["text","image","path"]},"index":{"type":"integer","minimum":1}},"required":["kind","index"],"additionalProperties":false}})
+}
+
 fn measure_points() -> Value {
     json!({"type":"array","items":point(),"minItems":1,"maxItems":2048})
 }
@@ -856,14 +860,14 @@ pub fn tools() -> Vec<ToolDef> {
         )),
         t("comment_image_preview", "Preview image signature layers", "Return a PNG of the page without the selected image signature/initials (layer=background, default), or its embedded image with alpha (layer=image). Includes the displayed rectangle, document rotation, image_rotation (how far clockwise the image is shown turned) and annotation opacity. Cache these layers for live placement/resizing; commit once with comment_edit. Does not change the document or undo history.")
             .ro().with(schema(comment_ref(json!({ "layer": { "type": "string", "enum": ["background", "image"], "default": "background" }, "dpi": { "type": "number", "minimum": 1, "maximum": 600, "default": 96 } })), &["doc"])),
-        t("additions_move", "Move selected additions", "Move comments and PdfCraft-added text/images together on one page, preserving their spacing. offset is [right, down] in displayed-page points, accounting for crop, rotation and UserUnit. One undo step; locked, restricted or missing targets refuse the entire edit. Re-list positions after unrelated edits.")
+        t("additions_move", "Move selected objects", "Move comments, PdfCraft-added content and original editable page objects together on one page, preserving their spacing. offset is [right, down] in displayed-page points, accounting for crop, rotation and UserUnit. One undo step; locked, restricted or missing targets refuse the entire edit. Re-list original object references after every edit, and comment/added positions after unrelated edits.")
             .with(schema(json!({
                 "doc": doc(), "page": { "type": "integer", "minimum": 1 },
                 "indices": { "type": "array", "maxItems": 1000, "items": { "type": "integer", "minimum": 1 }, "description": "Original 1-based annotation positions from comment_list." },
                 "content_indices": { "type": "array", "maxItems": 1000, "items": { "type": "integer", "minimum": 1 }, "description": "Page-local 1-based positions from content_list; at most 1000 selected additions total." },
-                "offset": point(),
+                "offset": point(), "objects": selection_objects(), "generation": {"type":"integer","minimum":0},
             }), &["doc", "page", "offset"])),
-        t("comment_delete", "Delete comments", "Delete a comment with its pop-up and replies, or a page group using indices (original 1-based annotation positions) and/or content_indices from content_list. One undo step; locked or missing targets refuse the whole edit.").destructive().with(schema(comment_ref(json!({ "indices": { "type": "array", "maxItems": 1000, "items": { "type": "integer", "minimum": 1 }, "description": "With page; mutually exclusive with id and index." }, "content_indices": { "type": "array", "maxItems": 1000, "items": { "type": "integer", "minimum": 1 }, "description": "Page-local 1-based positions from content_list. Optional with indices for a mixed group, at most 1000 additions total." } })), &["doc"])),
+        t("comment_delete", "Delete comments", "Delete a comment with its pop-up and replies, or a page group using indices (original 1-based annotation positions) and/or content_indices from content_list, plus optional original objects from object_list. One undo step; locked or missing targets refuse the whole edit.").destructive().with(schema(comment_ref(json!({ "objects": selection_objects(), "generation": {"type":"integer","minimum":0}, "indices": { "type": "array", "maxItems": 1000, "items": { "type": "integer", "minimum": 1 }, "description": "With page; mutually exclusive with id and index." }, "content_indices": { "type": "array", "maxItems": 1000, "items": { "type": "integer", "minimum": 1 }, "description": "Page-local 1-based positions from content_list. Optional with indices for a mixed group, at most 1000 additions total." } })), &["doc"])),
         t(
             "doc_protect",
             "Protect with passwords",

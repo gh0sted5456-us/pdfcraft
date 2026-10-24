@@ -8390,3 +8390,54 @@ fn additions_move_preserves_spacing_validates_atomically_and_reopens() {
         assert_eq!(ok(&mut a, "content_list", json!({"doc":reopened}))["items"], moved_content["items"]);
     }
 }
+
+#[test]
+fn mixed_originals_and_comments_move_delete_undo_and_reopen_atomically() {
+    let dir = workdir("mixed-originals-and-comments");
+    std::fs::write(dir.join("in.pdf"), fixture(1)).unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({"path":"in.pdf"}))["doc"].as_u64().unwrap();
+    ok(&mut a, "comment_add", json!({"doc":doc,"page":1,"type":"note","at":[20,20],"contents":"Group note"}));
+    ok(&mut a, "page_add_text", json!({"doc":doc,"page":1,"at":[20,80],"text":"Added words"}));
+    let comments = ok(&mut a, "comment_list", json!({"doc":doc}));
+    let index = comments["comments"][0]["index"].clone();
+    let before = ok(&mut a, "object_list", json!({"doc":doc,"page":1}));
+    let original = before["objects"].as_array().unwrap().iter().find(|o| o["kind"] == "text").unwrap();
+    let objects = json!([{"kind":"text","index":original["index"]}]);
+    let generation = before["generation"].clone();
+    for tool in ["additions_move", "comment_delete"] {
+        let mut args = json!({"doc":doc,"page":1,"indices":[index],"content_indices":[1],"objects":[{"kind":"text","index":999}]});
+        if tool == "additions_move" {
+            args["offset"] = json!([10, 15]);
+        }
+        assert!(a.call(tool, &args).is_err());
+        assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1})), before);
+        assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc})), comments);
+    }
+    ok(
+        &mut a,
+        "additions_move",
+        json!({"doc":doc,"page":1,"indices":[index],"content_indices":[1],"objects":objects,"generation":generation,"offset":[10,15]}),
+    );
+    let moved = ok(&mut a, "object_list", json!({"doc":doc,"page":1}));
+    for old in before["objects"].as_array().unwrap() {
+        let new = moved["objects"].as_array().unwrap().iter().find(|o| o["kind"] == old["kind"] && o["text"] == old["text"]).unwrap();
+        for i in 0..4 {
+            assert!((new["rect"][i].as_f64().unwrap() - old["rect"][i].as_f64().unwrap() - if i % 2 == 0 { 10.0 } else { 15.0 }).abs() < 0.02);
+        }
+    }
+    assert!(a.call("additions_move", &json!({"doc":doc,"page":1,"objects":objects,"generation":generation,"offset":[10,15]})).is_err());
+    ok(&mut a, "edit_undo", json!({"doc":doc}));
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1}))["objects"], before["objects"]);
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["comments"][0]["rect"], comments["comments"][0]["rect"]);
+    ok(&mut a, "edit_redo", json!({"doc":doc}));
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"moved.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"moved.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":reopened,"page":1}))["objects"], moved["objects"]);
+    ok(&mut a, "comment_delete", json!({"doc":doc,"page":1,"indices":[index],"content_indices":[1],"objects":objects}));
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1}))["count"], 0);
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 0);
+    ok(&mut a, "edit_undo", json!({"doc":doc}));
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1}))["objects"], moved["objects"]);
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 1);
+}

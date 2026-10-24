@@ -2668,6 +2668,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     // Edit a PDF: added text and images can be selected, moved and edited.
     let editing_content =
         (app.left_open && app.left == crate::LeftPanel::Tool("edit")) || matches!(app.quick_tool, QuickTool::AddText | QuickTool::EditText);
+    let group_originals = app.mode == crate::Mode::Edit || app.left == crate::LeftPanel::Tool("edit");
     let text_style = app.text_style.clone();
     let view = &mut app.views[index];
     // Opened without the owner password and something is restricted.
@@ -3093,9 +3094,11 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     } else {
         view.prepare.selected = None;
     }
-    view.objects.prepare(doc, tool == QuickTool::EditText && can_modify, ui.ctx());
-    view.group.prepare(doc, tool == QuickTool::GroupSelect, ui.ctx());
+    view.objects.prepare(doc, tool == QuickTool::EditText && can_modify || tool == QuickTool::GroupSelect && group_originals, ui.ctx());
+    view.group.prepare(doc, tool == QuickTool::GroupSelect, group_originals, view.pending_edit.is_some(), ui.ctx());
     if tool == QuickTool::GroupSelect {
+        view.objects.clear();
+        view.image_selection = None;
         view.comments.selected = None;
         view.content.selected = None;
         view.selection = None;
@@ -3502,7 +3505,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
                 }
                 view.content.selected = None;
             }
-            let on_content = !on_objects && editing_content && can_modify && {
+            let on_content = tool != QuickTool::GroupSelect && !on_objects && editing_content && can_modify && {
                 source_blocked
                     || crate::content_ui::page_input(
                         ui,
@@ -3754,7 +3757,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
             }
             comments::paint_page(ui, painter, &pcx, view);
             if tool == QuickTool::GroupSelect {
-                crate::group_select::paint(painter, &pcx, doc, &view.group);
+                crate::group_select::paint(painter, &pcx, doc, view);
             }
             if editing_content {
                 crate::content_ui::paint_page(ui, painter, &xf, i, info, &added, view);
@@ -5026,7 +5029,7 @@ fn quick_bar(app: &mut PdfCraftApp, area: Rect, ui: &mut egui::Ui) {
                         )
                     };
                     if icons::button(ui, "square-dashed", 32.0, app.quick_tool == QuickTool::GroupSelect, &group_label).clicked() {
-                        app.quick_tool = QuickTool::GroupSelect;
+                        app.activate_group_select();
                     }
                     if icons::button(ui, "hand", 32.0, app.quick_tool == QuickTool::Hand, tl!("Hand (H)")).clicked() {
                         app.quick_tool = QuickTool::Hand;

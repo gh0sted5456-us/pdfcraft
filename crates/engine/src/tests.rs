@@ -6286,6 +6286,11 @@ fn content_edit_keeps_pages_annotations_fields_and_links() {
 /// edit at hand, re-read both).
 #[test]
 fn content_refresh_lists_match_the_storages_an_edit_touches() {
+    let batch = Edit::Batch {
+        label: "Edit content".into(),
+        edits: vec![Edit::AddText { page: 0, text: AddedText { text: "Fresh marker".into(), ..Default::default() } }],
+    };
+    assert_eq!(Session::content_refresh_lists(Some(&batch)), (true, false), "content batches invalidate added-content caches");
     let target = |kind| ObjectTarget { kind, index: 0 };
     let added = [
         Edit::AddText {
@@ -6312,10 +6317,14 @@ fn content_refresh_lists_match_the_storages_an_edit_touches() {
     ];
     for edit in &plain {
         assert_eq!(Session::content_refresh_lists(Some(edit)), (false, false), "{}", edit.label());
+        let batch = Edit::Batch { label: "Move objects".into(), edits: vec![edit.clone()] };
+        assert_eq!(Session::content_refresh_lists(Some(&batch)), (false, false), "original-only batches keep marker caches");
     }
     let marks = [Edit::AddWatermark { pages: vec![0], settings: Watermark::default(), replace: false, file: None }];
     for edit in &marks {
         assert_eq!(Session::content_refresh_lists(Some(edit)), (false, true), "{}", edit.label());
+        let batch = Edit::Batch { label: "Mark pages".into(), edits: vec![edit.clone()] };
+        assert_eq!(Session::content_refresh_lists(Some(&batch)), (false, true));
     }
     assert_eq!(Session::content_refresh_lists(None), (true, true), "undo/redo re-read both");
 }
@@ -7400,4 +7409,26 @@ fn additions_move_honours_crop_rotation_units_permissions_and_undo() {
         let doc = reader.get(restricted).unwrap();
         assert!(!doc.dirty && doc.can_undo().is_none() && doc.edit_generation() == generation);
     }
+}
+
+#[test]
+fn content_batches_refresh_warmed_added_content_through_undo_and_redo() {
+    let (mut s, id) = session_with(1);
+    s.apply(id, Edit::AddText { page: 0, text: AddedText { rect: [20.0, 50.0, 120.0, 70.0], text: "Old".into(), ..Default::default() } }).unwrap();
+    let old = s.get(id).unwrap().added()[0].content.clone();
+    let AddedContent::Text(mut text) = old.clone() else { panic!() };
+    text.text = "New".into();
+    text.rect[0] += 10.0;
+    text.rect[2] += 10.0;
+    let updated = AddedContent::Text(text);
+    s.apply(id, Edit::Batch { label: "Edit content".into(), edits: vec![Edit::UpdateContent { page: 0, index: 0, content: updated.clone() }] })
+        .unwrap();
+    assert_eq!(s.get(id).unwrap().added()[0].content, updated, "the cache reflects the written batch immediately");
+    s.undo(id).unwrap();
+    assert_eq!(s.get(id).unwrap().added()[0].content, old);
+    s.redo(id).unwrap();
+    assert_eq!(s.get(id).unwrap().added()[0].content, updated);
+    let bytes = s.save_bytes(id).unwrap();
+    let reopened = s.open("updated.pdf", None, bytes, None).unwrap();
+    assert_eq!(s.get(reopened).unwrap().added()[0].content, updated);
 }

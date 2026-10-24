@@ -84,29 +84,7 @@ impl ObjectSelection {
             self.cache.clear();
             self.gesture = None;
             let expected = self.pending.take();
-            let remapped = self.page.zip(expected).and_then(|(page, expected)| {
-                let inventory = doc.editable_objects(page).ok()?;
-                let mut out = Vec::new();
-                for old in expected {
-                    let mut matches = inventory.iter().filter(|o| {
-                        o.target.kind == old.target.kind
-                            && o.content_type == old.content_type
-                            && o.text == old.text
-                            && if old.target.kind == ObjectKind::Path {
-                                // A path is told apart by its points: its frame follows its line width.
-                                same_points(o, &old)
-                            } else {
-                                o.rect.iter().zip(old.rect).all(|(a, b)| (a - b).abs() < 0.01)
-                            }
-                    });
-                    let object = matches.next()?;
-                    if matches.next().is_some() || out.iter().any(|o: &EditableObject| o.target == object.target) {
-                        return None;
-                    }
-                    out.push(object.clone());
-                }
-                Some(out)
-            });
+            let remapped = self.page.zip(expected).and_then(|(page, expected)| remap_objects(doc, page, &expected));
             if let Some(objects) = remapped {
                 self.selected = objects;
             } else {
@@ -127,13 +105,7 @@ impl ObjectSelection {
 
     /// The move of the whole selection by `offset` (user space). The selection follows it.
     fn move_by(&mut self, page: usize, offset: [f64; 2]) -> Edit {
-        let mut expected = self.selected.clone();
-        for object in &mut expected {
-            object.rect = [object.rect[0] + offset[0], object.rect[1] + offset[1], object.rect[2] + offset[0], object.rect[3] + offset[1]];
-            for point in object.outline.iter_mut().flat_map(|o| o.points.iter_mut()) {
-                *point = [point[0] + offset[0], point[1] + offset[1]];
-            }
-        }
+        let expected = moved_objects(&self.selected, offset);
         self.pending = Some(expected);
         Edit::MoveObjects { page, objects: self.selected.iter().map(|o| o.target).collect(), offset }
     }
@@ -176,11 +148,15 @@ impl ObjectSelection {
         Some(Edit::StylePaths { page, paths, style })
     }
 
-    fn inventory(&mut self, doc: &Document, page: usize) -> Result<Vec<EditableObject>, String> {
+    pub(crate) fn inventory(&mut self, doc: &Document, page: usize) -> Result<Vec<EditableObject>, String> {
         if self.cache.len() >= 8 && !self.cache.contains_key(&page) {
             self.cache.clear();
         }
         self.cache.entry(page).or_insert_with(|| doc.editable_objects(page)).clone()
+    }
+
+    pub(crate) fn cached_objects(&self, page: usize) -> &[EditableObject] {
+        self.cache.get(&page).and_then(|result| result.as_ref().ok()).map(Vec::as_slice).unwrap_or_default()
     }
 
     pub(crate) fn prepare_drag(&mut self, ui: &egui::Ui, xf: &PageXform, page: usize, doc: &Document) {
@@ -601,7 +577,7 @@ fn on_frame(r: Rect, p: Pos2) -> bool {
 /// How far outside a paragraph's frame a press still grabs it (screen pixels).
 const FRAME_REACH: f32 = 6.0;
 
-/// The arrow keys move the selected image or objects a point, Shift and an arrow ten points,
+/// The arrow keys move the selected image, objects or group a point, Shift and an arrow ten points,
 /// as in Acrobat. They are taken before the view turns the page with them.
 pub(crate) fn nudge_keys(ctx: &egui::Context, view: &mut DocView, doc: &Document) {
     if ctx.egui_wants_keyboard_input() || view.pending_edit.is_some() {
@@ -609,7 +585,8 @@ pub(crate) fn nudge_keys(ctx: &egui::Context, view: &mut DocView, doc: &Document
     }
     let image = view.image_selection.as_ref().filter(|s| !s.dragging()).map(|s| (s.page, s.index));
     let objects = view.objects.page.filter(|_| !view.objects.selected.is_empty() && view.objects.gesture.is_none());
-    let Some(page) = objects.or(image.map(|(page, _)| page)) else { return };
+    let group = view.group.selected_page();
+    let Some(page) = group.or(objects).or(image.map(|(page, _)| page)) else { return };
     let Some(xf) = view.page_xform(page) else { return };
     use egui::{Key, Modifiers};
     let mut step = egui::Vec2::ZERO;
@@ -640,6 +617,13 @@ pub(crate) fn nudge_keys(ctx: &egui::Context, view: &mut DocView, doc: &Document
         if v.length() > 0.0 { v / v.length() } else { egui::Vec2::ZERO }
     };
     let delta = unit(egui::vec2(1.0, 0.0)) * step.x + unit(egui::vec2(0.0, 1.0)) * step.y;
+    if group.is_some() {
+        match view.group.move_by(doc, [f64::from(delta.x), f64::from(delta.y)]) {
+            Ok(edit) => view.pending_edit = Some(edit),
+            Err(why) => view.group.notice = Some(why),
+        }
+        return;
+    }
     let Ok(offset) = doc.object_move_offset(page, [f64::from(delta.x), f64::from(delta.y)]) else { return };
     if objects.is_some() {
         view.pending_edit = Some(view.objects.move_by(page, offset));
@@ -829,6 +813,43 @@ pub(crate) fn move_error(error: &pdfcraft_engine::EditError) -> String {
         "text used as a clipping path cannot be moved in a group" => tl!("Text used as a clipping path cannot be moved with this selection.").into(),
         _ => tl!("These objects could not be moved. Select them again and try a smaller move.").into(),
     }
+}
+
+/// Match moved objects by their geometry and content when text grouping changes their indices.
+pub(crate) fn remap_objects(doc: &Document, page: usize, expected: &[EditableObject]) -> Option<Vec<EditableObject>> {
+    let inventory = doc.editable_objects(page).ok()?;
+    let mut out = Vec::new();
+    for old in expected {
+        let mut matches = inventory.iter().filter(|o| {
+            o.target.kind == old.target.kind
+                && o.content_type == old.content_type
+                && o.text == old.text
+                && if old.target.kind == ObjectKind::Path {
+                    // A path is told apart by its points: its frame follows its line width.
+                    same_points(o, old)
+                } else {
+                    o.rect.iter().zip(old.rect).all(|(a, b)| (a - b).abs() < 0.01)
+                }
+        });
+        let object = matches.next()?;
+        if matches.next().is_some() || out.iter().any(|o: &EditableObject| o.target == object.target) {
+            return None;
+        }
+        out.push(object.clone());
+    }
+    Some(out)
+}
+
+/// Expected geometry for a translation in PDF user space.
+pub(crate) fn moved_objects(objects: &[EditableObject], offset: [f64; 2]) -> Vec<EditableObject> {
+    let mut expected = objects.to_vec();
+    for object in &mut expected {
+        object.rect = [object.rect[0] + offset[0], object.rect[1] + offset[1], object.rect[2] + offset[0], object.rect[3] + offset[1]];
+        for point in object.outline.iter_mut().flat_map(|o| o.points.iter_mut()) {
+            *point = [point[0] + offset[0], point[1] + offset[1]];
+        }
+    }
+    expected
 }
 
 #[cfg(test)]

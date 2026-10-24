@@ -1,5 +1,7 @@
 # PdfCraft parity with Adobe Acrobat Pro
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** Edit-mode Group select includes original editable text, images and paths with annotations and added content; atomic move/delete and arrow-key nudging (one point, Shift ten), repeated-move remapping and preserved/refused text drafts. Content batches also refresh warmed added-content caches. Outside Edit it remains additions-only. Estimates and printer runtime limits unchanged.
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 adopts added-text editor alignment from upstream PR #4178 by @RiceDee; centered/right-aligned text stays anchored when editing, including boxes narrower than the editor minimum. Justified editing remains left-aligned; readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 adds same-page group selection of comments and added content, atomic group dragging/Delete/Undo, a centered theme-aware close prompt with matte hover colors, and persistent red/green document-status dots. Crop-from-grid fix adopted from PR #3974 by @eliets2. Existing readiness estimates and native printer validation limits unchanged.

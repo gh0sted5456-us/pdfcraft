@@ -40,6 +40,13 @@ This is ordinary editing; use redaction when the content must be securely remove
 relative spacing across crop, document rotation and UserUnit. The entire move is one Undo;
 locked or restricted targets refuse it atomically. Re-list positions after unrelated edits.
 
+For a mixed Edit-mode selection, both `additions_move` and `comment_delete` also accept
+`objects: [{"kind": "text", "index": 1}]` from `object_list`; kind may also be `image` or `path`.
+Use `content_indices` for added items, avoiding duplicate selection through two inventories.
+Re-list original object references after every edit; `generation` from `object_list` refuses
+stale references. A missing or unsupported original
+refuses the entire transaction, including its comment and added-content changes.
+
 ## Conventions
 
 - Tool names are `snake_case` (`page_rotate`): MCP clients reject dots. `ToolDef::command` links a tool to the registry id it automates (`page.rotate`), and `command_list` reports the link.
