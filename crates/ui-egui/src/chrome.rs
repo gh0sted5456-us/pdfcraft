@@ -168,6 +168,11 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                                 if response.clicked() {
                                     app.active = Some(i);
                                 }
+                                if crate::page_transfer_ui::hover_tab(ui.ctx(), id, response.rect) {
+                                    app.active = Some(i);
+                                    app.views[i].organize = true;
+                                    app.combine_tab.focused = false;
+                                }
                                 // A middle click closes the tab, as in Acrobat and browsers (#1853);
                                 // unsaved changes ask first, as the close button does.
                                 if response.middle_clicked() {

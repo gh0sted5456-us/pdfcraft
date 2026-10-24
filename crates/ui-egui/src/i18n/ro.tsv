@@ -933,6 +933,7 @@
 	Redaction code:	Cod de anonimizare:
 	Reload	Reîncărcare
 	Reload documents when their files change on disk	Reîncarcă documentele când fișierele lor se modifică pe disc
+	Show validation marks over signed signatures	Afișează marcaje de validare peste semnăturile aplicate
 	Remove checkmark	Eliminare bifă
 	Remove invalid links and bookmarks	Eliminare linkuri și semne de carte nevalide
 	Remove page	Eliminare pagină
@@ -2845,3 +2846,10 @@ theme	Appearance	Aspect
 	The signature {names} locks this field.	Semnătura {names} blochează acest câmp.
 	This document can't be changed: {names}	Acest document nu poate fi modificat: {names}
 	Choose a signature that can be removed.	Alegeți o semnătură care poate fi eliminată.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Deschidere PDF următor din folder
+	Open previous PDF in folder	Deschidere PDF anterior din folder
+	This document isn't in a folder yet: save it first	Acest document nu este încă într-un folder: salvați-l mai întâi
+	This is the last PDF in its folder	Acesta este ultimul PDF din folderul său
+	This is the first PDF in its folder	Acesta este primul PDF din folderul său

@@ -70,6 +70,13 @@ See [selection, movement and deletion](../../docs/editing-multiple-objects.md).
 
 ## Text search and cache limits
 
+`text_search_pages` returns unique matching physical pages and comma-separated `page_numbers`;
+`extract: true` creates a PDF using the normal `out`/`open` delivery options. Case and whole-word
+options match the viewer. An unreadable page refuses the full search. `page_transfer` copies
+selected pages from an open `source` into `doc` at `at`; `move: true` removes source pages only
+after insertion succeeds, returning a warning and `moved: false` if removal fails. Each document
+has its own Undo, and neither is saved automatically. See [examples and limits](../../docs/page-search-and-transfers.md).
+
 `text_word_count` counts the current snapshot without filling the text cache. It returns totals
 and per-page Unicode word/character counts, with optional tagged-table, tagged-code and
 image/OCR exclusions. See [word count](../../docs/word-count.md) for counting rules and limits.

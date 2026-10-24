@@ -30,6 +30,7 @@ pub mod js;
 pub mod links;
 pub mod ocr;
 pub mod optimizer;
+mod page_workflows;
 pub mod print_raster;
 pub mod printcheck;
 mod scan_colours;

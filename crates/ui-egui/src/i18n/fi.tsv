@@ -2268,6 +2268,7 @@ key	Space	Välilyönti
 	Printer paper and scaling may differ. Check driver settings.	Tulostimen paperi ja skaalaus voivat poiketa. Tarkista ohjaimen asetukset.
 	Drawing scale changes. Use Actual size for full-scale plans.	Piirustuksen mittakaava muuttuu. Käytä mittakaavaisille piirustuksille Todellinen koko -valintaa.
 	Reload documents when their files change on disk	Lataa asiakirjat uudelleen, kun niiden tiedostot muuttuvat levyllä
+	Show validation marks over signed signatures	Näytä vahvistusmerkinnät allekirjoitettujen allekirjoitusten päällä
 	This file changed on disk. Reload it to see the new version; your unsaved changes will be lost.	Tämä tiedosto muuttui levyllä. Lataa se uudelleen nähdäksesi uuden version; tallentamattomat muutokset menetetään.
 	Reload	Lataa uudelleen
 	Couldn't reload {name}: {e}	Kohdetta {name} ei voitu ladata uudelleen: {e}
@@ -2854,3 +2855,10 @@ theme	Appearance	Teema
 	The signature {names} locks this field.	Allekirjoitus {names} lukitsee tämän kentän.
 	This document can't be changed: {names}	Tätä asiakirjaa ei voi muuttaa: {names}
 	Choose a signature that can be removed.	Valitse allekirjoitus, jonka voi poistaa.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Avaa kansion seuraava PDF
+	Open previous PDF in folder	Avaa kansion edellinen PDF
+	This document isn't in a folder yet: save it first	Tämä asiakirja ei ole vielä missään kansiossa: tallenna se ensin
+	This is the last PDF in its folder	Tämä on kansionsa viimeinen PDF
+	This is the first PDF in its folder	Tämä on kansionsa ensimmäinen PDF

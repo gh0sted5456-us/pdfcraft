@@ -2193,6 +2193,7 @@ action wizard	Start	Iniciar
 	Home / End	Inicio / Fin
 	H / Space (hold)	H / Espacio (mantener)
 	Reload documents when their files change on disk	Recargar los documentos cuando sus archivos cambien en el disco
+	Show validation marks over signed signatures	Mostrar marcas de validación sobre las firmas firmadas
 	Always use my default zoom and page layout	Usar siempre mi zoom y presentación de página predeterminados
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Este archivo cambió en el disco. Recargar muestra la versión nueva y descarta los cambios sin guardar; Guardar la reemplaza por esta versión.
 	Reload	Recargar
@@ -2903,3 +2904,10 @@ theme	Appearance	Aspecto
 	The signature {names} locks this field.	La firma {names} bloquea este campo.
 	This document can't be changed: {names}	Este documento no se puede modificar: {names}
 	Choose a signature that can be removed.	Elija una firma que se pueda quitar.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Abrir el PDF siguiente de la carpeta
+	Open previous PDF in folder	Abrir el PDF anterior de la carpeta
+	This document isn't in a folder yet: save it first	Este documento aún no está en una carpeta: guárdelo primero
+	This is the last PDF in its folder	Este es el último PDF de su carpeta
+	This is the first PDF in its folder	Este es el primer PDF de su carpeta

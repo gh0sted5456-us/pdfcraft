@@ -2328,6 +2328,7 @@ key	Space	Spazio
 	Printer paper and scaling may differ. Check driver settings.	Carta e scala della stampante possono differire. Controlla le impostazioni del driver.
 	Drawing scale changes. Use Actual size for full-scale plans.	La scala del disegno cambia. Usa Dimensioni effettive per le planimetrie in scala.
 	Reload documents when their files change on disk	Ricarica i documenti quando i loro file cambiano sul disco
+	Show validation marks over signed signatures	Mostra i segni di convalida sulle firme apposte
 	Always use my default zoom and page layout	Usa sempre il mio ingrandimento e layout di pagina predefiniti
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Questo file è cambiato sul disco. Ricarica mostra la nuova versione e scarta le modifiche non salvate; Salva la sostituisce con questa versione.
 	Reload	Ricarica
@@ -2813,3 +2814,10 @@ certificate	SHA-256 digest	Impronta SHA-256
 	The signature {names} locks this field.	La firma {names} blocca questo campo.
 	This document can't be changed: {names}	Questo documento non può essere modificato: {names}
 	Choose a signature that can be removed.	Scegli una firma che si possa rimuovere.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Apri il PDF successivo nella cartella
+	Open previous PDF in folder	Apri il PDF precedente nella cartella
+	This document isn't in a folder yet: save it first	Questo documento non è ancora in una cartella: salvalo prima
+	This is the last PDF in its folder	Questo è l'ultimo PDF della sua cartella
+	This is the first PDF in its folder	Questo è il primo PDF della sua cartella

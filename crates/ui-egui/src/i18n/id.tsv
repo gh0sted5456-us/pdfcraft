@@ -924,6 +924,7 @@
 	Redaction code:	Kode sensor:
 	Reload	Muat ulang
 	Reload documents when their files change on disk	Muat ulang dokumen saat file-nya berubah di disk
+	Show validation marks over signed signatures	Tampilkan tanda validasi di atas tanda tangan yang ditandatangani
 	Remove checkmark	Hapus centang
 	Remove invalid links and bookmarks	Hapus tautan dan bookmark yang tidak valid
 	Remove page	Hapus halaman
@@ -2819,3 +2820,10 @@ theme	Appearance	Tampilan
 	The signature {names} locks this field.	Tanda tangan {names} mengunci kolom ini.
 	This document can't be changed: {names}	Dokumen ini tidak dapat diubah: {names}
 	Choose a signature that can be removed.	Pilih tanda tangan yang dapat dihapus.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Buka PDF berikutnya di folder
+	Open previous PDF in folder	Buka PDF sebelumnya di folder
+	This document isn't in a folder yet: save it first	Dokumen ini belum ada di folder: simpan dulu
+	This is the last PDF in its folder	Ini PDF terakhir di foldernya
+	This is the first PDF in its folder	Ini PDF pertama di foldernya

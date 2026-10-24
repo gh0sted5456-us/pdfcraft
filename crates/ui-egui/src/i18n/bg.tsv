@@ -2282,6 +2282,7 @@ key	Space	Интервал
 	Printer paper and scaling may differ. Check driver settings.	Хартията и мащабът на принтера може да се различават. Проверете настройките на драйвера.
 	Drawing scale changes. Use Actual size for full-scale plans.	Мащабът на чертежа се променя. Използвайте Действителен размер за планове в оригинален мащаб.
 	Reload documents when their files change on disk	Презареждай документите, когато файловете им се променят на диска
+	Show validation marks over signed signatures	Показвай знаци за валидиране върху подписаните подписи
 	Always use my default zoom and page layout	Винаги използвай моя мащаб и оформление на страниците по подразбиране
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Този файл беше променен на диска. „Презареждане“ показва новата версия и отхвърля незаписаните ви промени; „Запис“ я заменя с тази версия.
 	Reload	Презареди
@@ -2544,3 +2545,10 @@ animation effects	Off	Изключени
 	The signature {names} locks this field.	Подписът {names} заключва това поле.
 	This document can't be changed: {names}	Този документ не може да бъде променян: {names}
 	Choose a signature that can be removed.	Изберете подпис, който може да бъде премахнат.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Отвори следващия PDF в папката
+	Open previous PDF in folder	Отвори предишния PDF в папката
+	This document isn't in a folder yet: save it first	Този документ още не е в папка: първо го запазете
+	This is the last PDF in its folder	Това е последният PDF в папката му
+	This is the first PDF in its folder	Това е първият PDF в папката му

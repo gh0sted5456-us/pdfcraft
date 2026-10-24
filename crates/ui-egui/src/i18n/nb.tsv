@@ -933,6 +933,7 @@
 	Redaction code:	Sladdekode:
 	Reload	Last inn på nytt
 	Reload documents when their files change on disk	Last inn dokumenter på nytt når filene endres på disk
+	Show validation marks over signed signatures	Vis valideringsmerker over signerte signaturer
 	Remove checkmark	Fjern hake
 	Remove invalid links and bookmarks	Fjern ugyldige lenker og bokmerker
 	Remove page	Fjern side
@@ -2751,3 +2752,10 @@ key	Space	Mellomrom
 	The signature {names} locks this field.	Signaturen {names} låser dette feltet.
 	This document can't be changed: {names}	Dette dokumentet kan ikke endres: {names}
 	Choose a signature that can be removed.	Velg en signatur som kan fjernes.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Åpne neste PDF i mappen
+	Open previous PDF in folder	Åpne forrige PDF i mappen
+	This document isn't in a folder yet: save it first	Dette dokumentet ligger ikke i en mappe ennå: lagre det først
+	This is the last PDF in its folder	Dette er den siste PDF-en i mappen
+	This is the first PDF in its folder	Dette er den første PDF-en i mappen

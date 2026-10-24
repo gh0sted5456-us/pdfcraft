@@ -2279,6 +2279,7 @@ key	Space	Space
 	Printer paper and scaling may differ. Check driver settings.	ເຈ້ຍເຄື່ອງພິມ ແລະ ມາດຕາສ່ວນອາດແຕກຕ່າງກັນ. ກວດສອບການຕັ້ງຄ່າໄດຣເວີ.
 	Drawing scale changes. Use Actual size for full-scale plans.	ມາດຕາສ່ວນຮູບແຕ້ມປ່ຽນແປງ. ໃຊ້ "ຂະໜາດຈິງ" ສຳລັບແບບແຜນເຕັມສ່ວນ.
 	Reload documents when their files change on disk	ໂຫຼດເອກະສານຄືນໃໝ່ເມື່ອໄຟລ໌ໃນດິສກ໌ມີການປ່ຽນແປງ
+	Show validation marks over signed signatures	ສະແດງເຄື່ອງໝາຍການກວດສອບເທິງລາຍເຊັນທີ່ເຊັນແລ້ວ
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	ໄຟລ໌ນີ້ມີການປ່ຽນແປງໃນດິສກ໌. "ໂຫຼດຄືນໃໝ່" ຈະສະແດງເວີຊັນໃໝ່ ແລະ ປະຖິ້ມການປ່ຽນແປງທີ່ຍັງບໍ່ໄດ້ບັນທຶກ; "ບັນທຶກ" ຈະຂຽນທັບດ້ວຍເວີຊັນນີ້.
 	Reload	ໂຫຼດຄືນໃໝ່
 	Couldn't reload {name}: {e}	ບໍ່ສາມາດໂຫຼດ {name} ຄືນໃໝ່ໄດ້: {e}
@@ -2437,3 +2438,10 @@ animation effects	Off	ປິດ
 	Saved	ບັນທຶກແລ້ວ
 	Saves document	ບັນທຶກເອກະສານ
 	Unsaved changes	ການປ່ຽນແປງທີ່ຍັງບໍ່ໄດ້ບັນທຶກ
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	ເປີດ PDF ຖັດໄປໃນໂຟນເດີ
+	Open previous PDF in folder	ເປີດ PDF ກ່ອນໜ້າໃນໂຟນເດີ
+	This document isn't in a folder yet: save it first	ເອກະສານນີ້ຍັງບໍ່ຢູ່ໃນໂຟນເດີໃດ: ບັນທຶກມັນກ່ອນ
+	This is the last PDF in its folder	ນີ້ແມ່ນ PDF ສຸດທ້າຍໃນໂຟນເດີຂອງມັນ
+	This is the first PDF in its folder	ນີ້ແມ່ນ PDF ທຳອິດໃນໂຟນເດີຂອງມັນ

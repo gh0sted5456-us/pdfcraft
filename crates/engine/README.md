@@ -3,6 +3,11 @@
 The façade every frontend talks to. It holds the open documents, their edit history and the tool
 catalogue; frontends never reach past it into the parsing, rendering or editing crates.
 
+`Session::matching_pages` returns unique matching pages using the renderer's case/word rules
+and refuses incomplete extraction. `Session::transfer_pages` copies working pages between
+open documents, with optional source removal after successful insertion and a warning if that
+removal fails. Each document has its own Undo. See [search and transfers](../../docs/page-search-and-transfers.md).
+
 `word_count::count` provides cancellable, page-at-a-time Unicode word and character statistics
 with optional semantic exclusions; see [word-count behavior and limits](../../docs/word-count.md).
 

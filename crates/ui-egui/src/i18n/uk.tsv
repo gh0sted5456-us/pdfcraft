@@ -2341,6 +2341,7 @@ key	Space	Пробіл
 	Printer paper and scaling may differ. Check driver settings.	Папір і масштаб принтера можуть відрізнятися. Перевірте налаштування драйвера.
 	Drawing scale changes. Use Actual size for full-scale plans.	Масштаб креслення змінюється. Для друку в початковому масштабі виберіть Фактичний розмір.
 	Reload documents when their files change on disk	Перезавантажувати документи, коли їхні файли змінюються на диску
+	Show validation marks over signed signatures	Показувати позначки перевірки над поставленими підписами
 	Always use my default zoom and page layout	Завжди використовувати мій типовий масштаб і макет сторінок
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Цей файл змінено на диску. «Перезавантажити» покаже нову версію й відкине незбережені зміни; «Зберегти» замінить її цією версією.
 	Reload	Перезавантажити
@@ -2608,3 +2609,10 @@ animation effects	Off	Вимкнено
 	The signature {names} locks this field.	Підпис {names} блокує це поле.
 	This document can't be changed: {names}	Цей документ не можна змінити: {names}
 	Choose a signature that can be removed.	Виберіть підпис, який можна вилучити.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Відкрити наступний PDF у теці
+	Open previous PDF in folder	Відкрити попередній PDF у теці
+	This document isn't in a folder yet: save it first	Цей документ ще не в теці: спершу збережіть його
+	This is the last PDF in its folder	Це останній PDF у його теці
+	This is the first PDF in its folder	Це перший PDF у його теці

@@ -946,7 +946,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         }
                         panel_edit = edit;
                     }
-                    RightPanel::Search => crate::search_ui::panel(ui, &t, view, info.pages.len()),
+                    RightPanel::Search => crate::search_ui::panel(ui, &t, view, info.pages.len(), doc.allows_assembly()),
                     RightPanel::Compare => compare_action = crate::compare_ui::panel(ui, &t, compare, id),
                     RightPanel::Attachments => {
                         if info.attachments.is_empty() {
@@ -1473,7 +1473,7 @@ fn file_drop(ui: &mut egui::Ui, t: &Tokens, view: &mut crate::DocView, rows: &[R
     view.pages_panel = Some(clip);
     let pointer = ui.input(|i| i.pointer.hover_pos()).filter(|p| clip.contains(*p));
     view.panel_gap = pointer.filter(|_| view.panel_drag.is_none()).and_then(|p| panel_gap(rows, p.y));
-    if pointer.is_none() || ui.input(|i| i.raw.hovered_files.is_empty()) {
+    if pointer.is_none() || (ui.input(|i| i.raw.hovered_files.is_empty()) && !crate::page_transfer_ui::incoming(ui.ctx(), view.id)) {
         return;
     }
     let painter = ui.painter().with_clip_rect(clip);
@@ -1530,7 +1530,7 @@ fn page_drag(ui: &mut egui::Ui, t: &Tokens, view: &mut crate::DocView, rows: &[R
         return;
     }
     let pointer = ui.input(|i| i.pointer.interact_pos());
-    let gap = pointer.and_then(|p| panel_gap(rows, p.y));
+    let gap = pointer.filter(|p| ui.clip_rect().contains(*p)).and_then(|p| panel_gap(rows, p.y));
     if let (Some(gap), Some(first), Some(last)) = (gap, rows.first(), rows.last()) {
         let y = rows.get(gap).map_or(last.bottom() + 20.0, |r| r.top() - 3.0);
         ui.painter().line_segment([pos2(first.left(), y), pos2(first.right(), y)], Stroke::new(3.0, t.accent));

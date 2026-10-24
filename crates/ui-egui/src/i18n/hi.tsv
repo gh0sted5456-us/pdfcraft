@@ -2250,6 +2250,7 @@ key	Space	Space
 	Printer paper and scaling may differ. Check driver settings.	प्रिंटर का काग़ज़ और स्केलिंग अलग हो सकते हैं। ड्राइवर सेटिंग्स जाँचें।
 	Drawing scale changes. Use Actual size for full-scale plans.	रेखाचित्र पैमाना बदल जाता है। पूर्ण-पैमाने योजनाओं के लिए “वास्तविक आकार” चुनें।
 	Reload documents when their files change on disk	जब उनकी फ़ाइलें डिस्क पर बदलें तो दस्तावेज़ दोबारा लोड करें
+	Show validation marks over signed signatures	हस्ताक्षरित हस्ताक्षरों पर सत्यापन चिह्न दिखाएँ
 	This file changed on disk. Reload it to see the new version; your unsaved changes will be lost.	यह फ़ाइल डिस्क पर बदल गई है। नया संस्करण देखने के लिए उसे दोबारा लोड करें; आपके असहेजे बदलाव खो जाएँगे।
 	Reload	दोबारा लोड करें
 	Couldn't reload {name}: {e}	{name} दोबारा लोड नहीं हो सका: {e}
@@ -2818,3 +2819,10 @@ theme	Appearance	स्वरूप
 	The signature {names} locks this field.	हस्ताक्षर {names} इस फ़ील्ड को लॉक करता है।
 	This document can't be changed: {names}	यह दस्तावेज़ बदला नहीं जा सकता: {names}
 	Choose a signature that can be removed.	ऐसा हस्ताक्षर चुनें जिसे हटाया जा सके।
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	फ़ोल्डर में अगली PDF खोलें
+	Open previous PDF in folder	फ़ोल्डर में पिछली PDF खोलें
+	This document isn't in a folder yet: save it first	यह दस्तावेज़ अभी किसी फ़ोल्डर में नहीं है: पहले इसे सहेजें
+	This is the last PDF in its folder	यह अपने फ़ोल्डर की आखिरी PDF है
+	This is the first PDF in its folder	यह अपने फ़ोल्डर की पहली PDF है

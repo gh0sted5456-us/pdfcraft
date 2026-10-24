@@ -969,6 +969,7 @@ theme	Appearance	Giao diện
 	Redaction code:	Mã xóa nội dung nhạy cảm:
 	Reload	Tải lại
 	Reload documents when their files change on disk	Tải lại tài liệu khi tệp của chúng thay đổi trên đĩa
+	Show validation marks over signed signatures	Hiển thị dấu xác thực trên các chữ ký đã ký
 	Always use my default zoom and page layout	Luôn dùng thu phóng và bố cục trang mặc định của tôi
 	Remove checkmark	Bỏ dấu kiểm
 	Remove invalid links and bookmarks	Gỡ các liên kết và dấu trang không hợp lệ
@@ -2850,3 +2851,10 @@ key	Space	Space
 	The signature {names} locks this field.	Chữ ký {names} khóa trường này.
 	This document can't be changed: {names}	Không thể thay đổi tài liệu này: {names}
 	Choose a signature that can be removed.	Hãy chọn một chữ ký có thể gỡ.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Mở PDF tiếp theo trong thư mục
+	Open previous PDF in folder	Mở PDF trước đó trong thư mục
+	This document isn't in a folder yet: save it first	Tài liệu này chưa nằm trong thư mục nào: hãy lưu trước
+	This is the last PDF in its folder	Đây là PDF cuối cùng trong thư mục
+	This is the first PDF in its folder	Đây là PDF đầu tiên trong thư mục

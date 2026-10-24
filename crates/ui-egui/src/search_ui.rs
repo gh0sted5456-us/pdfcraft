@@ -11,7 +11,7 @@ use crate::widgets;
 /// Glyphs of context shown on each side of a match.
 const CONTEXT: usize = 36;
 
-pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, view: &mut DocView, pages: usize) {
+pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, view: &mut DocView, pages: usize, assembly: bool) {
     crate::widgets::begin_dialog(ui);
     let searched = view.texts.len() + view.text_failed.len();
     let Some(find) = view.find.as_mut() else { return };
@@ -56,6 +56,20 @@ pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, view: &mut DocView, pages: us
         format!("{count}{more}")
     };
     ui.label(egui::RichText::new(status).font(theme::semibold(12.5)));
+    let matched: Vec<usize> = find.matches.iter().map(|(p, _)| *p).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
+    let complete = !find.query.trim().is_empty() && view.texts.len() == pages && view.text_failed.is_empty();
+    let mut extract = false;
+    ui.horizontal_wrapped(|ui| {
+        if ui.add_enabled(complete && !matched.is_empty(), egui::Button::new("Copy page numbers")).clicked() {
+            ui.ctx().copy_text(matched.iter().map(|p| p.saturating_add(1).to_string()).collect::<Vec<_>>().join(", "));
+        }
+        if ui.add_enabled(complete && assembly && !matched.is_empty(), egui::Button::new("Extract matching pages…")).clicked() {
+            extract = true;
+        }
+    });
+    if !view.text_failed.is_empty() {
+        ui.label("Some pages could not be searched. Page extraction is unavailable until the complete document can be searched.");
+    }
     ui.add_space(4.0);
     let mut go = None;
     let mut last_page = None;
@@ -95,5 +109,9 @@ pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, view: &mut DocView, pages: us
     }
     if let Some(i) = go {
         view.go_to_match(i);
+    }
+    if extract {
+        view.select_pages(&matched);
+        view.pending_action = Some(crate::canvas::ViewAction::Extract);
     }
 }

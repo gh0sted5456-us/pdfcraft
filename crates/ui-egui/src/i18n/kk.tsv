@@ -2318,6 +2318,7 @@ key	Space	Бос орын
 	Printer paper and scaling may differ. Check driver settings.	Принтер қағазы мен масштабы өзгеше болуы мүмкін. Драйвер параметрлерін тексеріңіз.
 	Drawing scale changes. Use Actual size for full-scale plans.	Сызба масштабы өзгереді. Толық масштабты жоспарлар үшін Нақты өлшемді пайдаланыңыз.
 	Reload documents when their files change on disk	Дискідегі файлдары өзгергенде құжаттарды қайта жүктеу
+	Show validation marks over signed signatures	Қол қойылған қолтаңбалардың үстінде тексеру белгілерін көрсету
 	Always use my default zoom and page layout	Әрқашан әдепкі масштаб пен бет орналасуын пайдалану
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Бұл файл дискіде өзгертілді. «Қайта жүктеу» жаңа нұсқаны көрсетіп, сақталмаған өзгерістеріңізді тастайды; «Сақтау» оны осы нұсқамен алмастырады.
 	Reload	Қайта жүктеу
@@ -2579,3 +2580,10 @@ animation effects	Off	Өшірулі
 	The signature {names} locks this field.	{names} қолтаңбасы бұл өрісті құлыптайды.
 	This document can't be changed: {names}	Бұл құжатты өзгерту мүмкін емес: {names}
 	Choose a signature that can be removed.	Алып тастауға болатын қолтаңбаны таңдаңыз.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Қалтадағы келесі PDF файлын ашу
+	Open previous PDF in folder	Қалтадағы алдыңғы PDF файлын ашу
+	This document isn't in a folder yet: save it first	Бұл құжат әлі ешбір қалтада жоқ: алдымен оны сақтаңыз
+	This is the last PDF in its folder	Бұл — қалтадағы соңғы PDF
+	This is the first PDF in its folder	Бұл — қалтадағы бірінші PDF

@@ -2328,6 +2328,7 @@ comment menu	Edit	Επεξεργασία
 	Printer paper and scaling may differ. Check driver settings.	Το χαρτί και η κλίμακα του εκτυπωτή μπορεί να διαφέρουν. Ελέγξτε τις ρυθμίσεις του προγράμματος οδήγησης.
 	Drawing scale changes. Use Actual size for full-scale plans.	Η κλίμακα του σχεδίου αλλάζει. Για σχέδια σε πλήρη κλίμακα χρησιμοποιήστε το Πραγματικό μέγεθος.
 	Reload documents when their files change on disk	Επαναφόρτωση εγγράφων όταν αλλάζουν τα αρχεία τους στον δίσκο
+	Show validation marks over signed signatures	Εμφάνιση σημάτων επικύρωσης πάνω από υπογεγραμμένες υπογραφές
 	Always use my default zoom and page layout	Να χρησιμοποιείται πάντα η προεπιλεγμένη μεγέθυνση και διάταξη σελίδας μου
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Αυτό το αρχείο άλλαξε στον δίσκο. Η επαναφόρτωση δείχνει τη νέα έκδοση και απορρίπτει τις μη αποθηκευμένες αλλαγές σας· η αποθήκευση την αντικαθιστά με αυτή την έκδοση.
 	Reload	Επαναφόρτωση
@@ -2579,3 +2580,10 @@ animation effects	Off	Ανενεργά
 	The signature {names} locks this field.	Η υπογραφή {names} κλειδώνει αυτό το πεδίο.
 	This document can't be changed: {names}	Αυτό το έγγραφο δεν μπορεί να αλλάξει: {names}
 	Choose a signature that can be removed.	Επιλέξτε μια υπογραφή που μπορεί να αφαιρεθεί.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Άνοιγμα επόμενου PDF στον φάκελο
+	Open previous PDF in folder	Άνοιγμα προηγούμενου PDF στον φάκελο
+	This document isn't in a folder yet: save it first	Αυτό το έγγραφο δεν βρίσκεται ακόμη σε φάκελο: αποθηκεύστε το πρώτα
+	This is the last PDF in its folder	Αυτό είναι το τελευταίο PDF του φακέλου
+	This is the first PDF in its folder	Αυτό είναι το πρώτο PDF του φακέλου

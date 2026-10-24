@@ -209,6 +209,10 @@ pub fn tools() -> Vec<ToolDef> {
             .with(schema(json!({ "doc": doc(), "query": { "type": "string", "minLength": 1 }, "limit": { "type": "integer", "minimum": 1, "description": "Maximum matches (default 500). When another match exists, next holds start_page and skip to continue. complete is false for either additional matches or failed pages; an exhausted search with warnings has no next." },
                 "start_page": { "type": "integer", "minimum": 1, "description": "Page to start searching from (default 1)." },
                 "skip": { "type": "integer", "minimum": 0, "description": "Matches to pass over on start_page before returning any (default 0)." } }), &["doc", "query"])),
+        t("text_search_pages", "Search matching pages", "Return unique matching pages in document order and comma-separated page_numbers. An unreadable page refuses the complete search. extract: true copies matching pages to a new PDF using out/open; the source is kept.")
+            .with(schema(json!({"doc": doc(), "query": {"type":"string"}, "case_sensitive": {"type":"boolean"}, "whole_words": {"type":"boolean"}, "extract": {"type":"boolean"}, "out": save_out.clone(), "open": open.clone()}), &["doc", "query"])),
+        t("page_transfer", "Transfer pages between open PDFs", "Copy 1–1000 pages from source to doc at a 1-based insertion position (page count + 1 appends). move: true removes source pages only after successful insertion; at least one source page must remain. Each document has its own Undo. If removal fails, moved is false and warning explains that both copies were kept. No file is written.")
+            .with(schema(json!({"doc": doc(), "source": doc(), "pages": pages("to transfer"), "at": {"type":"integer", "minimum":1}, "move": {"type":"boolean"}}), &["doc", "source", "pages", "at"])),
         t("page_rotate", "Rotate pages", "Rotate pages by a multiple of 90 degrees (positive is clockwise): the listed pages (default all), filtered like Acrobat's Rotate Pages by subset (all, even, odd page numbers) and orientation (all, landscape, portrait). Undoable.")
             .cmd("page.rotate")
             .with(schema(

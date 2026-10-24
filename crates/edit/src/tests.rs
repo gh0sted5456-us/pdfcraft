@@ -6730,3 +6730,25 @@ fn mixed_object_delete_refuses_invalid_targets_and_rolls_back_a_late_refusal() {
         assert_eq!(pdfcraft_cos::write_full(&doc, &SaveOptions::default()).unwrap(), before);
     }
 }
+
+/// #4464: a page left with one added item draws that item and nothing else.
+#[test]
+fn an_isolated_item_is_all_that_is_left_on_its_page() {
+    let mut doc = fixture();
+    let first = AddedText { rect: [72.0, 600.0, 300.0, 700.0], text: "First".into(), size: 14.0, ..AddedText::default() };
+    let second = AddedText { rect: [72.0, 400.0, 300.0, 500.0], text: "Second".into(), ..first.clone() };
+    add_content(&mut doc, 0, &Content::Text(first)).unwrap();
+    add_content(&mut doc, 0, &Content::Text(second)).unwrap();
+    let before = streams(&doc, 0).join("\n");
+    assert!(before.contains("(First) Tj") && before.contains("(Second) Tj"), "{before}");
+    assert!(isolate_content(&mut doc, 0, 2).is_err(), "no third item");
+    assert!(isolate_content(&mut doc, 9, 0).is_err(), "no such page");
+    let page = pdfcraft_model::pages(&doc).swap_remove(0);
+    doc.update_dict(page.obj, |d| d.set(b"Annots".to_vec(), Object::Array(Vec::new()))).unwrap();
+    isolate_content(&mut doc, 0, 1).unwrap();
+    let after = streams(&doc, 0).join("\n");
+    assert!(after.contains("(Second) Tj") && !after.contains("(First) Tj"), "{after}");
+    let page = pdfcraft_model::pages(&doc).swap_remove(0);
+    assert!(page.dict.get(b"Annots").is_none(), "no annotations are drawn over it");
+    assert_eq!(list_added(&doc).len(), 1);
+}

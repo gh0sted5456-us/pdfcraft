@@ -37,6 +37,7 @@ enum Act {
     Edit(Box<Edit>),
     View(ViewAction),
     Command(&'static str),
+    Transfer(pdfcraft_engine::DocId, Vec<usize>, usize),
 }
 
 pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
@@ -45,6 +46,15 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let info = &doc.info;
     let editable = doc.allows_assembly();
     let n = info.pages.len();
+    let sources: Vec<_> = app
+        .views
+        .iter()
+        .filter(|v| v.id != id)
+        .filter_map(|v| {
+            let doc = app.session.get(v.id)?;
+            doc.allows_assembly().then(|| (v.id, doc.name.clone(), v.target_pages()))
+        })
+        .collect();
     let mut act: Option<Act> = None;
     let mut back = false;
     let mut close = false;
@@ -125,6 +135,17 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                 if ui.button(tl!("Insert pages from a file…")).clicked() {
                     act = Some(Act::View(ViewAction::InsertFromFile));
                 }
+                ui.menu_button("Insert selected pages from an open PDF", |ui| {
+                    if sources.is_empty() {
+                        ui.label("Open another PDF first.");
+                    }
+                    for (source, name, pages) in &sources {
+                        if ui.button(format!("{name} ({} pages)", pages.len())).clicked() {
+                            act = Some(Act::Transfer(*source, pages.clone(), last.saturating_add(1)));
+                            ui.close();
+                        }
+                    }
+                });
                 if ui.button(tl!("Duplicate pages")).clicked() {
                     act = Some(Act::Command("page.duplicate"));
                 }
@@ -172,6 +193,9 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         Some(Act::Edit(edit)) => view.pending_edit = Some(*edit),
         Some(Act::View(action)) => view.pending_action = Some(action),
         Some(Act::Command(command)) => app.run_command(command),
+        Some(Act::Transfer(source, pages, at)) => {
+            app.transfer_open_pages(source, id, &pages, at, false);
+        }
         None => {}
     }
 }

@@ -2670,6 +2670,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         (app.left_open && app.left == crate::LeftPanel::Tool("edit")) || matches!(app.quick_tool, QuickTool::AddText | QuickTool::EditText);
     let group_originals = app.mode == crate::Mode::Edit || app.left == crate::LeftPanel::Tool("edit");
     let text_style = app.text_style.clone();
+    let show_signature_badges = app.show_signature_badges;
     let view = &mut app.views[index];
     // Opened without the owner password and something is restricted.
     let secured = doc.security_summary().is_some_and(|s| !(s.owner || (s.permissions.modify() && s.permissions.assemble())));
@@ -3334,8 +3335,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
             }
             view.text_background.paint(painter, &xf, i, view.line_editor.as_ref(), view.content.draft.as_ref());
             if editing_content {
-                let page_tex = view.pages.get(&i).map(|p| p.tex.id());
-                view.move_background.paint(ui, painter, &xf, i, info, &view.content, page_tex);
+                view.move_background.paint(ui, painter, &xf, i, info, &view.content);
             }
             if view.show_page_gaps {
                 painter.rect_stroke(r, CornerRadius::ZERO, Stroke::new(0.5, t.border.gamma_multiply(0.8)), egui::StrokeKind::Outside);
@@ -3886,8 +3886,10 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
             }
             // Validation is viewer chrome over the signer's original artwork, which
             // may still say "Signature Not Verified". These badges never enter document
-            // streams, image/text exports, vector printing or Print as Image.
-            for badge in signature_badges(&doc.signatures, i) {
+            // streams, image/text exports, vector printing or Print as Image. Preferences can
+            // turn them off, leaving the signer's artwork uncovered (#4221).
+            let badges = if show_signature_badges { signature_badges(&doc.signatures, i) } else { Vec::new() };
+            for badge in badges {
                 let [x0, y0, x1, y1] = badge.rect;
                 let sr = xf.user_rect(info, i, [x0 as f32, y0 as f32, x1 as f32, y1 as f32]);
                 let (icon, color) = crate::sign_ui::signature_status_style(badge.status);
@@ -4249,7 +4251,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     view.frame_queue = queue;
     view.frame_visible = visible_now.iter().copied().collect();
 
-    if let Some((pos, text)) = hover_text {
+    if unobstructed && let Some((pos, text)) = hover_text {
         egui::Area::new(egui::Id::new("canvas-hover")).order(egui::Order::Tooltip).fixed_pos(pos + vec2(14.0, 16.0)).show(ui.ctx(), |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.set_max_width(320.0);
@@ -5425,6 +5427,21 @@ fn organize_grid(view: &mut DocView, info: &DocInfo, editable: bool, dirty: bool
     // The source cell can scroll out of the virtualized rows during a drag.
     let mut drop = view.org_drag.is_some() && ui.input(|i| i.pointer.primary_released());
     egui::ScrollArea::vertical().auto_shrink([false, false]).show_viewport(ui, |ui, clip| {
+        if (view.org_drag.is_some() || crate::page_transfer_ui::incoming(ui.ctx(), view.id))
+            && let Some(p) = ui.input(|i| i.pointer.hover_pos()).filter(|p| viewport.contains(*p))
+        {
+            let delta = if p.y < viewport.top() + 40.0 {
+                10.0
+            } else if p.y > viewport.bottom() - 40.0 {
+                -10.0
+            } else {
+                0.0
+            };
+            if delta != 0.0 {
+                ui.scroll_with_delta(vec2(0.0, delta));
+                ui.ctx().request_repaint();
+            }
+        }
         if middle_gesture {
             let opacity = ui.opacity();
             ui.disable();
@@ -5616,7 +5633,7 @@ fn organize_grid(view: &mut DocView, info: &DocInfo, editable: bool, dirty: bool
             }
         }
         // While dragging: the gap the pages would go to, drawn as a bar.
-        if let (Some(pages), Some(p)) = (view.org_drag.clone(), ui.input(|i| i.pointer.hover_pos())) {
+        if let (Some(pages), Some(p)) = (view.org_drag.clone(), ui.input(|i| i.pointer.hover_pos()).filter(|p| viewport.contains(*p))) {
             // Ctrl (Option on macOS) held over the drop copies the pages; see #2997.
             let copying = copy_modifier(ui.ctx(), &ui.input(|i| i.modifiers));
             if let Some(gap) = drop_gap(&cells, p) {
@@ -5671,7 +5688,7 @@ fn organize_grid(view: &mut DocView, info: &DocInfo, editable: bool, dirty: bool
     // where the pointer is until the files are dropped; then the whole grid is the target.
     let pointer = ui.input(|i| i.pointer.hover_pos()).filter(|p| viewport.contains(*p));
     view.grid_gap = pointer.filter(|_| editable && view.org_drag.is_none()).and_then(|p| drop_gap(&cells, p));
-    if editable && ui.input(|i| !i.raw.hovered_files.is_empty()) {
+    if editable && (ui.input(|i| !i.raw.hovered_files.is_empty()) || crate::page_transfer_ui::incoming(ui.ctx(), view.id)) {
         let painter = ui.painter().with_clip_rect(viewport);
         painter.rect_stroke(viewport.shrink(2.0), CornerRadius::same(6), Stroke::new(2.0, t.accent), egui::StrokeKind::Inside);
         if let Some(gap) = view.grid_gap {
@@ -5682,6 +5699,15 @@ fn organize_grid(view: &mut DocView, info: &DocInfo, editable: bool, dirty: bool
         }
         // A "+" that follows the pointer.
         if let Some(p) = pointer {
+            if crate::page_transfer_ui::incoming(ui.ctx(), view.id) {
+                painter.text(
+                    p + vec2(28.0, 14.0),
+                    Align2::LEFT_TOP,
+                    if ui.input(|i| i.modifiers.shift) { "Move pages" } else { "Copy pages · Shift to move" },
+                    theme::medium(12.0),
+                    t.accent_text,
+                );
+            }
             let at = p + vec2(16.0, 16.0);
             painter.circle_filled(at, 9.0, t.accent);
             painter.line_segment([at - vec2(4.0, 0.0), at + vec2(4.0, 0.0)], Stroke::new(1.5, Color32::WHITE));

@@ -2324,6 +2324,7 @@ key	Space	Leertaste
 	Printer paper and scaling may differ. Check driver settings.	Druckerpapier und Skalierung können abweichen. Treibereinstellungen prüfen.
 	Drawing scale changes. Use Actual size for full-scale plans.	Der Zeichnungsmaßstab ändert sich. Für maßstabsgetreue Pläne Tatsächliche Größe verwenden.
 	Reload documents when their files change on disk	Dokumente neu laden, wenn sich ihre Dateien auf dem Datenträger ändern
+	Show validation marks over signed signatures	Validierungszeichen über signierten Signaturen anzeigen
 	Always use my default zoom and page layout	Immer meinen Standardzoom und mein Standard-Seitenlayout verwenden
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Diese Datei wurde auf dem Datenträger geändert. „Neu laden“ zeigt die neue Version und verwirft Ihre ungespeicherten Änderungen; „Speichern“ ersetzt sie durch diese Version.
 	Reload	Neu laden
@@ -2582,3 +2583,10 @@ animation effects	Off	Aus
 	The signature {names} locks this field.	Die Signatur {names} sperrt dieses Feld.
 	This document can't be changed: {names}	Dieses Dokument kann nicht geändert werden: {names}
 	Choose a signature that can be removed.	Wählen Sie eine Signatur, die entfernt werden kann.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Nächste PDF im Ordner öffnen
+	Open previous PDF in folder	Vorherige PDF im Ordner öffnen
+	This document isn't in a folder yet: save it first	Dieses Dokument liegt noch in keinem Ordner: Speichern Sie es zuerst
+	This is the last PDF in its folder	Dies ist die letzte PDF in ihrem Ordner
+	This is the first PDF in its folder	Dies ist die erste PDF in ihrem Ordner

@@ -2638,6 +2638,80 @@ fn dragging_thumbnails_reorders_pages() {
     assert_eq!(sel, vec![2], "the moved page stays selected");
 }
 
+#[test]
+fn a_page_drag_can_hover_another_tab_and_copy_or_move_into_its_grid() {
+    let _gpu = std::env::var_os("PDFCRAFT_SHOTS").map(|_| crate::gpu());
+    for moving in [false, true] {
+        let mut h = organize(3);
+        let source = h.state().views[0].id;
+        h.state_mut().open_bytes("destination.pdf", None, fixture(2)).unwrap();
+        let target = h.state().views[1].id;
+        h.state_mut().active = Some(0);
+        h.state_mut().views[0].select_pages(&[0, 2]);
+        h.run_steps(3);
+        let from = h.get_by_label("Page 1").rect().center();
+        let tab = h.get_by_label("destination.pdf").rect().center();
+        h.hover_at(from);
+        h.run_steps(1);
+        h.drag_at(from);
+        h.run_steps(1);
+        h.hover_at(from + egui::vec2(12.0, 0.0));
+        h.run_steps(2);
+        h.hover_at(tab);
+        h.run_steps(40);
+        assert_eq!(h.state().active_ids().map(|(_, id)| id), Some(target), "hovering switches to the destination");
+        assert!(h.state().views[1].organize);
+        let to = h.get_by_label("Page 1").rect().right_center() - egui::vec2(10.0, 0.0);
+        if moving {
+            h.event(egui::Event::ModifiersChanged(Modifiers::SHIFT));
+        }
+        h.hover_at(to);
+        h.run_steps(3);
+        if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+            h.render().unwrap().save(format!("{dir}/cross-document-insertion.png")).unwrap();
+        }
+        h.event(egui::Event::PointerButton {
+            pos: to,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: if moving { Modifiers::SHIFT } else { Modifiers::NONE },
+        });
+        h.run_steps(4);
+        assert_eq!(h.state().session.get(source).unwrap().info.pages.len(), if moving { 1 } else { 3 });
+        assert_eq!(h.state().session.get(target).unwrap().info.pages.len(), 4);
+        assert_eq!(texts_of(h.state(), 1), ["Page 1", "Page 1", "Page 3", "Page 2"]);
+        assert_eq!(h.state().views[1].target_pages(), [1, 2]);
+        h.state_mut().session.undo(target).unwrap();
+        assert_eq!(h.state().session.get(target).unwrap().info.pages.len(), 2);
+    }
+}
+
+#[test]
+fn releasing_a_page_drag_outside_the_grid_does_not_reorder_pages() {
+    let mut h = organize(3);
+    let before = page_texts(h.state());
+    let from = h.get_by_label("Page 1").rect().center();
+    page_drag(&mut h, from, egui::pos2(600.0, 10.0), Modifiers::NONE);
+    assert_eq!(page_texts(h.state()), before);
+}
+
+#[test]
+fn organize_can_insert_selected_pages_from_another_open_pdf_without_a_picker() {
+    let mut h = organize(3);
+    h.state_mut().views[0].select_pages(&[0, 2]);
+    h.state_mut().open_bytes("destination.pdf", None, fixture(2)).unwrap();
+    h.state_mut().views[1].organize = true;
+    h.run_steps(3);
+    h.get_by_label("Insert").click();
+    h.run_steps(2);
+    h.get_by_label_contains("Insert selected pages from an open PDF").click();
+    h.run_steps(2);
+    h.get_by_label("doc.pdf (2 pages)").click();
+    h.run_steps(3);
+    assert_eq!(texts_of(h.state(), 1), ["Page 1", "Page 1", "Page 3", "Page 2"]);
+    assert_eq!(texts_of(h.state(), 0), ["Page 1", "Page 2", "Page 3"]);
+}
+
 /// A page drag with the copy modifier held — Ctrl (Option on macOS) — instead of none.
 /// Modifiers are input state: `ModifiersChanged` once, as the column-select drag does.
 fn copy_drag(h: &mut Harness<'static, PdfCraftApp>, from: egui::Pos2, to: egui::Pos2) {

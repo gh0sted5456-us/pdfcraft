@@ -2299,6 +2299,7 @@ key	Space	Spacja
 	These objects could not be moved. Select them again and try a smaller move.	Nie udało się przenieść tych obiektów. Zaznacz je ponownie i spróbuj mniejszego przesunięcia.
 	This page contains objects that cannot be selected together.	Ta strona zawiera obiekty, których nie można zaznaczyć razem.
 	Reload documents when their files change on disk	Wczytuj ponownie dokumenty, gdy ich pliki zmienią się na dysku
+	Show validation marks over signed signatures	Pokazuj znaczniki weryfikacji nad złożonymi podpisami
 	Always use my default zoom and page layout	Zawsze używaj mojego domyślnego powiększenia i układu stron
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Ten plik zmienił się na dysku. Wczytaj ponownie pokazuje nową wersję i odrzuca niezapisane zmiany; Zapisz zastępuje ją tą wersją.
 	Reload	Wczytaj ponownie
@@ -2677,3 +2678,10 @@ animation effects	Off	Wyłączone
 	The signature {names} locks this field.	Podpis {names} blokuje to pole.
 	This document can't be changed: {names}	Tego dokumentu nie można zmienić: {names}
 	Choose a signature that can be removed.	Wybierz podpis, który można usunąć.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Otwórz następny plik PDF w folderze
+	Open previous PDF in folder	Otwórz poprzedni plik PDF w folderze
+	This document isn't in a folder yet: save it first	Ten dokument nie jest jeszcze w żadnym folderze: najpierw go zapisz
+	This is the last PDF in its folder	To ostatni plik PDF w tym folderze
+	This is the first PDF in its folder	To pierwszy plik PDF w tym folderze

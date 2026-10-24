@@ -2250,6 +2250,7 @@ key	Space	스페이스
 	Printer paper and scaling may differ. Check driver settings.	프린터 용지와 배율이 다를 수 있습니다. 드라이버 설정을 확인하세요.
 	Drawing scale changes. Use Actual size for full-scale plans.	도면 축척이 변경됩니다. 실제 크기 도면에는 '실제 크기'를 사용하세요.
 	Reload documents when their files change on disk	파일이 디스크에서 변경되면 문서 다시 불러오기
+	Show validation marks over signed signatures	서명된 서명 위에 유효성 검사 표시 보기
 	This file changed on disk. Reload it to see the new version; your unsaved changes will be lost.	이 파일이 디스크에서 변경되었습니다. 새 버전을 보려면 다시 불러오세요. 저장하지 않은 변경 내용은 손실됩니다.
 	Reload	다시 불러오기
 	Couldn't reload {name}: {e}	{name}을(를) 다시 불러올 수 없습니다: {e}
@@ -2818,3 +2819,10 @@ theme	Appearance	모양
 	The signature {names} locks this field.	서명 {names}이(가) 이 필드를 잠급니다.
 	This document can't be changed: {names}	이 문서는 변경할 수 없습니다: {names}
 	Choose a signature that can be removed.	제거할 수 있는 서명을 선택하세요.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	폴더의 다음 PDF 열기
+	Open previous PDF in folder	폴더의 이전 PDF 열기
+	This document isn't in a folder yet: save it first	이 문서는 아직 폴더에 없습니다: 먼저 저장하세요
+	This is the last PDF in its folder	폴더의 마지막 PDF입니다
+	This is the first PDF in its folder	폴더의 첫 번째 PDF입니다

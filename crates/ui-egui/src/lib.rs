@@ -64,6 +64,7 @@ mod marks_ui;
 mod measure_ui;
 mod ocr_ui;
 mod optimize_ui;
+mod page_transfer_ui;
 mod search_ui;
 mod sign_ui;
 mod stamps_ui;
@@ -95,6 +96,7 @@ pub mod file_watch;
 mod files;
 pub mod fill_sign;
 mod fling;
+mod folder_step;
 pub mod folders_ui;
 mod format_text_ui;
 pub mod forms_ui;
@@ -606,6 +608,10 @@ pub struct PdfCraftApp {
     quit_session: Option<last_session::LastSession>,
     /// Preferences: reload a document when its file changes on disk (#431).
     pub reload_changed_files: bool,
+    /// Preferences: draw the validation outline and mark over signed signature widgets. Off
+    /// leaves the signer's own appearance uncovered; validation and the Signatures panel are
+    /// unchanged (#4221). Kept in the settings.
+    pub show_signature_badges: bool,
     /// Preferences: open every document at Default zoom and Default page display, whatever
     /// layout or zoom it asks for (#1618).
     pub always_default_view: bool,
@@ -619,6 +625,9 @@ pub struct PdfCraftApp {
     pending_opens: Vec<PendingOpen>,
     #[cfg(not(target_arch = "wasm32"))]
     next_open_token: u64,
+    /// The folder scan behind File ▸ Open next / previous PDF in folder, while it runs.
+    #[cfg(not(target_arch = "wasm32"))]
+    folder_step: Option<folder_step::FolderStep>,
     #[cfg(all(test, not(target_arch = "wasm32")))]
     open_prepare_gate: Option<std::sync::Arc<open_worker::PrepareGate>>,
     /// Folders pinned to Home, and what they held when last listed.
@@ -1021,6 +1030,7 @@ impl PdfCraftApp {
             last_session: Default::default(),
             quit_session: None,
             reload_changed_files: true,
+            show_signature_badges: true,
             always_default_view: false,
             #[cfg(not(target_arch = "wasm32"))]
             watch: Default::default(),
@@ -1030,6 +1040,8 @@ impl PdfCraftApp {
             pending_opens: Vec::new(),
             #[cfg(not(target_arch = "wasm32"))]
             next_open_token: 0,
+            #[cfg(not(target_arch = "wasm32"))]
+            folder_step: None,
             #[cfg(all(test, not(target_arch = "wasm32")))]
             open_prepare_gate: None,
             pinned: Default::default(),
@@ -2491,6 +2503,7 @@ impl PdfCraftApp {
         v["redact_prefs"] = self.redact_defaults.to_json();
         // Set outside json! above, which is at serde_json's macro recursion limit.
         v["hide_empty_highlight_hover"] = serde_json::Value::Bool(self.comment_prefs.hide_empty_highlight_hover);
+        v["show_signature_badges"] = serde_json::Value::Bool(self.show_signature_badges);
         v["organize_zoom"] = serde_json::json!(self.organize_zoom);
         v["auto_ocr"] = serde_json::Value::Bool(self.auto_ocr);
         // Canonical names survive changes to the order of PAPERS and do not depend on UI language.
@@ -2536,6 +2549,9 @@ impl PdfCraftApp {
         }
         if let Some(on) = v["reload_changed_files"].as_bool() {
             self.reload_changed_files = on;
+        }
+        if let Some(on) = v["show_signature_badges"].as_bool() {
+            self.show_signature_badges = on;
         }
         self.pinned.restore(&v["pinned_folders"]);
         if let Ok(preference) = serde_json::from_value::<ThemePreference>(v["theme"].clone()) {
@@ -2988,6 +3004,14 @@ impl PdfCraftApp {
                 };
             }
             ("ui-scale", _) => self.ui_scale = ui_scale::parse(value)?,
+            // `--signature-badges false`: no validation outline and mark over signed signatures.
+            ("signature-badges", _) => {
+                self.show_signature_badges = match value {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err("signature-badges must be true or false".into()),
+                };
+            }
             ("system-title-bar", _) => {
                 self.system_title_bar = match value {
                     "true" => true,
@@ -3251,6 +3275,7 @@ impl eframe::App for PdfCraftApp {
                 worker.set_context(ctx);
             }
             self.poll_pending_opens();
+            self.poll_folder_step();
         }
         // Chinese wants its own faces before the Japanese ones (one baseline per line).
         let cjk = theme::CjkPreference::for_language(lang.code());
@@ -3495,6 +3520,7 @@ impl eframe::App for PdfCraftApp {
             }
         });
         self.process_pending_edits();
+        self.finish_page_transfer(&ctx);
         palette::show(self, &ctx);
         dialogs::show(self, &ctx);
         self.show_progress(&ctx);

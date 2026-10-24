@@ -975,6 +975,7 @@
 	Redaction code:	Šalinimo kodas:
 	Reload	Įkelti iš naujo
 	Reload documents when their files change on disk	Iš naujo įkelti dokumentus, kai pasikeičia jų failai diske
+	Show validation marks over signed signatures	Rodyti patvirtinimo žymes ant pasirašytų parašų
 	Always use my default zoom and page layout	Visada naudoti mano numatytąjį mastelį ir puslapio išdėstymą
 	Remove checkmark	Pašalinti varnelę
 	Remove invalid links and bookmarks	Pašalinti netinkamus saitus ir žymeles
@@ -2847,3 +2848,10 @@ theme	Appearance	Išvaizda
 	The signature {names} locks this field.	Parašas {names} užrakina šį lauką.
 	This document can't be changed: {names}	Šio dokumento keisti negalima: {names}
 	Choose a signature that can be removed.	Pasirinkite parašą, kurį galima pašalinti.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Atverti kitą aplanko PDF
+	Open previous PDF in folder	Atverti ankstesnį aplanko PDF
+	This document isn't in a folder yet: save it first	Šis dokumentas dar nėra jokiame aplanke: pirmiausia jį įrašykite
+	This is the last PDF in its folder	Tai paskutinis jo aplanko PDF
+	This is the first PDF in its folder	Tai pirmasis jo aplanko PDF

@@ -2193,6 +2193,7 @@ key	Space	空格
 	Tools	工具
 	Inspector	檢查器
 	Reload documents when their files change on disk	檔案在磁碟上變更時重新載入對應的文件
+	Show validation marks over signed signatures	在已簽署的簽名上顯示驗證標記
 	Always use my default zoom and page layout	一律使用我的預設縮放與頁面佈局
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	此檔案已在磁碟上變更。「重新載入」會顯示新版本並捨棄未儲存的變更；「儲存」則會以此版本取代它。
 	Reload	重新載入
@@ -2523,3 +2524,10 @@ animation effects	Off	關
 	The signature {names} locks this field.	簽章 {names} 鎖定了此欄位。
 	This document can't be changed: {names}	無法變更此文件：{names}
 	Choose a signature that can be removed.	請選擇一個可以移除的簽章。
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	開啟資料夾中的下一個 PDF
+	Open previous PDF in folder	開啟資料夾中的上一個 PDF
+	This document isn't in a folder yet: save it first	此文件尚未儲存在資料夾中：請先儲存
+	This is the last PDF in its folder	這是所在資料夾中的最後一個 PDF
+	This is the first PDF in its folder	這是所在資料夾中的第一個 PDF

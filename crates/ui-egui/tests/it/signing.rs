@@ -94,6 +94,7 @@ fn ctrl_alt_q_types_an_email_without_quitting() {
 
 #[test]
 fn drawing_a_signature_creating_an_id_signing_and_trusting() {
+    let _gpu = std::env::var_os("PDFCRAFT_SHOTS").map(|_| crate::gpu());
     let dir = dir();
     let mut h = harness(dir.clone());
     assert!(h.state_mut().execute("sign.digital"));
@@ -128,6 +129,11 @@ fn drawing_a_signature_creating_an_id_signing_and_trusting() {
     field(&h, "Digital ID password").click();
     h.run_steps(1);
     field(&h, "Digital ID password").type_text("nope");
+    h.get_by_label("Signing date uses this computer's clock.");
+    assert!(!h.state().sign_draft.as_ref().unwrap().timestamp, "ordinary signing uses computer time without a server request");
+    if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+        h.render().unwrap().save(format!("{dir}/signing-clock-default.png")).unwrap();
+    }
     h.get_by_label("Sign").click();
     h.run_steps(3);
     h.get_by_label("The password is incorrect.");
@@ -145,6 +151,7 @@ fn drawing_a_signature_creating_an_id_signing_and_trusting() {
     assert_eq!(doc.name, "contract_signed.pdf");
     assert!(doc.bytes.windows(b"/Watermark".len()).any(|s| s == b"/Watermark"), "the default lion reaches the signed PDF");
     let sig = doc.signatures.iter().find(|x| x.signed).expect("signed");
+    assert!(!sig.timestamp, "the local signing date is not presented as a trusted server timestamp");
     assert_eq!((sig.status, sig.reason.as_deref(), sig.page), (SignatureStatus::Unknown, Some("I approve"), Some(0)));
     assert_eq!(s.right, Some(RightPanel::Signatures));
     h.get_by_label("At least one signature has problems.");
@@ -691,4 +698,81 @@ fn signing_preserves_destination_opening_attributes() {
     assert_eq!(xattr::get(&dest, "com.apple.LaunchServices.OpenWith").unwrap(), Some(b"existing binding".to_vec()));
     assert_eq!(xattr::get(&dest, "com.apple.quarantine").unwrap(), Some(b"0082;1234;Preview;".to_vec()));
     let _ = std::fs::remove_dir_all(dir);
+}
+
+/// #4221: the validation outline and mark drawn over a signed signature widget can be turned off
+/// in Preferences (or `--signature-badges false`), leaving the signer's own appearance uncovered;
+/// the signature stays valid and the setting is kept.
+#[test]
+fn the_validation_marks_over_signatures_can_be_turned_off() {
+    let _gpu = std::env::var_os("PDFCRAFT_SHOTS").map(|_| crate::gpu());
+    let p12 = concat!(env!("CARGO_MANIFEST_DIR"), "/../sign/tests/data/ec-p256.p12");
+    let digital_id = pdfcraft_engine::sign::pkcs12::open(&std::fs::read(p12).unwrap(), "test").unwrap();
+    let mut s = pdfcraft_engine::Session::new();
+    let id = s.open("contract.pdf", None, std::sync::Arc::new(FIXTURE.to_vec()), None).unwrap();
+    let widget = [20.0, 20.0, 180.0, 60.0];
+    let opts = pdfcraft_engine::SignOptions { page: 0, rect: Some(widget), ..Default::default() };
+    let signed = s.sign(id, &digital_id, opts).unwrap();
+    let (bytes, cert) = (signed.to_vec(), digital_id.certificate.clone());
+    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(move |_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.open_bytes("contract.pdf", None, bytes).expect("opens");
+        app.session.set_trusted_certificates(vec![cert]);
+        app
+    });
+    h.run_steps(4);
+    // The outline is a rectangle stroked just outside the widget's box on screen.
+    let outlines = |h: &Harness<'static, PdfCraftApp>| {
+        let (a, b) = (at(h, widget[0] as f32, widget[3] as f32), at(h, widget[2] as f32, widget[1] as f32));
+        let boxed = egui::Rect::from_two_pos(a, b);
+        h.output()
+            .shapes
+            .iter()
+            .filter(|c| match &c.shape {
+                egui::Shape::Rect(r) => r.stroke.width == 1.5 && (r.rect.min - boxed.min).length() < 1.0 && (r.rect.max - boxed.max).length() < 1.0,
+                _ => false,
+            })
+            .count()
+    };
+    let status = |h: &Harness<'static, PdfCraftApp>| {
+        let s = h.state();
+        s.session.get(s.views[0].id).unwrap().signatures.iter().find(|x| x.signed).map(|x| x.status)
+    };
+    assert!(h.state().show_signature_badges, "on by default");
+    assert_eq!(status(&h), Some(SignatureStatus::Valid));
+    assert_eq!(outlines(&h), 1, "the valid signature is outlined");
+
+    h.state_mut().set_option("signature-badges", "false").unwrap();
+    h.run_steps(2);
+    assert_eq!(outlines(&h), 0, "no outline once the marks are off");
+    assert_eq!(status(&h), Some(SignatureStatus::Valid), "validation is unchanged");
+    h.get_by_label("Signed and all signatures are valid.");
+
+    // Kept in the settings, and turned back on.
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&h.state().persist());
+    assert!(!restored.show_signature_badges);
+    h.state_mut().set_option("signature-badges", "true").unwrap();
+    h.run_steps(2);
+    assert_eq!(outlines(&h), 1);
+    assert_eq!(h.state_mut().set_option("signature-badges", "maybe"), Err("signature-badges must be true or false".into()));
+    let hover = at(&h, 100.0, 40.0);
+    h.hover_at(hover);
+    h.run_steps(3);
+    h.get_by_label("Signature is valid");
+    assert!(h.state_mut().execute("app.preferences"));
+    h.run_steps(3);
+    assert!(h.query_by_label("Signature is valid").is_none(), "document tooltips cannot show through a modal dialog");
+    if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+        h.hover_at(egui::pos2(700.0, 650.0));
+        h.event(egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -360.0),
+            phase: egui::TouchPhase::Move,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.run_steps(8);
+        h.render().unwrap().save(format!("{dir}/signature-overlay-preference.png")).unwrap();
+    }
 }

@@ -2325,6 +2325,7 @@ key	Space	Preslednica
 	Printer paper and scaling may differ. Check driver settings.	Papir in merilo tiskalnika se lahko razlikujeta. Preverite nastavitve gonilnika.
 	Drawing scale changes. Use Actual size for full-scale plans.	Merilo risbe se spremeni. Za načrte v polnem merilu uporabite Dejansko velikost.
 	Reload documents when their files change on disk	Znova naloži dokumente, ko se njihove datoteke na disku spremenijo
+	Show validation marks over signed signatures	Prikaži oznake preverjanja nad podpisanimi podpisi
 	Always use my default zoom and page layout	Vedno uporabi moje privzeto povečanje in postavitev strani
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Ta datoteka se je na disku spremenila. Ponovno naloži pokaže novo različico in zavrže neshranjene spremembe; Shrani jo zamenja s to različico.
 	Reload	Znova naloži
@@ -2586,3 +2587,10 @@ animation effects	Off	Izklopljeni
 	The signature {names} locks this field.	Podpis {names} zaklepa to polje.
 	This document can't be changed: {names}	Tega dokumenta ni mogoče spremeniti: {names}
 	Choose a signature that can be removed.	Izberite podpis, ki ga je mogoče odstraniti.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Odpri naslednji PDF v mapi
+	Open previous PDF in folder	Odpri prejšnji PDF v mapi
+	This document isn't in a folder yet: save it first	Ta dokument še ni v nobeni mapi: najprej ga shranite
+	This is the last PDF in its folder	To je zadnji PDF v svoji mapi
+	This is the first PDF in its folder	To je prvi PDF v svoji mapi

@@ -2137,6 +2137,7 @@ action wizard	Start	Inicia
 	Home / End	Inici / Fi
 	H / Space (hold)	H / Espai (mantén premut)
 	Reload documents when their files change on disk	Torna a carregar els documents quan els seus fitxers canviïn al disc
+	Show validation marks over signed signatures	Mostra marques de validació sobre les signatures signades
 	This file changed on disk. Reload it to see the new version; your unsaved changes will be lost.	Aquest fitxer ha canviat al disc. Torna'l a carregar per veure'n la versió nova; es perdran els canvis sense desar.
 	Reload	Torna a carregar
 	Couldn't reload {name}: {e}	No s'ha pogut tornar a carregar {name}: {e}
@@ -2845,3 +2846,10 @@ theme	Appearance	Aspecte
 	The signature {names} locks this field.	La signatura {names} bloqueja aquest camp.
 	This document can't be changed: {names}	Aquest document no es pot modificar: {names}
 	Choose a signature that can be removed.	Trieu una signatura que es pugui eliminar.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Obre el PDF següent de la carpeta
+	Open previous PDF in folder	Obre el PDF anterior de la carpeta
+	This document isn't in a folder yet: save it first	Aquest document encara no és en cap carpeta: deseu-lo primer
+	This is the last PDF in its folder	Aquest és l'últim PDF de la carpeta
+	This is the first PDF in its folder	Aquest és el primer PDF de la carpeta

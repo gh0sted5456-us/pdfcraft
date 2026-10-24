@@ -2,7 +2,7 @@
 //! cover page, a scroll position per tab.
 
 use egui_kittest::Harness;
-use egui_kittest::kittest::{By, Queryable};
+use egui_kittest::kittest::{By, NodeT, Queryable};
 use pdfcraft_ui_egui::{Dialog, PdfCraftApp};
 
 /// `n` pages of 200×300; page i says "Page i+1" plus "page" and "Pages" for find tests.
@@ -1027,6 +1027,33 @@ fn advanced_search_lists_results_with_context() {
     h.state_mut().right = None;
     h.run_steps(2);
     assert!(!h.state().views[i].find.as_ref().unwrap().in_panel);
+}
+
+#[test]
+fn advanced_search_copies_unique_page_numbers_and_extracts_its_matching_pages() {
+    let _gpu = std::env::var_os("PDFCRAFT_SHOTS").map(|_| crate::gpu());
+    let mut h = harness();
+    h.state_mut().execute("edit.advanced_search");
+    let i = h.state().active.unwrap();
+    h.state_mut().views[i].find.as_mut().unwrap().query = "Page".into();
+    for _ in 0..3000 {
+        h.run_steps(2);
+        if h.query_by_label("Copy page numbers").is_some_and(|n| !n.accesskit_node().is_disabled()) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    h.get_by_label("Copy page numbers").click();
+    h.run_steps(1);
+    assert!(h.output().platform_output.commands.iter().any(|c| matches!(c, egui::OutputCommand::CopyText(s) if s == "1, 2")));
+    if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+        h.render().unwrap().save(format!("{dir}/search-page-actions.png")).unwrap();
+    }
+    h.get_by_label("Extract matching pages…").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, Some(Dialog::Extract));
+    assert_eq!(h.state().views[i].target_pages(), [0, 1]);
+    assert_eq!(h.state().session.get(h.state().views[i].id).unwrap().info.pages.len(), 2);
 }
 
 #[test]

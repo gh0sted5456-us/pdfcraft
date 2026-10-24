@@ -2226,6 +2226,7 @@ signature pad	Type	พิมพ์
 	Printer paper and scaling may differ. Check driver settings.	กระดาษและการปรับขนาดของเครื่องพิมพ์อาจต่างออกไป โปรดตรวจสอบการตั้งค่าไดรเวอร์
 	Drawing scale changes. Use Actual size for full-scale plans.	มาตราส่วนของแบบจะเปลี่ยน ใช้ขนาดจริงสำหรับแบบแปลนเต็มมาตราส่วน
 	Reload documents when their files change on disk	โหลดเอกสารใหม่เมื่อไฟล์บนดิสก์เปลี่ยนแปลง
+	Show validation marks over signed signatures	แสดงเครื่องหมายการตรวจสอบบนลายเซ็นที่ลงนามแล้ว
 	This file changed on disk. Reload it to see the new version; your unsaved changes will be lost.	ไฟล์นี้เปลี่ยนแปลงบนดิสก์ โหลดใหม่เพื่อดูรุ่นใหม่ การเปลี่ยนแปลงที่ยังไม่ได้บันทึกจะหายไป
 	Reload	โหลดใหม่
 	Couldn't reload {name}: {e}	โหลด {name} ใหม่ไม่ได้: {e}
@@ -2689,3 +2690,10 @@ theme	Appearance	ลักษณะที่ปรากฏ
 	Saved	บันทึกแล้ว
 	Saves document	บันทึกเอกสาร
 	Unsaved changes	การเปลี่ยนแปลงที่ยังไม่ได้บันทึก
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	เปิด PDF ถัดไปในโฟลเดอร์
+	Open previous PDF in folder	เปิด PDF ก่อนหน้าในโฟลเดอร์
+	This document isn't in a folder yet: save it first	เอกสารนี้ยังไม่อยู่ในโฟลเดอร์ใด: บันทึกก่อน
+	This is the last PDF in its folder	นี่คือ PDF สุดท้ายในโฟลเดอร์
+	This is the first PDF in its folder	นี่คือ PDF แรกในโฟลเดอร์

@@ -32,10 +32,10 @@ area = "A"
 tier = "P0"
 milestone = "M1"
 status = "shipped"
-commands = ["file.open"]
+commands = ["file.open", "file.open_next_in_folder", "file.open_previous_in_folder"]
 tools = ["doc_open"]
-evidence = ["crates/automation/tests/it/automation.rs::open_inspect_render_and_find", "crates/ui-egui/tests/it/ui.rs::opening_a_pdf_shows_comments_and_bookmarks", "crates/ui-egui/tests/it/ui.rs::files_and_quit_from_the_operating_system", "crates/ui-egui/src/open_worker_tests.rs::a_chosen_tool_runs_on_its_file_only_after_native_preparation_commits", "crates/ui-egui/tests/it/editing.rs::opening_the_same_path_again_focuses_its_tab", "crates/ui-egui/tests/it/editing.rs::opening_a_file_whose_copy_vanished_from_disk_focuses_its_tab"]
-notes = "File ▸ Open, the command line (Linux and Windows file associations), the Windows MSI's \"Edit with PdfCraft\" entry on PDF files' File Explorer right-click menu (#682; several selected PDFs open as tabs of one window), and on macOS Finder, Open With and the Dock (Apple events; the bundle declares PDF as a document type); an already-open file focuses its tab instead of opening a second copy (#1620). Not yet: a first-level Windows 11 menu entry (needs package identity) or Combine from the file manager (#585)"
+evidence = ["crates/automation/tests/it/automation.rs::open_inspect_render_and_find", "crates/ui-egui/tests/it/ui.rs::opening_a_pdf_shows_comments_and_bookmarks", "crates/ui-egui/tests/it/ui.rs::files_and_quit_from_the_operating_system", "crates/ui-egui/src/open_worker_tests.rs::a_chosen_tool_runs_on_its_file_only_after_native_preparation_commits", "crates/ui-egui/tests/it/editing.rs::opening_the_same_path_again_focuses_its_tab", "crates/ui-egui/tests/it/editing.rs::opening_a_file_whose_copy_vanished_from_disk_focuses_its_tab", "crates/ui-egui/tests/it/commands.rs::ctrl_shift_arrows_open_the_next_and_previous_pdf_in_the_folder"]
+notes = "File ▸ Open, the command line (Linux and Windows file associations), the Windows MSI's \"Edit with PdfCraft\" entry on PDF files' File Explorer right-click menu (#682; several selected PDFs open as tabs of one window), and on macOS Finder, Open With and the Dock (Apple events; the bundle declares PDF as a document type); an already-open file focuses its tab instead of opening a second copy (#1620). Not yet: a first-level Windows 11 menu entry (needs package identity) or Combine from the file manager (#585). Desktop Ctrl+Shift+Left/Right opens adjacent PDFs in natural folder order on a worker, preserving existing tabs and unsaved work (#4479)."
 
 [[feature]]
 id = "core.repair-broken-files"
@@ -1441,9 +1441,9 @@ tier = "P1"
 milestone = "M3"
 status = "shipped"
 commands = ["edit.advanced_search"]
-tools = ["text_find"]
-evidence = ["crates/ui-egui/tests/it/viewer.rs::advanced_search_lists_results_with_context"]
-notes = "Search panel (⇧⌘F): every match grouped by page with its context, whole words / case options, click to go; shares the find bar's search (closing the panel moves it to the bar)"
+tools = ["text_find", "text_search_pages"]
+evidence = ["crates/ui-egui/tests/it/viewer.rs::advanced_search_lists_results_with_context", "crates/ui-egui/tests/it/viewer.rs::advanced_search_copies_unique_page_numbers_and_extracts_its_matching_pages", "crates/automation/tests/it/automation.rs::search_page_sets_extract_and_transfer_between_open_documents"]
+notes = "Search panel (⇧⌘F): every match grouped by page with its context, whole words / case options, click to go; shares the find bar's search (closing the panel moves it to the bar). After complete successful search, copy unique physical page numbers or extract the matching pages; unreadable pages refuse extraction (#4334)"
 
 [[feature]]
 id = "view.advanced-search"
@@ -2869,11 +2869,11 @@ title = "Drag pages between documents"
 area = "D"
 tier = "P2"
 milestone = "M4"
-status = "planned"
+status = "shipped"
 commands = []
-tools = []
-evidence = []
-notes = ""
+tools = ["page_transfer"]
+evidence = ["crates/ui-egui/tests/it/editing.rs::a_page_drag_can_hover_another_tab_and_copy_or_move_into_its_grid", "crates/ui-egui/tests/it/editing.rs::organize_can_insert_selected_pages_from_another_open_pdf_without_a_picker", "crates/engine/src/page_workflows.rs::transfers_keep_unsaved_text_in_page_order_and_undo_separately", "crates/automation/tests/it/automation.rs::search_page_sets_extract_and_transfer_between_open_documents"]
+notes = "Hover another open document tab while dragging selected thumbnails, then drop at its grid or Pages-panel insertion marker. Default copies; Shift moves after successful insertion and must leave one source page. Each document has its own Undo. Removal failure keeps both copies with a warning. Organize Insert also lists open PDFs and their selected/current pages; 1–1000 pages per transfer. No external drag-out."
 
 [[feature]]
 id = "organize.page-range-selection"
@@ -6265,8 +6265,8 @@ milestone = "M9"
 status = "shipped"
 commands = ["sign.panel"]
 tools = []
-evidence = ["crates/ui-egui/tests/it/signing.rs::drawing_a_signature_creating_an_id_signing_and_trusting", "crates/ui-egui/tests/it/signing.rs::certifying_without_a_visible_signature", "crates/ui-egui/src/canvas.rs::signature_badges_keep_signed_visible_widgets_on_the_page"]
-notes = "signed/valid, problems, invalid and certified bars; visible signed widgets also carry a separate viewer validation overlay. Trust and explicit validation invalidate view caches without editing document artwork; baked appearance captions remain unchanged."
+evidence = ["crates/ui-egui/tests/it/signing.rs::drawing_a_signature_creating_an_id_signing_and_trusting", "crates/ui-egui/tests/it/signing.rs::certifying_without_a_visible_signature", "crates/ui-egui/src/canvas.rs::signature_badges_keep_signed_visible_widgets_on_the_page", "crates/ui-egui/tests/it/signing.rs::the_validation_marks_over_signatures_can_be_turned_off"]
+notes = "signed/valid, problems, invalid and certified bars; visible signed widgets also carry a separate viewer validation overlay, which Preferences or --signature-badges can hide without changing validation, the banner, the panel or document artwork (#4502). Trust and explicit validation invalidate view caches without editing document artwork; baked appearance captions remain unchanged."
 
 [[feature]]
 id = "sign.signature-properties"

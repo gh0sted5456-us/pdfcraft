@@ -559,6 +559,29 @@ fn page_text(a: &mut Automation, doc: u64) -> Vec<String> {
 }
 
 #[test]
+fn search_page_sets_extract_and_transfer_between_open_documents() {
+    let dir = workdir("page-workflows");
+    let mut a = auto(&dir);
+    let source = ok(&mut a, "doc_open", json!({"path":"a.pdf"}))["doc"].as_u64().unwrap();
+    let target = ok(&mut a, "doc_create", json!({"from":"blank","pages":1}))["doc"].as_u64().unwrap();
+    let found = ok(&mut a, "text_search_pages", json!({"doc":source,"query":"Page"}));
+    assert_eq!(found["pages"], json!([1, 2, 3]));
+    assert_eq!(found["page_numbers"], "1, 2, 3");
+    let extracted = ok(&mut a, "text_search_pages", json!({"doc":source,"query":"Page 2","extract":true,"out":"found.pdf","open":true}));
+    let id = extracted["extracted"]["document"]["doc"].as_u64().unwrap();
+    assert_eq!(page_text(&mut a, id), ["Page 2"]);
+    assert!(a.call("text_search_pages", &json!({"doc":source,"query":"Page","extract":true,"out":"../outside.pdf"})).is_err());
+    let transferred = ok(&mut a, "page_transfer", json!({"doc":target,"source":source,"pages":[3,1],"at":1,"move":true}));
+    assert_eq!(transferred["moved"], true);
+    assert_eq!(page_text(&mut a, source), ["Page 2"]);
+    assert_eq!(page_text(&mut a, target).len(), 3);
+    assert!(a.call("page_transfer", &json!({"doc":target,"source":source,"pages":[1],"at":1,"move":true})).is_err());
+    ok(&mut a, "doc_save", json!({"doc":target,"path":"transferred.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"transferred.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(page_text(&mut a, reopened), page_text(&mut a, target));
+}
+
+#[test]
 fn tool_table_is_well_formed() {
     let all = tools();
     let mut names = std::collections::HashSet::new();

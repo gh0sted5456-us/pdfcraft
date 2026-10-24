@@ -241,6 +241,36 @@ impl Automation {
             "text_extract" => self.text_extract(&a)?,
             "text_word_count" => self.text_word_count(&a)?,
             "text_find" => self.text_find(&a)?,
+            "text_search_pages" => {
+                let id = self.doc(&a)?.id;
+                let pages = self.session.matching_pages(
+                    id,
+                    a.str("query")?,
+                    a.opt_bool("case_sensitive")?.unwrap_or(false),
+                    a.opt_bool("whole_words")?.unwrap_or(false),
+                )?;
+                let numbers: Vec<usize> = pages.iter().map(|p| p.saturating_add(1)).collect();
+                let mut out = json!({"pages": numbers, "count": numbers.len(), "page_numbers": numbers.iter().map(usize::to_string).collect::<Vec<_>>().join(", ")});
+                if a.opt_bool("extract")?.unwrap_or(false) {
+                    if pages.is_empty() {
+                        return Err(failed("no pages match the search"));
+                    }
+                    let bytes = self.session.extract(id, &pages)?;
+                    out["extracted"] = self.deliver(&a, "Search results", bytes)?;
+                } else if a.get("out").is_some() || a.get("open").is_some() {
+                    return Err(ToolError::InvalidArgs("out and open require extract: true".into()));
+                }
+                out
+            }
+            "page_transfer" => {
+                let target = self.doc(&a)?.id;
+                let source = DocId(u64::try_from(a.int("source")?).map_err(|_| ToolError::InvalidArgs("source must be a document id".into()))?);
+                let pages = one_based(&a.ints("pages")?)?;
+                let at = self.position(&a, "at")?;
+                let moving = a.opt_bool("move")?.unwrap_or(false);
+                let warning = self.session.transfer_pages(source, target, &pages, at, moving)?;
+                json!({"document": summary(self.doc(&a)?), "source": summary(self.session.get(source).ok_or_else(|| failed("source is closed"))?), "moved": moving && warning.is_none(), "warning": warning})
+            }
             "page_rotate" => {
                 let degrees = a.int("degrees")?;
                 if degrees % 90 != 0 {

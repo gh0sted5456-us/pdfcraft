@@ -1181,7 +1181,9 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
         ui.end_row();
     });
     ui.separator();
-    ui.add(widgets::checkbox(&mut d.timestamp, "Add trusted timestamp"));
+    ui.label("Signing date uses this computer's clock.");
+    ui.add(widgets::checkbox(&mut d.timestamp, "Add trusted timestamp"))
+        .on_hover_text("Optional: also request an independently verified timestamp from the selected server.");
     if d.timestamp {
         crate::timestamp_ui::server_selector(ui, &mut app.timestamp_server);
     }

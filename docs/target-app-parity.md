@@ -1,5 +1,7 @@
 # PdfCraft parity with Adobe Acrobat Pro
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 adds search page extraction/page-number copying and tested transfers between open PDFs (copy by default, Shift to move, separate Undo per document). Adopts #4502 signature-overlay preference, #4475 clean drag previews and #4479 folder navigation. Signing explicitly uses the computer clock by default with server timestamps optional; modal document tooltips are suppressed. Native Linux/CAC runtime limits and readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Dialog actions share matte theme-aware styling, dimensions and explicit semantic colors; timestamp selection retains Sectigo by default and offers FreeTSA (manual trust) or Custom. Recovery now asks for the first save destination and caps metadata, adapted from #4327. Native Linux/CAC runtime limits unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** personal M9 signing: independent subdued lion/custom background, reviewed unsigned copies and a matching-ID page menu, plus opt-in RFC 3161 timestamps with a Sectigo HTTPS default, fresh nonces and timestamp-only OS trust. 2,504 scoped tests, strict lint, Windows and wasm checks pass; live Sectigo signing/document timestamps validate. Native Linux/CAC checks remain pending; Linux cross-check needs a C toolchain. Readiness estimates unchanged.

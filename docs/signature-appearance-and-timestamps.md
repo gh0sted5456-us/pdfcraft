@@ -55,3 +55,25 @@ The timestamp core was already present. The background-worker snapshot and HTTP
 integration build on the approach in [upstream PR #4193 by @MarAvFe](https://github.com/storytold/pdfcraft/pull/4193),
 with the scope limited here to RFC 3161 timestamps, strict HTTPS and separate TSA
 trust. The PKCS #11 and revocation-fetching features of that proposal are not included.
+
+## DoD time services
+
+Ordinary signing defaults to the **computer clock**, including CAC signing, and
+the appearance dialog identifies this source. **Add trusted timestamp** is off
+for a new signing draft; enabling it additionally requests a signed timestamp
+from the selected service. A local signing date is never reported as a trusted
+server timestamp. PdfCraft neither changes nor synchronizes the system clock.
+
+No publicly documented, accessible DoD RFC 3161 endpoint was verified in the
+2026-10-24 research pass. The [Naval Observatory's documented NTP services](https://www.cnmoc.usff.navy.mil/Our-Commands/United-States-Naval-Observatory/Precise-Time-Department/Network-Time-Protocol-NTP/)
+synchronize clocks; they do not issue the signed tokens that
+[RFC 3161](https://www.rfc-editor.org/info/rfc3161/) requires for PDF timestamps.
+Its authenticated DoD NTP service is restricted to NIPRnet. CAC presence alone
+does not establish access to that network or identify an authorized PDF TSA.
+
+Sectigo remains the timestamp default. There is no automatic DoD routing, clock
+change or guessed military endpoint. A verified organization-provided HTTPS
+RFC 3161 URL can already be entered as Custom and used by the shared transport.
+Automatic CAC-based selection remains pending a verified compatible service and
+its access/trust requirements; private-key or client-certificate authentication
+must not be assumed from merely inserting a card.
