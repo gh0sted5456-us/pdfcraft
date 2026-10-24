@@ -2589,3 +2589,17 @@ animation effects	Off	オフ
 	This document isn't in a folder yet: save it first	この文書はまだフォルダーに保存されていません。先に保存してください
 	This is the last PDF in its folder	フォルダー内の最後の PDF です
 	This is the first PDF in its folder	フォルダー内の最初の PDF です
+
+# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
+	Language and spelling	言語とスペルチェック
+	Interface and appearance	インターフェイスと外観
+	Check spelling while typing	入力中にスペルを確認
+	Spelling language	スペルチェックの言語
+	Same as interface	インターフェイスと同じ
+	Spelling dictionary unavailable	スペル辞書を利用できません
+	Spelling checks stay on this device.	スペルチェックはこの端末内で行われます。
+	Spelling marks do not change the document. Right-click an underlined word for suggestions.	スペルの印は文書を変更しません。下線のある単語を右クリックすると候補が表示されます。
+	Clear personal dictionary	個人辞書を消去
+	Spelling suggestions	スペルの候補
+	No suggestions	候補なし
+	Add to dictionary	辞書に追加

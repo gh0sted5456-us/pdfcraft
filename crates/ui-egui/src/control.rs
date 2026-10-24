@@ -741,6 +741,7 @@ impl Host for crate::PdfCraftApp {
             "theme": format!("{:?}", self.theme),
             "theme_preference": self.theme_preference,
             "language": self.language,
+            "spelling": {"enabled": self.spelling.enabled, "language": self.spelling.language, "personal_words": self.spelling.words.len()},
             "auto_ocr": self.auto_ocr,
             "notice": self.toast.as_ref().map(|t| t.0.clone()),
             "progress": self.progress_notice.as_ref().map(|p| json!({ "label": p.label, "fraction": p.fraction })),

@@ -46,6 +46,31 @@ fn harness() -> Harness<'static, PdfCraftApp> {
     h
 }
 
+#[test]
+fn language_and_spelling_are_separate_and_persist_regional_english() {
+    let mut h = harness();
+    assert!(h.state_mut().execute("app.language_spelling"));
+    h.run_steps(3);
+    h.get_by_label("Language and spelling");
+    h.state_mut().set_option("language", "en-GB").unwrap();
+    h.state_mut().set_option("spelling-language", "es-MX").unwrap();
+    h.state_mut().set_option("spell-check", "false").unwrap();
+    h.run_steps(3);
+    h.get_by_label("Spelling language");
+    if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+        h.render().unwrap().save(format!("{dir}/language-spelling-preferences.png")).unwrap();
+    }
+    let saved = h.state().persist();
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&saved);
+    let settings: serde_json::Value = serde_json::from_str(&restored.persist()).unwrap();
+    assert_eq!(settings["language"], "en-gb");
+    assert_eq!(settings["spelling"]["language"], "es-MX");
+    assert_eq!(settings["spelling"]["enabled"], false);
+    assert!(restored.set_option("spelling-language", "../es").is_err());
+    assert_eq!(pdfcraft_ui_egui::i18n::lang_from_tag("en_GB.UTF-8").unwrap().code(), "en-gb");
+}
+
 /// Commands that open a native file picker can't run headless.
 /// (Create ▸ Clipboard reads the system clipboard: tests use `create_from_clip`.)
 const PICKERS: &[&str] = &[

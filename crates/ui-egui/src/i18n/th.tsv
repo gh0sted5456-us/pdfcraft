@@ -2697,3 +2697,17 @@ theme	Appearance	ลักษณะที่ปรากฏ
 	This document isn't in a folder yet: save it first	เอกสารนี้ยังไม่อยู่ในโฟลเดอร์ใด: บันทึกก่อน
 	This is the last PDF in its folder	นี่คือ PDF สุดท้ายในโฟลเดอร์
 	This is the first PDF in its folder	นี่คือ PDF แรกในโฟลเดอร์
+
+# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
+	Language and spelling	ภาษาและการสะกดคำ
+	Interface and appearance	ส่วนติดต่อและรูปลักษณ์
+	Check spelling while typing	ตรวจการสะกดขณะพิมพ์
+	Spelling language	ภาษาตรวจการสะกด
+	Same as interface	เหมือนส่วนติดต่อ
+	Spelling dictionary unavailable	ไม่มีพจนานุกรมตรวจการสะกด
+	Spelling checks stay on this device.	ตรวจการสะกดบนอุปกรณ์นี้เท่านั้น
+	Spelling marks do not change the document. Right-click an underlined word for suggestions.	เครื่องหมายการสะกดไม่เปลี่ยนเอกสาร คลิกขวาที่คำที่ขีดเส้นใต้เพื่อดูคำแนะนำ
+	Clear personal dictionary	ล้างพจนานุกรมส่วนตัว
+	Spelling suggestions	คำแนะนำการสะกด
+	No suggestions	ไม่มีคำแนะนำ
+	Add to dictionary	เพิ่มลงในพจนานุกรม

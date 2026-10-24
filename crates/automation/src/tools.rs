@@ -187,6 +187,10 @@ pub fn tools() -> Vec<ToolDef> {
                 "objects":{"type":"array","minItems":1,"maxItems":1000,"uniqueItems":true,"items":{
                     "type":"object","properties":{"kind":{"type":"string","enum":["added","text","image","path"]},"index":{"type":"integer","minimum":1}},"required":["kind","index"],"additionalProperties":false}},
                 "generation":{"type":"integer","minimum":0}}), &["doc","page","objects"])),
+        t("spelling_languages", "Spelling languages", "List locally installed spelling dictionaries. Never downloads dictionaries or sends text to a server.")
+            .ro().with(schema(json!({}), &[])),
+        t("text_spellcheck", "Check spelling", "Check up to 16 KiB of supplied text locally. Returns at most 256 UTF-8 byte ranges. Suggestions are optional and limited to the first 32 issues. Missing dictionaries return an error. Never changes a PDF.")
+            .ro().with(schema(json!({"text":{"type":"string","maxLength":16384},"language":{"type":"string","maxLength":40},"suggestions":{"type":"boolean"}}), &["text"])),
         t("text_word_count", "Word count", "Count Unicode words and characters on selected pages (default all), with totals and per-page counts. Table/code exclusions use PDF structure tags, not visual guesses; unclassified text is retained. Image exclusion removes Figure-tagged and invisible/OCR text. Does not run OCR. Copy permission is required. Fails rather than returning a partial total when a page cannot be read.")
             .ro()
             .cmd("file.word_count")

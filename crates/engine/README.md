@@ -90,3 +90,5 @@ family (`sign`, `sign_with_timestamp`, `timestamp_document`, `embed_ltv`).
 `doc.text_edit_preview(page, block)` prepares a read-only page background with the selected
 paragraph’s glyphs removed, preserving text positioning, images and colours. It shares the
 working document’s render configuration and never enters the undo history.
+
+Offline spelling API: `spelling::Checker` uses installed native dictionaries on Windows/macOS and a Rust parser for installed Hunspell data on Linux/BSD. Missing dictionaries are explicit errors; text and dictionary reads are bounded. See [language and spelling](../../docs/language-and-spelling.md).

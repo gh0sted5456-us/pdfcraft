@@ -804,9 +804,9 @@ fn german_preferences_and_search_keep_command_ids() {
     let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": "Deutsch" }));
     let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");
     ok(&mut h, &c, "ui.click", json!({ "id": combo["id"] }));
-    ok(&mut h, &c, "ui.click", json!({ "label": "English" }));
+    ok(&mut h, &c, "ui.click", json!({ "label": "English (US)" }));
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["language"], "en");
-    let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": "English" }));
+    let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": "English (US)" }));
     let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");
     ok(&mut h, &c, "ui.click", json!({ "id": combo["id"] }));
     ok(&mut h, &c, "ui.click", json!({ "label": "Deutsch" }));
@@ -864,7 +864,7 @@ fn preferences_menu_and_shortcut_allow_switching_interface_languages() {
     let menu = ok(&mut h, &c, "ui.inspect", json!({ "query": "環境設定…" }));
     let prefs = menu["widgets"].as_array().unwrap().iter().find(|w| w["clickable"] == true).expect("Preferences menu item");
     ok(&mut h, &c, "ui.click", json!({ "id": prefs["id"] }));
-    for (current, next, code) in [("日本語", "English", "en"), ("English", "Українська", "uk"), ("Українська", "日本語", "ja")]
+    for (current, next, code) in [("日本語", "English (US)", "en"), ("English (US)", "Українська", "uk"), ("Українська", "日本語", "ja")]
     {
         let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": current }));
         let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");

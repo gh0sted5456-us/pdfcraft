@@ -2445,3 +2445,17 @@ animation effects	Off	ປິດ
 	This document isn't in a folder yet: save it first	ເອກະສານນີ້ຍັງບໍ່ຢູ່ໃນໂຟນເດີໃດ: ບັນທຶກມັນກ່ອນ
 	This is the last PDF in its folder	ນີ້ແມ່ນ PDF ສຸດທ້າຍໃນໂຟນເດີຂອງມັນ
 	This is the first PDF in its folder	ນີ້ແມ່ນ PDF ທຳອິດໃນໂຟນເດີຂອງມັນ
+
+# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
+	Language and spelling	ພາສາ ແລະ ການສະກົດຄຳ
+	Interface and appearance	ສ່ວນຕິດຕໍ່ ແລະ ຮູບລັກສະນະ
+	Check spelling while typing	ກວດການສະກົດຄຳໃນຂະນະພິມ
+	Spelling language	ພາສາກວດການສະກົດຄຳ
+	Same as interface	ຄືກັບສ່ວນຕິດຕໍ່
+	Spelling dictionary unavailable	ບໍ່ມີພົດຈະນານຸກົມສະກົດຄຳ
+	Spelling checks stay on this device.	ການກວດສະກົດຄຳເຮັດໃນອຸປະກອນນີ້.
+	Spelling marks do not change the document. Right-click an underlined word for suggestions.	ເຄື່ອງໝາຍສະກົດຄຳບໍ່ປ່ຽນເອກະສານ. ຄລິກຂວາໃສ່ຄຳທີ່ຂີດກ້ອງເພື່ອເບິ່ງຄຳແນະນຳ.
+	Clear personal dictionary	ລ້າງພົດຈະນານຸກົມສ່ວນຕົວ
+	Spelling suggestions	ຄຳແນະນຳການສະກົດຄຳ
+	No suggestions	ບໍ່ມີຄຳແນະນຳ
+	Add to dictionary	ເພີ່ມໃສ່ພົດຈະນານຸກົມ

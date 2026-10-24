@@ -95,3 +95,7 @@ Error details that come from the operating system, and faults rather than mistak
 3. Add an `ATTRIBUTION.toml` entry for the catalog (`kind = "translation"`), with the catalog's `sha256sum` as `sha256`, then run `cargo xtask assets --write` (it regenerates `ATTRIBUTION.md` only) and `cargo xtask assets`.
 
 The Preferences dropdown, the system-language match and the catalog tests (format, duplicates, placeholders, plural forms, command ids) then pick it up.
+
+## Regional English and spelling (personal 0.13.1)
+
+English (US) and English (UK) are separate, persistent interface choices; `en-US` aliases the legacy `en` code, while `en-gb` retains British menus and locale detection. Spelling has its own language setting and uses installed dictionaries. See [language and spelling](language-and-spelling.md).

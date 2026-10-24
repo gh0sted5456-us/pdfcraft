@@ -2729,3 +2729,17 @@ certificate	Version	وەشان
 	This document isn't in a folder yet: save it first	ئەم بەڵگەنامەیە هێشتا لە هیچ فۆڵدەرێکدا نییە: سەرەتا پاشەکەوتی بکە
 	This is the last PDF in its folder	ئەمە دوایین PDFی فۆڵدەرەکەیەتی
 	This is the first PDF in its folder	ئەمە یەکەمین PDFی فۆڵدەرەکەیەتی
+
+# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
+	Language and spelling	زمان و ڕێنووس
+	Interface and appearance	ڕووکار و دەرکەوتن
+	Check spelling while typing	پشکنینی ڕێنووس لە کاتی نووسین
+	Spelling language	زمانی پشکنینی ڕێنووس
+	Same as interface	وەک ڕووکار
+	Spelling dictionary unavailable	فەرهەنگی ڕێنووس بەردەست نییە
+	Spelling checks stay on this device.	پشکنینی ڕێنووس لەسەر ئەم ئامێرە ئەنجام دەدرێت.
+	Spelling marks do not change the document. Right-click an underlined word for suggestions.	نیشانەکانی ڕێنووس بەڵگەنامە ناگۆڕن. بۆ پێشنیارەکان کرتەی ڕاست لەسەر وشەی هێڵبۆکێشراو بکە.
+	Clear personal dictionary	پاککردنەوەی فەرهەنگی کەسی
+	Spelling suggestions	پێشنیارەکانی ڕێنووس
+	No suggestions	هیچ پێشنیارێک نییە
+	Add to dictionary	زیادکردن بۆ فەرهەنگ

@@ -54,3 +54,15 @@ chrono = { workspace = true, features = ["clock"] }
 
 [dev-dependencies]
 pdfcraft-testkit = { workspace = true }
+# Exercise dictionary decoding on Windows too, without requiring a Linux toolchain.
+spellbook = "=0.4.2"
+encoding_rs = "0.8"
+
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+# Safe native spelling APIs; dictionaries stay in the operating system.
+spellkit = "=0.4.0"
+
+[target.'cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))'.dependencies]
+# Read installed Hunspell data in Rust, without linking a copyleft native engine.
+spellbook = "=0.4.2"
+encoding_rs = "0.8"

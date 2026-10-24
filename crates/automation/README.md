@@ -288,3 +288,5 @@ explicit. See [appearance and timestamps](../../docs/signature-appearance-and-ti
 applies one undoable removal; `doc_save` writes it. A saved document with remaining
 signatures defaults to an incremental update even at a new path; an explicit full
 rewrite is still refused. See [removing signatures](../../docs/removing-signatures.md).
+
+`spelling_languages` lists installed local dictionaries. `text_spellcheck` checks supplied text with optional suggestions and UTF-8 byte ranges; no document is changed and no text is uploaded. See [language and spelling](../../docs/language-and-spelling.md) for limits and options.

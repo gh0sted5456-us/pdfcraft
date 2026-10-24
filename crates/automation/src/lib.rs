@@ -241,6 +241,23 @@ impl Automation {
             "text_extract" => self.text_extract(&a)?,
             "text_word_count" => self.text_word_count(&a)?,
             "text_find" => self.text_find(&a)?,
+            "spelling_languages" => json!({"installed": pdfcraft_engine::spelling::Checker::available_languages()}),
+            "text_spellcheck" => {
+                let language = a.opt_str("language")?.unwrap_or("en-US");
+                let checker = pdfcraft_engine::spelling::Checker::new(language).map_err(failed)?;
+                let text = a.str("text")?;
+                let suggestions = a.opt_bool("suggestions")?.unwrap_or(false);
+                let ranges = checker.check(text).map_err(failed)?;
+                let mut issues = Vec::new();
+                for range in ranges {
+                    let Some(word) = text.get(range.clone()) else { continue };
+                    // Suggestions are deliberately opt-in, and capped to avoid hundreds of OS calls.
+                    let fixes =
+                        if suggestions && issues.len() < 32 && word.len() <= 128 { checker.suggest(word).map_err(failed)? } else { Vec::new() };
+                    issues.push(json!({"start":range.start,"end":range.end,"word":word,"suggestions":fixes}));
+                }
+                json!({"language": pdfcraft_engine::spelling::locale(language).map_err(failed)?, "issues":issues, "limited": issues.len() == 256})
+            }
             "text_search_pages" => {
                 let id = self.doc(&a)?.id;
                 let pages = self.session.matching_pages(

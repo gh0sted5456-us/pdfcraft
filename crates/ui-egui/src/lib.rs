@@ -67,6 +67,7 @@ mod optimize_ui;
 mod page_transfer_ui;
 mod search_ui;
 mod sign_ui;
+mod spelling_ui;
 mod stamps_ui;
 mod standards_ui;
 mod timestamp_ui;
@@ -572,6 +573,7 @@ pub struct PdfCraftApp {
     pub motion: motion::Motion,
     /// Interface language preference: `auto` (follow the system) or a code from [`i18n::LANGUAGES`].
     pub language: String,
+    pub(crate) spelling: spelling_ui::Settings,
     /// Preferences ▸ Interface size as a factor, or `None` to follow [`Self::system_text_scale`].
     pub ui_scale: Option<f32>,
     /// The desktop's text scaling (GNOME's text scaling factor), which the desktop app reads at
@@ -1011,6 +1013,7 @@ impl PdfCraftApp {
             animation_effects: motion::AnimationEffects::default(),
             motion: motion::Motion::default(),
             language: i18n::AUTO.to_string(),
+            spelling: Default::default(),
             ui_scale: None,
             system_text_scale: 1.0,
             ui_scale_applied: None,
@@ -2456,6 +2459,7 @@ impl PdfCraftApp {
             "highlight_fields": self.view_defaults.highlight_fields,
             "units": self.units,
             "language": self.language,
+            "spelling": { "enabled": self.spelling.enabled, "language": self.spelling.language, "words": self.spelling.words },
             "reading_colors": self.reading_colors,
             // Null follows the system's text scaling.
             "ui_scale": self.ui_scale,
@@ -2602,6 +2606,23 @@ impl PdfCraftApp {
         }
         if let Some(language) = v["language"].as_str().and_then(i18n::normalize_pref) {
             self.language = language.to_string();
+        }
+        if let Some(enabled) = v["spelling"]["enabled"].as_bool() {
+            self.spelling.enabled = enabled;
+        }
+        if let Some(language) = v["spelling"]["language"].as_str() {
+            if language == "auto" {
+                self.spelling.language = "auto".into();
+            } else if let Ok(language) = pdfcraft_engine::spelling::locale(language) {
+                self.spelling.language = language;
+            }
+        }
+        if let Some(words) = v["spelling"]["words"].as_array() {
+            self.spelling.words = words
+                .iter()
+                .take(1000)
+                .filter_map(|w| w.as_str().filter(|s| !s.is_empty() && s.len() <= 128 && !s.contains('\0')).map(str::to_lowercase))
+                .collect();
         }
         if let Some(on) = v["flatten_fill_sign"].as_bool() {
             self.flatten_fill_sign_on_save = on;
@@ -2764,6 +2785,16 @@ impl PdfCraftApp {
             }
             ("date-format", _) => self.session.set_date_format(value)?,
             ("date-language", _) => self.session.set_date_language(Some(value).filter(|v| *v != "auto"))?,
+            ("spell-check", _) => {
+                self.spelling.enabled = match value {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err("spell-check must be true or false".into()),
+                }
+            }
+            ("spelling-language", _) => {
+                self.spelling.language = if value == "auto" { "auto".into() } else { pdfcraft_engine::spelling::locale(value)? }
+            }
             ("tool", _) => {
                 let g = pdfcraft_engine::catalog::group(value).ok_or_else(|| format!("unknown tool {value}"))?;
                 self.select_tool(g.id);
@@ -3448,6 +3479,7 @@ impl eframe::App for PdfCraftApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         i18n::set_current(i18n::Lang::from_pref(&self.language));
+        spelling_ui::begin_frame(&ctx, &mut self.spelling, i18n::Lang::from_pref(&self.language).code());
         // Fonts registered via set_fonts only take effect next frame; named families would panic now.
         if !self.fonts_ready {
             ctx.request_repaint();

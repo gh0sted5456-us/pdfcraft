@@ -550,6 +550,22 @@ fn ok(a: &mut Automation, tool: &str, args: Value) -> Value {
     }
 }
 
+#[cfg(windows)]
+#[test]
+fn spelling_tools_report_local_unicode_ranges_and_refuse_unavailable_languages() {
+    let mut a = Automation::new();
+    let available = ok(&mut a, "spelling_languages", json!({}));
+    assert!(available["installed"].as_array().unwrap().iter().any(|l| l == "en-US"));
+    let text = "café 😀 beleeve";
+    let result = ok(&mut a, "text_spellcheck", json!({"text":text,"language":"en_US","suggestions":true}));
+    let issue = result["issues"].as_array().unwrap().iter().find(|i| i["word"] == "beleeve").unwrap();
+    assert_eq!(text.get(issue["start"].as_u64().unwrap() as usize..issue["end"].as_u64().unwrap() as usize), Some("beleeve"));
+    assert!(!issue["suggestions"].as_array().unwrap().is_empty());
+    assert!(a.call("text_spellcheck", &json!({"text":"hello","language":"zz-ZZ"})).is_err());
+    assert!(a.call("text_spellcheck", &json!({"text":"a".repeat(16385)})).is_err());
+    assert!(a.call("text_spellcheck", &json!({"text":"hello","language":"../en-US"})).is_err());
+}
+
 fn err(a: &mut Automation, tool: &str, args: Value) -> ToolError {
     a.call(tool, &args).unwrap_err()
 }

@@ -279,6 +279,7 @@ pub(crate) const PREFERENCES_MIN_SCROLL: f32 = 60.0;
 /// area; [`preferences_buttons`] goes below it, outside the scroll, so OK is always in reach.
 pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
     ui.label(egui::RichText::new(tl!("Preferences")).font(theme::semibold(18.0)));
+    ui.label(egui::RichText::new(tl!("Language and spelling")).font(theme::semibold(13.0)));
     ui.horizontal(|ui| {
         ui.label(tl!("Interface language"));
         let selected = crate::i18n::Lang::from_code(&app.language).map_or(tl!("Auto"), crate::i18n::Lang::name);
@@ -298,6 +299,9 @@ pub(crate) fn preferences_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
             crate::i18n::set_current(crate::i18n::Lang::from_pref(&app.language));
         }
     });
+    crate::spelling_ui::preferences(ui, app);
+    ui.separator();
+    ui.label(egui::RichText::new(tl!("Interface and appearance")).font(theme::semibold(13.0)));
     ui.horizontal(|ui| {
         use crate::ui_scale;
         ui.label(tl!("Interface size"));

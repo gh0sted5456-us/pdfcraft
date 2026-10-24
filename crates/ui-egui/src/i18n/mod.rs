@@ -159,8 +159,9 @@ fn plural_sl(n: u64) -> usize {
 }
 
 /// The registry. English first: it is the fallback and the source language.
-pub static LANGUAGES: [LangInfo; 34] = [
-    LangInfo { code: "en", name: "English", source: "", plural: plural_one_other, rtl: false, catalog: OnceLock::new() },
+pub static LANGUAGES: [LangInfo; 35] = [
+    LangInfo { code: "en", name: "English (US)", source: "", plural: plural_one_other, rtl: false, catalog: OnceLock::new() },
+    LangInfo { code: "en-gb", name: "English (UK)", source: "", plural: plural_one_other, rtl: false, catalog: OnceLock::new() },
     LangInfo { code: "ja", name: "日本語", source: include_str!("ja.tsv"), plural: plural_none, rtl: false, catalog: OnceLock::new() },
     // Simplified Chinese; `zh`, `zh-CN`, `zh-SG` and `zh-Hans-*` locales resolve here (see `candidates`).
     LangInfo {
@@ -302,6 +303,9 @@ impl Lang {
 
     /// A language by its exact code.
     pub fn from_code(code: &str) -> Option<Lang> {
+        if code.eq_ignore_ascii_case("en-us") {
+            return Some(Self::EN);
+        }
         LANGUAGES.iter().find(|l| l.code.eq_ignore_ascii_case(code)).map(Lang)
     }
 
@@ -321,9 +325,9 @@ impl Lang {
     /// Čeština sits under C rather than after Z. Names in other scripts follow the Latin ones in
     /// code point order: Greek, Cyrillic, Arabic, then the CJK languages.
     pub fn for_picker() -> Vec<Lang> {
-        let mut rest: Vec<Lang> = Lang::all().filter(|l| l.code() != Lang::EN.code()).collect();
+        let mut rest: Vec<Lang> = Lang::all().filter(|l| !matches!(l.code(), "en" | "en-gb")).collect();
         rest.sort_by_cached_key(|l| name_sort_key(l.name()));
-        std::iter::once(Lang::EN).chain(rest).collect()
+        [Some(Lang::EN), Lang::from_code("en-gb")].into_iter().flatten().chain(rest).collect()
     }
 
     pub fn name(self) -> &'static str {
@@ -539,6 +543,19 @@ pub fn key_name(s: &str) -> &str {
 
 /// Translate an English UI string; unknown strings come back unchanged.
 pub fn tr(lang: Lang, s: &str) -> &str {
+    if lang.code() == "en-gb" {
+        return match s {
+            "Organize pages" => "Organise pages",
+            "Organize Pages" => "Organise Pages",
+            "Organize" => "Organise",
+            "Optimize PDF" => "Optimise PDF",
+            "Optimize" => "Optimise",
+            "Color" => "Colour",
+            "Colors" => "Colours",
+            "Center" => "Centre",
+            _ => s,
+        };
+    }
     lang.catalog().plain(s).unwrap_or(s)
 }
 
@@ -692,7 +709,7 @@ mod tests {
 
     #[test]
     fn keyboard_key_names_have_a_separate_context_and_english_fallback() {
-        for lang in Lang::all().filter(|l| *l != Lang::EN) {
+        for lang in Lang::all().filter(|l| !matches!(l.code(), "en" | "en-gb")) {
             for key in ["Ctrl", "Shift", "Delete", "Esc", "Home", "End", "Space"] {
                 assert!(lang.catalog().contextual("key", key).is_some(), "{}: {key}", lang.code());
             }
@@ -757,7 +774,7 @@ mod tests {
         assert_eq!(first_supported_tag(["it-IT", "en-US"]), Lang::from_code("it"));
         assert_eq!(first_supported_tag(["xx-YY", "ja", "fr-FR"]), Some(JA()));
         assert_eq!(first_supported_tag(["zh-TW"]), Lang::from_code("zh-hant"));
-        assert_eq!(first_supported_tag(["en-GB", "fr-FR"]), Some(Lang::EN));
+        assert_eq!(first_supported_tag(["en-GB", "fr-FR"]), Lang::from_code("en-gb"));
         assert_eq!(first_supported_tag([" pt-PT "]), Lang::from_code("pt-br"));
         assert_eq!(first_supported_tag(["", "xx"]), None);
         assert_eq!(first_supported_tag(Vec::<String>::new()), None);
@@ -4207,7 +4224,8 @@ mod picker_order_tests {
         let order = Lang::for_picker();
         assert_eq!(order.first().map(|l| l.code()), Some(Lang::EN.code()));
         assert_eq!(order.len(), Lang::all().count());
-        let keys: Vec<String> = order[1..].iter().map(|l| name_sort_key(l.name())).collect();
+        assert_eq!(order.get(1).map(|l| l.code()), Some("en-gb"));
+        let keys: Vec<String> = order[2..].iter().map(|l| name_sort_key(l.name())).collect();
         assert!(keys.windows(2).all(|w| w[0] <= w[1]), "{keys:?}");
         assert_eq!(name_sort_key("Čeština"), "cestina");
         assert_eq!(name_sort_key("Türkçe"), "turkce");

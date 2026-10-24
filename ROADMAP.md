@@ -1,5 +1,7 @@
 # PdfCraft roadmap
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 groups language/spelling controls, adds US/UK English interface choices and local spelling marks/suggestions in editable text, comments and eligible form fields, with independent installed-dictionary language and a persistent personal dictionary. No dictionary assets or external service added. Native Linux/macOS spelling runtime remains unverified; readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 adds search page extraction/page-number copying and tested transfers between open PDFs (copy by default, Shift to move, separate Undo per document). Adopts #4502 signature-overlay preference, #4475 clean drag previews and #4479 folder navigation. Signing explicitly uses the computer clock by default with server timestamps optional; modal document tooltips are suppressed. Native Linux/CAC runtime limits and readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Dialog actions share matte theme-aware styling, dimensions and explicit semantic colors; timestamp selection retains Sectigo by default and offers FreeTSA (manual trust) or Custom. Recovery now asks for the first save destination and caps metadata, adapted from #4327. Native Linux/CAC runtime limits unchanged.

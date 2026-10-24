@@ -608,17 +608,18 @@ pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, ad
             };
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
-                let resp = ui.add(
-                    egui::TextEdit::multiline(&mut t.text)
-                        .font(font)
-                        .desired_width(width)
-                        .desired_rows(1)
-                        .horizontal_align(halign)
-                        .background_color(if background_ready { Color32::TRANSPARENT } else { Color32::WHITE })
-                        .text_color(Color32::from_rgb(cr, cg, cb))
-                        .hint_text(tl!("Type text"))
-                        .id(editor_id(view.id)),
-                );
+                let mut out = egui::TextEdit::multiline(&mut t.text)
+                    .font(font)
+                    .desired_width(width)
+                    .desired_rows(1)
+                    .horizontal_align(halign)
+                    .background_color(if background_ready { Color32::TRANSPARENT } else { Color32::WHITE })
+                    .text_color(Color32::from_rgb(cr, cg, cb))
+                    .hint_text(tl!("Type text"))
+                    .id(editor_id(view.id))
+                    .show(ui);
+                crate::spelling_ui::annotate(ui, &mut out, &mut t.text, None);
+                let resp = out.response;
                 if t.focus {
                     resp.request_focus();
                     t.focus = false;
@@ -640,7 +641,7 @@ pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, ad
                 // Pressing a button takes the focus from the text: that is not a click away.
                 let on_buttons = ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| buttons.contains(p));
                 cancel |= ui.input(|i| i.key_pressed(egui::Key::Escape));
-                commit = done || resp.lost_focus() && !on_buttons && !view.objects.hold_editor;
+                commit = done || resp.lost_focus() && !resp.context_menu_opened() && !on_buttons && !view.objects.hold_editor;
             });
             // Page text is drawn with the standard fonts; anything else would be saved as `?` (#125).
             undrawable = self::undrawable(t, memo);
