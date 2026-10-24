@@ -1,5 +1,7 @@
 # PdfCraft roadmap
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** community icon hover says only ArtCraft Community; printer setup uses the Windows GUI subsystem, has no extra success popup, and checks shipped PE headers. Existing printer validation limits and estimates unchanged.
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** Windows desktop and printer setup launch without consoles in all builds; remove the extra printer completion message and validate packaged PE headers. Printer runtime limits and readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** experimental personal printer plugin for Windows and Linux CUPS 2.x; transparent theme-aware lion and document-only window titles. Linux cross-checks pass; native Linux runtime remains unverified. Estimates unchanged.
@@ -659,6 +661,7 @@ Newest first: the date, what moved, and the new overall estimate.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-23 | minor | M14: single ArtCraft Community hover; console-free printer setup and packaging header validation; readiness estimates unchanged. |
 | 2026-10-23 | minor | M14: console-free Windows app and printer setup; redundant completion popup removed; PE checks reject the prior console binaries. Estimates unchanged. |
 | 2026-10-23 | minor | M10 experimental XPS conversion core preserves supported text, vectors and pictures; native printer remains excluded from personal 0.13.1. Estimates unchanged. |
 | 2026-10-20 | minor | M4: initial-view window and interface options resolve indirect boolean ViewerPreferences values; synthetic true/false and save/reopen regressions retain defaults for malformed entries. Estimates unchanged. |

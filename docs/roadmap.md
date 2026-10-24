@@ -1,5 +1,7 @@
 # PdfCraft roadmap: milestones and what's next
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** community icon hover says only ArtCraft Community; printer setup uses the Windows GUI subsystem, has no extra success popup, and checks shipped PE headers. Existing printer validation limits and estimates unchanged.
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** Windows desktop and printer setup launch without consoles in all builds; remove the extra printer completion message and validate packaged PE headers. Printer runtime limits and readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** experimental personal Windows printer and Linux CUPS 2.x backend; Linux cross-target checks pass, native Linux queue testing remains pending. No readiness estimate change.
