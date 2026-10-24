@@ -86,7 +86,7 @@ fn removing_a_signature_and_saving_a_new_file_keeps_the_original() {
     assert!(effects.iter().any(|e| e.contains(&two) && e.contains("Signed after")), "{effects:?}");
     assert!(effects.iter().any(|e| e.contains("recovered")), "{effects:?}");
 
-    let r = ok(&mut a, "sign_clear", json!({ "doc": doc, "field": two }));
+    let r = ok(&mut a, "sign_clear", json!({ "doc": doc, "field": two, "id": "ada.p12", "password": "secret12" }));
     assert_eq!(r["signed"], true, "the first signature remains");
     assert_eq!(std::fs::read(dir.join("signed.pdf")).unwrap(), original, "nothing is written until saved");
     // A full rewrite would break the remaining signature: refused when asked for, and not what
@@ -114,8 +114,8 @@ fn removing_a_signature_and_saving_a_new_file_keeps_the_original() {
 fn the_last_signature_removed_saves_a_clean_copy() {
     let dir = workdir("clean");
     let (mut a, doc, one, two) = signed_twice(&dir, None);
-    ok(&mut a, "sign_clear", json!({ "doc": doc, "field": two }));
-    let r = ok(&mut a, "sign_clear", json!({ "doc": doc, "item": 0, "keep_field": true }));
+    ok(&mut a, "sign_clear", json!({ "doc": doc, "field": two, "id": "ada.p12", "password": "secret12" }));
+    let r = ok(&mut a, "sign_clear", json!({ "doc": doc, "item": 0, "keep_field": true, "id": "ada.p12", "password": "secret12" }));
     assert_eq!(r["signed"], false);
     let saved = ok(&mut a, "doc_save", json!({ "doc": doc, "path": "clean.pdf" }));
     assert_eq!(saved["incremental"], false);
@@ -140,7 +140,7 @@ fn a_certified_documents_other_signature_is_refused_with_the_reason() {
     assert_eq!((item(&one)["kind"].as_str(), item(&one)["certify"].as_u64()), (Some("certification"), Some(2)));
     assert_eq!(item(&two)["removable"], false);
     assert!(item(&two)["blocked"].as_str().unwrap().contains("certifies this document"));
-    match a.call("sign_clear", &json!({ "doc": doc, "field": two })) {
+    match a.call("sign_clear", &json!({ "doc": doc, "field": two, "id": "ada.p12", "password": "secret12" })) {
         Err(ToolError::Failed(m)) => assert!(m.contains("certifies"), "{m}"),
         other => panic!("{other:?}"),
     }
@@ -200,4 +200,62 @@ fn security_that_forbids_changes_is_said_in_the_listing() {
     assert_eq!(item["removable"], false, "{list}");
     assert!(item["blocked"].as_str().unwrap().contains("security"), "{list}");
     assert!(matches!(b.call("sign_clear", &json!({ "doc": form, "field": field })), Err(ToolError::Failed(m)) if m.contains("security")));
+}
+
+#[test]
+fn clearing_requires_the_matching_live_private_key_and_leaves_original_untouched_on_failure() {
+    let dir = workdir("proof");
+    let (mut a, doc, _, field) = signed_twice(&dir, None);
+    let original = std::fs::read(dir.join("signed.pdf")).unwrap();
+    ok(&mut a, "sign_id_create", json!({"name":"Another signer", "key":"p256", "password":"secret12", "path":"other.p12"}));
+    for args in [
+        json!({"doc":doc,"field":field}),
+        json!({"doc":doc,"field":field,"id":"ada.p12","password":"wrong"}),
+        json!({"doc":doc,"field":field,"id":"other.p12","password":"secret12"}),
+    ] {
+        assert!(a.call("sign_clear", &args).is_err());
+        assert_eq!(ok(&mut a, "sign_list", json!({"doc":doc}))["signed"], 2);
+        assert_eq!(ok(&mut a, "doc_info", json!({"doc":doc}))["document"]["dirty"], false);
+        assert_eq!(std::fs::read(dir.join("signed.pdf")).unwrap(), original);
+    }
+}
+
+#[test]
+fn signed_page_rules_follow_the_page_and_unsigning_unlocks_it() {
+    let dir = workdir("page-rules");
+    let mut a = auto(&dir);
+    ok(&mut a, "sign_id_create", json!({"name":"Ada","key":"p256","password":"secret12","path":"ada.p12"}));
+    let doc = ok(&mut a, "doc_open", json!({"path":"a.pdf"}))["doc"].as_u64().unwrap();
+    let field = ok(
+        &mut a,
+        "sign_document",
+        json!({"doc":doc,"id":"ada.p12","password":"secret12","page":1,"rect":[20,200,180,250],"protected_pages":[1],"out":"locked.pdf"}),
+    )["signature"]["field"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert!(a.call("page_rotate", &json!({"doc":doc,"pages":[1],"degrees":90})).is_err());
+    assert!(a.call("page_delete", &json!({"doc":doc,"pages":[1]})).is_err());
+    ok(&mut a, "page_rotate", json!({"doc":doc,"pages":[2],"degrees":90}));
+    ok(&mut a, "page_insert_blank", json!({"doc":doc,"at":1}));
+    assert!(a.call("page_rotate", &json!({"doc":doc,"pages":[2],"degrees":90})).is_err(), "lock follows the page after insertion");
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"reordered.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"reordered.pdf"}))["doc"].as_u64().unwrap();
+    assert!(a.call("page_rotate", &json!({"doc":reopened,"pages":[2],"degrees":90})).is_err());
+    ok(&mut a, "sign_clear", json!({"doc":reopened,"field":field,"id":"ada.p12","password":"secret12"}));
+    ok(&mut a, "page_rotate", json!({"doc":reopened,"pages":[2],"degrees":90}));
+}
+
+#[test]
+fn native_no_changes_certification_refuses_edits_but_can_be_removed_by_its_owner() {
+    let dir = workdir("no-changes");
+    let mut a = auto(&dir);
+    ok(&mut a, "sign_id_create", json!({"name":"Ada","key":"p256","password":"secret12","path":"ada.p12"}));
+    let doc = ok(&mut a, "doc_open", json!({"path":"a.pdf"}))["doc"].as_u64().unwrap();
+    let field=ok(&mut a,"sign_document",json!({"doc":doc,"id":"ada.p12","password":"secret12","certify":"no_changes","out":"certified.pdf"}))["signature"]["field"].as_str().unwrap().to_owned();
+    assert!(a.call("page_insert_blank", &json!({"doc":doc,"at":1})).is_err());
+    assert!(a.call("sign_document", &json!({"doc":doc,"id":"ada.p12","password":"secret12","out":"refused.pdf"})).is_err());
+    assert!(!dir.join("refused.pdf").exists());
+    ok(&mut a, "sign_clear", json!({"doc":doc,"field":field,"id":"ada.p12","password":"secret12"}));
+    ok(&mut a, "page_insert_blank", json!({"doc":doc,"at":1}));
 }

@@ -6070,11 +6070,11 @@ title = "Lock document or fields after signing"
 area = "H"
 tier = "P1"
 milestone = "M9"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["sign.digital", "sign.certify"]
+tools = ["sign_document", "sign_list"]
+evidence = ["crates/sign/tests/it/pdf.rs::signed_page_protection_survives_a_later_policy_rewrite_and_checks_resources", "crates/automation/tests/it/clear_signature.rs::signed_page_rules_follow_the_page_and_unsigning_unlocks_it", "crates/ui-egui/tests/it/signing.rs::signing_confirmation_selects_page_protection_and_preserves_it_after_signing"]
+notes = "Personal build: standard whole-document DocMDP choices plus explicitly PdfCraft-only signed page policies, verified from the signed revision. Engine checks reject protected page/resource edits and deletion; insertion can be allowed and locks follow object references. Other readers need not enforce page policies, and added pages are not covered by the earlier signature. Existing form FieldMDP lock behavior is separate. See docs/signature-protection.md."
 
 [[feature]]
 id = "sign.pkcs7-detached"
@@ -6409,8 +6409,8 @@ milestone = "M9"
 status = "partial"
 commands = ["sign.remove"]
 tools = ["sign_removable", "sign_clear"]
-evidence = ["crates/engine/tests/it/clear_signature.rs::removing_the_only_signature_removes_its_field_and_a_clean_copy_drops_it", "crates/engine/tests/it/clear_signature.rs::clearing_keeps_an_empty_field_that_can_be_signed_again", "crates/engine/tests/it/clear_signature.rs::a_certification_blocks_removing_other_signatures_and_ends_when_removed", "crates/engine/src/clear_signature.rs::a_document_timestamp_in_a_field_is_refused", "crates/automation/tests/it/clear_signature.rs::removing_a_signature_and_saving_a_new_file_keeps_the_original", "crates/ui-egui/tests/it/remove_signature.rs::the_panel_removes_a_signature_into_a_new_file_and_keeps_the_original", "crates/ui-egui/tests/it/remove_signature.rs::a_failed_save_undoes_the_removal_and_leaves_no_file", "crates/ui-egui/tests/it/remove_signature.rs::page_menu_clears_my_signature_with_a_matching_usable_identity_even_in_group_mode"]
-notes = "Adopts upstream PR #3760 removal engine, tools and review/Save As dialog. A single digital/certification or recognized Fill & Sign signature can be removed; effects on other signatures are explained, certification and field-lock blockers enforced, original destination refused, failed writes undone. Keep-field permits signing again. No signature remaining means a clean full copy; otherwise an incremental copy preserves prior revisions, where the removed signature remains recoverable. The page menu adds Clear my signature with an exact usable digital-ID fingerprint match after OS-store refresh, including Group mode and widget hit testing. A name alone is insufficient; providers determine physical card availability. Missing: clear-all, unsaved-signature clearing, document timestamp removal and structure-tree cleanup; new page labels are English."
+evidence = ["crates/engine/tests/it/clear_signature.rs::removing_the_only_signature_removes_its_field_and_a_clean_copy_drops_it", "crates/engine/tests/it/clear_signature.rs::clearing_keeps_an_empty_field_that_can_be_signed_again", "crates/engine/tests/it/clear_signature.rs::a_certification_blocks_removing_other_signatures_and_ends_when_removed", "crates/engine/src/clear_signature.rs::a_document_timestamp_in_a_field_is_refused", "crates/automation/tests/it/clear_signature.rs::removing_a_signature_and_saving_a_new_file_keeps_the_original", "crates/ui-egui/tests/it/remove_signature.rs::the_panel_removes_a_signature_into_a_new_file_and_keeps_the_original", "crates/ui-egui/tests/it/remove_signature.rs::a_failed_save_undoes_the_removal_and_leaves_no_file", "crates/ui-egui/tests/it/remove_signature.rs::page_menu_clears_my_signature_with_a_matching_usable_identity_even_in_group_mode", "crates/sign/src/ownership.rs::ownership_needs_the_exact_certificate_and_a_fresh_live_private_key_operation", "crates/automation/tests/it/clear_signature.rs::clearing_requires_the_matching_live_private_key_and_leaves_original_untouched_on_failure"]
+notes = "Adopts upstream PR #3760 removal engine, tools and review/Save As dialog. A single digital/certification or recognized Fill & Sign signature can be removed; effects on other signatures are explained, certification and field-lock blockers enforced, original destination refused, failed writes undone. Keep-field permits signing again. No signature remaining means a clean full copy; otherwise an incremental copy preserves prior revisions, where the removed signature remains recoverable. The page menu adds Clear my signature with an exact usable digital-ID fingerprint match after OS-store refresh, including Group mode and widget hit testing. A name alone is insufficient; removal now proves fresh private-key access before applying the edit. Missing: clear-all, unsaved-signature clearing, document timestamp removal and structure-tree cleanup; new protection labels are English. See docs/signature-protection.md."
 
 [[feature]]
 id = "sign.seed-values"

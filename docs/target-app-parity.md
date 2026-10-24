@@ -1,5 +1,7 @@
 # PdfCraft parity with Adobe Acrobat Pro
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal M9 signing adds fresh private-key proof for signature removal, authoritative signature hit targets, native certification edit guards and explicitly PdfCraft-only signed page protection with organizer lock indicators. Policies follow pages and come from the verified signed revision. Physical CAC and other-reader page enforcement remain unverified; readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 groups language/spelling controls, adds US/UK English interface choices and local spelling marks/suggestions in editable text, comments and eligible form fields, with independent installed-dictionary language and a persistent personal dictionary. No dictionary assets or external service added. Native Linux/macOS spelling runtime remains unverified; readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 adds search page extraction/page-number copying and tested transfers between open PDFs (copy by default, Shift to move, separate Undo per document). Adopts #4502 signature-overlay preference, #4475 clean drag previews and #4479 folder navigation. Signing explicitly uses the computer clock by default with server timestamps optional; modal document tooltips are suppressed. Native Linux/CAC runtime limits and readiness estimates unchanged.

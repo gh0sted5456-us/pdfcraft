@@ -83,7 +83,7 @@ mod object_ui;
 pub use create_ui::Clip;
 pub use link_ui::LinkDraft;
 pub use optimize_ui::{OptimizeDraft, OptimizeTab};
-pub use sign_ui::{DigitalIdEntry, SignDraft, SignGraphic, SignStep};
+pub use sign_ui::{DigitalIdEntry, SignDraft, SignGraphic, SignProtection, SignStep};
 mod autoscroll;
 mod bidi;
 pub mod bulk_fields;

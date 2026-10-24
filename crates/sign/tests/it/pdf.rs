@@ -2635,3 +2635,49 @@ fn a_timestamp_from_a_certificate_not_issued_for_time_stamping_is_not_trusted_ti
     assert_eq!(s.timestamp_time, None, "{:?}", s.details);
     assert!(s.details.iter().any(|d| d.message.contains("not issued for time stamping")), "{:?}", s.details);
 }
+
+#[test]
+fn signed_page_protection_survives_a_later_policy_rewrite_and_checks_resources() {
+    let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
+    let bytes = pdfcraft_sign::sign(&open(&fixture()), &id, &SignOptions { protected_pages: vec![0], allow_insert: true, ..opts() }).unwrap();
+    let doc = open(&bytes);
+    let sig = signatures(&doc, &bytes, &TrustStore::default()).into_iter().find(|s| s.signed).unwrap();
+    assert!(sig.integrity_valid);
+    let policy = sig.protection.unwrap();
+    let rules = vec![policy.clone()];
+    assert!(pdfcraft_sign::protection::check(&doc, &doc, &rules).is_ok());
+    let page = policy.pages[0];
+    let mut changed = doc.clone();
+    changed.update_dict(page, |d| d.set(b"Rotate".to_vec(), Object::Int(90))).unwrap();
+    assert!(pdfcraft_sign::protection::check(&doc, &changed, &rules).is_err());
+    let mut font = doc.clone();
+    font.update_dict(pdfcraft_cos::ObjRef::new(5, 0), |d| d.set(b"BaseFont".to_vec(), Object::name("Courier"))).unwrap();
+    assert!(pdfcraft_sign::protection::check(&doc, &font, &rules).is_err());
+    let mut inserted = doc.clone();
+    let mut new_page = doc.get(page).as_dict().unwrap().clone();
+    new_page.remove(b"Annots");
+    let added = inserted.add(Object::Dict(new_page));
+    inserted
+        .update_dict(pdfcraft_cos::ObjRef::new(2, 0), |d| {
+            d.set(b"Kids".to_vec(), Object::Array(vec![Object::Ref(page), Object::Ref(added)]));
+            d.set(b"Count".to_vec(), Object::Int(2));
+        })
+        .unwrap();
+    assert!(pdfcraft_sign::protection::check(&doc, &inserted, &rules).is_ok());
+    let mut cannot_insert = policy.clone();
+    cannot_insert.allow_insert = false;
+    assert!(pdfcraft_sign::protection::check(&doc, &inserted, &[cannot_insert]).is_err());
+    // A later revision can redefine /V while leaving the old CMS intact. Its rules are not authoritative.
+    let sig_ref = doc.scan_objects().find_map(|(r, o)| o.as_dict().filter(|d| d.contains(b"PdfCraftProtection")).map(|_| r)).unwrap();
+    let mut tampered = doc.clone();
+    tampered
+        .update_dict(sig_ref, |d| {
+            d.remove(b"PdfCraftProtection");
+        })
+        .unwrap();
+    let changed_bytes = write_incremental(&tampered, &SaveOptions::default()).unwrap();
+    let reopened = open(&changed_bytes);
+    let still = signatures(&reopened, &changed_bytes, &TrustStore::default()).into_iter().find(|s| s.signed).unwrap();
+    assert!(still.integrity_valid);
+    assert_eq!(still.protection, Some(policy));
+}

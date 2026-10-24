@@ -31,6 +31,7 @@ fn signed(dir: &std::path::Path) -> Harness<'static, PdfCraftApp> {
     let save = dir.join("signed.pdf").to_string_lossy().into_owned();
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(move |_cc| {
         let mut app = PdfCraftApp::new();
+        app.os_key_store_ids = false;
         app.set_option("language", "en").unwrap();
         app.open_bytes("contract.pdf", None, FIXTURE.to_vec()).expect("opens");
         app.set_option("left", "closed").unwrap();
@@ -61,6 +62,7 @@ fn open_dialog_from_the_panel(h: &mut Harness<'static, PdfCraftApp>) {
     h.get_by_label("Remove signature…").click();
     h.run_steps(3);
     assert_eq!(h.state().dialog, Some(pdfcraft_ui_egui::Dialog::RemoveSignature));
+    h.state_mut().remove_sig.as_mut().unwrap().password = "test".into();
 }
 
 fn toast(h: &Harness<'static, PdfCraftApp>) -> String {
@@ -85,7 +87,7 @@ fn page_menu_clears_my_signature_with_a_matching_usable_identity_even_in_group_m
             h.event(egui::Event::PointerButton { pos: at, button: egui::PointerButton::Secondary, pressed, modifiers: Default::default() });
         }
         h.run_steps(2);
-        h.get_by_label("Clear my signature…").click();
+        h.get_by_label("Remove signature…").click();
         h.run_steps(3);
     };
     // The same display name is insufficient, and an unusable identity is insufficient.
@@ -101,6 +103,7 @@ fn page_menu_clears_my_signature_with_a_matching_usable_identity_even_in_group_m
     h.state_mut().digital_ids[0].unusable = None;
     page_menu(&mut h);
     assert_eq!(h.state().dialog, Some(pdfcraft_ui_egui::Dialog::RemoveSignature));
+    h.state_mut().remove_sig.as_mut().unwrap().password = "test".into();
     let dest = dir.join("page-menu-unsigned.pdf");
     h.state_mut().save_override = Some(dest.to_string_lossy().into_owned());
     h.get_by_label("Remove and Save As…").click();
@@ -178,6 +181,7 @@ fn a_failed_save_undoes_the_removal_and_leaves_no_file() {
 fn a_document_without_signatures_says_so_and_explains_page_content() {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
+        app.os_key_store_ids = false;
         app.set_option("language", "en").unwrap();
         app.open_bytes("plain.pdf", None, FIXTURE.to_vec()).expect("opens");
         app
@@ -210,6 +214,7 @@ fn a_failed_save_undoes_the_removal_even_after_flattening_marks() {
     h.state_mut().start_remove_signature(None);
     h.run_steps(2);
     assert!(h.state().remove_sig.as_ref().unwrap().items[0].field.is_some());
+    h.state_mut().remove_sig.as_mut().unwrap().password = "test".into();
     let dest = dir.join("missing-folder").join("out.pdf");
     h.state_mut().save_override = Some(dest.to_string_lossy().into_owned());
     h.get_by_label("Remove and Save As…").click();
@@ -242,4 +247,22 @@ fn a_blocked_signature_asked_for_from_the_panel_asks_for_another() {
     h.get_by_label("Cancel").click();
     h.run_steps(2);
     assert!(h.state().dialog.is_none() && h.state().remove_sig.is_none());
+}
+
+#[test]
+fn removal_with_a_wrong_password_preserves_the_signed_document() {
+    let dir = dir();
+    let mut h = signed(&dir);
+    let original = std::fs::read(dir.join("signed.pdf")).unwrap();
+    open_dialog_from_the_panel(&mut h);
+    h.state_mut().remove_sig.as_mut().unwrap().password = "wrong".into();
+    let dest = dir.join("refused.pdf");
+    h.state_mut().save_override = Some(dest.to_string_lossy().into_owned());
+    h.get_by_label("Remove and Save As…").click();
+    h.run_steps(4);
+    assert!(!dest.exists());
+    assert!(toast(&h).contains("not removed"), "{}", toast(&h));
+    let doc = h.state().session.get(h.state().views[0].id).unwrap();
+    assert!(doc.is_signed() && !doc.dirty);
+    assert_eq!(std::fs::read(dir.join("signed.pdf")).unwrap(), original);
 }

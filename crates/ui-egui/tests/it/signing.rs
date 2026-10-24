@@ -281,7 +281,7 @@ fn certifying_without_a_visible_signature() {
     h.get_by_label("Continue").click();
     h.run_steps(2);
     h.get_by_label("Certify as \"Test Signer EC\"");
-    h.get_by_label("Permitted actions after certifying");
+    h.get_by_label("After signing");
     h.state_mut().sign_draft.as_mut().unwrap().password = "test".into();
     h.get_by_label("Sign").click();
     h.run_steps(6);
@@ -775,4 +775,44 @@ fn the_validation_marks_over_signatures_can_be_turned_off() {
         h.run_steps(8);
         h.render().unwrap().save(format!("{dir}/signature-overlay-preference.png")).unwrap();
     }
+}
+
+#[test]
+fn signing_confirmation_selects_page_protection_and_preserves_it_after_signing() {
+    use pdfcraft_ui_egui::SignProtection;
+    let dir = dir();
+    let mut h = harness(dir.clone());
+    h.state_mut().os_key_store_ids = false;
+    let p12 = concat!(env!("CARGO_MANIFEST_DIR"), "/../sign/tests/data/ec-p256.p12");
+    let id = pdfcraft_engine::sign::pkcs12::open(&std::fs::read(p12).unwrap(), "test").unwrap();
+    let index = h.state_mut().add_digital_id(p12, &id.certificate);
+    h.state_mut().start_signing(0, Some([20., 20., 180., 60.]), None, None);
+    {
+        let d = h.state_mut().sign_draft.as_mut().unwrap();
+        d.selected = Some(index);
+        d.step = SignStep::SignAs;
+        d.password = "test".into();
+    }
+    h.run_steps(6);
+    h.get_by_role_and_label(egui::accesskit::Role::ComboBox, "After signing").click();
+    h.run_steps(6);
+    h.get_by_label("Protect selected pages (PdfCraft)").scroll_to_me();
+    h.run_steps(4);
+    h.get_by_label("Protect selected pages (PdfCraft)").click();
+    h.run_steps(4);
+    let page = h.get_by_label("Page 1").rect();
+    let reason = h.get_by_role_and_label(egui::accesskit::Role::TextInput, "Reason").rect();
+    assert!(page.bottom() <= reason.top(), "protected pages overlap the next input: {page:?} vs {reason:?}");
+    assert_eq!(h.state().sign_draft.as_ref().unwrap().protection, SignProtection::SelectedPages);
+    if let Ok(dir) = std::env::var("PDFCRAFT_SIGNATURE_SHOTS") {
+        let _gpu = crate::gpu();
+        h.render().unwrap().save(format!("{dir}/signing-page-protection.png")).unwrap();
+    }
+    h.get_by_label("Sign").click();
+    h.run_steps(6);
+    let doc = h.state().session.get(h.state().views[0].id).unwrap();
+    assert!(doc.is_signed());
+    assert_eq!(doc.protected_pages(), vec![0]);
+    let doc_id = doc.id;
+    assert!(h.state_mut().session.apply(doc_id, pdfcraft_engine::Edit::RotatePages { pages: vec![0], degrees: 90 }).is_err());
 }

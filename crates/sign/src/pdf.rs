@@ -446,6 +446,10 @@ pub struct SignatureInfo {
     pub doc_timestamp: bool,
     /// DocMDP permissions when this is a certification signature (1–3).
     pub certify: Option<u8>,
+    /// PdfCraft-specific page locks from the cryptographically verified signed revision.
+    pub protection: Option<crate::protection::PageProtection>,
+    /// Signature bytes verified; independent of certificate trust and subsequent changes.
+    pub integrity_valid: bool,
     /// 1-based revision the signature covers.
     pub revision: usize,
     /// Length of the signed revision (bytes) — "View signed version".
@@ -612,6 +616,8 @@ pub fn list_cached(doc: &Document, bytes: &[u8], trust: &TrustStore, cache: &Dig
             sub_filter: None,
             doc_timestamp: false,
             certify: None,
+            protection: None,
+            integrity_valid: false,
             revision: 0,
             signed_len: 0,
             digest: None,
@@ -655,6 +661,8 @@ pub fn list_cached(doc: &Document, bytes: &[u8], trust: &TrustStore, cache: &Dig
             sub_filter: Some("ETSI.RFC3161".to_string()),
             doc_timestamp: true,
             certify: None,
+            protection: None,
+            integrity_valid: false,
             revision: 0,
             signed_len: 0,
             digest: None,
@@ -880,6 +888,17 @@ fn finish_validation(
     cms_time: Option<Time>,
     unverified_time: Option<Time>,
 ) {
+    info.integrity_valid = true;
+    // Always read restrictions from the signed bytes, never a later rewritten signature dictionary.
+    if let Some(old) = cache.revision(doc, bytes, covered)
+        && let Some(v) = sig_fields(&old)
+            .iter()
+            .filter_map(|f| f.signature(&old))
+            .find(|v| nums(&old, v, b"ByteRange").is_some_and(|b| b.len() == 4 && b[2] + b[3] == covered as f64))
+    {
+        info.protection = crate::protection::read(&v);
+        info.certify = docmdp(&old, &v);
+    }
     info.signing_time = cms_time.or_else(|| info.date.as_deref().and_then(Time::from_pdf));
     let mut pool = embedded.to_vec();
     pool.extend(trust.certs.iter().cloned());
@@ -1913,6 +1932,9 @@ pub struct SignOptions {
     pub date: String,
     /// Certify with these DocMDP permissions (1 no changes, 2 form fill and signing, 3 also comments).
     pub certify: Option<u8>,
+    /// PdfCraft-only locks, 0-based pages; unlike DocMDP these are not enforced by other readers.
+    pub protected_pages: Vec<usize>,
+    pub allow_insert: bool,
     pub appearance: Appearance,
     /// The words of the labels the visible signature shows.
     pub appearance_labels: AppearanceLabels,
@@ -1993,6 +2015,12 @@ fn sign_inner(
         return Err(SignError::Pdf("save the document's new security settings before signing it".into()));
     }
     check_signing_permissions(doc, opts)?;
+    let before = doc;
+    let existing = list(doc, doc.bytes(), &TrustStore::default());
+    if existing.iter().any(|s| s.integrity_valid && s.certify == Some(1)) {
+        return Err(SignError::Pdf("The certification permits no further signatures; remove it first".into()));
+    }
+    let page_rules: Vec<_> = existing.iter().filter_map(|s| s.protection.clone()).collect();
     let mut doc = doc.clone();
     let root = doc.root().ok_or_else(|| SignError::Pdf("the document has no catalog".into()))?;
     let alg = id.key.preferred_digest();
@@ -2028,6 +2056,9 @@ fn sign_inner(
         sr.set(b"TransformMethod".to_vec(), Object::name("DocMDP"));
         sr.set(b"TransformParams".to_vec(), Object::Dict(tp));
         v.set(b"Reference".to_vec(), Object::Array(vec![Object::Dict(sr)]));
+    }
+    if let Some(policy) = crate::protection::write(&doc, &opts.protected_pages, opts.allow_insert)? {
+        v.set(b"PdfCraftProtection".to_vec(), policy);
     }
     let sig = doc.add(Object::Dict(v.clone()));
     if opts.certify.is_some() {
@@ -2129,6 +2160,7 @@ fn sign_inner(
     let mut apd = Dict::new();
     apd.set(b"N".to_vec(), Object::Ref(ap_ref));
     doc.update_dict(widget, |w| w.set(b"AP".to_vec(), Object::Dict(apd)))?;
+    crate::protection::check(before, &doc, &page_rules)?;
     // Write with the placeholders, then patch them.
     let save = SaveOptions { mod_date: Some(opts.date.clone()), object_streams: false, ..SaveOptions::default() };
     let mut out = pdfcraft_cos::write_incremental(&doc, &save)?;

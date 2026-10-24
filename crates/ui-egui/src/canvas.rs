@@ -358,6 +358,21 @@ pub(crate) fn signature_badges(signatures: &[pdfcraft_engine::SignatureInfo], pa
         .collect()
 }
 
+/// The validated signature appearance is also a hit target when the form cache has no row.
+fn signature_field_at(signatures: &[pdfcraft_engine::SignatureInfo], page: usize, hit: impl Fn([f64; 4]) -> bool) -> Option<String> {
+    signatures
+        .iter()
+        .rev()
+        .find(|s| {
+            s.signed
+                && !s.doc_timestamp
+                && s.visible
+                && s.page == Some(page)
+                && s.rect.is_some_and(|r| r.iter().all(|n| n.is_finite() && n.abs() < f32::MAX as f64) && hit(r))
+        })
+        .map(|s| s.field.clone())
+}
+
 /// The name shown for a document tab, the window title and the Combine picker.
 /// A snapshot reads like its source document, plus the snapshot suffix that tells
 /// the tabs apart. Without a title the file name (which already carries the suffix)
@@ -2702,7 +2717,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     if view.organize {
         // One remembered grid size for every document, kept in the settings.
         view.set_grid_zoom(organize_zoom);
-        organize_grid(view, info, doc.allows_assembly(), doc.dirty, unobstructed, ui, &t);
+        organize_grid(view, doc, unobstructed, ui, &t);
         app.organize_zoom = view.grid_zoom();
         return;
     }
@@ -3967,6 +3982,11 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
                     if !xf.rect.contains(at) || info.pages.get(*page).is_none() {
                         return None;
                     }
+                    if let Some(field) =
+                        signature_field_at(&doc.signatures, *page, |rect| xf.user_rect(info, *page, rect.map(|n| n as f32)).contains(at))
+                    {
+                        return Some(field);
+                    }
                     form.iter()
                         .rev()
                         .find(|field| {
@@ -3984,7 +4004,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         }
         resp.context_menu(|ui| {
             if let Some(field) = view.sign.context.clone() {
-                if ui.button("Clear my signature…").clicked() {
+                if ui.button(tl!("Remove signature…")).clicked() {
                     view.sign.clear = Some(field);
                     ui.close();
                 }
@@ -5403,7 +5423,11 @@ fn gap_button(ui: &mut egui::Ui, gap: usize, at: Pos2, height: f32, label: Strin
     resp.on_hover_text(label).clicked()
 }
 
-fn organize_grid(view: &mut DocView, info: &DocInfo, editable: bool, dirty: bool, unobstructed: bool, ui: &mut egui::Ui, t: &Tokens) {
+fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstructed: bool, ui: &mut egui::Ui, t: &Tokens) {
+    let info = &doc.info;
+    let editable = doc.allows_assembly() && doc.certification().is_none();
+    let dirty = doc.dirty;
+    let protected = doc.protected_pages();
     let ppp = ui.ctx().pixels_per_point();
     // The page image scales with the zoom; the padding and the page number don't.
     let cell = vec2(146.0 * view.grid_zoom + 44.0, 194.0 * view.grid_zoom + 88.0);
@@ -5525,6 +5549,12 @@ fn organize_grid(view: &mut DocView, info: &DocInfo, editable: bool, dirty: bool
                     ui.painter().image(tex.id(), pr, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
                 }
                 ui.painter().rect_stroke(pr, CornerRadius::ZERO, Stroke::new(1.0, t.border), egui::StrokeKind::Outside);
+                if protected.contains(&i) || doc.certification().is_some() {
+                    let lock = Rect::from_min_size(pr.right_top() + vec2(-23.0, 6.0), Vec2::splat(17.0));
+                    ui.painter().rect_filled(lock.expand(3.0), 3.0, t.chrome);
+                    icons::paint(ui, lock, "lock", 15.0, t.text_muted);
+                    ui.interact(lock, ui.id().with(("page-lock", i)), Sense::hover()).on_hover_text("Protected by a digital signature");
+                }
                 let label_font = theme::medium(12.0);
                 let label_w = (c.width() - 12.0).max(0.0);
                 let page_label = crate::widgets::fit_line(&p.label, label_w, |s| crate::widgets::text_width(ui, s, &label_font));
@@ -5885,6 +5915,8 @@ mod tests {
             sub_filter: None,
             doc_timestamp: false,
             certify: None,
+            protection: None,
+            integrity_valid: false,
             revision: 1,
             signed_len: 0,
             digest: None,
@@ -5905,6 +5937,19 @@ mod tests {
         let badges = signature_badges(&signatures, 0);
         assert_eq!(badges.len(), 2);
         assert_eq!(badges[0].rect, rect);
+    }
+
+    #[test]
+    fn signature_hit_target_does_not_require_a_form_cache_row() {
+        let mut s = signature(true, true, Some(0), Some([10.0, 10.0, 100.0, 50.0]));
+        let hit = |r: [f64; 4]| r[0] <= 20.0 && r[2] >= 20.0 && r[1] <= 20.0 && r[3] >= 20.0;
+        assert_eq!(signature_field_at(&[s.clone()], 0, hit).as_deref(), Some("Signature1"));
+        assert!(signature_field_at(&[s.clone()], 1, hit).is_none());
+        s.doc_timestamp = true;
+        assert!(signature_field_at(&[s.clone()], 0, hit).is_none());
+        s.doc_timestamp = false;
+        s.rect = Some([f64::NAN, 0.0, 50.0, 50.0]);
+        assert!(signature_field_at(&[s], 0, hit).is_none());
     }
 
     #[test]

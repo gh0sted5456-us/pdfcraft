@@ -44,8 +44,9 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let Some((index, id)) = app.active_ids() else { return };
     let Some(doc) = app.session.get(id) else { return };
     let info = &doc.info;
-    let editable = doc.allows_assembly();
+    let editable = doc.allows_assembly() && doc.certification().is_none();
     let n = info.pages.len();
+    let protected = doc.protected_pages();
     let sources: Vec<_> = app
         .views
         .iter()
@@ -76,6 +77,13 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
     ui.separator();
 
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        if !protected.is_empty() {
+            ui.horizontal_wrapped(|ui| {
+                ui.add(icons::image("lock", 16.0, t.text_muted));
+                ui.label(format!("{} protected page(s). Edits affecting them are blocked until their signature is removed.", protected.len()));
+            });
+            ui.separator();
+        }
         widgets::section_title(ui, tl!("Pages selected"));
         let current = view.current;
         let picked = view.organize_range.show(ui, &view.selected, n, current, |ui| {

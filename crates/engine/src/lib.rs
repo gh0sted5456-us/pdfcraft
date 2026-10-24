@@ -779,6 +779,22 @@ impl Document {
         self.editor.is_some()
     }
 
+    /// Strictest verified certification in the document, independent of signer trust.
+    pub fn certification(&self) -> Option<u8> {
+        self.signatures.iter().filter(|s| s.integrity_valid).filter_map(|s| s.certify).min()
+    }
+
+    /// Current 0-based pages protected by a signed PdfCraft policy.
+    pub fn protected_pages(&self) -> Vec<usize> {
+        let Some(editor) = &self.editor else { return Vec::new() };
+        let Ok(pages) = pdfcraft_annot::page_refs(&editor.cos) else { return Vec::new() };
+        pages
+            .iter()
+            .enumerate()
+            .filter_map(|(i, page)| self.signatures.iter().filter_map(|s| s.protection.as_ref()).any(|p| p.pages.contains(page)).then_some(i))
+            .collect()
+    }
+
     /// What the opening password allows; `None` when the document is not encrypted.
     pub fn permissions(&self) -> Option<pdfcraft_cos::Permissions> {
         self.editor.as_ref().and_then(|e| e.cos.permissions())
@@ -861,17 +877,17 @@ impl Document {
 
     /// Changes to content and document information are allowed.
     pub fn allows_modification(&self) -> bool {
-        self.editable() && self.permissions().is_none_or(|p| p.modify())
+        self.editable() && self.certification().is_none() && self.permissions().is_none_or(|p| p.modify())
     }
 
     /// Filling in form fields is allowed (Table 22, bits 6 and 9).
     pub fn allows_form_filling(&self) -> bool {
-        self.editable() && self.permissions().is_none_or(|p| p.fill_forms())
+        self.editable() && self.certification() != Some(1) && self.permissions().is_none_or(|p| p.fill_forms())
     }
 
     /// Adding and changing comments is allowed (Table 22, bit 6).
     pub fn allows_annotation(&self) -> bool {
-        self.editable() && self.permissions().is_none_or(|p| p.annotate())
+        self.editable() && self.certification().is_none_or(|p| p == 3) && self.permissions().is_none_or(|p| p.annotate())
     }
 
     /// The document's security may be changed (Protect, Remove security): it is editable and,
@@ -2333,6 +2349,24 @@ fn unrestricted(p: &pdfcraft_cos::Permissions) -> bool {
 }
 
 /// Whether the opening password allows an edit (§7.6.4.2, Table 22).
+fn check_certified_edit(edit: &Edit, permission: Option<u8>) -> Result<(), EditError> {
+    let Some(p) = permission else { return Ok(()) };
+    if let Edit::Batch { edits, .. } = edit {
+        for e in edits {
+            check_certified_edit(e, permission)?;
+        }
+        return Ok(());
+    }
+    let allowed = matches!(edit, Edit::ClearSignature { .. })
+        || (p >= 2 && matches!(scope_of(edit), Scope::Form))
+        || (p == 3 && matches!(scope_of(edit), Scope::Comments));
+    if allowed {
+        Ok(())
+    } else {
+        Err(EditError::Invalid("The document's certification does not permit this edit; remove the signature first".into()))
+    }
+}
+
 fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), EditError> {
     match edit {
         Edit::RotatePages { .. }
@@ -3913,6 +3947,8 @@ impl Session {
         cx.today = today;
         let reason = doc.read_only_reason.clone().unwrap_or_default();
         let signed = doc.is_signed();
+        check_certified_edit(&edit, doc.certification())?;
+        let page_rules: Vec<_> = doc.signatures.iter().filter_map(|s| s.protection.clone()).collect();
         let editor = doc.editor.as_mut().ok_or(EditError::ReadOnly(reason))?;
         if let Some(p) = editor.cos.permissions() {
             check_permission(&edit, &p)?;
@@ -4052,6 +4088,9 @@ impl Session {
         } else {
             Vec::new()
         };
+        if !matches!(&edit, Edit::ClearSignature { .. }) {
+            pdfcraft_sign::protection::check(&editor.cos, &next, &page_rules)?;
+        }
         let previous = std::mem::replace(&mut editor.cos, next);
         let keys = keys_after(&edit).unwrap_or_else(|| editor.keys.clone());
         let previous_keys = std::mem::replace(&mut editor.keys, keys);
@@ -5242,7 +5281,7 @@ impl Session {
                     Some("its security doesn't allow changing comments".into())
                 }
                 (None, clear_signature::Target::Annotation { .. }) => None,
-                (None, _) if !doc.allows_modification() => Some("its security doesn't allow changing it".into()),
+                (None, _) if doc.permissions().is_some_and(|p| !p.modify()) => Some("its security doesn't allow changing it".into()),
                 (None, _) => None,
             };
             r.blocked = why.map(clear_signature::Blocker::ReadOnly);

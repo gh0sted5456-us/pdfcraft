@@ -116,6 +116,9 @@ impl Automation {
             "location": s.location,
             "contact": s.contact,
             "certify": s.certify,
+            "integrity_valid": s.integrity_valid,
+            "protected_pages": s.protection.as_ref().map(|p| p.pages.iter().map(|r| json!([r.num,r.generation])).collect::<Vec<_>>()),
+            "allow_insert": s.protection.as_ref().map(|p| p.allow_insert),
             "page": s.page.map(|p| p + 1),
             "rect": rect,
             "visible": s.visible,
@@ -234,6 +237,21 @@ impl Automation {
             Some(g) if rect.is_none() && field.is_none() => return Err(bad(format!("graphic {g} needs a visible signature: pass rect or field"))),
             Some(g) => Some(self.signature_graphic(g)?),
         };
+        let protected_pages = match a.get("protected_pages") {
+            None | Some(Value::Null) => Vec::new(),
+            Some(Value::Array(pages)) if pages.len() <= 10000 => pages
+                .iter()
+                .map(|v| {
+                    v.as_u64()
+                        .and_then(|n| usize::try_from(n).ok())
+                        .filter(|n| *n > 0 && *n <= doc.info.pages.len())
+                        .map(|n| n - 1)
+                        .ok_or_else(|| bad("protected_pages must contain existing 1-based page numbers"))
+                })
+                .collect::<Result<Vec<_>>>()?,
+            _ => return Err(bad("protected_pages must be an array of at most 10000 pages")),
+        };
+        let allow_insert = a.opt_bool("allow_insert")?.unwrap_or(true);
         let visible = rect.is_some() || field.is_some();
         let appearance = match a.get("appearance") {
             None | Some(Value::Null) => sign::Appearance::default(),
@@ -266,6 +284,8 @@ impl Automation {
             location: a.opt_str("location")?.map(str::to_string),
             contact: a.opt_str("contact")?.map(str::to_string),
             certify,
+            protected_pages,
+            allow_insert,
             appearance,
             appearance_labels,
             graphic,
@@ -434,6 +454,21 @@ impl Automation {
         };
         if let Some(b) = &chosen.blocked {
             return Err(failed(said(b.wording())));
+        }
+        if let Target::Field(field) = &chosen.target {
+            let certificate = self
+                .doc(a)?
+                .signatures
+                .iter()
+                .find(|s| s.signed && s.field == *field)
+                .and_then(|s| s.certificate.as_ref())
+                .ok_or_else(|| failed("The signature has no readable signing certificate"))?
+                .clone();
+            let identity = self.open_id(a)?;
+            let document = self.doc(a)?;
+            let mut binding = sign::keys::DigestAlg::Sha256.digest(&[&document.bytes]);
+            binding.extend_from_slice(field.as_bytes());
+            sign::ownership::prove(&identity, &certificate, &binding).map_err(failed)?;
         }
         let keep_field = a.opt_bool("keep_field")?.unwrap_or(false);
         let edit = match (&chosen.target, &chosen.kind) {
