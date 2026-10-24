@@ -13,6 +13,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod actions;
+pub mod assistant;
 pub mod autotag;
 pub mod build_info;
 pub mod camera;
@@ -785,13 +786,25 @@ impl Document {
     }
 
     /// Current 0-based pages protected by a signed PdfCraft policy.
+    pub fn signed_protected_pages(&self) -> Vec<usize> {
+        self.page_locks(false)
+    }
+
+    /// Current 0-based pages with either unsigned or signed protection.
     pub fn protected_pages(&self) -> Vec<usize> {
+        self.page_locks(true)
+    }
+
+    fn page_locks(&self, include_local: bool) -> Vec<usize> {
         let Some(editor) = &self.editor else { return Vec::new() };
         let Ok(pages) = pdfcraft_annot::page_refs(&editor.cos) else { return Vec::new() };
+        let local = if include_local { pdfcraft_sign::protection::local_pages(&editor.cos).unwrap_or_default() } else { Vec::new() };
         pages
             .iter()
             .enumerate()
-            .filter_map(|(i, page)| self.signatures.iter().filter_map(|s| s.protection.as_ref()).any(|p| p.pages.contains(page)).then_some(i))
+            .filter_map(|(i, page)| {
+                (local.contains(page) || self.signatures.iter().filter_map(|s| s.protection.as_ref()).any(|p| p.pages.contains(page))).then_some(i)
+            })
             .collect()
     }
 
@@ -1680,6 +1693,11 @@ pub enum Edit {
     DeleteField {
         name: String,
     },
+    /// Set unsigned PdfCraft locks; signed locks require prior verified signature removal.
+    SetPageLocks {
+        pages: Vec<usize>,
+        locked: bool,
+    },
     /// Remove the signature in a signature field (Acrobat: Clear Signature): the whole field
     /// when `remove_field`, otherwise its value and appearance, leaving an empty field to sign
     /// again ([`clear_signature::clear`]).
@@ -2235,6 +2253,7 @@ impl Edit {
             Edit::AddField { .. } => Label::of("Add field"),
             Edit::SetFieldProps { .. } => Label::of("Change field properties"),
             Edit::DeleteField { .. } => Label::of("Delete field"),
+            Edit::SetPageLocks { locked, .. } => Label::of(if *locked { "Lock pages" } else { "Unlock pages" }),
             Edit::ClearSignature { field, .. } => Label::with("Remove the signature {name}", field.as_str()),
             Edit::DuplicateField { .. } => Label::of("Duplicate field"),
             Edit::SetTabOrder { .. } | Edit::MoveInTabOrder { .. } => Label::of("Set tab order"),
@@ -2463,6 +2482,7 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::XfaToStatic
         | Edit::SetFieldProps { .. }
         | Edit::DeleteField { .. }
+        | Edit::SetPageLocks { .. }
         | Edit::ClearSignature { .. }
         | Edit::DuplicateField { .. }
         | Edit::SetTabOrder { .. }
@@ -2761,6 +2781,7 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             }
         }
         Edit::DeleteField { name } => pdfcraft_forms::delete_field(doc, name)?,
+        Edit::SetPageLocks { pages, locked } => pdfcraft_sign::protection::set_local(doc, pages, *locked)?,
         Edit::ClearSignature { field, remove_field } => {
             clear_signature::clear(doc, field, *remove_field).map_err(|e| EditError::Sign(e.to_string()))?;
         }
@@ -4089,7 +4110,27 @@ impl Session {
             Vec::new()
         };
         if !matches!(&edit, Edit::ClearSignature { .. }) {
+            if let Edit::SetPageLocks { pages, locked: false } = &edit {
+                let refs = pdfcraft_annot::page_refs(&editor.cos)?;
+                if pages.iter().filter_map(|i| refs.get(*i)).any(|r| page_rules.iter().any(|p| p.pages.contains(r))) {
+                    return Err(EditError::Invalid("Remove the protecting signature before unlocking these pages".into()));
+                }
+            }
+            let old_locks = pdfcraft_sign::protection::local_pages(&editor.cos)?;
+            let next_locks = pdfcraft_sign::protection::local_pages(&next)?;
+            if old_locks.iter().any(|r| !next_locks.contains(r) && page_rules.iter().any(|p| p.pages.contains(r))) {
+                return Err(EditError::Invalid("Remove the protecting signature before unlocking these pages".into()));
+            }
             pdfcraft_sign::protection::check(&editor.cos, &next, &page_rules)?;
+            // Only the explicit unlock edit can release unsigned locks; batches and rewrites cannot bypass them.
+            let local = pdfcraft_sign::protection::local_pages(if matches!(&edit, Edit::SetPageLocks { .. }) { &next } else { &editor.cos })?;
+            if !local.is_empty() {
+                pdfcraft_sign::protection::check(
+                    &editor.cos,
+                    &next,
+                    &[pdfcraft_sign::protection::PageProtection { pages: local, allow_insert: true }],
+                )?;
+            }
         }
         let previous = std::mem::replace(&mut editor.cos, next);
         let keys = keys_after(&edit).unwrap_or_else(|| editor.keys.clone());

@@ -23,6 +23,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     full_screen_prompt(app, ctx);
     crate::updates::dialog(app, ctx);
     crate::timestamp_ui::progress(app, ctx);
+    crate::assistant_ui::poll(app, ctx);
     if app.dialog != Some(Dialog::WordCount) {
         app.word_count_draft.cancel();
     }
@@ -95,6 +96,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
             Dialog::Print => 820.0,
             Dialog::FieldProps | Dialog::BulkFieldProps => 600.0,
             Dialog::About => 780.0,
+            Dialog::Assistant => 720.0,
             _ => 520.0,
         });
         match dialog {
@@ -275,7 +277,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                             None => {
                                 row(ui, "Security method", tl!("No security").to_string());
                                 row(ui, "Restrictions", tl!("None — everything is allowed").to_string());
-                                if doc.allows_security_change() && ui.button(tl!("Protect using password…")).clicked() {
+                                if doc.allows_security_change()
+                                    && widgets::dialog_button(ui, tl!("Protect using password…"), widgets::DialogAction::Back).clicked()
+                                {
                                     link_command = Some("protect.password");
                                 }
                             }
@@ -296,13 +300,14 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                                 // A restricted document asks for its permissions password first.
                                 if doc.allows_security_change() || doc.can_unlock() {
                                     ui.horizontal(|ui| {
-                                        if doc.can_unlock() && ui.button(tl!("Unlock…")).clicked() {
+                                        if doc.can_unlock() && widgets::dialog_button(ui, tl!("Unlock…"), widgets::DialogAction::Confirm).clicked()
+                                        {
                                             link_command = Some("protect.unlock");
                                         }
-                                        if ui.button(tl!("Change settings…")).clicked() {
+                                        if widgets::dialog_button(ui, tl!("Change settings…"), widgets::DialogAction::Back).clicked() {
                                             link_command = Some("protect.password");
                                         }
-                                        if ui.button(tl!("Remove security")).clicked() {
+                                        if widgets::dialog_button(ui, tl!("Remove security"), widgets::DialogAction::Destructive).clicked() {
                                             link_command = Some("protect.remove");
                                         }
                                     });
@@ -528,7 +533,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     .color(t.text_faint),
                 );
                 ui.add_space(10.0);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                crate::widgets::dialog_footer(ui, |ui| {
                     if ui.add_enabled_ui(fits, |ui| widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm)).inner.clicked() {
                         replace_now = true;
                         close = true;
@@ -614,7 +619,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 ui.add(widgets::checkbox(&mut app.extract_draft.delete, tl!("Delete pages after extracting")));
                 ui.add(widgets::checkbox(&mut app.extract_draft.separate, tl!("Extract pages as separate files")));
                 ui.add_space(12.0);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                crate::widgets::dialog_footer(ui, |ui| {
                     if widgets::dialog_button(ui, tl!("Extract"), widgets::DialogAction::Confirm).clicked() {
                         extract_now = true;
                         close = true;
@@ -687,7 +692,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 });
                 d.to = d.to.max(d.from);
                 ui.add_space(12.0);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                crate::widgets::dialog_footer(ui, |ui| {
                     if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
                         rotate_now = true;
                         close = true;
@@ -717,7 +722,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 });
                 d.to = d.to.max(d.from);
                 ui.add_space(12.0);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                crate::widgets::dialog_footer(ui, |ui| {
                     if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
                         let pages: Vec<usize> = if d.all { (0..n).collect() } else { (d.from - 1..d.to.min(n)).collect() };
                         duplicate_now = Some(Edit::DuplicateField { name: d.name.clone(), pages });
@@ -766,6 +771,10 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 }
                 return;
             }
+            Dialog::Assistant => {
+                close = crate::assistant_ui::body(ui, app);
+                return;
+            }
             Dialog::Timestamp => {
                 close = crate::timestamp_ui::body(ui, app);
                 return;
@@ -796,7 +805,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     });
                 });
                 ui.add_space(12.0);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                crate::widgets::dialog_footer(ui, |ui| {
                     if widgets::dialog_button(ui, tl!("Create PDF Comment Summary"), widgets::DialogAction::Confirm).clicked() {
                         summarize_now = true;
                         close = true;
@@ -816,7 +825,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     &[("name", &name)],
                 ));
                 ui.add_space(12.0);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                crate::widgets::dialog_footer(ui, |ui| {
                     if widgets::dialog_button(ui, tl!("Revert"), widgets::DialogAction::Destructive).clicked() {
                         revert_now = true;
                         close = true;
@@ -839,7 +848,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     &[("name", &name)],
                 ));
                 ui.add_space(12.0);
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                crate::widgets::dialog_footer(ui, |ui| {
                     if widgets::dialog_button(ui, tl!("Save anyway"), widgets::DialogAction::Confirm).clicked() {
                         overwrite_now = true;
                         close = true;
@@ -1222,7 +1231,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
         }
         ui.add_space(16.0);
         let changed = draft_changes(app).is_some_and(|c| !c.is_empty());
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if dialog == Dialog::Recovery {
                 if widgets::dialog_button(ui, tl!("Recover"), widgets::DialogAction::Confirm).clicked() {
                     recover = Some(true);
@@ -1437,6 +1446,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     }
     if apply && let Some(edits) = draft_changes(app) {
         app.apply_edit(Edit::Batch { label: "Change document properties".into(), edits });
+    }
+    if dialog == Dialog::Sign && app.sign_draft.as_ref().is_some_and(|d| d.choosing_pages.is_some()) {
+        close = true;
     }
     // Protect / Remove security replace the Properties dialog.
     let replaces = link_command.is_some_and(|c| c.starts_with("protect.")) || open_revision.is_some();
@@ -1707,7 +1719,7 @@ fn link_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
             .small(),
         );
         ui.add_space(14.0);
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 choice = Some(false);
             }
@@ -1749,7 +1761,7 @@ fn full_screen_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
             .wrap(),
         );
         ui.add_space(14.0);
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if widgets::dialog_button(ui, tl!("Not now"), widgets::DialogAction::Cancel).clicked() {
                 choice = Some(false);
             }
@@ -1781,7 +1793,7 @@ fn remote_link_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
         ui.add_space(8.0);
         ui.label(tl!("Only allow this if you trust the source document."));
         ui.add_space(14.0);
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 choice = Some(false);
             }
@@ -1846,7 +1858,7 @@ fn password_modal(
             ui.label(egui::RichText::new(tl!(e)).color(egui::Color32::from_rgb(0xD1, 0x3B, 0x3B)));
         }
         ui.add_space(12.0);
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if widgets::dialog_button(ui, ok, widgets::DialogAction::Confirm).clicked() {
                 answer = Some(PasswordAnswer::Submit);
             }

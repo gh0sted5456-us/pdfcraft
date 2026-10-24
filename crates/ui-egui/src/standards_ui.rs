@@ -1,7 +1,6 @@
 //! Standards ▸ PDF/A: what the document declares, verifying it against PDF/A-2b or 3b, and
 //! fixing what can be fixed (Save as PDF/A).
 
-use egui::{Align, Layout};
 use pdfcraft_engine::pdfa::{Issue, Level};
 
 use crate::theme::{self, Tokens};
@@ -58,7 +57,8 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     ui.horizontal(|ui| {
         ui.label(crate::i18n::fmt(tl!("Declared conformance: {shown}"), &[("shown", &shown)]));
         // Worded as Edit ▸ Undo will name it.
-        remove = declared.pdfa.is_some() && widgets::pill_button(ui, &crate::i18n::edit_label(&removal.label()), false).clicked();
+        remove = declared.pdfa.is_some()
+            && widgets::dialog_button(ui, &crate::i18n::edit_label(&removal.label()), widgets::DialogAction::Destructive).clicked();
     });
     if remove && app.apply_edit(removal) {
         app.pdfa.issues = None;
@@ -110,14 +110,14 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     let mut close = false;
     let mut action = None;
     ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if widgets::dialog_button(ui, tl!("Save as PDF/A"), widgets::DialogAction::Confirm).clicked() {
                 action = Some(true);
             }
-            if widgets::pill_button(ui, tl!("Verify"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Verify"), widgets::DialogAction::Confirm).clicked() {
                 action = Some(false);
             }
-            if widgets::pill_button(ui, tl!("Close"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked() {
                 close = true;
             }
         });

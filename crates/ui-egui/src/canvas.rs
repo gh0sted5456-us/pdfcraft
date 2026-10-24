@@ -412,6 +412,7 @@ pub struct DocView {
     pub(crate) ocr_prompted: HashSet<usize>,
     pub(crate) ocr_checked: HashMap<usize, u64>,
     pub organize: bool,
+    pub organize_pick: bool,
     pub highlight_fields: bool,
     pub page_input: String,
     /// Select the replacement page label once if its editor remains focused.
@@ -765,6 +766,7 @@ impl DocView {
             ocr_prompted: HashSet::new(),
             ocr_checked: HashMap::new(),
             organize: false,
+            organize_pick: false,
             highlight_fields: defaults.highlight_fields,
             page_input: "1".into(),
             page_input_reselect: false,
@@ -5325,7 +5327,7 @@ fn organize_toolbar(view: &mut DocView, info: &DocInfo, editable: bool, dirty: b
                     view.pending_edit = Some(Edit::MovePages { pages: targets.clone(), to: first + 1 });
                 }
             });
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            crate::widgets::dialog_footer(ui, |ui| {
                 if widgets::ghost_button(ui, "x", tl!("Close")).on_hover_text(tl!("Back to the document")).clicked() {
                     view.organize = false;
                 }
@@ -5425,16 +5427,19 @@ fn gap_button(ui: &mut egui::Ui, gap: usize, at: Pos2, height: f32, label: Strin
 
 fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstructed: bool, ui: &mut egui::Ui, t: &Tokens) {
     let info = &doc.info;
-    let editable = doc.allows_assembly() && doc.certification().is_none();
+    let editable = doc.allows_assembly() && doc.certification().is_none() && !view.organize_pick;
     let dirty = doc.dirty;
     let protected = doc.protected_pages();
+    let signed = doc.signed_protected_pages();
     let ppp = ui.ctx().pixels_per_point();
     // The page image scales with the zoom; the padding and the page number don't.
     let cell = vec2(146.0 * view.grid_zoom + 44.0, 194.0 * view.grid_zoom + 88.0);
     let anchor = view.grid_anchor.take();
     let reveal = view.grid_reveal.take();
     let mut open_page = None;
-    organize_toolbar(view, info, editable, dirty, unobstructed, ui, t);
+    if !view.organize_pick {
+        organize_toolbar(view, info, editable, dirty, unobstructed, ui, t);
+    }
     let viewport = ui.available_rect_before_wrap();
     view.viewport_screen = viewport;
     let auto_delta = if unobstructed {
@@ -5553,7 +5558,11 @@ fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstruct
                     let lock = Rect::from_min_size(pr.right_top() + vec2(-23.0, 6.0), Vec2::splat(17.0));
                     ui.painter().rect_filled(lock.expand(3.0), 3.0, t.chrome);
                     icons::paint(ui, lock, "lock", 15.0, t.text_muted);
-                    ui.interact(lock, ui.id().with(("page-lock", i)), Sense::hover()).on_hover_text("Protected by a digital signature");
+                    ui.interact(lock, ui.id().with(("page-lock", i)), Sense::hover()).on_hover_text(if signed.contains(&i) {
+                        "Signed lock: remove the signature before unlocking"
+                    } else {
+                        "Locked in PdfCraft: unlock in Organize Pages"
+                    });
                 }
                 let label_font = theme::medium(12.0);
                 let label_w = (c.width() - 12.0).max(0.0);
@@ -5597,7 +5606,13 @@ fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstruct
                                     }
                                 }
                                 let label = crate::i18n::fmt(tl!("Delete page {label}"), &[("label", &p.label)]);
-                                if ui.add_enabled_ui(info.pages.len() > 1, |ui| icons::button(ui, "trash-2", 26.0, false, &label)).inner.clicked() {
+                                if ui
+                                    .add_enabled_ui(info.pages.len() > 1 && !protected.contains(&i), |ui| {
+                                        icons::button(ui, "trash-2", 26.0, false, &label)
+                                    })
+                                    .inner
+                                    .clicked()
+                                {
                                     view.pending_edit = Some(Edit::DeletePages { pages: vec![i] });
                                 }
                             });
@@ -5609,11 +5624,15 @@ fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstruct
                     view.click_page(i, m, false);
                     view.go_to_page(i);
                 }
-                if resp.double_clicked() {
+                if resp.double_clicked() && !view.organize_pick {
                     open_page = Some(i);
                 }
                 // Right-click: Extract, Replace, Cut, Copy, Paste (on the selection, or this page).
                 resp.context_menu(|ui| {
+                    if view.organize_pick {
+                        ui.label("Use the selection buttons to return to signing.");
+                        return;
+                    }
                     if !view.selected.contains(&i) {
                         view.selected = [i].into();
                         view.go_to_page(i);

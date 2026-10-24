@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use egui::{Align, Color32, CornerRadius, Layout, Pos2, Rect, Stroke, vec2};
+use egui::{Color32, CornerRadius, Pos2, Rect, Stroke, vec2};
 use pdfcraft_engine::clear_signature::{Effect as RemoveEffect, Kind as RemoveKind, Removable, Target as RemoveTarget};
 use pdfcraft_engine::sign::{self, Appearance, AppearanceLabels, Certificate, DigitalId, Name, PrivateKey};
 use pdfcraft_engine::{DocId, SignOptions, SignatureImage, SignatureInfo, SignatureStatus};
@@ -147,6 +147,7 @@ pub struct SignDraft {
     pub certify: Option<u8>,
     pub protection: SignProtection,
     pub protected_pages: Vec<usize>,
+    pub choosing_pages: Option<pdfcraft_engine::DocId>,
     pub step: SignStep,
     pub selected: Option<usize>,
     pub password: String,
@@ -180,6 +181,7 @@ impl SignDraft {
                 None => SignProtection::None,
             },
             protected_pages: vec![page],
+            choosing_pages: None,
             step: if ids.is_empty() { SignStep::Configure } else { SignStep::Choose },
             selected: ids.iter().position(|e| e.unusable.is_none()),
             password: String::new(),
@@ -347,6 +349,36 @@ impl PdfCraftApp {
             draft.image = Some(image.clone());
         }
         self.sign_draft = Some(draft);
+        self.dialog = Some(crate::Dialog::Sign);
+    }
+
+    pub(crate) fn choose_sign_pages(&mut self) {
+        let Some((index, id)) = self.active_ids() else { return };
+        let Some(draft) = &mut self.sign_draft else { return };
+        draft.choosing_pages = Some(id);
+        if let Some(view) = self.views.get_mut(index) {
+            view.open_organize();
+            view.select_pages(&draft.protected_pages);
+            view.organize_pick = true;
+            view.org_drag = None;
+        }
+        self.left = crate::LeftPanel::Tool("organize");
+        self.left_open = true;
+    }
+
+    pub(crate) fn finish_sign_page_choice(&mut self, accept: bool) {
+        let Some((index, id)) = self.active_ids() else { return };
+        let Some(draft) = self.sign_draft.as_mut().filter(|d| d.choosing_pages == Some(id)) else { return };
+        if let Some(view) = self.views.get_mut(index) {
+            if accept {
+                draft.protected_pages = view.selected.iter().copied().collect();
+                draft.protected_pages.sort_unstable();
+            }
+            view.organize = false;
+            view.organize_pick = false;
+        }
+        draft.choosing_pages = None;
+        self.left = crate::organize_panel::workspace_panel(self.mode);
         self.dialog = Some(crate::Dialog::Sign);
     }
 
@@ -839,7 +871,7 @@ fn choose(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     }
     let removable = d.selected.filter(|&i| ids.get(i).is_some_and(|e| !e.path.starts_with("keychain:") && !e.path.starts_with("windows:")));
     ui.horizontal(|ui| {
-        if widgets::pill_button(ui, tl!("Configure New Digital ID"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Configure New Digital ID"), widgets::DialogAction::Back).clicked() {
             d.step = SignStep::Configure;
             d.error = None;
         }
@@ -851,7 +883,7 @@ fn choose(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
         {
             d.confirm_remove = removable;
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if ui
                 .add_enabled_ui(d.selected.is_some(), |ui| widgets::dialog_button(ui, tl!("Continue"), widgets::DialogAction::Confirm))
                 .inner
@@ -923,7 +955,7 @@ fn configure(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
             ui.horizontal(|ui| {
                 ui.add(crate::widgets::line(&mut n.file).desired_width(220.0)).labelled_by(l.id);
                 #[cfg(not(target_arch = "wasm32"))]
-                if ui.button(tl!("Browse…")).clicked() {
+                if widgets::dialog_button(ui, tl!("Browse…"), widgets::DialogAction::Back).clicked() {
                     browse = true;
                 }
             });
@@ -940,7 +972,7 @@ fn configure(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
             d.step = SignStep::Choose;
             d.error = None;
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if widgets::dialog_button(ui, if d.new_id.create { tl!("Save") } else { tl!("Continue") }, widgets::DialogAction::Confirm).clicked() {
                 go = true;
             }
@@ -1102,7 +1134,9 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     let date = sign::pdf::display_date(&app.session.signing_date());
     let document = app.active_ids().and_then(|(_, id)| app.session.get(id));
     let page_count = document.map_or(0, |doc| doc.info.pages.len());
+    let mut choose_pages = false;
     let may_certify = document.is_some_and(|doc| !doc.is_signed());
+    let existing_locks = document.map_or(0, |doc| doc.protected_pages().len());
     let Some(d) = app.sign_draft.as_mut() else { return true };
     let Some(entry) = d.selected.and_then(|i| ids.get(i)).cloned() else {
         d.step = SignStep::Choose;
@@ -1163,7 +1197,7 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
                 }
             });
             #[cfg(not(target_arch = "wasm32"))]
-            if widgets::pill_button(ui, tl!("Choose image…"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Choose image…"), widgets::DialogAction::Back).clicked() {
                 pick = true;
             }
         });
@@ -1174,12 +1208,16 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
             widgets::radio_value(ui, &mut d.background, SignBackground::None, tl!("None"));
         });
         #[cfg(not(target_arch = "wasm32"))]
-        if widgets::pill_button(ui, "Choose background image…", false).clicked() {
+        if widgets::dialog_button(ui, "Choose background image…", widgets::DialogAction::Back).clicked() {
             pick_background = true;
         }
         ui.add_space(6.0);
     } else {
         ui.label(egui::RichText::new(tl!("The signature will be invisible.")).color(t.text_muted));
+    }
+    if existing_locks > 0 {
+        ui.label(egui::RichText::new(format!("{existing_locks} page(s) are already locked. Signing captures ordinary locks; remove the protecting signatures before unlocking them afterward.")).small().color(t.text_muted));
+        ui.add_space(6.0);
     }
     egui::Grid::new("sign-as").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
         let label = ui.label("After signing");
@@ -1228,20 +1266,11 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
         }
         if d.protection == SignProtection::SelectedPages {
             ui.label("Protected pages");
-            let height = (page_count.min(4) as f32 * 28.0 + 8.0).max(36.0);
-            ui.allocate_ui_with_layout(vec2(360.0, height), egui::Layout::top_down(egui::Align::Min), |ui| {
-                egui::ScrollArea::vertical().id_salt("signature-locked-pages").max_height(height).show_rows(ui, 24.0, page_count, |ui, rows| {
-                    for page in rows {
-                        let mut selected = d.protected_pages.contains(&page);
-                        if ui.add(widgets::checkbox(&mut selected, format!("Page {}", page + 1))).changed() {
-                            if selected {
-                                d.protected_pages.push(page);
-                            } else {
-                                d.protected_pages.retain(|p| *p != page);
-                            }
-                        }
-                    }
-                });
+            ui.vertical(|ui| {
+                ui.label(format!("{} of {page_count} pages selected", d.protected_pages.len()));
+                if widgets::dialog_button(ui, "Choose pages in Organize Pages…", widgets::DialogAction::Back).clicked() {
+                    choose_pages = true;
+                }
             });
             ui.end_row();
         }
@@ -1285,7 +1314,7 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
             d.step = SignStep::Choose;
             d.error = None;
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if widgets::dialog_button(ui, tl!("Sign"), widgets::DialogAction::Confirm).clicked() {
                 go = true;
             }
@@ -1301,6 +1330,9 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     #[cfg(not(target_arch = "wasm32"))]
     if pick_background {
         app.pick_sign_graphic_image(true);
+    }
+    if choose_pages {
+        app.choose_sign_pages();
     }
     if go {
         match app.finish_signing() {
@@ -1810,9 +1842,7 @@ pub(crate) fn remove_dialog(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens
         );
         ui.add_space(12.0);
         let mut close = false;
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            close = widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Confirm).clicked()
-        });
+        crate::widgets::dialog_footer(ui, |ui| close = widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Confirm).clicked());
         return close;
     }
     ui.label(tl!("Choose the signature to remove:"));
@@ -1876,7 +1906,7 @@ pub(crate) fn remove_dialog(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens
         ui.label(egui::RichText::new(text).color(t.text_muted));
         ui.add_space(12.0);
         let mut close = false;
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             close = widgets::dialog_button(
                 ui,
                 if any { tl!("Cancel") } else { tl!("Close") },
@@ -1939,7 +1969,7 @@ pub(crate) fn remove_dialog(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens
     ui.add(egui::Label::new(egui::RichText::new(tl!("You choose where the new version is saved. Continue?")).font(theme::regular(12.0))).wrap());
     ui.add_space(12.0);
     let (mut go, mut close) = (false, false);
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+    crate::widgets::dialog_footer(ui, |ui| {
         go = widgets::dialog_button(ui, tl!("Remove and Save As…"), widgets::DialogAction::Destructive).clicked();
         close = widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked();
     });
@@ -2075,13 +2105,13 @@ pub(crate) fn cert_viewer(ui: &mut egui::Ui, v: &mut CertViewer, trusted: &[Cert
                         tl!("This certificate is not trusted. Signatures made with it show an unknown identity.")
                     });
                     ui.add_space(8.0);
-                    if !is_trusted && widgets::pill_button(ui, tl!("Add to Trusted Certificates"), false).clicked() {
+                    if !is_trusted && widgets::dialog_button(ui, tl!("Add to Trusted Certificates"), widgets::DialogAction::Confirm).clicked() {
                         action = Some(CertAction::Trust(Box::new(c.clone())));
                     }
                 }
             }
             ui.add_space(8.0);
-            if widgets::pill_button(ui, tl!("Export…"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Export…"), widgets::DialogAction::Confirm).clicked() {
                 action = Some(CertAction::Export(Box::new(c.clone())));
             }
         });
@@ -2089,9 +2119,7 @@ pub(crate) fn cert_viewer(ui: &mut egui::Ui, v: &mut CertViewer, trusted: &[Cert
     ui.add_space(10.0);
     let mut close = false;
     ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            close = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked()
-        })
+        crate::widgets::dialog_footer(ui, |ui| close = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked())
     });
     (close, action)
 }

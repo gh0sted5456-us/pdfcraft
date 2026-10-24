@@ -2681,3 +2681,17 @@ fn signed_page_protection_survives_a_later_policy_rewrite_and_checks_resources()
     assert!(still.integrity_valid);
     assert_eq!(still.protection, Some(policy));
 }
+
+#[test]
+fn signing_captures_unsigned_page_locks_and_invalid_lock_metadata_fails_closed() {
+    let mut doc = open(&fixture());
+    pdfcraft_sign::protection::set_local(&mut doc, &[0], true).unwrap();
+    let identity = pkcs12::open(include_bytes!("../data/ec-p256.p12"), "test").unwrap();
+    let signed = pdfcraft_sign::sign(&doc, &identity, &opts()).unwrap();
+    let signed_doc = open(&signed);
+    let sig = signatures(&signed_doc, &signed, &TrustStore::default()).into_iter().find(|s| s.signed).unwrap();
+    assert_eq!(sig.protection.unwrap().pages, pdfcraft_sign::protection::local_pages(&doc).unwrap());
+    doc.update_dict(doc.root().unwrap(), |d| d.set(b"PdfCraftPageLocks".to_vec(), Object::Int(123))).unwrap();
+    assert!(pdfcraft_sign::protection::local_pages(&doc).is_err());
+    assert!(pdfcraft_sign::sign(&doc, &identity, &opts()).is_err());
+}

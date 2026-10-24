@@ -302,12 +302,11 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut LinkDraft, pages: usize, t: &Token
         });
     }
     let ok = d.preserve_action || !d.web || (d.url.trim().len() > 3 && d.url.trim() != "https://");
-    if !ok {
-        ui.label(egui::RichText::new(tl!("Type the web address.")).small().color(t.text_faint));
-    }
+    // Keep the action row still while the URL becomes valid.
+    ui.label(egui::RichText::new(if ok { " " } else { tl!("Type the web address.") }).small().color(t.text_faint));
     ui.add_space(12.0);
     let (mut a, mut c) = (false, false);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    crate::widgets::dialog_footer(ui, |ui| {
         if ui.add_enabled_ui(ok, |ui| widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm)).inner.clicked() {
             a = true;
         }

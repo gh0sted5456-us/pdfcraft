@@ -263,7 +263,7 @@ fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static
                     .color(t.text_muted),
                 );
             }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            crate::widgets::dialog_footer(ui, |ui| {
                 if ui
                     .add_enabled_ui(marks > 0, |ui| widgets::dialog_button(ui, tl!("Redact all"), widgets::DialogAction::Destructive))
                     .inner

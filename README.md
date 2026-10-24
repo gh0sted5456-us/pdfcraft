@@ -603,3 +603,7 @@ rules apply equally to both forms.
 
 Personal 0.13.1 also adds [alignment menus and drag guides](docs/editing-multiple-objects.md).
 CraftPDF Printer is excluded from 0.13.1 while a separate conversion engine is developed.
+
+Personal build: [AI Assistant setup](docs/assistant.md) and [page locks/signature protection](docs/signature-protection.md).
+
+Personal build interface rules: [centered dialogs and semantic action colors](docs/ui-conventions.md).

@@ -292,3 +292,5 @@ rewrite is still refused. See [removing signatures](../../docs/removing-signatur
 `spelling_languages` lists installed local dictionaries. `text_spellcheck` checks supplied text with optional suggestions and UTF-8 byte ranges; no document is changed and no text is uploaded. See [language and spelling](../../docs/language-and-spelling.md) for limits and options.
 
 Personal-build signature ownership checks and page protection are described in [signature protection](../../docs/signature-protection.md).
+
+Personal tools: `ai_prepare` and explicit network-gated AI connection/request tools are documented in [Assistant setup](../../docs/assistant.md); `page_lock`/`page_locks` expose ordinary and signed page protection.

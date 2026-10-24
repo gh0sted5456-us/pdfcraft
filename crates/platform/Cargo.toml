@@ -10,10 +10,19 @@ workspace = true
 
 [dependencies]
 pdfcraft-sign = { workspace = true }
+serde.workspace = true
+serde_json.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ureq = { version = "3.4", default-features = false, features = ["rustls-no-provider", "_ring"] }
 rustls-native-certs = "0.8"
+openidconnect = { version = "4", default-features = false }
+subtle = "2"
+url = "2.5"
+zeroize = { version = "1", features = ["derive"] }
+chrono = { workspace = true, features = ["clock"] }
+uuid = { version = "1", features = ["v4"] }
+keyring = { version = "=3.6.3", default-features = false, features = ["apple-native", "windows-native", "async-secret-service", "async-io", "crypto-rust"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # `write_atomically`: a volume that refuses F_FULLFSYNC gets a plain fsync.

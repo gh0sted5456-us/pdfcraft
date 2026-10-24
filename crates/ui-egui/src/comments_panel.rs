@@ -346,15 +346,14 @@ fn card(
                     }
                     let submit = crate::comments::submit_key(ui, &r, false);
                     ui.horizontal(|ui| {
-                        if (ui
-                            .add(egui::Button::new(egui::RichText::new(tl!("Save")).color(Color32::WHITE)).fill(t.accent).corner_radius(12))
-                            .clicked()
-                            || submit)
+                        if (widgets::dialog_button(ui, tl!("Save"), widgets::DialogAction::Confirm).clicked() || submit)
                             && let Some((page, index, text)) = view.comments.editing.take()
                         {
                             edit = Some(Edit::SetAnnotationContents { page, index, text });
                         }
-                        if ui.button(tl!("Cancel")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked()
+                            || ui.input(|i| i.key_pressed(egui::Key::Escape))
+                        {
                             view.comments.editing = None;
                         }
                     });
@@ -416,8 +415,9 @@ fn card(
                     let r = out.response;
                     let enter = crate::comments::submit_key(ui, &r, true);
                     let ok = !view.comments.reply.trim().is_empty();
-                    let post =
-                        ui.with_layout(Layout::right_to_left(Align::Min), |ui| ui.add_enabled(ok, egui::Button::new(tl!("Post")).corner_radius(12)));
+                    let post = ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+                        ui.add_enabled_ui(ok, |ui| widgets::dialog_button(ui, tl!("Post"), widgets::DialogAction::Confirm)).inner
+                    });
                     if (post.inner.clicked() || enter) && ok {
                         let text = std::mem::take(&mut view.comments.reply).trim().to_string();
                         edit = Some(Edit::ReplyToAnnotation { page: a.page, index: a.index, text, author: prefs.author.clone() });

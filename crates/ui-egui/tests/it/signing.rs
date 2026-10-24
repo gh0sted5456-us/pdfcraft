@@ -800,7 +800,7 @@ fn signing_confirmation_selects_page_protection_and_preserves_it_after_signing()
     h.run_steps(4);
     h.get_by_label("Protect selected pages (PdfCraft)").click();
     h.run_steps(4);
-    let page = h.get_by_label("Page 1").rect();
+    let page = h.get_by_label("Choose pages in Organize Pages…").rect();
     let reason = h.get_by_role_and_label(egui::accesskit::Role::TextInput, "Reason").rect();
     assert!(page.bottom() <= reason.top(), "protected pages overlap the next input: {page:?} vs {reason:?}");
     assert_eq!(h.state().sign_draft.as_ref().unwrap().protection, SignProtection::SelectedPages);
@@ -808,6 +808,18 @@ fn signing_confirmation_selects_page_protection_and_preserves_it_after_signing()
         let _gpu = crate::gpu();
         h.render().unwrap().save(format!("{dir}/signing-page-protection.png")).unwrap();
     }
+    h.get_by_label("Choose pages in Organize Pages…").click();
+    h.run_steps(6);
+    assert!(h.state().views[0].organize && h.state().views[0].organize_pick);
+    assert_eq!(h.state().dialog, None);
+    h.get_by_label("Page 1").click();
+    h.run_steps(3);
+    h.get_by_label("Use selected pages").click();
+    h.run_steps(6);
+    assert_eq!(h.state().dialog, Some(Dialog::Sign));
+    assert!(!h.state().views[0].organize_pick);
+    assert_eq!(h.state().sign_draft.as_ref().unwrap().password, "test");
+    assert_eq!(h.state().sign_draft.as_ref().unwrap().protected_pages, vec![0]);
     h.get_by_label("Sign").click();
     h.run_steps(6);
     let doc = h.state().session.get(h.state().views[0].id).unwrap();

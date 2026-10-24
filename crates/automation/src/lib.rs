@@ -15,6 +15,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod a11y;
+mod assistant;
 mod batch;
 mod comments;
 mod content;
@@ -115,6 +116,7 @@ const FIND_MAX_WARNING_BYTES: usize = 1024;
 /// A headless PdfCraft session driven by tool calls.
 pub struct Automation {
     network: bool,
+    ai_login: Option<pdfcraft_platform::assistant::Login>,
     session: Session,
     root: Option<PathBuf>,
     /// The read and write folders of `--automation-read-root` / `--automation-write-root`.
@@ -141,6 +143,7 @@ impl Automation {
     pub fn new() -> Self {
         Self {
             network: false,
+            ai_login: None,
             session: {
                 let mut session = Session::new();
                 session.set_timestamp_certificates(pdfcraft_platform::timestamp::trusted_certificates());
@@ -179,7 +182,7 @@ impl Automation {
         self
     }
 
-    /// Allow explicitly invoked timestamp tools to contact the supplied server. Off by default.
+    /// Allow explicitly invoked timestamp and AI tools to contact their selected service. Off by default.
     pub fn with_network(mut self, enabled: bool) -> Self {
         self.network = enabled;
         self
@@ -222,6 +225,15 @@ impl Automation {
         tools::check_args(def, args)?;
         let a = Args(args);
         let out = match name {
+            "ai_prepare" => self.ai_prepare(&a)?,
+            "ai_assist" => self.ai_assist(&a)?,
+            "ai_accounts" => self.ai_accounts()?,
+            "ai_models" => self.ai_models(&a)?,
+            "ai_key_connect" => self.ai_key_connect(&a)?,
+            "ai_disconnect" => self.ai_disconnect(&a)?,
+            "ai_login_start" => self.ai_login_start(&a)?,
+            "ai_login_finish" => self.ai_login_finish(&a)?,
+            "ai_claude_login" => self.ai_claude_login()?,
             "doc_open" => self.doc_open(&a)?,
             "doc_batch" => self.doc_batch(&a)?,
             "doc_list" => json!({ "documents": self.session.docs().iter().map(summary).collect::<Vec<_>>() }),
@@ -350,6 +362,15 @@ impl Automation {
                 out["corners"] = json!(used);
                 out["detected"] = json!(given.is_none());
                 out
+            }
+            "page_locks" => {
+                let d = self.doc(&a)?;
+                json!({"pages": d.protected_pages().iter().map(|p| p + 1).collect::<Vec<_>>(), "signed_pages":d.signed_protected_pages().iter().map(|p| p + 1).collect::<Vec<_>>()})
+            }
+            "page_lock" => {
+                let pages = self.pages(&a, "pages")?;
+                let locked = a.opt_bool("locked")?.unwrap_or(true);
+                self.apply(&a, Edit::SetPageLocks { pages, locked })?
             }
             "page_delete" => {
                 let pages = self.pages(&a, "pages")?;

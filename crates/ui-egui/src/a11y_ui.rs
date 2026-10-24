@@ -135,7 +135,7 @@ pub(crate) fn options_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     ui.add_space(10.0);
     let (mut start, mut cancel) = (false, false);
     ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if widgets::dialog_button(ui, tl!("Start Checking"), widgets::DialogAction::Confirm).clicked() {
                 start = true;
             }
@@ -570,9 +570,7 @@ pub(crate) fn alt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> 
         ui.label(egui::RichText::new(tl!("This document has no tagged figures.")).color(t.text_muted));
         let mut cancel = false;
         ui.horizontal(|ui| {
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                cancel = widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Confirm).clicked()
-            })
+            crate::widgets::dialog_footer(ui, |ui| cancel = widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Confirm).clicked())
         });
         return (false, cancel);
     }
@@ -618,7 +616,7 @@ pub(crate) fn alt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> 
         if ui.add_enabled_ui(i + 1 < n, |ui| icons::button(ui, "chevron-right", 28.0, false, tl!("Next figure"))).inner.clicked() {
             d.index += 1;
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if widgets::dialog_button(ui, tl!("Save & Close"), widgets::DialogAction::Confirm).clicked() {
                 save = true;
             }

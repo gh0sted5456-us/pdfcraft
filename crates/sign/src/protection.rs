@@ -12,21 +12,67 @@ pub struct PageProtection {
     pub allow_insert: bool,
 }
 
+/// Unsigned PdfCraft locks stored in the catalog, attached to page identities.
+pub fn local_pages(doc: &Document) -> Result<Vec<ObjRef>, SignError> {
+    let root = doc.root().ok_or_else(|| SignError::Pdf("The document has no catalog".into()))?;
+    let catalog = doc.get(root);
+    let d = catalog.as_dict().ok_or_else(|| SignError::Pdf("The document catalog is invalid".into()))?;
+    let Some(value) = d.get(b"PdfCraftPageLocks") else { return Ok(Vec::new()) };
+    let array = value.as_array().filter(|a| a.len() <= 10000).ok_or_else(|| SignError::Pdf("The page lock list is invalid or too large".into()))?;
+    array.iter().map(|v| v.as_ref().ok_or_else(|| SignError::Pdf("A page lock has no page identity".into()))).collect()
+}
+
+/// Change unsigned locks only; the engine checks existing signature policies before committing.
+pub fn set_local(doc: &mut Document, pages: &[usize], locked: bool) -> Result<(), SignError> {
+    if pages.is_empty() || pages.len() > 10000 {
+        return Err(SignError::Pdf("Choose between 1 and 10000 pages".into()));
+    }
+    let refs = pdfcraft_annot::page_refs(doc).map_err(|e| SignError::Pdf(e.to_string()))?;
+    let mut locks = local_pages(doc)?;
+    for index in pages {
+        let page = *refs.get(*index).ok_or_else(|| SignError::Pdf("A selected page does not exist".into()))?;
+        if locked {
+            if !locks.contains(&page) {
+                locks.push(page);
+            }
+        } else {
+            locks.retain(|r| *r != page);
+        }
+    }
+    if locks.len() > 10000 {
+        return Err(SignError::Pdf("Choose at most 10000 locked pages".into()));
+    }
+    let root = doc.root().ok_or_else(|| SignError::Pdf("The document has no catalog".into()))?;
+    doc.update_dict(root, |d| {
+        if locks.is_empty() {
+            d.remove(b"PdfCraftPageLocks");
+        } else {
+            d.set(b"PdfCraftPageLocks".to_vec(), Object::Array(locks.into_iter().map(Object::Ref).collect()));
+        }
+    })
+    .map_err(|e| SignError::Pdf(e.to_string()))?;
+    Ok(())
+}
+
 pub(crate) fn write(doc: &Document, pages: &[usize], allow_insert: bool) -> Result<Option<Object>, SignError> {
-    if pages.is_empty() {
+    let local = local_pages(doc)?;
+    if pages.is_empty() && local.is_empty() {
         return Ok(None);
     }
     if pages.len() > 10000 {
         return Err(SignError::Pdf("Choose at most 10000 protected pages".into()));
     }
     let refs = pdfcraft_annot::page_refs(doc).map_err(|e| SignError::Pdf(e.to_string()))?;
-    let mut selected = Vec::new();
-    let mut seen = HashSet::new();
+    let mut selected: Vec<_> = local.iter().copied().map(Object::Ref).collect();
+    let mut seen: HashSet<_> = local.into_iter().collect();
     for page in pages {
         let r = *refs.get(*page).ok_or_else(|| SignError::Pdf(format!("Protected page {} does not exist", page.saturating_add(1))))?;
         if seen.insert(r) {
             selected.push(Object::Ref(r));
         }
+    }
+    if selected.len() > 10000 {
+        return Err(SignError::Pdf("Choose at most 10000 protected pages".into()));
     }
     let mut d = Dict::new();
     d.set(b"Version".to_vec(), Object::Int(1));
@@ -67,11 +113,15 @@ pub fn check(before: &Document, after: &Document, rules: &[PageProtection]) -> R
         let order: Vec<_> = old.iter().filter(|r| locked.contains(r)).collect();
         let next_order: Vec<_> = new.iter().filter(|r| locked.contains(r)).collect();
         if order != next_order || rule.pages.iter().any(|r| !new.contains(r)) {
-            return Err(SignError::Pdf("A signed page cannot be deleted or reordered; remove its signature first".into()));
+            return Err(SignError::Pdf(
+                "A locked page cannot be deleted or reordered; unlock it first (signed locks require signature removal)".into(),
+            ));
         }
         for page in &rule.pages {
             if checked.insert(*page) && state(before, *page, &all, &mut budget)? != state(after, *page, &all, &mut budget)? {
-                return Err(SignError::Pdf("This edit changes a protected page or a shared resource; remove its signature first".into()));
+                return Err(SignError::Pdf(
+                    "This edit changes a locked page or a shared resource; unlock it first (signed locks require signature removal)".into(),
+                ));
             }
         }
     }

@@ -3,7 +3,6 @@
 
 use std::sync::{Arc, Mutex};
 
-use egui::{Align, Layout};
 use pdfcraft_engine::actions::{Action, Step, builtin};
 
 use crate::theme::{self, Tokens};
@@ -275,25 +274,25 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     let selected_custom = app.wizard.selected.as_ref().and_then(|n| app.custom_actions.iter().position(|a| &a.name == n));
     let mut close = false;
     ui.horizontal(|ui| {
-        if ui.button(tl!("New Action…")).clicked() {
+        if widgets::dialog_button(ui, tl!("New Action…"), widgets::DialogAction::Back).clicked() {
             app.wizard.editing = Some((None, Action { name: String::new(), description: String::new(), steps: Vec::new(), builtin: false }));
         }
         if let Some(i) = selected_custom {
-            if ui.button(tl!("Edit…")).clicked() {
+            if widgets::dialog_button(ui, tl!("Edit…"), widgets::DialogAction::Back).clicked() {
                 let a = app.custom_actions[i].clone();
                 app.wizard.editing = Some((Some(a.name.clone()), a));
             }
-            if ui.button(tl!("Delete")).clicked() {
+            if widgets::dialog_button(ui, tl!("Delete"), widgets::DialogAction::Destructive).clicked() {
                 app.custom_actions.remove(i);
                 app.wizard.selected = None;
             }
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if widgets::dialog_button(ui, tl_ctx!("action wizard", "Start"), widgets::DialogAction::Confirm).clicked() {
                 close = true;
                 app.start_selected_action();
             }
-            if widgets::pill_button(ui, tl!("Close"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked() {
                 close = true;
             }
         });
@@ -328,8 +327,8 @@ fn edit_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
                     if let Some(arg) = s.arg_mut() {
                         ui.add(crate::widgets::line(arg).desired_width(220.0));
                     }
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        if ui.button(tl!("Remove")).clicked() {
+                    crate::widgets::dialog_footer(ui, |ui| {
+                        if widgets::dialog_button(ui, tl!("Remove"), widgets::DialogAction::Destructive).clicked() {
                             remove = Some(i);
                         }
                     });
@@ -348,7 +347,7 @@ fn edit_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
                 ui.selectable_value(add, i, tl!(s.label()));
             }
         });
-        if ui.button(tl!("Add Step")).clicked() {
+        if widgets::dialog_button(ui, tl!("Add Step"), widgets::DialogAction::Confirm).clicked() {
             a.steps.push(all[(*add).min(all.len() - 1)].clone());
         }
     });
@@ -362,7 +361,7 @@ fn edit_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     let (mut done, mut cancel) = (false, false);
     let ok = !name.is_empty() && !taken && !a.steps.is_empty();
     ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if ui.add_enabled_ui(ok, |ui| widgets::dialog_button(ui, tl!("Save"), widgets::DialogAction::Confirm)).inner.clicked() {
                 done = true;
             }

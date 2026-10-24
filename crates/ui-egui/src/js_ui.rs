@@ -1,7 +1,6 @@
 //! Acrobat JavaScript in the shell: what scripts ask for (alerts, printing, navigation, links),
 //! the JavaScript console (⌘J), Document JavaScripts, and Preferences ▸ JavaScript.
 
-use egui::{Align, Layout};
 use pdfcraft_engine::js::{JsOutput, Request};
 use pdfcraft_engine::{DocId, Edit};
 
@@ -143,7 +142,7 @@ impl PdfCraftApp {
 fn buttons(ui: &mut egui::Ui, primary: &str, others: &[&str]) -> Option<String> {
     let mut clicked = None;
     ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             // Stable ids: the console's output above changes how many widgets come first.
             // Labels are translated for display; the returned id stays English.
             if ui.push_id(primary, |ui| widgets::dialog_button(ui, tl!(primary), widgets::DialogAction::Confirm)).inner.clicked() {

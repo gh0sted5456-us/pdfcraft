@@ -259,3 +259,34 @@ fn native_no_changes_certification_refuses_edits_but_can_be_removed_by_its_owner
     ok(&mut a, "sign_clear", json!({"doc":doc,"field":field,"id":"ada.p12","password":"secret12"}));
     ok(&mut a, "page_insert_blank", json!({"doc":doc,"at":1}));
 }
+
+#[test]
+fn unsigned_page_locks_become_signed_and_need_unsigning_before_unlock() {
+    let dir = workdir("unsigned-locks");
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({"path":"a.pdf"}))["doc"].as_u64().unwrap();
+    ok(&mut a, "page_lock", json!({"doc":doc,"pages":[1]}));
+    assert_eq!(ok(&mut a, "page_locks", json!({"doc":doc})), json!({"pages":[1],"signed_pages":[]}));
+    assert!(a.call("page_delete", &json!({"doc":doc,"pages":[1]})).is_err());
+    assert!(a.call("page_rotate", &json!({"doc":doc,"pages":[1],"degrees":90})).is_err());
+    ok(&mut a, "page_lock", json!({"doc":doc,"pages":[1],"locked":false}));
+    ok(&mut a, "page_rotate", json!({"doc":doc,"pages":[1],"degrees":90}));
+    ok(&mut a, "page_lock", json!({"doc":doc,"pages":[1]}));
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"unsigned.pdf"}));
+    let doc = ok(&mut a, "doc_open", json!({"path":"unsigned.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "page_locks", json!({"doc":doc}))["pages"], json!([1]));
+    ok(&mut a, "sign_id_create", json!({"name":"Ada","key":"p256","password":"secret12","path":"ada.p12"}));
+    let field = ok(&mut a, "sign_document", json!({"doc":doc,"id":"ada.p12","password":"secret12","out":"signed-locks.pdf"}))["signature"]["field"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(ok(&mut a, "page_locks", json!({"doc":doc}))["signed_pages"], json!([1]));
+    assert!(a.call("page_lock", &json!({"doc":doc,"pages":[1],"locked":false})).is_err());
+    assert_eq!(ok(&mut a, "doc_info", json!({"doc":doc}))["document"]["dirty"], false);
+    ok(&mut a, "sign_clear", json!({"doc":doc,"field":field,"id":"ada.p12","password":"secret12"}));
+    assert_eq!(ok(&mut a, "page_locks", json!({"doc":doc})), json!({"pages":[1],"signed_pages":[]}));
+    assert!(a.call("page_rotate", &json!({"doc":doc,"pages":[1],"degrees":90})).is_err());
+    ok(&mut a, "page_lock", json!({"doc":doc,"pages":[1],"locked":false}));
+    ok(&mut a, "page_delete", json!({"doc":doc,"pages":[1]}));
+    assert_eq!(std::fs::read(dir.join("a.pdf")).unwrap(), fixture());
+}

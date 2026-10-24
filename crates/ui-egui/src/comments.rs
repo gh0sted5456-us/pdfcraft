@@ -1605,19 +1605,17 @@ pub(crate) fn composer(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, 
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                crate::widgets::dialog_footer(ui, |ui| {
                     let can_post = !c.text.trim().is_empty() || matches!(c.kind, ComposerKind::Edit(_));
                     if ui
-                        .add_enabled(
-                            can_post,
-                            egui::Button::new(egui::RichText::new(tl!("Post")).color(Color32::WHITE)).fill(t.accent).corner_radius(14),
-                        )
+                        .add_enabled_ui(can_post, |ui| crate::widgets::dialog_button(ui, tl!("Post"), crate::widgets::DialogAction::Confirm))
+                        .inner
                         .clicked()
                         || (enter && can_post)
                     {
                         post = true;
                     }
-                    if ui.add(egui::Button::new(tl!("Cancel")).corner_radius(14)).clicked() {
+                    if crate::widgets::dialog_button(ui, tl!("Cancel"), crate::widgets::DialogAction::Cancel).clicked() {
                         cancel = true;
                     }
                 });

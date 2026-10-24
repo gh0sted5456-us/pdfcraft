@@ -53,6 +53,8 @@ fn server(id: DigitalId) -> (String, std::thread::JoinHandle<()>) {
                     Err(error) => panic!("timestamp test server: {error}"),
                 }
             };
+            // Accepted sockets can inherit the listener's nonblocking mode on Windows.
+            stream.set_nonblocking(false).unwrap();
             stream.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
             let mut bytes = Vec::new();
             let (start, length) = loop {

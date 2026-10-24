@@ -231,7 +231,7 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (boo
         if widgets::pill_button(ui, tl!("Audit space usage…"), false).clicked() {
             d.audit = true;
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
                 ok = true;
             }
@@ -292,11 +292,7 @@ pub(crate) fn audit_body(ui: &mut egui::Ui, rows: &[pdfcraft_engine::optimize::S
     });
     ui.add_space(12.0);
     let mut ok = false;
-    ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            ok = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked()
-        })
-    });
+    ui.horizontal(|ui| crate::widgets::dialog_footer(ui, |ui| ok = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked()));
     ok
 }
 

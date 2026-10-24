@@ -1658,8 +1658,8 @@ milestone = "M3"
 status = "shipped"
 commands = ["view.theme", "view.theme.light", "view.theme.dark"]
 tools = []
-evidence = ["crates/ui-egui/tests/it/theme.rs::toolbar_and_view_menu_share_three_state_preferences", "crates/ui-egui/src/theme.rs::text_is_readable_on_every_surface"]
-notes = "Toolbar and Display theme share three choices and a preference setter; manual choices exit system mode. Every text colour meets WCAG AA (4.5:1) on every surface in both themes; glyphs are pixel-aligned for sharper text at 100–150 % scaling."
+evidence = ["crates/ui-egui/src/widgets.rs::dialog_action_colors_and_dimensions_stay_consistent_in_both_themes", "crates/ui-egui/src/widgets.rs::dialogs_stay_centered_and_inside_the_window_when_their_contents_grow", "crates/ui-egui/tests/it/theme.rs::toolbar_and_view_menu_share_three_state_preferences", "crates/ui-egui/src/theme.rs::text_is_readable_on_every_surface"]
+notes = "Personal build: dialogs use centered bounded cards and measured action rows; cancellation blue, confirmation green, destructive actions red, navigation neutral, matte until hover. See docs/ui-conventions.md. Toolbar and Display theme share three choices and a preference setter; manual choices exit system mode. Every text colour meets WCAG AA (4.5:1) on every surface in both themes; glyphs are pixel-aligned for sharper text at 100–150 % scaling."
 
 [[feature]]
 id = "view.theme-system"
@@ -10207,3 +10207,27 @@ commands = []
 tools = []
 evidence = []
 notes = ""
+
+[[feature]]
+id = "personal.assistant-connections"
+title = "Optional personal AI connections and reviewed document assistance"
+area = "N"
+tier = "P2"
+milestone = "M13"
+status = "partial"
+commands = ["ai.setup", "ai.summary", "ai.ask", "ai.suggest", "ai.translate"]
+tools = ["ai_prepare", "ai_assist", "ai_accounts", "ai_models", "ai_key_connect", "ai_disconnect", "ai_login_start", "ai_login_finish", "ai_claude_login"]
+evidence = ["crates/engine/src/assistant.rs::input_is_reviewed_bounded_and_never_an_edit", "crates/automation/tests/it/assistant.rs::assistant_prepares_real_text_without_network_or_edits_and_refuses_unapproved_network", "crates/ui-egui/src/assistant_ui.rs::setup_has_no_bundled_account_and_never_persists_a_key_or_document_text"]
+notes = "Personal build, off by default: independent ChatGPT native OAuth, isolated official Claude Code subscription profile, or personal API keys in the OS store; no implicit billing fallback. Local reviewed text only, read-only results, network-gated automation. Live provider sign-in/inference and native Linux/macOS credential stores are not verified; desktop only and labels English. See docs/assistant.md; upstream #4150/#3112."
+
+[[feature]]
+id = "personal.organizer-page-locks"
+title = "Unsigned and signed page locks in Organize Pages"
+area = "D"
+tier = "P2"
+milestone = "M9"
+status = "partial"
+commands = []
+tools = ["page_lock", "page_locks"]
+evidence = ["crates/automation/tests/it/clear_signature.rs::unsigned_page_locks_become_signed_and_need_unsigning_before_unlock", "crates/ui-egui/tests/it/signing.rs::signing_confirmation_selects_page_protection_and_preserves_it_after_signing"]
+notes = "Personal PdfCraft-only workflow: unsigned locks persist and can be explicitly unlocked; signing captures them and requires verified removal of every protecting signature before unlock. Organizer padlocks, delete guards and a read-only organizer chooser returning to the signing draft. Other readers may ignore locks. Labels English; physical CAC unverified."

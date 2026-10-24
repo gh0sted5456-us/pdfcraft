@@ -600,7 +600,7 @@ pub(crate) fn apply_body(ui: &mut egui::Ui, marks: usize, t: &Tokens) -> (bool, 
 
 fn buttons(ui: &mut egui::Ui, ok: &str, primary: bool) -> (bool, bool) {
     let (mut a, mut c) = (false, false);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    crate::widgets::dialog_footer(ui, |ui| {
         // `ok` stays English internally; only the display is translated.
         if widgets::pill_button(ui, tl!(ok), primary).clicked() {
             a = true;
@@ -653,7 +653,7 @@ pub(crate) fn hidden_body(ui: &mut egui::Ui, d: &mut HiddenDraft, t: &Tokens) ->
     ui.add_space(12.0);
     let any = d.found.iter().any(|f| f.2 && f.1 > 0);
     let (mut a, mut c) = (false, false);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    crate::widgets::dialog_footer(ui, |ui| {
         if ui.add_enabled_ui(any && total > 0, |ui| widgets::dialog_button(ui, tl!("Remove"), widgets::DialogAction::Destructive)).inner.clicked() {
             a = true;
         }

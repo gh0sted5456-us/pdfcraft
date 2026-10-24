@@ -33,7 +33,15 @@ pub fn show_modal<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut eg
     let stored = egui::Id::new(id);
     modal(ctx, id).show(ctx, |ui| {
         begin_dialog(ui);
-        let inner = content(ui);
+        let available = (ctx.content_rect().size() - vec2(72.0, 64.0)).max(vec2(1.0, 1.0));
+        ui.set_max_size(available);
+        let inner = egui::ScrollArea::both()
+            .id_salt((id, "dialog-scroll"))
+            .max_width(available.x)
+            .max_height(available.y)
+            .auto_shrink([true, true])
+            .show(ui, content)
+            .inner;
         // The frame's stroke sits outside this content rect; the stored card is the fill.
         let card = ui.min_rect().expand2(egui::vec2(f32::from(DIALOG_PAD_X), f32::from(DIALOG_PAD_Y)));
         ui.ctx().data_mut(|d| d.insert_temp(stored.with("card"), card));
@@ -551,9 +559,8 @@ pub fn progress_notice(app: &PdfCraftApp, ctx: &egui::Context) -> bool {
                 }
                 if p.cancellable {
                     ui.add_space(4.0);
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let b = egui::Button::new(egui::RichText::new(tl!("Cancel")).font(theme::medium(12.5)).color(text)).frame(false);
-                        cancel = ui.add(b).clicked();
+                    crate::widgets::dialog_footer(ui, |ui| {
+                        cancel = dialog_button(ui, tl!("Cancel"), DialogAction::Cancel).clicked();
                     });
                 }
             });
@@ -854,6 +861,69 @@ mod tests {
         assert_eq!(latin.len(), 1);
         assert_eq!(latin[0].2, "A short note");
         assert!(latin[0].0.x.abs() < 0.5);
+    }
+
+    #[test]
+    fn dialog_action_colors_and_dimensions_stay_consistent_in_both_themes() {
+        for kind in [theme::ThemeKind::Light, theme::ThemeKind::Dark] {
+            let ctx = egui::Context::default();
+            ctx.set_fonts(theme::font_definitions());
+            theme::apply(&ctx, kind);
+            let mut sizes = Vec::new();
+            let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                for (label, role) in [
+                    ("Back", DialogAction::Back),
+                    ("Cancel", DialogAction::Cancel),
+                    ("Save", DialogAction::Confirm),
+                    ("Exit", DialogAction::Destructive),
+                ] {
+                    sizes.push(dialog_button_marked(ui, label, role, true).rect.size());
+                }
+            });
+            assert!(sizes.iter().all(|size| size.x >= 80. && size.y == 28.));
+            let colors: Vec<_> = out
+                .shapes
+                .iter()
+                .filter_map(|s| match &s.shape {
+                    egui::Shape::Rect(r) if r.stroke.width == 2. => Some(r.stroke.color),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(colors.len(), 4);
+            let [back, cancel, save, exit]: [Color32; 4] = colors.try_into().unwrap();
+            assert!((i16::from(back.r()) - i16::from(back.b())).abs() < 20);
+            assert!(cancel.b() > cancel.r() && cancel.b() > cancel.g(), "Cancel must be blue");
+            assert!(save.g() > save.r() && save.g() > save.b(), "Save must be green");
+            assert!(exit.r() > exit.g() && exit.r() > exit.b(), "Exit must be red");
+            out.drop_without_applying_deltas();
+        }
+    }
+
+    #[test]
+    fn dialogs_stay_centered_and_inside_the_window_when_their_contents_grow() {
+        let ctx = egui::Context::default();
+        ctx.set_fonts(theme::font_definitions());
+        for (width, height, rows) in [(1200., 900., 3), (1200., 900., 50), (640., 480., 50), (1600., 1000., 3)] {
+            let screen = Rect::from_min_size(egui::Pos2::ZERO, vec2(width, height));
+            for _ in 0..8 {
+                ctx.run_ui(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ui| {
+                    show_modal(ui.ctx(), "layout-check", |ui| {
+                        ui.set_width(720.);
+                        for row in 0..rows {
+                            ui.label(format!("Dialog content row {row}"));
+                        }
+                        dialog_button(ui, "Close", DialogAction::Cancel);
+                    });
+                })
+                .drop_without_applying_deltas();
+            }
+            let card = ctx.data(|d| d.get_temp::<Rect>(egui::Id::new("layout-check").with("card"))).unwrap();
+            assert!((card.center() - screen.center()).length() < 2., "Off center: {card:?} in {screen:?}");
+            assert!(screen.contains_rect(card), "Clipped dialog: {card:?} in {screen:?}");
+            if width >= 1200. {
+                assert!(card.width() >= 759., "The wrapper clipped the requested dialog width: {card:?}");
+            }
+        }
     }
 
     #[test]

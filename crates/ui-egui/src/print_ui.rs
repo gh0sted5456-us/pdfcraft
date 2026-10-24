@@ -862,8 +862,8 @@ fn driver_options_panel(ui: &mut egui::Ui, d: &mut PrintDraft, t: &Tokens) {
         ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(tl!("Printer properties")).font(theme::semibold(13.0)));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(tl!("Done")).clicked() {
+            crate::widgets::dialog_footer(ui, |ui| {
+                if widgets::dialog_button(ui, tl!("Done"), widgets::DialogAction::Confirm).clicked() {
                     *show = false;
                 }
                 if ui.add_enabled(!choices.is_empty(), egui::Button::new(tl!("Reset to printer defaults"))).clicked() {
@@ -1359,7 +1359,7 @@ pub(crate) fn body(
     });
     ui.add_space(12.0);
     let (mut go, mut cancel) = (false, false);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    crate::widgets::dialog_footer(ui, |ui| {
         let looking = still_looking(d);
         let label = if d.printer.is_some() || looking { tl!("Print") } else { tl!("Save as PDF") };
         if ui

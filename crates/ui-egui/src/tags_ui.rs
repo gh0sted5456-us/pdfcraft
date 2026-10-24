@@ -212,7 +212,12 @@ pub(crate) fn panel(
     let before = position.and_then(|position| position.checked_sub(1)).map(|position| siblings[position]);
     let after = position.and_then(|position| siblings.get(position + 1)).copied();
     ui.horizontal(|ui| {
-        save = ui.add_enabled(can_edit && !state.draft.kind.is_empty() && edit.is_some(), egui::Button::new(tl!("Save tag properties"))).clicked();
+        save = ui
+            .add_enabled_ui(can_edit && !state.draft.kind.is_empty() && edit.is_some(), |ui| {
+                widgets::dialog_button(ui, tl!("Save tag properties"), widgets::DialogAction::Confirm)
+            })
+            .inner
+            .clicked();
         if ui.add_enabled(dirty, egui::Button::new(tl!("Revert changes"))).clicked() {
             state.draft = Draft::from_tag(tag);
         }

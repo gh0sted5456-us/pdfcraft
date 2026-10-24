@@ -44,6 +44,7 @@ pub use combine_grid::ThumbState as CombineThumb;
 mod combine_ui;
 pub mod docking;
 pub use combine_ui::{Columns as CombineColumns, CombineView, Lock as CombineLock, SortKey};
+mod assistant_ui;
 mod camera_ui;
 mod commands;
 mod comment_props;
@@ -344,6 +345,7 @@ pub enum Dialog {
     /// Sign with a Digital ID ▸ Configure ▸ Sign as.
     Sign,
     Timestamp,
+    Assistant,
     /// Optimize PDF ▸ Advanced optimization.
     Optimize,
     /// Prepare a form ▸ right-click a field ▸ Duplicate.
@@ -828,6 +830,7 @@ pub struct PdfCraftApp {
     /// Number pages dialog settings (1-based pages).
     pub number_draft: NumberDraft,
     pub(crate) word_count_draft: word_count_ui::Draft,
+    pub(crate) assistant: assistant_ui::Draft,
     /// Protect Using Password dialog state.
     pub protect_draft: protect::ProtectDraft,
     /// Set Page Boxes dialog state.
@@ -1192,6 +1195,7 @@ impl PdfCraftApp {
             replace_draft: None,
             number_draft: NumberDraft { from: 1, to: 1, style: pdfcraft_engine::LabelStyle::Decimal, prefix: String::new(), start: 1 },
             word_count_draft: word_count_ui::Draft::default(),
+            assistant: assistant_ui::Draft::default(),
         }
     }
 
@@ -2460,6 +2464,7 @@ impl PdfCraftApp {
             "units": self.units,
             "language": self.language,
             "spelling": { "enabled": self.spelling.enabled, "language": self.spelling.language, "words": self.spelling.words },
+            "assistant": self.assistant.settings,
             "reading_colors": self.reading_colors,
             // Null follows the system's text scaling.
             "ui_scale": self.ui_scale,
@@ -2606,6 +2611,15 @@ impl PdfCraftApp {
         }
         if let Some(language) = v["language"].as_str().and_then(i18n::normalize_pref) {
             self.language = language.to_string();
+        }
+        if let Ok(mut settings) = serde_json::from_value::<assistant_ui::Settings>(v["assistant"].clone()) {
+            if pdfcraft_platform::assistant::check_model(&settings.model).is_err() {
+                settings.model.clear();
+            }
+            if settings.account.len() > 128 || !settings.account.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_".contains(&b)) {
+                settings.account.clear();
+            }
+            self.assistant.settings = settings;
         }
         if let Some(enabled) = v["spelling"]["enabled"].as_bool() {
             self.spelling.enabled = enabled;
