@@ -4767,6 +4767,13 @@ fn find_bar(view: &mut DocView, pages: usize, area: Rect, ui: &mut egui::Ui, t: 
                         let r = ui.add(edit);
                         if find.focus {
                             r.request_focus();
+                            if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), r.id) {
+                                let end = find.query.chars().count();
+                                state
+                                    .cursor
+                                    .set_char_range(Some(egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(end))));
+                                state.store(ui.ctx(), r.id);
+                            }
                             find.focus = false;
                         }
                         if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
@@ -5715,7 +5722,11 @@ fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstruct
                 if let Some(gap) = drop_gap(&cells, p) {
                     if copying {
                         // The copies land at the gap as it is: nothing leaves its place.
-                        view.pending_edit = Some(Edit::DuplicatePages { pages: pages.clone(), at: Some(gap) });
+                        view.pending_edit = Some(Edit::DuplicatePages {
+                            pages: pages.clone(),
+                            at: Some(gap),
+                            field_conflicts: pdfcraft_engine::FieldConflicts::Merge,
+                        });
                         view.selected = (gap..gap + pages.len()).collect();
                     } else {
                         // `to` counts positions without the moving pages.

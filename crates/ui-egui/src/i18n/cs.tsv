@@ -2912,3 +2912,8 @@ certificate	Version	Verze
 	Add to dictionary	Přidat do slovníku
 
 	Suggest edits	Navrhnout úpravy
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Duplikovat stránky s novými názvy polí
+	Duplicate pages — 1 field renamed	Duplikovat stránky — 1 pole přejmenováno
+	Duplicate pages — fields renamed	Duplikovat stránky — pole přejmenována

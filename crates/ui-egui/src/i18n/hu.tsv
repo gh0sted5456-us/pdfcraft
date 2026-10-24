@@ -2604,3 +2604,8 @@ animation effects	Off	Ki
 	Add to dictionary	Hozzáadás a szótárhoz
 
 	Suggest edits	Módosítások javaslata
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Oldalak másolása új mezőnevekkel
+	Duplicate pages — 1 field renamed	Oldalak megkettőzése — 1 mező átnevezve
+	Duplicate pages — fields renamed	Oldalak megkettőzése — mezők átnevezve

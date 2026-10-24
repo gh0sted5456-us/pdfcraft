@@ -2506,3 +2506,8 @@ animation effects	Off	ఆఫ్
 	Add to dictionary	నిఘంటువుకు జోడించు
 
 	Suggest edits	మార్పులను సూచించు
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	కొత్త ఫీల్డ్ పేర్లతో పేజీలను నకలు చేయి
+	Duplicate pages — 1 field renamed	పేజీలను నకలు చేయి — 1 ఫీల్డ్ పేరు మార్చబడింది
+	Duplicate pages — fields renamed	పేజీలను నకలు చేయి — ఫీల్డ్‌ల పేర్లు మార్చబడ్డాయి

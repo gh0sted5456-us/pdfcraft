@@ -2603,3 +2603,8 @@ animation effects	Off	Ανενεργά
 	Add to dictionary	Προσθήκη στο λεξικό
 
 	Suggest edits	Πρόταση αλλαγών
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Διπλασιασμός σελίδων με νέα ονόματα πεδίων
+	Duplicate pages — 1 field renamed	Δημιουργία αντιγράφων σελίδων — μετονομάστηκε 1 πεδίο
+	Duplicate pages — fields renamed	Δημιουργία αντιγράφων σελίδων — μετονομάστηκαν πεδία

@@ -2894,3 +2894,8 @@ theme	Appearance	Aparência
 	Add to dictionary	Adicionar ao dicionário
 
 	Suggest edits	Sugerir alterações
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Duplicar páginas com novos nomes de campos
+	Duplicate pages — 1 field renamed	Duplicar páginas — 1 campo renomeado
+	Duplicate pages — fields renamed	Duplicar páginas — campos renomeados

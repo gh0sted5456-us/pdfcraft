@@ -1,5 +1,7 @@
 # Where PdfCraft falls short of Acrobat Pro
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal build adapts upstream #4533 search-focus selection, #4552 checkbox drag selection and #4557 independent form-field copies on duplicated pages. Ordinary duplication keeps shared field names; renamed copies report their new names and do not rewrite scripts. Readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal build adds optional per-user AI subscription/API setup and reviewed read-only assistance, unsigned page locks captured by subsequent signatures, an Organize Pages signing chooser, and bounded centered shared dialogs. Live AI/provider login, native Linux/macOS credential stores and physical CAC remain unverified. Other readers may ignore PdfCraft page locks; readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal M9 signing adds fresh private-key proof for signature removal, authoritative signature hit targets, native certification edit guards and explicitly PdfCraft-only signed page protection with organizer lock indicators. Policies follow pages and come from the verified signed revision. Physical CAC and other-reader page enforcement remain unverified; readiness estimates unchanged.

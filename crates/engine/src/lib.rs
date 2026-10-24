@@ -1457,6 +1457,9 @@ pub enum Edit {
     DuplicatePages {
         pages: Vec<usize>,
         at: Option<usize>,
+        /// The copies' form fields: `Merge` keeps their names, so each copy is one field with
+        /// its original (Duplicate pages); `Rename` gives each its own (#2228).
+        field_conflicts: pdfcraft_organize::FieldConflicts,
     },
     /// Replace Pages: the content of `pages` is replaced by `src_pages` of another PDF; the
     /// pages' links, comments and bookmarks stay.
@@ -2064,6 +2067,8 @@ pub const EDIT_LABELS: &[&str] = &[
     "Insert pages from {name}",
     "Insert pages from {name} — 1 field renamed",
     "Insert pages from {name} — fields renamed",
+    "Duplicate pages — 1 field renamed",
+    "Duplicate pages — fields renamed",
     "Add bookmark",
     "Rename bookmark",
     "Delete bookmark",
@@ -2622,7 +2627,10 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             pdfcraft_organize::insert_blank_page(doc, *at, *width, *height)?;
         }
         Edit::SetInfo { key, value } => pdfcraft_organize::set_info(doc, key, value)?,
-        Edit::DuplicatePages { pages, at } => pdfcraft_organize::duplicate_pages(doc, pages, *at)?,
+        Edit::DuplicatePages { pages, at, field_conflicts } => {
+            // Added to, not replaced: a batch can duplicate (or insert) more than once.
+            cx.renamed_fields.extend(pdfcraft_organize::duplicate_pages_with(doc, pages, *at, *field_conflicts)?);
+        }
         Edit::ReplacePages { pages, name, bytes, src_pages } => {
             let src = open_source(name, bytes)?;
             pdfcraft_organize::replace_pages(doc, pages, &src, src_pages)?;
@@ -2638,7 +2646,7 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             // The file's bookmarks come along under one named after it, as in Combine Files.
             let title = std::path::Path::new(name).file_stem().map_or_else(|| name.clone(), |s| s.to_string_lossy().into_owned());
             let outcome = pdfcraft_organize::insert_file_pages(doc, &src, &title, &pages, *at, *field_conflicts)?;
-            cx.renamed_fields = outcome.renamed_fields;
+            cx.renamed_fields.extend(outcome.renamed_fields);
         }
         Edit::AddBookmark { parent, index, title, page, left, top } => {
             pdfcraft_organize::add_bookmark_at(doc, parent, *index, title, *page, *left, *top)?;
@@ -4020,7 +4028,12 @@ impl Session {
                 let more = renamed.len().saturating_sub(shown.len());
                 let more = if more > 0 { format!(", and {more} more") } else { String::new() };
                 format!(
-                    "inserted pages renamed {} form field{} to keep their names separate ({}{more}); scripts that refer to the old names were not rewritten",
+                    "{} renamed {} form field{} to keep their names separate ({}{more}); scripts that refer to the old names were not rewritten",
+                    match &edit {
+                        Edit::DuplicatePages { .. } => "duplicated pages",
+                        Edit::InsertPagesFrom { .. } => "inserted pages",
+                        _ => "page operations",
+                    },
                     renamed.len(),
                     if renamed.len() == 1 { "" } else { "s" },
                     shown.join(", ")
@@ -4030,14 +4043,17 @@ impl Session {
         if let Some(note) = renamed_note(&cx.renamed_fields) {
             next.note_repair(note);
         }
-        // Only Insert from File renames fields; its label says so in a wording the interface
-        // translates (the count lives in the repair note).
+        // Only Insert from File and Duplicate pages with new field names rename fields; their
+        // labels say so in a wording the interface translates (the count lives in the repair
+        // note).
         let label = match (&edit, cx.renamed_fields.len()) {
             (_, 0) => edit.label(),
             (Edit::InsertPagesFrom { name, .. }, n) => Label::with(
                 if n == 1 { "Insert pages from {name} — 1 field renamed" } else { "Insert pages from {name} — fields renamed" },
                 name.as_str(),
             ),
+            (Edit::DuplicatePages { .. }, 1) => Label::of("Duplicate pages — 1 field renamed"),
+            (Edit::DuplicatePages { .. }, _) => Label::of("Duplicate pages — fields renamed"),
             _ => edit.label(),
         };
         // An XFA form's scripts answer the change: exit and validate scripts of the field, then

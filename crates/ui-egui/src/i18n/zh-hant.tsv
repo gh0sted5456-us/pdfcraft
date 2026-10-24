@@ -2547,3 +2547,8 @@ animation effects	Off	關
 	Add to dictionary	加入字典
 
 	Suggest edits	建議修改
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	使用新欄位名稱複製頁面
+	Duplicate pages — 1 field renamed	複製頁面 — 已重新命名 1 個欄位
+	Duplicate pages — fields renamed	複製頁面 — 已重新命名欄位

@@ -294,3 +294,5 @@ rewrite is still refused. See [removing signatures](../../docs/removing-signatur
 Personal-build signature ownership checks and page protection are described in [signature protection](../../docs/signature-protection.md).
 
 Personal tools: `ai_prepare` and explicit network-gated AI connection/request tools are documented in [Assistant setup](../../docs/assistant.md); `page_lock`/`page_locks` expose ordinary and signed page protection.
+
+`page_duplicate` accepts optional `field_conflicts: "rename"` to give copied form fields independent names (`Text1-1`, `Text1-2`, …). The default `"merge"` keeps ordinary duplication behavior. The repair log lists renames and warns that scripts referencing old names are not rewritten; filling a renamed copy does not change the original. The GUI exposes **Duplicate pages with new field names** in Pages and Organize Pages ▸ Insert. Adapted from [upstream #4557](https://github.com/storytold/pdfcraft/pull/4557) by @Lcoding15.

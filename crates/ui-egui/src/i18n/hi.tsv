@@ -2842,3 +2842,8 @@ theme	Appearance	स्वरूप
 	Add to dictionary	शब्दकोश में जोड़ें
 
 	Suggest edits	बदलाव सुझाएँ
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	नए फ़ील्ड नामों के साथ पृष्ठों की प्रतिलिपि बनाएँ
+	Duplicate pages — 1 field renamed	पृष्ठ डुप्लिकेट करें — 1 फ़ील्ड का नाम बदला गया
+	Duplicate pages — fields renamed	पृष्ठ डुप्लिकेट करें — फ़ील्ड के नाम बदले गए

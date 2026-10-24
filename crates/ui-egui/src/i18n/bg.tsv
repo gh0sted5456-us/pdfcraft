@@ -2568,3 +2568,8 @@ animation effects	Off	Изключени
 	Add to dictionary	Добавяне в речника
 
 	Suggest edits	Предлагане на редакции
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Дублиране на страници с нови имена на полетата
+	Duplicate pages — 1 field renamed	Дублирай страници — 1 поле е преименувано
+	Duplicate pages — fields renamed	Дублирай страници — полета са преименувани

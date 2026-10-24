@@ -2601,3 +2601,8 @@ animation effects	Off	Kapalı
 	Add to dictionary	Sözlüğe ekle
 
 	Suggest edits	Düzenleme öner
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Sayfaları yeni alan adlarıyla çoğalt
+	Duplicate pages — 1 field renamed	Sayfaları çoğalt — 1 alan yeniden adlandırıldı
+	Duplicate pages — fields renamed	Sayfaları çoğalt — alanlar yeniden adlandırıldı

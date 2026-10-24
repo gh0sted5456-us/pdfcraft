@@ -2869,3 +2869,8 @@ theme	Appearance	Aspecte
 	Add to dictionary	Afegeix al diccionari
 
 	Suggest edits	Suggereix canvis
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Duplica les pàgines amb noms de camp nous
+	Duplicate pages — 1 field renamed	Duplica pàgines — 1 camp s'ha reanomenat
+	Duplicate pages — fields renamed	Duplica pàgines — camps reanomenats

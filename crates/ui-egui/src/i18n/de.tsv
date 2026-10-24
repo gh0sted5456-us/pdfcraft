@@ -2606,3 +2606,8 @@ animation effects	Off	Aus
 	Add to dictionary	Zum Wörterbuch hinzufügen
 
 	Suggest edits	Änderungen vorschlagen
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Seiten mit neuen Feldnamen duplizieren
+	Duplicate pages — 1 field renamed	Seiten duplizieren — 1 Feld umbenannt
+	Duplicate pages — fields renamed	Seiten duplizieren — Felder umbenannt

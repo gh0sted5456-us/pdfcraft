@@ -2843,3 +2843,8 @@ theme	Appearance	Tampilan
 	Add to dictionary	Tambahkan ke kamus
 
 	Suggest edits	Sarankan perubahan
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Gandakan halaman dengan nama bidang baru
+	Duplicate pages — 1 field renamed	Duplikat halaman — 1 kolom diganti namanya
+	Duplicate pages — fields renamed	Duplikat halaman — kolom diganti namanya

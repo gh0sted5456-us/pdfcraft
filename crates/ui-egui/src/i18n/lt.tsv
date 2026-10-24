@@ -2871,3 +2871,8 @@ theme	Appearance	Išvaizda
 	Add to dictionary	Įtraukti į žodyną
 
 	Suggest edits	Siūlyti pakeitimus
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Dubliuoti puslapius su naujais laukų pavadinimais
+	Duplicate pages — 1 field renamed	Dubliuoti puslapius — pervadintas 1 laukas
+	Duplicate pages — fields renamed	Dubliuoti puslapius — laukai pervadinti

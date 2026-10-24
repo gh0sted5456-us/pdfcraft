@@ -2881,3 +2881,8 @@ certificate	Version	الإصدار
 	Add to dictionary	إضافة إلى القاموس
 
 	Suggest edits	اقتراح تعديلات
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	تكرار الصفحات بأسماء حقول جديدة
+	Duplicate pages — 1 field renamed	تكرار الصفحات — تمت إعادة تسمية حقل واحد
+	Duplicate pages — fields renamed	تكرار الصفحات — تمت إعادة تسمية حقول

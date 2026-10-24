@@ -2605,3 +2605,8 @@ animation effects	Off	オフ
 	Add to dictionary	辞書に追加
 
 	Suggest edits	編集内容を提案
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	新しいフィールド名でページを複製
+	Duplicate pages — 1 field renamed	ページを複製 — 1 個のフィールド名を変更
+	Duplicate pages — fields renamed	ページを複製 — フィールド名を変更

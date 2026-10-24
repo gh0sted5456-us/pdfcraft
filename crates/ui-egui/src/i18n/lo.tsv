@@ -2461,3 +2461,8 @@ animation effects	Off	ປິດ
 	Add to dictionary	ເພີ່ມໃສ່ພົດຈະນານຸກົມ
 
 	Suggest edits	ແນະນຳການແກ້ໄຂ
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	ເຮັດສຳເນົາໜ້າດ້ວຍຊື່ຊ່ອງໃໝ່
+	Duplicate pages — 1 field renamed	ສຳເນົາໜ້າຊ້ຳ — ປ່ຽນຊື່ແລ້ວ 1 ຊ່ອງ
+	Duplicate pages — fields renamed	ສຳເນົາໜ້າຊ້ຳ — ປ່ຽນຊື່ຊ່ອງຂໍ້ມູນແລ້ວ

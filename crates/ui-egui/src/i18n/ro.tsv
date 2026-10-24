@@ -2869,3 +2869,8 @@ theme	Appearance	Aspect
 	Add to dictionary	Adaugă în dicționar
 
 	Suggest edits	Sugerează modificări
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Duplică paginile cu nume noi de câmpuri
+	Duplicate pages — 1 field renamed	Duplicare pagini: 1 câmp redenumit
+	Duplicate pages — fields renamed	Duplicare pagini: câmpuri redenumite

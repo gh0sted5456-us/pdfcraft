@@ -2701,3 +2701,8 @@ animation effects	Off	Wyłączone
 	Add to dictionary	Dodaj do słownika
 
 	Suggest edits	Zaproponuj zmiany
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Powiel strony z nowymi nazwami pól
+	Duplicate pages — 1 field renamed	Powiel strony — zmieniono nazwę 1 pola
+	Duplicate pages — fields renamed	Powiel strony — zmieniono nazwy pól

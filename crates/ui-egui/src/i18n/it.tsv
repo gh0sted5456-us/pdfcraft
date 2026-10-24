@@ -2837,3 +2837,8 @@ certificate	SHA-256 digest	Impronta SHA-256
 	Add to dictionary	Aggiungi al dizionario
 
 	Suggest edits	Suggerisci modifiche
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Duplica pagine con nuovi nomi dei campi
+	Duplicate pages — 1 field renamed	Duplica pagine — 1 campo rinominato
+	Duplicate pages — fields renamed	Duplica pagine — campi rinominati

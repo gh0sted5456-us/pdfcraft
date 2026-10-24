@@ -2871,3 +2871,8 @@ certificate	Version	Version
 	Add to dictionary	Ajouter au dictionnaire
 
 	Suggest edits	Suggérer des modifications
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Dupliquer les pages avec de nouveaux noms de champs
+	Duplicate pages — 1 field renamed	Dupliquer des pages — 1 champ renommé
+	Duplicate pages — fields renamed	Dupliquer des pages — champs renommés

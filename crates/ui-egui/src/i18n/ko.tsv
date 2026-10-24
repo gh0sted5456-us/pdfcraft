@@ -2842,3 +2842,8 @@ theme	Appearance	모양
 	Add to dictionary	사전에 추가
 
 	Suggest edits	수정 제안
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	새 필드 이름으로 페이지 복제
+	Duplicate pages — 1 field renamed	페이지 복제 — 필드 1개 이름 변경됨
+	Duplicate pages — fields renamed	페이지 복제 — 필드 이름 변경됨

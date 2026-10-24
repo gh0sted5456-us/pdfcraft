@@ -2745,3 +2745,8 @@ certificate	Version	وەشان
 	Add to dictionary	زیادکردن بۆ فەرهەنگ
 
 	Suggest edits	پێشنیاری دەستکاری
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	دووبارەکردنەوەی لاپەڕەکان بە ناوی نوێی خانەکان
+	Duplicate pages — 1 field renamed	دووبارەکردنەوەی پەڕەکان — 1 خانە ناونرایەوە
+	Duplicate pages — fields renamed	دووبارەکردنەوەی پەڕەکان — خانەکان ناونرانەوە

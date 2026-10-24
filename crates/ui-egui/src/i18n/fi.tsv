@@ -2878,3 +2878,8 @@ theme	Appearance	Teema
 	Add to dictionary	Lisää sanakirjaan
 
 	Suggest edits	Ehdota muutoksia
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Monista sivut uusilla kenttien nimillä
+	Duplicate pages — 1 field renamed	Monista sivut — 1 kenttä nimetty uudelleen
+	Duplicate pages — fields renamed	Monista sivut — kenttiä nimetty uudelleen

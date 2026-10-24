@@ -2610,3 +2610,8 @@ animation effects	Off	Izklopljeni
 	Add to dictionary	Dodaj v slovar
 
 	Suggest edits	Predlagaj spremembe
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Podvoji strani z novimi imeni polj
+	Duplicate pages — 1 field renamed	Podvoji strani — 1 polje preimenovano
+	Duplicate pages — fields renamed	Podvoji strani — polja preimenovana

@@ -2603,3 +2603,8 @@ animation effects	Off	Өшірулі
 	Add to dictionary	Сөздікке қосу
 
 	Suggest edits	Өзгерістерді ұсыну
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Беттерді жаңа өріс атауларымен көшіру
+	Duplicate pages — 1 field renamed	Беттерді көшірмелеу — 1 өріс қайта аталды
+	Duplicate pages — fields renamed	Беттерді көшірмелеу — өрістер қайта аталды

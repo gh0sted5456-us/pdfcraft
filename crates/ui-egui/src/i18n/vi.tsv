@@ -2874,3 +2874,8 @@ key	Space	Space
 	Add to dictionary	Thêm vào từ điển
 
 	Suggest edits	Đề xuất chỉnh sửa
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Nhân bản trang với tên trường mới
+	Duplicate pages — 1 field renamed	Nhân bản trang — 1 trường được đổi tên
+	Duplicate pages — fields renamed	Nhân bản trang — các trường được đổi tên

@@ -2590,3 +2590,8 @@ animation effects	Off	Joaktiv
 	Add to dictionary	Shto në fjalor
 
 	Suggest edits	Sugjero ndryshime
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Dyfisho faqet me emra të rinj fushash
+	Duplicate pages — 1 field renamed	Dyfisho faqet — 1 fushë u riemërua
+	Duplicate pages — fields renamed	Dyfisho faqet — fushat u riemëruan

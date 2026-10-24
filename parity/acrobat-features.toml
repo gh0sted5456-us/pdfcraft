@@ -1394,8 +1394,8 @@ milestone = "M3"
 status = "shipped"
 commands = ["edit.find"]
 tools = ["text_find"]
-evidence = ["crates/ui-egui/tests/it/ui.rs::find_counts_matches_across_pages", "crates/ui-egui/tests/it/ui.rs::find_reports_no_matches", "crates/automation/tests/it/automation.rs::open_inspect_render_and_find", "crates/render/src/text.rs::identity_v_columns_are_searchable_in_reading_order", "crates/render/src/text.rs::toc_leaders_do_not_hide_word_gaps", "crates/render/src/text.rs::short_tracked_ellipses_remain_searchable"]
-notes = "Horizontal and WMode 1 vertical text are grouped independently, including a horizontal heading above right-to-left vertical columns. Dotted TOC leaders preserve word spaces for phrase search (#3086), while short tracked ellipses remain intact and searchable; sparse lines and condensed OCR gaps below the existing height-based threshold remain limitations. Complex interleaved flows still use a geometric reading-order heuristic."
+evidence = ["crates/ui-egui/tests/it/ui.rs::find_counts_matches_across_pages", "crates/ui-egui/tests/it/ui.rs::find_reports_no_matches", "crates/automation/tests/it/automation.rs::open_inspect_render_and_find", "crates/render/src/text.rs::identity_v_columns_are_searchable_in_reading_order", "crates/render/src/text.rs::toc_leaders_do_not_hide_word_gaps", "crates/render/src/text.rs::short_tracked_ellipses_remain_searchable", "crates/ui-egui/tests/it/viewer.rs::refocusing_find_selects_the_complete_unicode_query"]
+notes = "Horizontal and WMode 1 vertical text are grouped independently, including a horizontal heading above right-to-left vertical columns. Dotted TOC leaders preserve word spaces for phrase search (#3086), while short tracked ellipses remain intact and searchable; sparse lines and condensed OCR gaps below the existing height-based threshold remain limitations. Complex interleaved flows still use a geometric reading-order heuristic. Explicitly reopening or refocusing Find selects its complete Unicode query; ordinary typing keeps its cursor (#4534, adapted from #4533)."
 
 [[feature]]
 id = "view.find-next-previous"
@@ -1454,8 +1454,8 @@ milestone = "M12"
 status = "partial"
 commands = ["edit.advanced_search"]
 tools = ["text_find"]
-evidence = ["crates/ui-egui/tests/it/viewer.rs::advanced_search_lists_results_with_context"]
-notes = "in the current document, as a side panel; searching other open documents, folders and indexes is still to come"
+evidence = ["crates/ui-egui/tests/it/viewer.rs::advanced_search_lists_results_with_context", "crates/ui-egui/tests/it/viewer.rs::refocusing_advanced_search_selects_the_complete_unicode_query"]
+notes = "in the current document, as a side panel; searching other open documents, folders and indexes is still to come Explicit focus requests select the current Unicode query so typing replaces it (#4534)."
 
 [[feature]]
 id = "view.search-folder"
@@ -2834,10 +2834,10 @@ area = "D"
 tier = "P0"
 milestone = "M4"
 status = "shipped"
-commands = ["page.duplicate"]
+commands = ["page.duplicate", "page.duplicate_renaming_fields"]
 tools = ["page_duplicate"]
-evidence = ["crates/ui-egui/tests/it/pageboxes.rs::duplicate_pages_copies_the_current_page", "crates/ui-egui/tests/it/editing.rs::dragging_with_the_copy_modifier_copies_the_pages_into_the_gap", "crates/ui-egui/tests/it/control.rs::ctrl_dragging_a_thumbnail_through_the_control_channel_copies_the_page", "crates/organize/src/tests.rs::duplicate_pages_inserts_copies_after_the_last", "crates/organize/src/tests.rs::duplicate_pages_at_inserts_the_copies_there", "crates/automation/tests/it/automation.rs::page_duplicate_at_inserts_the_copies_there"]
-notes = "copies share fonts and images with the originals; Ctrl-drag (Option on macOS) in the page grid drops the copies at the gap instead of moving the pages, with a \"+\" badge and the copies selected (#2997); page_duplicate takes `at` for where the first copy goes (left out: after the last of them)"
+evidence = ["crates/ui-egui/tests/it/pageboxes.rs::duplicate_pages_copies_the_current_page", "crates/ui-egui/tests/it/forms.rs::duplicating_a_page_with_new_field_names_from_the_pages_menu", "crates/engine/src/tests.rs::duplicating_with_new_field_names_makes_the_copy_its_own_field", "crates/organize/src/tests.rs::duplicating_with_rename_gives_the_copies_fields_of_their_own", "crates/automation/tests/it/automation.rs::page_duplicate_can_give_the_copies_fields_of_their_own", "crates/ui-egui/tests/it/editing.rs::dragging_with_the_copy_modifier_copies_the_pages_into_the_gap", "crates/ui-egui/tests/it/control.rs::ctrl_dragging_a_thumbnail_through_the_control_channel_copies_the_page", "crates/organize/src/tests.rs::duplicate_pages_inserts_copies_after_the_last", "crates/organize/src/tests.rs::duplicate_pages_at_inserts_the_copies_there", "crates/automation/tests/it/automation.rs::page_duplicate_at_inserts_the_copies_there"]
+notes = "copies share fonts and images with the originals; Ctrl-drag (Option on macOS) in the page grid drops the copies at the gap instead of moving the pages, with a \"+\" badge and the copies selected (#2997); page_duplicate takes `at` for where the first copy goes (left out: after the last of them). The copies' form fields keep their names, so each copy is one field with its original; Duplicate pages with new field names (Pages menu, Organize pages ▸ Insert, page_duplicate field_conflicts \"rename\") gives each copied field the first free name instead (Text1 becomes Text1-1), so a copy is filled in on its own, and the repair log lists the renames (#2228). Scripts that refer to the old names are not rewritten, and the new names are not numbered by page"
 
 [[feature]]
 id = "organize.reverse-pages"
@@ -9857,8 +9857,8 @@ milestone = "M14"
 status = "partial"
 commands = ["app.preferences"]
 tools = ["js_enabled"]
-evidence = ["crates/ui-egui/tests/it/javascript.rs::document_scripts_and_preferences", "crates/ui-egui/tests/it/ui.rs::preferences_selects_default_workspace_for_next_open", "crates/ui-egui/tests/it/control.rs::control_default_workspace_and_session_override", "apps/pdfcraft/src/settings.rs::xdg_preferences_use_config_instead_of_data", "apps/pdfcraft/src/settings.rs::migration_preserves_preferences_and_other_data", "crates/ui-egui/tests/it/preferences_layout.rs::ok_is_on_screen_without_scrolling_at_any_window_height", "crates/ui-egui/tests/it/preferences_layout.rs::ok_closes_the_dialog_in_a_short_window_and_the_settings_still_scroll"]
-notes = "Preferences dialog with Interface language, Documents and view (persistent default workspace with session override), Identity, Fill & Sign (flatten on save, off by default) and JavaScript; other categories still live in their tools, and it isn't generated from a schema yet. XDG desktops store app.ron under XDG_CONFIG_HOME/pdfcraft or ~/.config/pdfcraft; existing data-folder preferences are copied without replacing configured preferences, with fallback on migration errors. Logs and recovery retain data locations. Portable/non-XDG locations are unchanged. The settings scroll when the window is short (down to a 60 pt scroll area, so OK stays on screen in the smallest window at the largest interface size) and the OK row stays below them, in reach (#3557); the dialog still has no Cancel, and a window shorter than the dialog's title, one row and OK would still clip it."
+evidence = ["crates/ui-egui/tests/it/javascript.rs::document_scripts_and_preferences", "crates/ui-egui/tests/it/ui.rs::preferences_selects_default_workspace_for_next_open", "crates/ui-egui/tests/it/control.rs::control_default_workspace_and_session_override", "apps/pdfcraft/src/settings.rs::xdg_preferences_use_config_instead_of_data", "apps/pdfcraft/src/settings.rs::migration_preserves_preferences_and_other_data", "crates/ui-egui/tests/it/preferences_layout.rs::ok_is_on_screen_without_scrolling_at_any_window_height", "crates/ui-egui/tests/it/preferences_layout.rs::ok_closes_the_dialog_in_a_short_window_and_the_settings_still_scroll", "crates/ui-egui/tests/it/checkbox_drag.rs::a_drag_down_the_preferences_checkboxes_sets_them_all_and_a_drag_back_up_clears_them"]
+notes = "Preferences dialog with Interface language, Documents and view (persistent default workspace with session override), Identity, Fill & Sign (flatten on save, off by default) and JavaScript; other categories still live in their tools, and it isn't generated from a schema yet. XDG desktops store app.ron under XDG_CONFIG_HOME/pdfcraft or ~/.config/pdfcraft; existing data-folder preferences are copied without replacing configured preferences, with fallback on migration errors. Logs and recovery retain data locations. Portable/non-XDG locations are unchanged. The settings scroll when the window is short (down to a 60 pt scroll area, so OK stays on screen in the smallest window at the largest interface size) and the OK row stays below them, in reach (#3557); the dialog still has no Cancel, and a window shorter than the dialog's title, one row and OK would still clip it. Labelled interface checkboxes accept drag-to-set across enabled visible controls (#1662, adapted from #4552); page thumbnails and PDF form fields retain their own gestures."
 
 [[feature]]
 id = "misc.prefs-general"

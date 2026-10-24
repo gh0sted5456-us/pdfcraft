@@ -5,6 +5,38 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{By, NodeT, Queryable};
 use pdfcraft_ui_egui::{Dialog, PdfCraftApp};
 
+fn refocusing_search_replaces_the_query(command: &str, input_id: &str) {
+    let mut h = harness();
+    let index = h.state().active.unwrap();
+    assert!(h.state_mut().execute(command));
+    h.run_steps(4);
+    h.state_mut().views[index].find.as_mut().unwrap().query = "café 文".into();
+    h.run_steps(2);
+    let id = egui::Id::new(input_id);
+    let mut state = egui::TextEdit::load_state(&h.ctx, id).unwrap();
+    state.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(2))));
+    state.store(&h.ctx, id);
+    h.ctx.memory_mut(|m| m.surrender_focus(id));
+    assert!(h.state_mut().execute(command));
+    h.run_steps(4);
+    h.event(egui::Event::Text("replacement".into()));
+    h.run_steps(2);
+    assert_eq!(h.state().views[index].find.as_ref().unwrap().query, "replacement");
+    h.event(egui::Event::Text("-continued".into()));
+    h.run_steps(2);
+    assert_eq!(h.state().views[index].find.as_ref().unwrap().query, "replacement-continued", "ordinary typing must not select the query again");
+}
+
+#[test]
+fn refocusing_find_selects_the_complete_unicode_query() {
+    refocusing_search_replaces_the_query("edit.find", "find-input");
+}
+
+#[test]
+fn refocusing_advanced_search_selects_the_complete_unicode_query() {
+    refocusing_search_replaces_the_query("edit.advanced_search", "search-panel-input");
+}
+
 /// `n` pages of 200×300; page i says "Page i+1" plus "page" and "Pages" for find tests.
 fn fixture(n: usize) -> Vec<u8> {
     let mut objs: Vec<String> = vec!["<< /Type /Catalog /Pages 2 0 R >>".into()];

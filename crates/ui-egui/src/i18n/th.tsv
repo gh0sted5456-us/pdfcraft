@@ -2713,3 +2713,8 @@ theme	Appearance	ลักษณะที่ปรากฏ
 	Add to dictionary	เพิ่มลงในพจนานุกรม
 
 	Suggest edits	แนะนำการแก้ไข
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	ทำสำเนาหน้าพร้อมชื่อช่องข้อมูลใหม่
+	Duplicate pages — 1 field renamed	ทำสำเนาหน้า — เปลี่ยนชื่อ 1 ช่อง
+	Duplicate pages — fields renamed	ทำสำเนาหน้า — มีการเปลี่ยนชื่อช่อง

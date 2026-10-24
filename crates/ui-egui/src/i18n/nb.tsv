@@ -2775,3 +2775,8 @@ key	Space	Mellomrom
 	Add to dictionary	Legg til i ordbok
 
 	Suggest edits	Foreslå endringer
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Dupliser sider med nye feltnavn
+	Duplicate pages — 1 field renamed	Dupliser sider — 1 felt fikk nytt navn
+	Duplicate pages — fields renamed	Dupliser sider — felt fikk nytt navn
