@@ -6,6 +6,7 @@ param(
   [ValidateRange(1,65535)][int]$Revision = 1
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'pe.ps1')
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $MainInstaller = (Resolve-Path -LiteralPath $MainInstaller).Path
 $Version = (Select-String -LiteralPath (Join-Path $Root 'Cargo.toml') -Pattern '^version = "([0-9]+\.[0-9]+\.[0-9]+)"' | Select-Object -First 1).Matches.Groups[1].Value
@@ -24,6 +25,7 @@ try {
   & cargo build --offline --locked -p pdfcraft-printer --features winrt-server -j2
   if ($LASTEXITCODE -ne 0) { throw 'Printer build failed' }
   Copy-Item -LiteralPath (Join-Path $Target 'pdfcraft_printer.dll'),(Join-Path $Target 'pdfcraft-printer-setup.exe') -Destination $Stage
+  Assert-PeHeader (Join-Path $Stage 'pdfcraft-printer-setup.exe') 0x8664 2
   Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'printer/Printer.pdc') -Destination $Stage
   [xml]$Manifest = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'printer/AppxManifest.xml') -Raw
   $Manifest.Package.Identity.SetAttribute('Version', "$Version.$Revision")
@@ -51,6 +53,7 @@ try {
   & cargo build --offline --locked -p pdfcraft-printer --bin pdfcraft-printer-setup --features bundle -j2
   if ($LASTEXITCODE -ne 0) { throw 'Combined installer build failed' }
   $Setup = Join-Path $Dist "pdfcraft-$Version-with-printer-x64.exe"
+  Assert-PeHeader (Join-Path $Target 'pdfcraft-printer-setup.exe') 0x8664 2
   Copy-Item -LiteralPath (Join-Path $Target 'pdfcraft-printer-setup.exe') -Destination $Setup -Force
   Get-FileHash -LiteralPath $Setup,$Msix,$MainInstaller -Algorithm SHA256 | Format-Table Path,Hash -AutoSize
 } finally {

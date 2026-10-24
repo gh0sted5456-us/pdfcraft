@@ -23,7 +23,8 @@ The result is `dist/pdfcraft-0.13.1-with-printer-x64.exe`. Run normally for the 
 `pdfcraft-printer-setup` component exposes `--status` and `--remove-printer` for lifecycle
 testing. Removing the plugin removes its queue; it never deletes previously saved PDFs.
 The app MSI and printer MSIX have separate uninstall entries. This is a local unsigned
-personal package, not a signed public release. Windows asks for normal elevation at setup.
+personal package, not a signed public release. Windows asks for normal elevation at setup. Setup exits without an extra success popup;
+failures still show an error unless `--quiet` was requested.
 
 Unsupported OpenXPS drawing fails the job; see [converter limits](../../docs/xps-print-converter.md).
 Errors are recorded in the package's private `LocalState/last-print-error.txt`, without

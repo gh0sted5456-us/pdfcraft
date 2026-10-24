@@ -53,6 +53,8 @@ do not contact a desktop session bus. Page and document colours retain their exi
 
 ## Logs
 
+Windows desktop builds use the GUI subsystem, including debug builds, so launching them opens no console. Diagnostics remain in the log file.
+
 The desktop app writes its `log` records to standard error and to `logs/pdfcraft.log` in its
 data folder: Linux and FreeBSD `~/.local/share/pdfcraft/logs/` (or
 `$XDG_DATA_HOME/pdfcraft/logs/`), macOS `~/Library/Application Support/PdfCraft/logs/`, Windows

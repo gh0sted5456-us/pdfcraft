@@ -1,5 +1,7 @@
 # PdfCraft roadmap: milestones and what's next
 
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** Windows desktop and printer setup launch without consoles in all builds; remove the extra printer completion message and validate packaged PE headers. Printer runtime limits and readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** experimental personal Windows printer and Linux CUPS 2.x backend; Linux cross-target checks pass, native Linux queue testing remains pending. No readiness estimate change.
 
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** M10 experimental independent XPS converter on a separate branch; preserves supported text/vectors/images, refuses unsupported content. Native printer excluded from personal 0.13.1; estimates unchanged. See [scope](xps-print-converter.md).
