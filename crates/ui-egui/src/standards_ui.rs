@@ -111,7 +111,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     let mut action = None;
     ui.horizontal(|ui| {
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("Save as PDF/A"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("Save as PDF/A"), widgets::DialogAction::Confirm).clicked() {
                 action = Some(true);
             }
             if widgets::pill_button(ui, tl!("Verify"), false).clicked() {

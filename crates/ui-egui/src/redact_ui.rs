@@ -605,7 +605,7 @@ fn buttons(ui: &mut egui::Ui, ok: &str, primary: bool) -> (bool, bool) {
         if widgets::pill_button(ui, tl!(ok), primary).clicked() {
             a = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             c = true;
         }
     });
@@ -654,10 +654,10 @@ pub(crate) fn hidden_body(ui: &mut egui::Ui, d: &mut HiddenDraft, t: &Tokens) ->
     let any = d.found.iter().any(|f| f.2 && f.1 > 0);
     let (mut a, mut c) = (false, false);
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if ui.add_enabled_ui(any && total > 0, |ui| widgets::pill_button(ui, tl!("Remove"), true)).inner.clicked() {
+        if ui.add_enabled_ui(any && total > 0, |ui| widgets::dialog_button(ui, tl!("Remove"), widgets::DialogAction::Destructive)).inner.clicked() {
             a = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             c = true;
         }
     });

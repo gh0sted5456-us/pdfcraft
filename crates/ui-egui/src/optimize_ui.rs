@@ -232,10 +232,10 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (boo
             d.audit = true;
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("OK"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
                 ok = true;
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 cancel = true;
             }
         });
@@ -292,7 +292,11 @@ pub(crate) fn audit_body(ui: &mut egui::Ui, rows: &[pdfcraft_engine::optimize::S
     });
     ui.add_space(12.0);
     let mut ok = false;
-    ui.horizontal(|ui| ui.with_layout(Layout::right_to_left(Align::Center), |ui| ok = widgets::pill_button(ui, tl!("OK"), true).clicked()));
+    ui.horizontal(|ui| {
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ok = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked()
+        })
+    });
     ok
 }
 

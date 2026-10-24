@@ -22,6 +22,30 @@ pub(crate) struct TimestampRun {
     rx: std::sync::mpsc::Receiver<Result<Vec<u8>, String>>,
 }
 
+const SERVERS: [(&str, &str); 2] =
+    [("Sectigo (default)", pdfcraft_platform::timestamp::DEFAULT_SERVER), ("FreeTSA (manual trust)", "https://freetsa.org/tsr")];
+
+pub(crate) fn server_selector(ui: &mut egui::Ui, server: &mut String) {
+    let name = SERVERS.iter().find(|(_, url)| *url == server.trim()).map_or("Custom…", |(name, _)| *name);
+    let label = ui.label("Timestamp service");
+    egui::ComboBox::from_id_salt("timestamp-service")
+        .selected_text(name)
+        .width(220.0)
+        .show_ui(ui, |ui| {
+            for (name, url) in SERVERS {
+                ui.selectable_value(server, url.to_string(), name);
+            }
+            ui.selectable_value(server, String::new(), "Custom…");
+        })
+        .response
+        .labelled_by(label.id);
+    let label = ui.label("Timestamp server");
+    ui.add(widgets::line(server).desired_width(440.0).hint_text("https://…")).labelled_by(label.id);
+    if server.trim() == SERVERS[1].1 {
+        ui.label("FreeTSA may require separately trusting its certificate. No trust is added automatically.");
+    }
+}
+
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
     use super::*;
@@ -37,6 +61,77 @@ mod tests {
         let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_eframe(move |_| app);
         h.run_steps(3);
         h
+    }
+
+    #[test]
+    fn timestamp_footer_buttons_match_dialog_actions_in_both_themes() {
+        for kind in [crate::theme::ThemeKind::Light, crate::theme::ThemeKind::Dark] {
+            let mut h = harness("unused.pdf");
+            crate::theme::apply(&h.ctx, kind);
+            h.state_mut().execute("sign.timestamp");
+            h.run_steps(3);
+            let cancel = h.get_by_label("Cancel").rect();
+            let confirm = h.get_all_by_label("Timestamp").last().unwrap().rect();
+            let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+            assert!(cancel.right() < confirm.left());
+            assert!((cancel.center().y - confirm.center().y).abs() < 0.5);
+            assert!((confirm.right() - (card.right() - 20.0)).abs() < 1.0, "confirmation belongs at the right edge");
+            assert!((confirm.bottom() - (card.bottom() - 16.0)).abs() <= 2.0, "only the dialog padding below the footer: {confirm:?} in {card:?}");
+            for rect in [cancel, confirm] {
+                assert!(rect.width() >= 80.0 && (rect.height() - 28.0).abs() < 0.5, "shared action size: {rect:?}");
+                let fill = h
+                    .output()
+                    .shapes
+                    .iter()
+                    .find_map(|s| match &s.shape {
+                        egui::Shape::Rect(r) if r.rect == rect => Some(r.fill),
+                        _ => None,
+                    })
+                    .unwrap();
+                assert_eq!(fill, crate::theme::Tokens::get(&h.ctx).field, "actions are matte at rest");
+            }
+            h.get_by_label("Cancel").click();
+            h.run_steps(2);
+            assert!(h.state().dialog.is_none());
+            assert!(h.state().timestamp_run.is_none(), "Cancel never starts a request");
+        }
+    }
+
+    #[test]
+    fn timestamp_selector_keeps_sectigo_default_and_remembers_an_explicit_alternative() {
+        let mut h = harness("unused.pdf");
+        assert_eq!(h.state().timestamp_server, SERVERS[0].1);
+        h.state_mut().execute("sign.timestamp");
+        h.run_steps(3);
+        h.get_by_label("Timestamp service").click();
+        h.run_steps(2);
+        h.get_by_label("FreeTSA (manual trust)").click();
+        h.run_steps(2);
+        assert_eq!(h.state().timestamp_server, SERVERS[1].1);
+        assert!(h.state().timestamp_run.is_none(), "choosing a service makes no request");
+        h.get_by_label("FreeTSA may require separately trusting its certificate. No trust is added automatically.");
+        let saved = h.state().persist();
+        let mut restored = PdfCraftApp::new();
+        restored.restore(&saved);
+        assert_eq!(restored.timestamp_server, SERVERS[1].1);
+        h.get_by_label("Timestamp service").click();
+        h.run_steps(2);
+        h.get_by_label("Custom…").click();
+        h.run_steps(2);
+        assert!(h.state().timestamp_server.is_empty());
+        h.get_by_label("Timestamp server").click();
+        h.run_steps(1);
+        h.get_by_label("Timestamp server").type_text("https://example.com/tsa");
+        h.run_steps(2);
+        assert_eq!(h.state().timestamp_server, "https://example.com/tsa");
+        h.get_by_label("Timestamp service").click();
+        h.run_steps(2);
+        h.get_by_label("Sectigo (default)").click();
+        h.run_steps(2);
+        assert_eq!(h.state().timestamp_server, SERVERS[0].1);
+        h.get_by_label("Cancel").click();
+        h.run_steps(2);
+        assert!(h.state().dialog.is_none() && h.state().timestamp_run.is_none());
     }
 
     #[test]
@@ -102,8 +197,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     ui.heading(tl!("Timestamp"));
     ui.label("Add a trusted timestamp to the document and save a copy. The server receives a cryptographic digest, not your PDF.");
     ui.add_space(8.0);
-    let label = ui.label("Timestamp server");
-    ui.add(widgets::line(&mut app.timestamp_server).desired_width(480.0).hint_text("https://…")).labelled_by(label.id);
+    server_selector(ui, &mut app.timestamp_server);
     ui.label(
         "Use the RFC 3161 server supplied by your certificate provider or organization. Its certificate must be trusted to validate the timestamp.",
     );
@@ -112,15 +206,15 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     }
     ui.add_space(12.0);
     let mut close = false;
-    ui.horizontal(|ui| {
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
-            close = true;
-        }
-        if widgets::pill_button(ui, tl!("Timestamp"), true).clicked() {
+    widgets::dialog_footer(ui, |ui| {
+        if widgets::dialog_button(ui, tl!("Timestamp"), widgets::DialogAction::Confirm).clicked() {
             match app.timestamp_copy() {
                 Ok(()) => close = true,
                 Err(error) => app.timestamp_error = Some(error),
             }
+        }
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+            close = true;
         }
     });
     close
@@ -137,7 +231,9 @@ pub(crate) fn progress(app: &mut PdfCraftApp, ctx: &egui::Context) {
             ui.spinner();
             ui.label("Waiting for the timestamp server…");
         });
-        cancel = widgets::pill_button(ui, tl!("Cancel"), false).clicked();
+        widgets::dialog_footer(ui, |ui| {
+            cancel = widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked();
+        });
     });
     if cancel {
         // Only the UI writes the result. Dropping the receiver makes cancellation non-destructive.

@@ -10,7 +10,10 @@ from the foreground graphic.
 In **Use a certificate**, **Timestamp** adds a standalone RFC 3161 document
 timestamp and saves the result. **Add trusted timestamp** in **Sign as** adds an
 RFC 3161 signature timestamp while signing (PAdES B-T). The server URL is editable
-and remembered. Timestamping while signing starts unchecked.
+and remembered. Timestamping while signing starts unchecked. Both dialogs share
+the same service selector: **Sectigo (default)**, **FreeTSA (manual trust)** and
+**Custom…**. Choosing a service does not contact it. The selected URL remains
+editable and is remembered across launches; Custom opens an empty URL field.
 
 The default server is `https://timestamp.sectigo.com`, the HTTPS endpoint of
 [Sectigo's documented timestamp service](https://support.sectigo.com/PS_KnowledgeDetailPageFaq?Id=kA03l000000c4TX).
@@ -27,6 +30,14 @@ signer. Explicitly trusted certificates in PdfCraft continue to work for both
 roles. No OS certificate store is changed. An unknown authority remains unknown.
 The timestamp worker runs off the UI thread and refuses to write a result if the
 document changed or closed while it was waiting.
+
+[FreeTSA documents its HTTPS RFC 3161 endpoint](https://www.freetsa.org/index_en.php).
+It returned a cryptographically verified token in a live synthetic check, but its
+authority was unknown to the existing OS roots. Selecting it adds no trust; review
+and explicitly trust its certificate separately if your policy permits it. Its
+[public service policy](https://www.freetsa.org/freetsa.html) limits use to one
+request per second per IP and offers no availability guarantee. There is no
+automatic fallback between providers. Sectigo remains the default.
 
 For headless use, enable networking explicitly with `pdfcraft-cli run --network`
 or `pdfcraft-cli mcp --network`. `doc_timestamp` takes `doc`, `out` and

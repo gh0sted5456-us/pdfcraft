@@ -372,8 +372,8 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut Draft, t: &theme::Tokens) -> (bool
     ui.separator();
     let (mut apply, mut cancel) = (false, false);
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        apply = widgets::pill_button(ui, tl!("OK"), true).clicked();
-        cancel = widgets::pill_button(ui, tl!("Cancel"), false).clicked();
+        apply = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked();
+        cancel = widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked();
     });
     (apply, cancel)
 }

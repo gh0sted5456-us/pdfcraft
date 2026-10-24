@@ -4883,7 +4883,7 @@ fn notices(
             )
         };
         notice_bar(ui, t, "clock", t.accent_text, text, |ui| {
-            if crate::widgets::pill_button(ui, tl!("Close"), true).clicked() {
+            if crate::widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Confirm).clicked() {
                 close = true;
             }
         });
@@ -4983,7 +4983,7 @@ fn notices(
         if secured && crate::widgets::pill_button(ui, tl!("Security settings"), false).clicked() {
             open_security = true;
         }
-        if secured && doc.can_unlock() && crate::widgets::pill_button(ui, tl!("Unlock…"), true).clicked() {
+        if secured && doc.can_unlock() && crate::widgets::dialog_button(ui, tl!("Unlock…"), widgets::DialogAction::Confirm).clicked() {
             unlock = true;
         }
         if repaired && !secured && info.fields.is_empty() && crate::widgets::pill_button(ui, tl!("Details"), false).clicked() {
@@ -5308,7 +5308,7 @@ fn organize_toolbar(view: &mut DocView, info: &DocInfo, editable: bool, dirty: b
                     view.organize = false;
                 }
                 // What the grid shows is what is saved.
-                let save = ui.add_enabled_ui(dirty, |ui| widgets::pill_button(ui, tl!("Save pages"), true)).inner;
+                let save = ui.add_enabled_ui(dirty, |ui| widgets::dialog_button(ui, tl!("Save pages"), widgets::DialogAction::Confirm)).inner;
                 if save.on_hover_text(tl!("Save these pages as one PDF")).on_disabled_hover_text(tl!("No changes to save")).clicked() {
                     view.pending_action = Some(ViewAction::Save);
                 }

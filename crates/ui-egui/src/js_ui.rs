@@ -146,11 +146,17 @@ fn buttons(ui: &mut egui::Ui, primary: &str, others: &[&str]) -> Option<String> 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             // Stable ids: the console's output above changes how many widgets come first.
             // Labels are translated for display; the returned id stays English.
-            if ui.push_id(primary, |ui| widgets::pill_button(ui, tl!(primary), true)).inner.clicked() {
+            if ui.push_id(primary, |ui| widgets::dialog_button(ui, tl!(primary), widgets::DialogAction::Confirm)).inner.clicked() {
                 clicked = Some(primary.to_string());
             }
             for o in others {
-                if ui.push_id(o, |ui| widgets::pill_button(ui, tl!(o), false)).inner.clicked() {
+                if ui
+                    .push_id(o, |ui| {
+                        widgets::dialog_button(ui, tl!(o), if *o == "Cancel" { widgets::DialogAction::Cancel } else { widgets::DialogAction::Back })
+                    })
+                    .inner
+                    .clicked()
+                {
                     clicked = Some(o.to_string());
                 }
             }

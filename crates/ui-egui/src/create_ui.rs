@@ -34,9 +34,9 @@ pub(crate) fn image_import_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> (bo
     ui.add_space(12.0);
     let mut go = false;
     let mut cancel = false;
-    ui.horizontal(|ui| {
-        go = crate::widgets::pill_button(ui, tl!("Create"), true).clicked();
-        cancel = crate::widgets::pill_button(ui, tl!("Cancel"), false).clicked();
+    widgets::dialog_footer(ui, |ui| {
+        go = crate::widgets::dialog_button(ui, tl!("Create"), widgets::DialogAction::Confirm).clicked();
+        cancel = crate::widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked();
     });
     (go, cancel)
 }

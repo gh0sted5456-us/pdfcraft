@@ -942,10 +942,10 @@ fn skip_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
         }
         ui.add_space(14.0);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("Combine the rest"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("Combine the rest"), widgets::DialogAction::Confirm).clicked() {
                 choice = Some(true);
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 choice = Some(false);
             }
         });
@@ -1016,10 +1016,14 @@ fn unlock_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
             ui.label(egui::RichText::new(tl!("The password is only used to read the file; it isn't saved.")).small().color(t.text_faint));
             ui.add_space(8.0);
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if ui.add_enabled_ui(!prompt.input.0.is_empty(), |ui| widgets::pill_button(ui, tl!("Unlock"), true)).inner.clicked() {
+                if ui
+                    .add_enabled_ui(!prompt.input.0.is_empty(), |ui| widgets::dialog_button(ui, tl!("Unlock"), widgets::DialogAction::Confirm))
+                    .inner
+                    .clicked()
+                {
                     submit = true;
                 }
-                if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                     cancel = true;
                 }
             });
@@ -1226,7 +1230,7 @@ fn empty_state(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, files_hover
         ui.horizontal(|ui| {
             ui.add_space(((ui.available_width() - total) / 2.0).max(0.0));
             ui.spacing_mut().item_spacing.x = 8.0;
-            if widgets::pill_button(ui, tl!("Add files…"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("Add files…"), widgets::DialogAction::Confirm).clicked() {
                 app.combine_dialog();
             }
             if folders && widgets::icon_pill(ui, "folder", tl!("Add folder…"), false).clicked() {

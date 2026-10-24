@@ -1085,10 +1085,10 @@ fn pad_buttons(ui: &mut egui::Ui, d: &mut SigDraft) -> (bool, bool) {
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let ready = d.ready();
-            if ui.add_enabled_ui(ready, |ui| crate::widgets::pill_button(ui, tl!("Apply"), true)).inner.clicked() {
+            if ui.add_enabled_ui(ready, |ui| crate::widgets::dialog_button(ui, tl!("Apply"), crate::widgets::DialogAction::Confirm)).inner.clicked() {
                 apply = true;
             }
-            if crate::widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if crate::widgets::dialog_button(ui, tl!("Cancel"), crate::widgets::DialogAction::Cancel).clicked() {
                 cancel = true;
             }
         });

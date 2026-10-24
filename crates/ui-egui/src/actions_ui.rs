@@ -289,7 +289,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
             }
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl_ctx!("action wizard", "Start"), true).clicked() {
+            if widgets::dialog_button(ui, tl_ctx!("action wizard", "Start"), widgets::DialogAction::Confirm).clicked() {
                 close = true;
                 app.start_selected_action();
             }
@@ -363,10 +363,10 @@ fn edit_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     let ok = !name.is_empty() && !taken && !a.steps.is_empty();
     ui.horizontal(|ui| {
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui.add_enabled_ui(ok, |ui| widgets::pill_button(ui, tl!("Save"), true)).inner.clicked() {
+            if ui.add_enabled_ui(ok, |ui| widgets::dialog_button(ui, tl!("Save"), widgets::DialogAction::Confirm)).inner.clicked() {
                 done = true;
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 cancel = true;
             }
         });

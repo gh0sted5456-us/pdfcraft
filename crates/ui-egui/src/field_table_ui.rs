@@ -296,10 +296,10 @@ fn body(ui: &mut egui::Ui, d: &mut FieldTableDraft, info: &PageInfo, form: &[For
     ui.add_space(14.0);
     let mut choice = None;
     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        if ui.add_enabled_ui(laid.edit.is_ok(), |ui| widgets::pill_button(ui, tl!("Add fields"), true)).inner.clicked() {
+        if ui.add_enabled_ui(laid.edit.is_ok(), |ui| widgets::dialog_button(ui, tl!("Add fields"), widgets::DialogAction::Confirm)).inner.clicked() {
             choice = Some(Choice::Add);
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             choice = Some(Choice::Cancel);
         }
     });

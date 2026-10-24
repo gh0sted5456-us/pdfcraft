@@ -1,5 +1,7 @@
 # PdfCraft roadmap
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Dialog actions share matte theme-aware styling, dimensions and explicit semantic colors; timestamp selection retains Sectigo by default and offers FreeTSA (manual trust) or Custom. Recovery now asks for the first save destination and caps metadata, adapted from #4327. Native Linux/CAC runtime limits unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** personal M9 signing: independent subdued lion/custom background, reviewed unsigned copies and a matching-ID page menu, plus opt-in RFC 3161 timestamps with a Sectigo HTTPS default, fresh nonces and timestamp-only OS trust. 2,504 scoped tests, strict lint, Windows and wasm checks pass; live Sectigo signing/document timestamps validate. Native Linux/CAC checks remain pending; Linux cross-check needs a C toolchain. Readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** context-sensitive Ctrl+L/E/R aligns an original paragraph, a selected added text box or an open text draft; existing formatting and Undo paths are reused, other text inputs keep their shortcuts, and Ctrl+L remains full screen outside document text. Estimates and printer runtime limits unchanged.
@@ -214,6 +216,7 @@ Ranked; detail and the full milestone table in [docs/roadmap.md](docs/roadmap.md
 | 8 | 1.0 polish: performance, right-to-left, missing languages, keyboard-only (M14) | 55–95 |
 
 ## Progress log
+- 2026-10-24 — M3/M9 personal dialogs: shared Back/Cancel/confirm/destructive action widgets and aligned timestamp/OCR/create footers; provider selector defaults to Sectigo, with a verified FreeTSA HTTPS alternative explicitly labeled manual trust and a custom URL. M4: adapt #4327 (@Lcoding15), make the first recovery save ask where, bound sidecars to 64 KiB and preserve a clean unsigned copy. Layout and recovery regressions were observed failing before fixes. See [dialog actions](docs/dialog-actions.md), [timestamp scope](docs/signature-appearance-and-timestamps.md) and [recovery safety](docs/recovery-saves.md).
 - 2026-10-24 — M9 personal signing: adopt removal workflow from #3760 (@Nero1Dev), add exact-ID right-click clearing and independent 12% lion/custom watermark; expose the existing RFC 3161 core with a Sectigo HTTPS default, off-thread cancellation, fresh nonces, timestamp-only OS trust and explicit CLI --network. Seven targeted behavior checks were observed failing before their fixes; all 2,504 scoped tests pass. New appearance/server/page-action labels remain English. See the signing guides for limitations.
 
 - 2026-10-24 — M7 personal build: Ctrl+L/E/R formats the active original paragraph, selected added text or open added-text draft using the existing formatting actions. Three real-shell regressions failed before the shortcuts; drafts keep their words and focus. Scope is whole paragraph/box, with full screen preserved outside document text. Search and unrelated inputs retain their shortcuts.

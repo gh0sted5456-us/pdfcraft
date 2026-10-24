@@ -137,10 +137,10 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     let (mut go, mut cancel) = (false, false);
     ui.horizontal(|ui| {
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui.add_enabled_ui(available, |ui| widgets::pill_button(ui, tl!("Recognize text"), true)).inner.clicked() {
+            if ui.add_enabled_ui(available, |ui| widgets::dialog_button(ui, tl!("Recognize text"), widgets::DialogAction::Confirm)).inner.clicked() {
                 go = true;
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 cancel = true;
             }
         })
@@ -168,14 +168,14 @@ pub(crate) fn scan_prompt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> (Opt
     ui.add_space(8.0);
     let mut all = None;
     let mut cancel = false;
-    ui.horizontal(|ui| {
-        if widgets::pill_button(ui, tl!("Current page"), true).clicked() {
+    widgets::dialog_footer(ui, |ui| {
+        if widgets::dialog_button(ui, tl!("Current page"), widgets::DialogAction::Confirm).clicked() {
             all = Some(false);
         }
-        if widgets::pill_button(ui, tl!("All pages"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("All pages"), widgets::DialogAction::Confirm).clicked() {
             all = Some(true);
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             cancel = true;
         }
     });

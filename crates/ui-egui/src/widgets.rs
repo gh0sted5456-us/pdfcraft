@@ -58,6 +58,7 @@ pub fn begin_dialog(ui: &mut egui::Ui) {
     }
     ui.visuals_mut().selection.stroke = Stroke::new(1.5, t.accent);
     ui.spacing_mut().interact_size.y = FIELD_MIN_HEIGHT;
+    ui.spacing_mut().item_spacing.x = 12.0;
 }
 
 /// A single-line field tall enough to read and to click.
@@ -126,6 +127,59 @@ pub fn mode_tab(ui: &mut egui::Ui, label: &str, active: bool) -> Response {
         ui.painter().rect_filled(r, CornerRadius { nw: 1, ne: 1, sw: 0, se: 0 }, t.accent);
     }
     theme::hand(resp)
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum DialogAction {
+    Back,
+    Cancel,
+    Confirm,
+    Destructive,
+}
+
+pub(crate) fn dialog_button_width(ui: &egui::Ui, label: &str) -> f32 {
+    (text_width(ui, label, &theme::medium(12.5)) + 26.0).max(80.0)
+}
+
+/// Span the width without centering buttons in unused vertical space.
+pub(crate) fn dialog_footer<R>(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+    ui.horizontal(|ui| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), content).inner)
+}
+
+/// Shared matte actions: navigation is neutral, cancellation blue, confirmation green, deletion red.
+pub(crate) fn dialog_button(ui: &mut egui::Ui, label: &str, action: DialogAction) -> Response {
+    dialog_button_marked(ui, label, action, false)
+}
+
+pub(crate) fn dialog_button_marked(ui: &mut egui::Ui, label: &str, action: DialogAction, marked: bool) -> Response {
+    let t = Tokens::get(ui.ctx());
+    let color = match action {
+        DialogAction::Back => t.text_muted,
+        DialogAction::Cancel => t.accent,
+        DialogAction::Confirm => Color32::from_rgb(68, 135, 91),
+        DialogAction::Destructive => Color32::from_rgb(175, 79, 88),
+    };
+    let (rect, response) = ui.allocate_exact_size(vec2(dialog_button_width(ui, label), 28.0), Sense::click());
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
+    let press = theme::Press::track(ui, &response);
+    let enabled = ui.is_enabled();
+    let focused = enabled && (marked || response.has_focus());
+    let hover = t.field.lerp_to_gamma(color, if t.dark() { 0.38 } else { 0.20 });
+    let down = t.field.lerp_to_gamma(color, if t.dark() { 0.50 } else { 0.30 });
+    ui.painter().rect_filled(rect, 14, if enabled { press.fill(t.field, hover, down) } else { t.field });
+    let edge = if focused { color.lerp_to_gamma(t.text, 0.35) } else { t.border.lerp_to_gamma(color, if enabled { press.hover } else { 0.0 }) };
+    ui.painter().rect_stroke(rect.expand(3.0), 17, Stroke::new(if focused { 2.0 } else { 1.0 }, edge), egui::StrokeKind::Outside);
+    ui.painter().text(
+        rect.translate(press.offset()).center(),
+        Align2::CENTER_CENTER,
+        label,
+        theme::medium(12.5),
+        if enabled { t.text } else { t.text_muted },
+    );
+    if marked && enabled {
+        response.request_focus();
+    }
+    theme::hand(response)
 }
 
 /// Rounded pill button; `primary` fills with the accent.

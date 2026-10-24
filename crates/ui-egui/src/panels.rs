@@ -264,7 +264,11 @@ fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static
                 );
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.add_enabled_ui(marks > 0, |ui| widgets::pill_button(ui, tl!("Redact all"), true)).inner.clicked() {
+                if ui
+                    .add_enabled_ui(marks > 0, |ui| widgets::dialog_button(ui, tl!("Redact all"), widgets::DialogAction::Destructive))
+                    .inner
+                    .clicked()
+                {
                     run = Some("redact.apply");
                 }
                 if ui.add_enabled_ui(marks > 0, |ui| widgets::pill_button(ui, tl!("Clear all"), false)).inner.clicked() {

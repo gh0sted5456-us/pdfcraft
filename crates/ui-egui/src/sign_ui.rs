@@ -787,10 +787,10 @@ fn choose(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     if let Some(e) = d.confirm_remove.and_then(|i| ids.get(i)) {
         ui.label(crate::i18n::fmt(tl!("Remove \"{name}\" from this list? The file itself is not deleted."), &[("name", &e.name)]));
         ui.horizontal(|ui| {
-            if widgets::pill_button(ui, tl!("Remove"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("Remove"), widgets::DialogAction::Destructive).clicked() {
                 remove = d.confirm_remove;
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 d.confirm_remove = None;
             }
         });
@@ -802,15 +802,24 @@ fn choose(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
             d.step = SignStep::Configure;
             d.error = None;
         }
-        if d.confirm_remove.is_none() && ui.add_enabled_ui(removable.is_some(), |ui| widgets::pill_button(ui, tl!("Remove"), false)).inner.clicked() {
+        if d.confirm_remove.is_none()
+            && ui
+                .add_enabled_ui(removable.is_some(), |ui| widgets::dialog_button(ui, tl!("Remove"), widgets::DialogAction::Destructive))
+                .inner
+                .clicked()
+        {
             d.confirm_remove = removable;
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui.add_enabled_ui(d.selected.is_some(), |ui| widgets::pill_button(ui, tl!("Continue"), true)).inner.clicked() {
+            if ui
+                .add_enabled_ui(d.selected.is_some(), |ui| widgets::dialog_button(ui, tl!("Continue"), widgets::DialogAction::Confirm))
+                .inner
+                .clicked()
+            {
                 d.step = SignStep::SignAs;
                 d.error = None;
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 close = true;
             }
         });
@@ -886,15 +895,15 @@ fn configure(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     ui.add_space(6.0);
     error(ui, &d.error);
     ui.horizontal(|ui| {
-        if !app.digital_ids.is_empty() && widgets::pill_button(ui, tl!("Back"), false).clicked() {
+        if !app.digital_ids.is_empty() && widgets::dialog_button(ui, tl!("Back"), widgets::DialogAction::Back).clicked() {
             d.step = SignStep::Choose;
             d.error = None;
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, if d.new_id.create { tl!("Save") } else { tl!("Continue") }, true).clicked() {
+            if widgets::dialog_button(ui, if d.new_id.create { tl!("Save") } else { tl!("Continue") }, widgets::DialogAction::Confirm).clicked() {
                 go = true;
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 close = true;
             }
         });
@@ -1174,21 +1183,20 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     ui.separator();
     ui.add(widgets::checkbox(&mut d.timestamp, "Add trusted timestamp"));
     if d.timestamp {
-        let label = ui.label("Timestamp server");
-        ui.add(crate::widgets::line(&mut app.timestamp_server).desired_width(440.0).hint_text("https://…")).labelled_by(label.id);
+        crate::timestamp_ui::server_selector(ui, &mut app.timestamp_server);
     }
     ui.add_space(6.0);
     error(ui, &d.error);
     ui.horizontal(|ui| {
-        if widgets::pill_button(ui, tl!("Back"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Back"), widgets::DialogAction::Back).clicked() {
             d.step = SignStep::Choose;
             d.error = None;
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("Sign"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("Sign"), widgets::DialogAction::Confirm).clicked() {
                 go = true;
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 close = true;
             }
         });
@@ -1338,7 +1346,7 @@ pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, sigs: &[SignatureInfo], expan
         egui::Frame::NONE.inner_margin(egui::Margin { left: 44, right: 4, top: 2, bottom: 8 }).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 3.0;
             if !s.signed {
-                if widgets::pill_button(ui, tl!("Sign this field…"), true).clicked() {
+                if widgets::dialog_button(ui, tl!("Sign this field…"), widgets::DialogAction::Confirm).clicked() {
                     action = Some(PanelAction::Sign(s.field.clone()));
                 }
                 return;
@@ -1650,7 +1658,9 @@ pub(crate) fn remove_dialog(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens
         );
         ui.add_space(12.0);
         let mut close = false;
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| close = widgets::pill_button(ui, tl!("Close"), true).clicked());
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            close = widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Confirm).clicked()
+        });
         return close;
     }
     ui.label(tl!("Choose the signature to remove:"));
@@ -1715,7 +1725,12 @@ pub(crate) fn remove_dialog(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens
         ui.add_space(12.0);
         let mut close = false;
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            close = widgets::pill_button(ui, if any { tl!("Cancel") } else { tl!("Close") }, !any).clicked();
+            close = widgets::dialog_button(
+                ui,
+                if any { tl!("Cancel") } else { tl!("Close") },
+                if any { widgets::DialogAction::Cancel } else { widgets::DialogAction::Back },
+            )
+            .clicked();
         });
         if close {
             app.remove_sig = None;
@@ -1759,8 +1774,8 @@ pub(crate) fn remove_dialog(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens
     ui.add_space(12.0);
     let (mut go, mut close) = (false, false);
     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        go = widgets::pill_button(ui, tl!("Remove and Save As…"), true).clicked();
-        close = widgets::pill_button(ui, tl!("Cancel"), false).clicked();
+        go = widgets::dialog_button(ui, tl!("Remove and Save As…"), widgets::DialogAction::Destructive).clicked();
+        close = widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked();
     });
     if go {
         app.confirm_remove_signature();
@@ -1907,7 +1922,11 @@ pub(crate) fn cert_viewer(ui: &mut egui::Ui, v: &mut CertViewer, trusted: &[Cert
     });
     ui.add_space(10.0);
     let mut close = false;
-    ui.horizontal(|ui| ui.with_layout(Layout::right_to_left(Align::Center), |ui| close = widgets::pill_button(ui, tl!("OK"), true).clicked()));
+    ui.horizontal(|ui| {
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            close = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked()
+        })
+    });
     (close, action)
 }
 

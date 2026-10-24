@@ -529,11 +529,11 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 );
                 ui.add_space(10.0);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if ui.add_enabled_ui(fits, |ui| widgets::pill_button(ui, tl!("OK"), true)).inner.clicked() {
+                    if ui.add_enabled_ui(fits, |ui| widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm)).inner.clicked() {
                         replace_now = true;
                         close = true;
                     }
-                    if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                    if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                         close = true;
                     }
                 });
@@ -615,11 +615,11 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 ui.add(widgets::checkbox(&mut app.extract_draft.separate, tl!("Extract pages as separate files")));
                 ui.add_space(12.0);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if widgets::pill_button(ui, tl!("Extract"), true).clicked() {
+                    if widgets::dialog_button(ui, tl!("Extract"), widgets::DialogAction::Confirm).clicked() {
                         extract_now = true;
                         close = true;
                     }
-                    if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                    if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                         close = true;
                     }
                 });
@@ -688,11 +688,11 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 d.to = d.to.max(d.from);
                 ui.add_space(12.0);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if widgets::pill_button(ui, tl!("OK"), true).clicked() {
+                    if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
                         rotate_now = true;
                         close = true;
                     }
-                    if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                    if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                         close = true;
                     }
                 });
@@ -718,12 +718,12 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 d.to = d.to.max(d.from);
                 ui.add_space(12.0);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if widgets::pill_button(ui, tl!("OK"), true).clicked() {
+                    if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
                         let pages: Vec<usize> = if d.all { (0..n).collect() } else { (d.from - 1..d.to.min(n)).collect() };
                         duplicate_now = Some(Edit::DuplicateField { name: d.name.clone(), pages });
                         close = true;
                     }
-                    if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                    if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                         close = true;
                     }
                 });
@@ -797,11 +797,11 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 });
                 ui.add_space(12.0);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if widgets::pill_button(ui, tl!("Create PDF Comment Summary"), true).clicked() {
+                    if widgets::dialog_button(ui, tl!("Create PDF Comment Summary"), widgets::DialogAction::Confirm).clicked() {
                         summarize_now = true;
                         close = true;
                     }
-                    if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                    if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                         close = true;
                     }
                 });
@@ -817,11 +817,11 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 ));
                 ui.add_space(12.0);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if widgets::pill_button(ui, tl!("Revert"), true).clicked() {
+                    if widgets::dialog_button(ui, tl!("Revert"), widgets::DialogAction::Destructive).clicked() {
                         revert_now = true;
                         close = true;
                     }
-                    if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                    if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                         close = true;
                     }
                 });
@@ -840,15 +840,15 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 ));
                 ui.add_space(12.0);
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    if widgets::pill_button(ui, tl!("Save anyway"), true).clicked() {
+                    if widgets::dialog_button(ui, tl!("Save anyway"), widgets::DialogAction::Confirm).clicked() {
                         overwrite_now = true;
                         close = true;
                     }
-                    if widgets::pill_button(ui, tl!("Save as…"), false).clicked() {
+                    if widgets::dialog_button(ui, tl!("Save as…"), widgets::DialogAction::Confirm).clicked() {
                         overwrite_elsewhere = true;
                         close = true;
                     }
-                    if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                    if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                         close = true;
                     }
                 });
@@ -1224,39 +1224,43 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
         let changed = draft_changes(app).is_some_and(|c| !c.is_empty());
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             if dialog == Dialog::Recovery {
-                if widgets::pill_button(ui, tl!("Recover"), true).clicked() {
+                if widgets::dialog_button(ui, tl!("Recover"), widgets::DialogAction::Confirm).clicked() {
                     recover = Some(true);
                     close = true;
                 }
-                if widgets::pill_button(ui, tl!("Discard"), false).clicked() {
+                if widgets::dialog_button(ui, tl!("Discard"), widgets::DialogAction::Destructive).clicked() {
                     recover = Some(false);
                     close = true;
                 }
             } else if dialog == Dialog::NumberPages {
-                if widgets::pill_button(ui, tl!("OK"), true).clicked() {
+                if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
                     apply_number = true;
                     close = true;
                 }
-                if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                     close = true;
                 }
             } else if dialog == Dialog::Split {
-                if ui.add_enabled_ui(split_ready.is_some(), |ui| widgets::pill_button(ui, tl!("Split"), true)).inner.clicked() {
+                if ui
+                    .add_enabled_ui(split_ready.is_some(), |ui| widgets::dialog_button(ui, tl!("Split"), widgets::DialogAction::Confirm))
+                    .inner
+                    .clicked()
+                {
                     split_now = split_ready.clone();
                     close = true;
                 }
-                if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                     close = true;
                 }
             } else if changed {
-                if widgets::pill_button(ui, tl!("OK"), true).clicked() {
+                if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
                     apply = true;
                     close = true;
                 }
-                if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                     close = true;
                 }
-            } else if widgets::pill_button(ui, tl!("Close"), true).clicked() {
+            } else if widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Confirm).clicked() {
                 close = true;
             }
         });
@@ -1608,21 +1612,22 @@ fn save_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
             // Measure the translated labels so the complete row stays centered.
             {
                 let labels = [tl!("Exit"), tl!("Cancel"), tl!("Save")];
-                let font = theme::medium(12.5);
-                let width: f32 =
-                    labels.iter().map(|label| ui.fonts_mut(|f| f.layout_no_wrap((*label).into(), font.clone(), t.text).size().x) + 26.0).sum();
+                let width: f32 = labels.iter().map(|label| widgets::dialog_button_width(ui, label)).sum();
                 ui.allocate_ui_with_layout(egui::vec2(width + 32.0, 28.0), Layout::left_to_right(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 16.0;
-                    if prompt_action(ui, labels[0], egui::Color32::from_rgb(175, 79, 88), chosen == PromptButton::DontSave)
+                    if widgets::dialog_button_marked(ui, labels[0], widgets::DialogAction::Destructive, chosen == PromptButton::DontSave)
                         .on_hover_text(tl!("Don't save"))
                         .clicked()
                     {
                         choice = Some(Some(false));
                     }
-                    if prompt_action(ui, labels[1], t.accent, chosen == PromptButton::Cancel).on_hover_text(tl!("Return to document")).clicked() {
+                    if widgets::dialog_button_marked(ui, labels[1], widgets::DialogAction::Cancel, chosen == PromptButton::Cancel)
+                        .on_hover_text(tl!("Return to document"))
+                        .clicked()
+                    {
                         choice = Some(None);
                     }
-                    if prompt_action(ui, labels[2], egui::Color32::from_rgb(68, 135, 91), chosen == PromptButton::Save)
+                    if widgets::dialog_button_marked(ui, labels[2], widgets::DialogAction::Confirm, chosen == PromptButton::Save)
                         .on_hover_text(tl!("Saves document"))
                         .clicked()
                     {
@@ -1639,26 +1644,6 @@ fn save_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
     if let Some(c) = choice {
         app.resolve_close(ctx, c);
     }
-}
-
-/// Coloured close actions keep their labels and keyboard choice visible in both themes.
-fn prompt_action(ui: &mut egui::Ui, label: &str, color: egui::Color32, chosen: bool) -> egui::Response {
-    let t = Tokens::get(ui.ctx());
-    let font = theme::medium(12.5);
-    let width = ui.fonts_mut(|f| f.layout_no_wrap(label.to_owned(), font.clone(), t.text).size().x) + 26.0;
-    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 28.0), egui::Sense::click());
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
-    let press = theme::Press::track(ui, &response);
-    let hover = t.field.lerp_to_gamma(color, if t.dark() { 0.38 } else { 0.20 });
-    let down = t.field.lerp_to_gamma(color, if t.dark() { 0.50 } else { 0.30 });
-    ui.painter().rect_filled(rect, 14, press.fill(t.field, hover, down));
-    let edge = if chosen { color.lerp_to_gamma(t.text, 0.35) } else { t.border.lerp_to_gamma(color, press.hover) };
-    ui.painter().rect_stroke(rect.expand(3.0), 17, egui::Stroke::new(if chosen { 2.0 } else { 1.0 }, edge), egui::StrokeKind::Outside);
-    ui.painter().text(rect.translate(press.offset()).center(), egui::Align2::CENTER_CENTER, label, font, t.text);
-    if chosen {
-        response.request_focus();
-    }
-    theme::hand(response)
 }
 
 /// `name` cut to at most `max` characters by replacing its middle with "…", keeping the start and
@@ -1723,7 +1708,7 @@ fn link_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
         );
         ui.add_space(14.0);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("Cancel"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 choice = Some(false);
             }
             if widgets::pill_button(ui, open, false).clicked() {
@@ -1765,7 +1750,7 @@ fn full_screen_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
         );
         ui.add_space(14.0);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("Not now"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("Not now"), widgets::DialogAction::Cancel).clicked() {
                 choice = Some(false);
             }
             if widgets::pill_button(ui, tl!("Full Screen"), false).clicked() {
@@ -1797,7 +1782,7 @@ fn remote_link_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
         ui.label(tl!("Only allow this if you trust the source document."));
         ui.add_space(14.0);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("Cancel"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 choice = Some(false);
             }
             if widgets::pill_button(ui, tl!("Allow"), false).clicked() {
@@ -1862,10 +1847,10 @@ fn password_modal(
         }
         ui.add_space(12.0);
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, ok, true).clicked() {
+            if widgets::dialog_button(ui, ok, widgets::DialogAction::Confirm).clicked() {
                 answer = Some(PasswordAnswer::Submit);
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 answer = Some(PasswordAnswer::Cancel);
             }
         });
