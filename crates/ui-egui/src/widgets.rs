@@ -21,7 +21,7 @@ fn dialog_frame(ctx: &egui::Context) -> egui::Frame {
     shadow.offset = [0, 3];
     shadow.blur = 12;
     egui::Frame::new()
-        .fill(t.glass_surface.unwrap_or(t.card))
+        .fill(t.glass_popup_surface().unwrap_or(t.card))
         .stroke(Stroke::new(0.5, t.border))
         .corner_radius(CornerRadius::same(8))
         .inner_margin(egui::Margin::symmetric(DIALOG_PAD_X, DIALOG_PAD_Y))
@@ -611,7 +611,7 @@ pub fn toast(app: &mut PdfCraftApp, ctx: &egui::Context) {
         .show(ctx, |ui| {
             egui::Frame::NONE
                 .fill(if app.theme_preference == crate::theme::ThemePreference::Glass {
-                    t.glass_surface.unwrap_or(t.card)
+                    t.glass_popup_surface().unwrap_or(t.card)
                 } else if t.dark() {
                     Color32::from_rgb(0xEC, 0xEC, 0xEF)
                 } else {

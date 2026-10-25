@@ -271,36 +271,34 @@ fn main() -> eframe::Result {
     let apple_events = apple_events::AppleEvents::install();
     // Set once the app is created, which is after the renderer has started.
     let started = Rc::new(Cell::new(false));
-    let first = if choice == RendererChoice::Gl { eframe::Renderer::Glow } else { eframe::Renderer::Wgpu };
-    let result = eframe::run_native(
-        "PdfCraft",
-        native_options(launch.integrated, launch.window_controls.is_some(), first),
-        app_creator(
-            launch.clone(),
-            Rc::clone(&started),
-            instance.as_ref(),
-            #[cfg(target_os = "macos")]
-            &apple_events,
-        ),
-    );
-    match result {
+    let first = initial_renderer(choice);
+    let run = |renderer| {
+        eframe::run_native(
+            "PdfCraft",
+            native_options(launch.integrated, launch.window_controls.is_some(), renderer),
+            app_creator(
+                launch.clone(),
+                Rc::clone(&started),
+                instance.as_ref(),
+                #[cfg(target_os = "macos")]
+                &apple_events,
+            ),
+        )
+    };
+    match run(first) {
         // Only a renderer that couldn't start: without a window or display at all, OpenGL can't
         // help either, and winit's own error says more.
         Err(e @ eframe::Error::Wgpu(_)) if retry_with_gl(choice, started.get()) => {
             // Old or unusual GPUs and drivers (#461, #435, #392) can't give wgpu a device; OpenGL
             // usually still works there, so that's better than quitting.
             log::error!("the GPU renderer (wgpu) didn't start: {e}. Starting with OpenGL instead; set PDFCRAFT_RENDERER=gl to skip wgpu.");
-            eframe::run_native(
-                "PdfCraft",
-                native_options(launch.integrated, launch.window_controls.is_some(), eframe::Renderer::Glow),
-                app_creator(
-                    launch,
-                    started,
-                    instance.as_ref(),
-                    #[cfg(target_os = "macos")]
-                    &apple_events,
-                ),
-            )
+            run(eframe::Renderer::Glow)
+        }
+        Err(e @ (eframe::Error::Glutin(_) | eframe::Error::NoGlutinConfigs(..) | eframe::Error::OpenGL(_)))
+            if retry_with_wgpu(choice, started.get()) =>
+        {
+            log::warn!("OpenGL couldn't start: {e}. Starting with wgpu; Glass desktop transparency may be unavailable with this renderer.");
+            run(eframe::Renderer::Wgpu)
         }
         other => other,
     }
@@ -309,7 +307,7 @@ fn main() -> eframe::Result {
 /// Which renderer to start with, from `PDFCRAFT_RENDERER`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RendererChoice {
-    /// wgpu, then OpenGL if wgpu can't start (unset, or anything unrecognised).
+    /// OpenGL on Windows; elsewhere wgpu, then OpenGL if wgpu can't start.
     Auto,
     /// wgpu only (`wgpu`): a failure is reported, not worked around.
     Wgpu,
@@ -325,10 +323,23 @@ fn renderer_choice(value: Option<&str>) -> RendererChoice {
     }
 }
 
+fn initial_renderer(choice: RendererChoice) -> eframe::Renderer {
+    if choice == RendererChoice::Gl || (cfg!(target_os = "windows") && choice == RendererChoice::Auto) {
+        // Windows' opaque backing hides wgpu alpha; OpenGL supports live Glass transparency.
+        eframe::Renderer::Glow
+    } else {
+        eframe::Renderer::Wgpu
+    }
+}
+
 /// Whether a failed run should be retried with OpenGL: only when wgpu was tried first by choice of
 /// nobody, and it failed before the app was created (so while starting the renderer, not later).
 fn retry_with_gl(choice: RendererChoice, app_started: bool) -> bool {
-    choice == RendererChoice::Auto && !app_started
+    !cfg!(target_os = "windows") && choice == RendererChoice::Auto && !app_started
+}
+
+fn retry_with_wgpu(choice: RendererChoice, app_started: bool) -> bool {
+    cfg!(target_os = "windows") && choice == RendererChoice::Auto && !app_started
 }
 
 /// The window and renderer settings for one run.
@@ -875,6 +886,18 @@ mod tests {
     }
 
     #[test]
+    fn windows_default_supports_transparency_and_keeps_renderer_overrides() {
+        use super::{RendererChoice, initial_renderer};
+        assert_eq!(initial_renderer(RendererChoice::Auto), if cfg!(target_os = "windows") { eframe::Renderer::Glow } else { eframe::Renderer::Wgpu });
+        assert_eq!(initial_renderer(RendererChoice::Gl), eframe::Renderer::Glow);
+        assert_eq!(initial_renderer(RendererChoice::Wgpu), eframe::Renderer::Wgpu);
+        assert_eq!(super::retry_with_wgpu(RendererChoice::Auto, false), cfg!(target_os = "windows"));
+        assert!(!super::retry_with_wgpu(RendererChoice::Auto, true));
+        assert!(!super::retry_with_wgpu(RendererChoice::Wgpu, false));
+        assert!(!super::retry_with_wgpu(RendererChoice::Gl, false));
+    }
+
+    #[test]
     fn opengl_is_the_fallback_unless_a_renderer_was_chosen() {
         use super::{RendererChoice, native_options, renderer_choice, retry_with_gl};
         assert_eq!(renderer_choice(None), RendererChoice::Auto);
@@ -885,7 +908,7 @@ mod tests {
             assert_eq!(renderer_choice(Some(gl)), RendererChoice::Gl);
         }
         // Retried with OpenGL only when wgpu failed to start by default, never after the app ran.
-        assert!(retry_with_gl(RendererChoice::Auto, false));
+        assert_eq!(retry_with_gl(RendererChoice::Auto, false), !cfg!(target_os = "windows"));
         assert!(!retry_with_gl(RendererChoice::Auto, true));
         assert!(!retry_with_gl(RendererChoice::Wgpu, false));
         assert!(!retry_with_gl(RendererChoice::Gl, false));

@@ -5665,7 +5665,7 @@ fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstruct
                 let Some(p) = info.pages.get(i) else { break };
                 let c = Rect::from_min_size(pos2(row_rect.left() + left + col as f32 * cell.x, row_rect.top()), cell);
                 let pr = grid_page_rect(c, vec2(p.width, p.height));
-                let lock = Rect::from_min_size(pr.right_top() + vec2(-29.0, 3.0), Vec2::splat(26.0));
+                let lock = Rect::from_center_size(pos2(c.center().x + 43.5, c.bottom() - 24.0), Vec2::splat(26.0));
                 view.need_thumbnail(i, c.intersects(ui.clip_rect()));
                 let resp = ui.interact(c, ui.id().with(("org", i)), if editable { Sense::click_and_drag() } else { Sense::click() });
                 cells.push((i, c));
@@ -5772,7 +5772,7 @@ fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstruct
                 // Local actions always target the labelled page. The toolbar above the grid
                 // remains the place for actions on the whole selection.
                 if selected || resp.contains_pointer() || resp.has_focus() {
-                    let actions = Rect::from_center_size(pos2(c.center().x, c.bottom() - 24.0), vec2(84.0, 26.0));
+                    let actions = Rect::from_center_size(pos2(c.center().x, c.bottom() - 24.0), vec2(113.0, 26.0));
                     ui.scope_builder(
                         egui::UiBuilder::new().id_salt(("org-actions", i)).max_rect(actions).layout(egui::Layout::left_to_right(egui::Align::Center)),
                         |ui| {

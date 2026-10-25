@@ -125,14 +125,29 @@ pub fn preferences_section(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
             let label = ui.add(egui::Label::new(tl!("Colour")).extend());
             ui.color_edit_button_srgb(&mut glass.tint).labelled_by(label.id);
             ui.end_row();
-            let label = ui.add(egui::Label::new(tl!("Opacity")).extend());
+            let label = ui.add(egui::Label::new("Window opacity").extend());
             ui.add(egui::Slider::new(&mut glass.opacity, 35..=100).suffix("%")).labelled_by(label.id);
             ui.end_row();
         });
         if glass != app.glass {
             app.set_glass_settings(glass);
         }
-        ui.small("Shared tint and opacity for all panes, dialogs and fields. PDF pages stay opaque. Desktop compositing is required.");
+        ui.small("Shared tint and window opacity for panes. Popups use a darker backing for readability; PDF pages stay opaque. Desktop compositing is required.");
+        ui.add_space(8.0);
+        ui.label(RichText::new("Background image").font(theme::semibold(12.5)));
+        ui.horizontal_wrapped(|ui| {
+            #[cfg(not(target_arch = "wasm32"))]
+            if ui.button("Choose background image…").clicked() {
+                app.pick_glass_background();
+            }
+            if ui.add_enabled(app.glass_background.has_image(), egui::Button::new("Remove background image")).clicked() {
+                app.glass_background.clear();
+            }
+        });
+        ui.add_enabled_ui(app.glass_background.has_image(), |ui| {
+            ui.add(egui::Slider::new(&mut app.glass_background.opacity, 0..=100).text("Image opacity").suffix("%"));
+        });
+        ui.small("A subtle image behind the interface. Saved locally; never added to your PDF.");
         ui.add_space(8.0);
     }
     let light_active = app.theme == ThemeKind::Light;

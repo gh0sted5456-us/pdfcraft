@@ -115,8 +115,7 @@ softness is expected.
 
 ## Renderer fallback
 
-PdfCraft draws with wgpu, and starts again with eframe's own OpenGL renderer (glow) when wgpu fails
-before the app is created: no adapter, no device, or a window surface the device can't configure.
+On Windows, PdfCraft starts with eframe's OpenGL renderer (glow) so Glass can show the desktop through the application. An OpenGL initialization failure retries with wgpu before the app is created; Glass desktop transparency can be unavailable on that fallback. Other desktops start with wgpu, then retry with OpenGL if wgpu cannot initialize: no adapter, no device, or a window surface the device cannot configure.
 The last of these was a panic, not an error, because wgpu's default error handler panics and
 eframe configures the surface before any app code runs; a 2015 Intel GPU whose driver timed out in
 `Surface::configure` on wgpu's GL backend closed PdfCraft at launch (#519). Vendored egui-wgpu
@@ -130,7 +129,7 @@ OpenGL can't start either, PdfCraft exits with both errors in the log. The fallb
 `WgpuError::CreateRenderer` before the app is created, so a rejected `egui_pipeline` can also
 reach this retry instead of the uncaptured-error panic handler. This does not fix the failing
 driver's shader compilation, and explicit `PDFCRAFT_RENDERER=wgpu` still disables the retry.
-`PDFCRAFT_RENDERER` skips it or chooses OpenGL from the start.
+`PDFCRAFT_RENDERER=gl` or `=wgpu` chooses exactly that renderer and disables automatic retry. Neither path retries after the app has been created.
 
 ## Preferences
 
@@ -156,7 +155,7 @@ copies retain their current preferences locations.
 | `WGPU_BACKEND` | Graphics backend; by default Windows uses Direct3D 12, falling back to OpenGL |
 | `WGPU_DX12_PRESENTATION_SYSTEM` | Windows, Direct3D 12: `hwnd` presents through a swap chain on the window itself, which Windows stretches while the window is resized (#2738); unset or `visual`, PdfCraft presents through a DirectComposition visual |
 | `WGPU_VALIDATION_INDIRECT_CALL` | `1` turns wgpu's check of indirect draw arguments back on. PdfCraft draws nothing indirectly and turns it off, since the compute shader the check needs fails to compile on some drivers (Metal on an Intel Iris Pro), which lost the device at start-up |
-| `PDFCRAFT_RENDERER` | `gl` starts with OpenGL (glow) and never loads wgpu; `wgpu` reports a wgpu failure instead of retrying with OpenGL; unset, wgpu is retried with OpenGL when it can't start (see [Renderer fallback](#renderer-fallback)) |
+| `PDFCRAFT_RENDERER` | `gl` or `wgpu` selects that renderer without retry. Unset: Windows uses OpenGL with wgpu startup fallback; other desktops use wgpu with OpenGL startup fallback (see [Renderer fallback](#renderer-fallback)) |
 | `PDFCRAFT_TITLEBAR` | Linux: `app` draws PdfCraft's own title bar (window buttons in the tab strip, in the order of GNOME's `button-layout`, and resize edges); `system` keeps the frame winit or the desktop draws; unset, PdfCraft draws its own when the Wayland compositor draws no frames (GNOME), and leaves it to the desktop otherwise (KDE, Sway, Hyprland, X11). Where PdfCraft draws it, Preferences ▸ Use system title bar switches back to winit's frame without a restart; `system` also hides that option |
 | `PDFCRAFT_BUILD_LABEL` | Build time: a label for a local or patched build (letters, digits, inner dots), shown after the version in `--version`, About and the log (`0.7.1 (titlebar)`). `packaging/linux/package.sh` also puts it in the file names and the .rpm/.deb release (`1.titlebar`), which upgrades over the release of the same version |
 | `CRAFT_FONTS_DIR` | Build time: a [craft-fonts](https://github.com/storytold/craft-fonts) checkout to embed (Japanese fonts) |

@@ -118,6 +118,14 @@ pub struct Tokens {
 }
 
 impl Tokens {
+    /// Raised Glass surfaces stay legible above document content and the desktop.
+    pub fn glass_popup_surface(self) -> Option<Color32> {
+        self.glass_surface.map(|surface| {
+            let [r, g, b, a] = surface.to_srgba_unmultiplied();
+            Color32::from_rgba_unmultiplied(r, g, b, a.max(224))
+        })
+    }
+
     pub fn for_kind(kind: ThemeKind) -> Self {
         match kind {
             ThemeKind::Light => Self {
@@ -496,7 +504,7 @@ fn apply_tokens(ctx: &egui::Context, t: Tokens) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::new("pdfcraft-theme"), t));
     let mut v = if t.dark() { Visuals::dark() } else { Visuals::light() };
     v.panel_fill = t.panel;
-    v.window_fill = t.glass_surface.unwrap_or(t.card);
+    v.window_fill = t.glass_popup_surface().unwrap_or(t.card);
     v.window_stroke = Stroke::new(0.5, t.border);
     v.extreme_bg_color = t.field;
     v.faint_bg_color = t.hover;

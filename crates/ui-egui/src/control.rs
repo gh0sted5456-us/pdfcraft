@@ -43,6 +43,8 @@
 //!   (`"focused": true`) instead of adding a tab; native opens report `pending: true` until
 //!   they complete and are listed in `ui.state.pending_opens`; only a failed open replies `Err`.
 //!   `glass-tint=#rrggbb` and `glass-opacity=35..100` configure Glass surfaces; `ui.state.glass` reports both.
+//!   `glass-background=<base64 PNG/JPEG>` (empty to remove) and `glass-background-opacity=0..100`
+//!   configure the optional local wallpaper; `ui.state.glass_background` reports presence and opacity.
 //! - `ui.screenshot {region?}`: PNG of the window (base64), optionally cropped to a rect.
 
 use std::collections::{HashMap, VecDeque};
@@ -758,6 +760,7 @@ impl Host for crate::PdfCraftApp {
             "theme": format!("{:?}", self.theme),
             "theme_preference": self.theme_preference,
             "glass": self.glass,
+            "glass_background": {"enabled": self.glass_background.has_image(), "opacity": self.glass_background.opacity},
             "language": self.language,
             "spelling": {"enabled": self.spelling.enabled, "language": self.spelling.language, "personal_words": self.spelling.words.len()},
             "auto_ocr": self.auto_ocr,

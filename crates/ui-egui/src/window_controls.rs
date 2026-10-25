@@ -96,7 +96,8 @@ pub fn buttons(ui: &mut egui::Ui, buttons: &[Button]) {
             Button::Close => tl!("Close"),
         };
         let (rect, response) = ui.allocate_exact_size(Vec2::splat(BUTTON), Sense::click());
-        response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, label));
+        let accessible_label = if button == Button::Close { tl!("Close window") } else { label };
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, accessible_label));
         let response = response.on_hover_text(label);
         if ui.is_rect_visible(rect) {
             paint(ui.painter(), rect, button, maximized, &t, &response);

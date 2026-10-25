@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-25 · M14 personal fork: Windows OpenGL default for desktop transparency, local Glass wallpaper with independent opacity, organizer padlocks beside Delete, consistent Windows header controls in Light/Dark/Glass, and darker popup backings. OpenGL desktop transparency observed on Windows; estimates unchanged.
+
 # PdfCraft roadmap
 
 **Stage: alpha** · next: beta, ~25% (ready for real work 50% → 75%) and ~400–700 h away

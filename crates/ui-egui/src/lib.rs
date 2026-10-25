@@ -39,6 +39,7 @@ mod calc_order_ui;
 pub mod canvas;
 mod chrome;
 mod combine_grid;
+mod glass_background;
 mod image_pick;
 mod tags_ui;
 pub use combine_grid::ThumbState as CombineThumb;
@@ -706,6 +707,7 @@ pub struct PdfCraftApp {
     pub theme: ThemeKind,
     pub theme_preference: ThemePreference,
     pub glass: theme::GlassSettings,
+    pub glass_background: glass_background::GlassBackground,
     #[cfg(target_os = "windows")]
     native_frame_theme: Option<ThemeKind>,
     /// The reading-colours preference (Preferences ▸ Reading colours): applied to every open
@@ -1196,6 +1198,7 @@ impl PdfCraftApp {
             // A fresh install follows the desktop's appearance (#1248); saved settings override.
             theme_preference: ThemePreference::System,
             glass: theme::GlassSettings::default(),
+            glass_background: glass_background::GlassBackground::default(),
             #[cfg(target_os = "windows")]
             native_frame_theme: None,
             reading_colors: Default::default(),
@@ -1952,27 +1955,27 @@ impl PdfCraftApp {
         }
     }
 
-    /// Use the app header on desktops that request it, and for transparent Windows Glass.
+    /// Use the integrated Windows header consistently across appearance modes.
     pub fn draws_window_frame(&self) -> bool {
         self.window_frame_layout().is_some()
     }
 
     pub(crate) fn window_frame_layout(&self) -> Option<window_controls::Layout> {
-        if cfg!(target_os = "windows") && self.theme_preference == ThemePreference::Glass {
-            Some(window_controls::Layout::default())
+        if cfg!(target_os = "windows") && (self.theme_preference == ThemePreference::Glass || !self.system_title_bar) {
+            Some(self.window_controls.clone().unwrap_or_default())
         } else {
             self.window_controls.clone().filter(|_| !self.system_title_bar)
         }
     }
 
-    /// Follow the desktop title-bar preference, or the transparent Windows Glass header.
+    /// Follow the desktop title-bar preference and the integrated Windows header.
     fn sync_window_frame(&mut self, ctx: &egui::Context) {
         let app_frame = self.draws_window_frame();
         if self.window_controls.is_none() && !app_frame && self.app_frame_shown.is_none() {
             return;
         }
         if self.app_frame_shown != Some(app_frame) {
-            // Linux app headers start undecorated; Windows Glass switches from the native frame.
+            // Linux app headers start undecorated; Windows switches from the native frame.
             if self.app_frame_shown.is_some() || !app_frame || self.window_controls.is_none() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(!app_frame));
             }
@@ -2773,6 +2776,7 @@ impl PdfCraftApp {
             "pinned_folders": self.pinned.folders,
             "theme": self.theme_preference,
             "glass": self.glass,
+            "glass_background": self.glass_background.persist(),
             "scroll_speed": self.scroll_speed,
             "animation_effects": self.animation_effects,
             "default_mode": self.default_mode,
@@ -2902,6 +2906,7 @@ impl PdfCraftApp {
         if let Ok(glass) = serde_json::from_value::<theme::GlassSettings>(v["glass"].clone()) {
             self.set_glass_settings(glass);
         }
+        self.glass_background.restore(&v["glass_background"]);
         if let Ok(preference) = serde_json::from_value::<ThemePreference>(v["theme"].clone()) {
             self.set_theme_preference(preference);
         }
@@ -3118,6 +3123,11 @@ impl PdfCraftApp {
                     _ => return Err("theme must be light, dark, glass, or system".into()),
                 };
                 self.set_theme_preference(preference);
+            }
+            ("glass-background", _) => self.glass_background.set_encoded(value)?,
+            ("glass-background-opacity", _) => {
+                self.glass_background.opacity =
+                    value.parse::<u8>().ok().filter(|v| *v <= 100).ok_or("glass-background-opacity must be 0 to 100 percent")?;
             }
             ("glass-opacity", _) => {
                 let opacity = value.parse::<u8>().ok().filter(|v| (35..=100).contains(v)).ok_or("glass-opacity must be 35 to 100 percent")?;
@@ -3981,6 +3991,9 @@ impl eframe::App for PdfCraftApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        if self.theme_preference == ThemePreference::Glass {
+            self.glass_background.paint(ui);
+        }
         i18n::set_current(i18n::Lang::from_pref(&self.language));
         spelling_ui::begin_frame(&ctx, &mut self.spelling, i18n::Lang::from_pref(&self.language).code());
         // Fonts registered via set_fonts only take effect next frame; named families would panic now.

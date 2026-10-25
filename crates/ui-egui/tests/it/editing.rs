@@ -236,6 +236,17 @@ fn organize_checkboxes_toggle_multiple_pages_without_modifiers() {
 }
 
 #[test]
+fn organize_padlock_sits_beside_delete() {
+    let mut h = organize(3);
+    h.get_by_label("Page 2").hover();
+    h.run_steps(2);
+    let delete = h.get_by_label("Delete page 2").rect();
+    let lock = h.get_by_label("Lock page 2").rect();
+    assert!((delete.center().y - lock.center().y).abs() < 1.0);
+    assert!((lock.left() - delete.right() - 3.0).abs() < 1.0);
+}
+
+#[test]
 fn organize_padlocks_toggle_one_page_preserve_selection_and_undo() {
     let mut h = organize(3);
     h.get_by_label("Select page 1").click();

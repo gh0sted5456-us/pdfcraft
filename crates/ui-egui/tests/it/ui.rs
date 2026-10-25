@@ -708,11 +708,11 @@ fn narrow_tab_strips_accept_vertical_wheel_scrolling() {
             app
         });
         h.run_steps(4);
-        let last = h.get_by_label("narrow-11.pdf").rect();
+        let last = h.get_by_role_and_label(egui::accesskit::Role::Tab, "narrow-11.pdf").rect();
         assert!(last.center().x > 28.0 && last.right() < width - 100.0, "active tab: {last:?}");
         h.state_mut().active = Some(0);
         h.run_steps(4);
-        let first = h.get_by_label("narrow-00.pdf").rect();
+        let first = h.get_by_role_and_label(egui::accesskit::Role::Tab, "narrow-00.pdf").rect();
         assert!(first.center().x > 28.0 && first.right() < width - 100.0);
         h.event(egui::Event::PointerMoved(first.center()));
         for _ in 0..8 {
@@ -724,9 +724,9 @@ fn narrow_tab_strips_accept_vertical_wheel_scrolling() {
             });
             h.run_steps(8);
         }
-        let last = h.get_by_label("narrow-11.pdf").rect();
+        let last = h.get_by_role_and_label(egui::accesskit::Role::Tab, "narrow-11.pdf").rect();
         assert!(last.center().x > 28.0 && last.right() < width - 100.0, "scrolled tab: {last:?}");
-        h.get_by_label("narrow-11.pdf").click();
+        h.get_by_role_and_label(egui::accesskit::Role::Tab, "narrow-11.pdf").click();
         h.run_steps(4);
         assert_eq!(h.state().active, Some(11));
         assert!(h.get_by_label_contains("Display theme:").rect().right() <= width);
@@ -1273,7 +1273,7 @@ fn use_system_title_bar_swaps_the_header_bar_for_the_window_frame() {
     });
     h.run_steps(2);
     assert!(h.query_by_label("Use system title bar").is_none());
-    assert!(h.query_by_label("Minimize").is_none());
+    assert_eq!(h.query_by_label("Minimize").is_some(), cfg!(target_os = "windows"), "Windows uses the integrated header by default");
     assert_eq!(decorations(&h), None);
 }
 
@@ -1775,6 +1775,35 @@ fn document_tabs_keep_red_unsaved_and_green_saved_dots_in_both_themes() {
 }
 
 #[test]
+fn glass_popups_keep_a_readable_backing_at_low_window_opacity() {
+    use pdfcraft_ui_egui::theme::{self, GlassSettings, Tokens};
+    let ctx = egui::Context::default();
+    for opacity in [35, 67, 88, 100] {
+        theme::apply_glass(&ctx, GlassSettings { opacity, ..Default::default() });
+        let window = ctx.global_style().visuals.window_fill;
+        assert!(window.a() >= 224, "popup backing is too faint at {opacity}%: {window:?}");
+        assert_eq!(Tokens::get(&ctx).panel.a(), 0, "main panes remain transparent");
+    }
+}
+
+#[test]
+#[cfg(target_os = "windows")]
+fn appearance_modes_keep_window_controls_in_the_same_place() {
+    let mut h = harness(|app| app.set_option("theme", "glass").unwrap());
+    h.run_steps(3);
+    let controls = ["Minimize", "Maximize", "Close window"];
+    let positions = controls.map(|label| h.get_by_label(label).rect());
+    for theme in ["light", "dark", "glass"] {
+        h.state_mut().set_option("theme", theme).unwrap();
+        h.run_steps(3);
+        assert!(h.state().draws_window_frame());
+        for (label, expected) in controls.into_iter().zip(positions) {
+            assert_eq!(h.get_by_label(label).rect(), expected, "{theme}: {label}");
+        }
+    }
+}
+
+#[test]
 fn glass_theme_settings_validate_persist_and_keep_documents_opaque() {
     use pdfcraft_ui_egui::theme::{GlassSettings, ThemeKind, ThemePreference};
     let mut app = PdfCraftApp::new();
@@ -1809,6 +1838,15 @@ fn glass_theme_settings_validate_persist_and_keep_documents_opaque() {
         app.execute("view.theme.glass");
     });
     settle(&mut h);
+    let id = h.state().views[0].id;
+    let before = h.state_mut().session.save_bytes(id).unwrap();
+    let mut png = std::io::Cursor::new(Vec::new());
+    image::RgbaImage::from_pixel(8, 4, image::Rgba([20, 70, 110, 255])).write_to(&mut png, image::ImageFormat::Png).unwrap();
+    let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, png.get_ref());
+    h.state_mut().set_option("glass-background", &encoded).unwrap();
+    h.run_steps(3);
+    assert!(!h.state().session.get(id).unwrap().dirty, "wallpaper is an app preference");
+    assert_eq!(h.state_mut().session.save_bytes(id).unwrap(), before, "wallpaper never enters PDF bytes");
     assert_eq!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).glass_surface.unwrap().a(), 204);
     h.state_mut().set_option("glass-opacity", "50").unwrap();
     h.run();
@@ -1831,11 +1869,11 @@ fn glass_controls_are_visible_above_the_preview_cards_in_small_preferences() {
         app
     });
     h.run_steps(8);
-    let opacity = h.get_by_role_and_label(Role::Slider, "Opacity").rect();
+    let opacity = h.get_by_role_and_label(Role::Slider, "Window opacity").rect();
     let footer = h.get_by_label("OK").rect();
     assert!(opacity.top() > 0.0 && opacity.bottom() < footer.top(), "{opacity:?} vs {footer:?}");
     let before = h.state().glass.opacity;
-    h.get_by_role_and_label(Role::Slider, "Opacity").click();
+    h.get_by_role_and_label(Role::Slider, "Window opacity").click();
     h.run_steps(3);
     assert_ne!(h.state().glass.opacity, before);
     assert!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a() < 255);
@@ -1871,7 +1909,7 @@ fn glass_panes_controls_and_windows_header_share_the_live_surface() {
     #[cfg(windows)]
     {
         assert!(h.state().draws_window_frame());
-        for label in ["Minimize", "Maximize", "Close"] {
+        for label in ["Minimize", "Maximize", "Close window"] {
             h.get_by_label(label);
         }
         h.state_mut().set_option("system-title-bar", "true").unwrap();
