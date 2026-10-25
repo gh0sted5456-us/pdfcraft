@@ -122,6 +122,46 @@ fn marquee(h: &mut Harness<'static, PdfCraftApp>) {
 }
 
 #[test]
+fn locked_pages_are_read_only_in_edit_mode_until_unlocked() {
+    let mut h = harness();
+    let id = h.state().views[0].id;
+    h.state_mut().apply_edit(Edit::SetPageLocks { pages: vec![0], locked: true });
+    h.run_steps(4);
+    let before = objects(&h);
+    let text = at(&h, 70.0, 70.0);
+    click(&mut h, text, Modifiers::NONE);
+    assert!(h.state().views[0].line_editor.is_none(), "a locked original paragraph cannot open an editor");
+    let image = before.iter().find(|o| o.target.kind == pdfcraft_engine::ObjectKind::Image).unwrap();
+    let target = image.target;
+    let page = h.state().views[0].page_screen_rect(0).unwrap();
+    let picture = egui::pos2(
+        page.left() + (image.rect[0] + image.rect[2]) as f32 / 800.0 * page.width(),
+        page.bottom() - (image.rect[1] + image.rect[3]) as f32 / 1000.0 * page.height(),
+    );
+    click(&mut h, picture, Modifiers::NONE);
+    assert!(h.state().views[0].image_selection.is_none(), "a locked original image has no editing handles");
+    assert!(h.state_mut().session.apply(id, Edit::DeleteObjects { page: 0, objects: vec![target] }).is_err());
+    h.state_mut().execute("edit.text");
+    h.run_steps(3);
+    let blank = at(&h, 250.0, 200.0);
+    click(&mut h, blank, Modifiers::NONE);
+    assert!(h.state().views[0].content.draft.is_none(), "locked pages cannot start added text");
+    h.state_mut().set_option("mode", "edit").unwrap();
+    h.state_mut().set_option("quick", "group-select").unwrap();
+    h.run_steps(3);
+    let (a, b) = (at(&h, 25.0, 45.0), at(&h, 235.0, 175.0));
+    drag(&mut h, a, b);
+    assert_eq!(h.state().views[0].group_selection_count(), 0, "locked objects cannot enter a movable group");
+    assert_eq!(objects(&h), before);
+    h.state_mut().apply_edit(Edit::SetPageLocks { pages: vec![0], locked: false });
+    h.state_mut().execute("edit.edit_text");
+    h.run_steps(4);
+    let text = at(&h, 70.0, 70.0);
+    click(&mut h, text, Modifiers::NONE);
+    assert!(h.state().views[0].line_editor.is_some(), "unlocking restores original-text editing");
+}
+
+#[test]
 fn alignment_shortcuts_format_the_open_original_paragraph_and_preserve_its_text() {
     use pdfcraft_engine::TextAlign;
     let mut h = harness();

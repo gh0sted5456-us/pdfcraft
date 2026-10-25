@@ -1,5 +1,7 @@
 # PdfCraft parity with Adobe Acrobat Pro
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Locked pages now refuse Edit-mode interaction immediately: original text/images, added content, group selection, forms, crop and modifying context actions. Locked scans defer automatic OCR until unlocked. Engine write guards still apply; other readers may ignore these PdfCraft-only locks. Readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Organize Pages padlocks now toggle individual unsigned page locks without changing the page selection, reuse Undo and persist after save/reopen. Signed locks, certification, restricted documents and the signing chooser keep their existing guards. Other readers may ignore PdfCraft page locks; readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Compact Settings now has twelve categories, solid scrollbars in both panes, shorter category labels, centered headings and fixed themed confirmation actions. The personal build also adapts community #2520 for local accented Latin OCR with persisted choices and Unicode search layers, and fixes repeated added-image resizing and off-page preview clipping (#4477). Readiness estimates unchanged.

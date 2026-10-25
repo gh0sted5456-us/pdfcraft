@@ -153,6 +153,21 @@ fn scan_text_prompt_defers_for_dialogs_and_ignores_native_text_and_read_mode() {
 }
 
 #[test]
+fn locked_scans_do_not_offer_edit_mode_ocr_until_unlocked() {
+    if !pdfcraft_engine::ocr::available() {
+        return;
+    }
+    let mut h = scan_harness(scan());
+    h.state_mut().apply_edit(Edit::SetPageLocks { pages: vec![0], locked: true });
+    h.state_mut().execute("edit.edit_text");
+    h.run_steps(5);
+    assert!(h.state().dialog.is_none(), "locked scans must not offer recognition before editing");
+    h.state_mut().apply_edit(Edit::SetPageLocks { pages: vec![0], locked: false });
+    h.run_steps(5);
+    h.get_by_label("Scanned text detected");
+}
+
+#[test]
 fn recognize_text_dialog_adds_searchable_text() {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();

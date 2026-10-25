@@ -3107,6 +3107,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     // The table being set up in its window, shown on its own document's page.
     let table_preview = app.field_table_draft.as_mut().filter(|d| d.doc == view.id).and_then(|d| Some(d.preview(info.pages.get(d.page)?, &form)));
     let can_modify = doc.allows_modification();
+    let locked_pages = doc.protected_pages();
     if preparing {
         crate::prepare::after_refresh(view, &form);
     } else {
@@ -3205,6 +3206,11 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         }
         let mut calc_hover = None;
         for &i in &visible_pages {
+            let page_locked = locked_pages.contains(&i);
+            let can_modify = can_modify && !page_locked;
+            let allowed = allowed && !page_locked;
+            let can_fill = can_fill && !page_locked;
+            let can_crop = can_crop && !page_locked;
             badge_hover = None;
             let r = snap_to_pixels(rects[i].translate(origin.to_vec2()), ppp);
             if !r.intersects(visible.expand(400.0)) {
@@ -3579,7 +3585,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
             {
                 view.links.context = Some((i, l.index));
             }
-            let on_group = tool == QuickTool::GroupSelect && crate::group_select::page_input(ui, &pcx, doc, view);
+            let on_group = tool == QuickTool::GroupSelect && (page_locked || crate::group_select::page_input(ui, &pcx, doc, view));
             let consumed =
                 on_group || on_objects || on_edit_text || on_link || on_content || boxing || on_field || comments::page_input(ui, &resp, &pcx, view);
 
@@ -4005,6 +4011,9 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
             });
         }
         resp.context_menu(|ui| {
+            let page_locked = view.comments.context_at.is_some_and(|(page, _)| locked_pages.contains(&page));
+            let can_modify = can_modify && !page_locked;
+            let allowed = allowed && !page_locked;
             if let Some(field) = view.sign.context.clone() {
                 if ui.button(tl!("Remove signature…")).clicked() {
                     view.sign.clear = Some(field);

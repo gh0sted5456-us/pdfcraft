@@ -234,7 +234,11 @@ impl PdfCraftApp {
         }
         let Some(document) = self.session.get(doc) else { return };
         let generation = document.edit_generation();
-        if document.read_only_reason.is_some() || !document.allows_modification() || self.views[view].ocr_checked.get(&page) == Some(&generation) {
+        if document.read_only_reason.is_some()
+            || !document.allows_modification()
+            || document.protected_pages().contains(&page)
+            || self.views[view].ocr_checked.get(&page) == Some(&generation)
+        {
             return;
         }
         self.views[view].ocr_checked.insert(page, generation);
