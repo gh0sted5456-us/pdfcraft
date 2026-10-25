@@ -10,20 +10,23 @@ const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(10, 6);
 /// Outer height of a single-line field, including its inset.
 const FIELD_MIN_HEIGHT: f32 = 30.0;
 /// Padding inside every modal.
-const DIALOG_PAD_X: i8 = 20;
-const DIALOG_PAD_Y: i8 = 16;
+const DIALOG_PAD_X: i8 = 16;
+const DIALOG_PAD_Y: i8 = 12;
 
 fn dialog_frame(ctx: &egui::Context) -> egui::Frame {
     let t = Tokens::get(ctx);
+    let mut shadow = ctx.global_style().visuals.window_shadow;
+    shadow.offset = [0, 3];
+    shadow.blur = 12;
     egui::Frame::new()
         .fill(t.card)
-        .stroke(Stroke::new(1.0, t.border))
-        .corner_radius(CornerRadius::same(10))
+        .stroke(Stroke::new(0.5, t.border))
+        .corner_radius(CornerRadius::same(8))
         .inner_margin(egui::Margin::symmetric(DIALOG_PAD_X, DIALOG_PAD_Y))
-        .shadow(ctx.global_style().visuals.window_shadow)
+        .shadow(shadow)
 }
 
-/// A modal with the card fill, a 10-point corner and room around its contents.
+/// A modal with the card fill, an 8-point corner and room around its contents.
 pub fn modal(ctx: &egui::Context, id: impl std::hash::Hash + std::fmt::Debug) -> egui::Modal {
     egui::Modal::new(egui::Id::new(id)).frame(dialog_frame(ctx))
 }
@@ -33,7 +36,15 @@ pub fn show_modal<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut eg
     let stored = egui::Id::new(id);
     modal(ctx, id).show(ctx, |ui| {
         begin_dialog(ui);
-        let inner = content(ui);
+        let available = (ctx.content_rect().size() - vec2(72.0, 64.0)).max(vec2(1.0, 1.0));
+        ui.set_max_size(available);
+        let inner = egui::ScrollArea::both()
+            .id_salt((id, "dialog-scroll"))
+            .max_width(available.x)
+            .max_height(available.y)
+            .auto_shrink([true, true])
+            .show(ui, content)
+            .inner;
         // The frame's stroke sits outside this content rect; the stored card is the fill.
         let card = ui.min_rect().expand2(egui::vec2(f32::from(DIALOG_PAD_X), f32::from(DIALOG_PAD_Y)));
         ui.ctx().data_mut(|d| d.insert_temp(stored.with("card"), card));
@@ -58,6 +69,7 @@ pub fn begin_dialog(ui: &mut egui::Ui) {
     }
     ui.visuals_mut().selection.stroke = Stroke::new(1.5, t.accent);
     ui.spacing_mut().interact_size.y = FIELD_MIN_HEIGHT;
+    ui.spacing_mut().item_spacing.x = 10.0;
 }
 
 /// A single-line field tall enough to read and to click.
@@ -126,6 +138,96 @@ pub fn mode_tab(ui: &mut egui::Ui, label: &str, active: bool) -> Response {
         ui.painter().rect_filled(r, CornerRadius { nw: 1, ne: 1, sw: 0, se: 0 }, t.accent);
     }
     theme::hand(resp)
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum DialogAction {
+    Back,
+    Cancel,
+    Confirm,
+    Destructive,
+}
+
+pub(crate) fn dialog_button_width(ui: &egui::Ui, label: &str) -> f32 {
+    (text_width(ui, label, &theme::medium(12.5)) + 26.0).max(80.0)
+}
+
+/// Center the complete action group, retaining right-to-left primary/cancel/back order.
+pub(crate) fn dialog_footer<R>(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+    let available = ui.available_rect_before_wrap();
+    let width = ui.available_width();
+    let id = ui.id().with("dialog-action-width");
+    let previous = ui.ctx().data(|d| d.get_temp::<f32>(id)).unwrap_or(width).min(width);
+    let right = available.left() + (width + previous) * 0.5;
+    // Keep the full wrapping width when actions change; only their group's alignment is cached.
+    let rect = Rect::from_min_size(egui::pos2(right - width, available.top()), vec2(width, 28.0));
+    ui.scope_builder(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::right_to_left(egui::Align::Center).with_main_wrap(true)), |ui| {
+        let value = content(ui);
+        let bounds = ui.min_rect();
+        let measured = bounds.width().min(width);
+        ui.ctx().data_mut(|d| {
+            d.insert_temp(id, measured);
+            d.insert_temp(egui::Id::new("dialog-action-bounds"), bounds);
+        });
+        if (measured - previous).abs() > 0.5 {
+            ui.ctx().request_repaint();
+        }
+        value
+    })
+}
+
+/// Scroll long tool settings while their confirmation row stays in view.
+pub(crate) fn dialog_scroll<R>(ui: &mut egui::Ui, id: &str, content: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let header = ui.cursor().top() - ui.min_rect().top();
+    let height = (ui.ctx().content_rect().height() - header - 160.0).clamp(40.0, 620.0);
+    ui.spacing_mut().scroll.floating = false;
+    let width = ui.available_width();
+    egui::ScrollArea::both()
+        .id_salt(id)
+        .max_width(width)
+        .max_height(height)
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            ui.set_width(width);
+            content(ui)
+        })
+        .inner
+}
+
+/// Shared matte actions: navigation is neutral, cancellation blue, confirmation green, deletion red.
+pub(crate) fn dialog_button(ui: &mut egui::Ui, label: &str, action: DialogAction) -> Response {
+    dialog_button_marked(ui, label, action, false)
+}
+
+pub(crate) fn dialog_button_marked(ui: &mut egui::Ui, label: &str, action: DialogAction, marked: bool) -> Response {
+    let t = Tokens::get(ui.ctx());
+    let color = match action {
+        DialogAction::Back => t.text_muted,
+        DialogAction::Cancel => t.accent,
+        DialogAction::Confirm => Color32::from_rgb(68, 135, 91),
+        DialogAction::Destructive => Color32::from_rgb(175, 79, 88),
+    };
+    let (rect, response) = ui.allocate_exact_size(vec2(dialog_button_width(ui, label), 28.0), Sense::click());
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, ui.is_enabled(), label));
+    let press = theme::Press::track(ui, &response);
+    let enabled = ui.is_enabled();
+    let focused = enabled && (marked || response.has_focus());
+    let hover = t.field.lerp_to_gamma(color, if t.dark() { 0.38 } else { 0.20 });
+    let down = t.field.lerp_to_gamma(color, if t.dark() { 0.50 } else { 0.30 });
+    ui.painter().rect_filled(rect, 14, if enabled { press.fill(t.field, hover, down) } else { t.field });
+    let edge = if focused { color.lerp_to_gamma(t.text, 0.35) } else { t.border.lerp_to_gamma(color, if enabled { press.hover } else { 0.0 }) };
+    ui.painter().rect_stroke(rect.shrink(0.5), 14, Stroke::new(if focused { 2.0 } else { 1.0 }, edge), egui::StrokeKind::Inside);
+    ui.painter().text(
+        rect.translate(press.offset()).center(),
+        Align2::CENTER_CENTER,
+        label,
+        theme::medium(12.5),
+        if enabled { t.text } else { t.text_muted },
+    );
+    if marked && enabled {
+        response.request_focus();
+    }
+    theme::hand(response)
 }
 
 /// Rounded pill button; `primary` fills with the accent.
@@ -204,6 +306,11 @@ pub fn search_box(ui: &mut egui::Ui, placeholder: &str, width: f32) -> Response 
     if elided { resp.on_hover_text(placeholder) } else { resp }
 }
 
+/// Shared modal title: centered in the card, with the same type size in every tool.
+pub(crate) fn dialog_heading(ui: &mut egui::Ui, title: impl Into<String>) -> Response {
+    ui.vertical_centered(|ui| ui.label(egui::RichText::new(title).font(theme::semibold(18.0)))).inner
+}
+
 pub fn menu_item(ui: &mut egui::Ui, label: &str, shortcut: &str) -> Response {
     ui.add(egui::Button::new(label).shortcut_text(shortcut))
 }
@@ -214,13 +321,106 @@ const CHECKBOX_RADIUS: u8 = 3;
 
 /// A checkbox whose box is an outlined rounded square, never mistaken for a radio button. Every
 /// checkbox goes through here: clippy.toml disallows `ui.checkbox` and `egui::Checkbox`.
+///
+/// A press on it and a drag over the checkboxes next to it sets them all (#1662, as in the other
+/// Craft apps): see [`drag_across`].
 pub fn checkbox<'a>(checked: &'a mut bool, atoms: impl egui::IntoAtoms<'a>) -> impl egui::Widget + 'a {
-    #[expect(clippy::disallowed_methods, reason = "the one place that styles the box")]
-    let widget = egui::Checkbox::new(checked, atoms);
-    toggle(widget, Some(CHECKBOX_RADIUS))
+    // `Checkbox::new` gives the label the lifetime of the borrow of `checked`, which is lent to
+    // it only for the frame's `ui.add`.
+    let atoms = atoms.into_atoms();
+    move |ui: &mut egui::Ui| {
+        #[expect(clippy::disallowed_methods, reason = "the one place that styles the box")]
+        let widget = egui::Checkbox::new(&mut *checked, atoms);
+        let response = ui.add(toggle(widget, Some(CHECKBOX_RADIUS)));
+        drag_across(ui, response, checked)
+    }
 }
 
-/// [`checkbox`] without a label: the selection box on Organize Pages thumbnails.
+/// Where a drag across checkboxes keeps the box it started on and the state it gives every box
+/// it goes over (#1662).
+fn drag_target_id() -> egui::Id {
+    egui::Id::new("checkbox-drag-target")
+}
+
+/// Drag across checkboxes (#1662). A press on a checkbox and a drag toggle it, and every other
+/// checkbox the pointer then goes over takes its new state, until the button is released. A
+/// click still toggles one box (egui's own click). `response` is the checkbox's, `checked` its
+/// value; a box the drag changes is marked changed, as a click marks it.
+///
+/// The checkbox senses drags too, so the drag is the checkbox's: inside a scroll area it doesn't
+/// scroll the panel, and a press that moves before its release toggles the box once, not as a
+/// click as well. A disabled box, one clipped out of view and one under another layer (a menu
+/// open over a dialog) are left alone. The state counts only while the box the drag started on
+/// is still being dragged, so it ends with the drag even when no checkbox is drawn on the frame
+/// the button comes up (a dialog that closes then).
+fn drag_across(ui: &egui::Ui, response: Response, checked: &mut bool) -> Response {
+    if !response.enabled() {
+        return response;
+    }
+    // `interact` gives a new response: keep the change a click just made, which the callers
+    // that act on `changed()` read.
+    let clicked_changed = response.changed();
+    let mut response = response.interact(Sense::drag());
+    if clicked_changed {
+        response.mark_changed();
+    }
+    let ctx = ui.ctx();
+    if !ctx.input(|i| i.pointer.primary_down()) {
+        ctx.data_mut(|d| d.remove::<(egui::Id, bool)>(drag_target_id()));
+        return response;
+    }
+    // Capture on press: an upward drag visits earlier rows before its starting row is drawn.
+    if ctx.input(|i| i.pointer.primary_pressed()) && response.is_pointer_button_down_on() {
+        ctx.data_mut(|d| d.insert_temp(drag_target_id(), (response.id, !*checked)));
+    }
+    let Some((started_on, target)) = ctx.data(|d| d.get_temp::<(egui::Id, bool)>(drag_target_id())) else { return response };
+    if !ctx.is_being_dragged(started_on) {
+        return response;
+    }
+    // The way the pointer came this frame, not only where it is: a fast drag jumps over boxes
+    // between two frames. The box counts where that way first meets it.
+    let over = ctx
+        .input(|i| i.pointer.latest_pos().map(|p| (p - i.pointer.delta(), p)))
+        .and_then(|(from, to)| segment_entry(response.rect, from, to))
+        .is_some_and(|p| ui.clip_rect().contains(p) && ctx.layer_id_at(p) == Some(response.layer_id));
+    if (response.id == started_on || over) && *checked != target {
+        *checked = target;
+        response.mark_changed();
+    }
+    response
+}
+
+/// Where the segment from `from` to `to` first enters `rect` (`from` itself when it starts
+/// inside); `None` when it misses. Non-finite points miss.
+fn segment_entry(rect: Rect, from: egui::Pos2, to: egui::Pos2) -> Option<egui::Pos2> {
+    if !(from.x.is_finite() && from.y.is_finite() && to.x.is_finite() && to.y.is_finite()) {
+        return None;
+    }
+    // Liang–Barsky: clip the parameter range [0, 1] against each side in turn.
+    let d = to - from;
+    if !d.x.is_finite() || !d.y.is_finite() {
+        return None;
+    }
+    let (mut t0, mut t1) = (0.0f32, 1.0f32);
+    for (p, q) in [(-d.x, from.x - rect.min.x), (d.x, rect.max.x - from.x), (-d.y, from.y - rect.min.y), (d.y, rect.max.y - from.y)] {
+        if p == 0.0 {
+            if q < 0.0 {
+                return None;
+            }
+        } else {
+            let t = q / p;
+            if p < 0.0 {
+                t0 = t0.max(t);
+            } else {
+                t1 = t1.min(t);
+            }
+        }
+    }
+    (t0 <= t1).then(|| from + d * t0)
+}
+
+/// [`checkbox`] without a label: the selection box on Organize Pages thumbnails. It takes clicks
+/// only: a drag that starts on it moves the page, as a drag on the rest of the thumbnail does.
 pub fn checkbox_without_text(checked: &mut bool) -> impl egui::Widget + '_ {
     #[expect(clippy::disallowed_methods, reason = "the one place that styles the box")]
     let widget = egui::Checkbox::without_text(checked);
@@ -401,12 +601,20 @@ pub fn toast(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let card = if app.progress_notice.is_some() { ctx.data(|d| d.get_temp::<f32>(egui::Id::new(PROGRESS_HEIGHT))).unwrap_or(0.0) } else { 0.0 };
     let lift = if card > 0.0 { 28.0 + card + 10.0 } else { 28.0 };
     egui::Area::new(egui::Id::new("toast"))
+        // A status message must not intercept the next click on a modal action.
+        .interactable(false)
         .order(egui::Order::Tooltip)
         .pivot(Align2::CENTER_BOTTOM)
         .fixed_pos(screen.center_bottom() - vec2(0.0, lift))
         .show(ctx, |ui| {
             egui::Frame::NONE
-                .fill(if t.dark() { Color32::from_rgb(0xEC, 0xEC, 0xEF) } else { Color32::from_rgb(0x2A, 0x2A, 0x2F) })
+                .fill(if app.theme_preference == crate::theme::ThemePreference::Glass {
+                    t.card
+                } else if t.dark() {
+                    Color32::from_rgb(0xEC, 0xEC, 0xEF)
+                } else {
+                    Color32::from_rgb(0x2A, 0x2A, 0x2F)
+                })
                 .corner_radius(CornerRadius::same(8))
                 .inner_margin(egui::Margin::symmetric(16, 10))
                 .show(ui, |ui| {
@@ -416,8 +624,14 @@ pub fn toast(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     // including the frame's 32 points and 16-point outside margins.
                     ui.set_max_width((screen.width() - 64.0).clamp(1.0, 560.0));
                     ui.add(
-                        egui::Label::new(egui::RichText::new(msg).color(if t.dark() { Color32::from_rgb(0x22, 0x22, 0x26) } else { Color32::WHITE }))
-                            .wrap(),
+                        egui::Label::new(egui::RichText::new(msg).color(if app.theme_preference == crate::theme::ThemePreference::Glass {
+                            t.text
+                        } else if t.dark() {
+                            Color32::from_rgb(0x22, 0x22, 0x26)
+                        } else {
+                            Color32::WHITE
+                        }))
+                        .wrap(),
                     );
                 });
         });
@@ -497,9 +711,8 @@ pub fn progress_notice(app: &PdfCraftApp, ctx: &egui::Context) -> bool {
                 }
                 if p.cancellable {
                     ui.add_space(4.0);
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let b = egui::Button::new(egui::RichText::new(tl!("Cancel")).font(theme::medium(12.5)).color(text)).frame(false);
-                        cancel = ui.add(b).clicked();
+                    crate::widgets::dialog_footer(ui, |ui| {
+                        cancel = dialog_button(ui, tl!("Cancel"), DialogAction::Cancel).clicked();
                     });
                 }
             });
@@ -509,23 +722,13 @@ pub fn progress_notice(app: &PdfCraftApp, ctx: &egui::Context) -> bool {
     cancel
 }
 
-/// The ArtCraft wordmark (Storyteller's brand, docs/brand/; not open source), sized to `height`.
-pub fn artcraft_logo(ui: &mut egui::Ui, height: f32) -> Response {
-    let dark = ui.visuals().dark_mode;
-    let (uri, bytes): (&str, &'static [u8]) = if dark {
-        ("bytes://artcraft-logo-white.svg", include_bytes!("../../../docs/brand/artcraft-logo-white.svg"))
-    } else {
-        ("bytes://artcraft-logo.svg", include_bytes!("../../../docs/brand/artcraft-logo.svg"))
-    };
-    ui.add(egui::Image::from_bytes(uri, bytes).max_height(height).alt_text("ArtCraft"))
-}
-
-/// The ArtCraft mark (brand blue, works on light and dark), `size` points square.
-pub fn artcraft_mark(ui: &mut egui::Ui, size: f32) -> Response {
+/// The personal build's lion, shared with the window icon and Windows thumbnail badge.
+pub fn app_icon(ui: &mut egui::Ui, size: f32) -> Response {
+    let dark = Tokens::get(ui.ctx()).kind == theme::ThemeKind::Dark;
     ui.add(
-        egui::Image::from_bytes("bytes://artcraft-mark.svg", include_bytes!("../../../docs/brand/artcraft-mark.svg"))
+        egui::Image::from_bytes(if dark { "bytes://personal-lion-dark.png" } else { "bytes://personal-lion-light.png" }, crate::app_icon::png(dark))
             .fit_to_exact_size(vec2(size, size))
-            .alt_text("ArtCraft"),
+            .alt_text("PdfCraft lion"),
     )
 }
 
@@ -536,7 +739,8 @@ pub fn community_links(ui: &mut egui::Ui) -> Option<&'static str> {
     ui.horizontal_wrapped(|ui| {
         ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
         for (i, l) in pdfcraft_engine::links::LINKS.iter().enumerate() {
-            let resp = if i == 0 { icon_pill(ui, l.icon, tl!("Join our Discord"), true) } else { icon_pill(ui, l.icon, tl!(l.label), false) };
+            let resp =
+                if i == 0 { icons::button(ui, "discord", 30.0, false, tl!("Join our Discord")) } else { icon_pill(ui, l.icon, tl!(l.label), false) };
             if resp.on_hover_text(l.url).clicked() {
                 clicked = Some(l.command);
             }
@@ -602,6 +806,52 @@ pub fn icon_pill(ui: &mut egui::Ui, icon: &str, label: &str, primary: bool) -> R
 mod tests {
     use super::*;
     use egui::Pos2;
+
+    #[test]
+    fn confirmation_groups_stay_centered_when_actions_change() {
+        let ctx = egui::Context::default();
+        ctx.set_fonts(theme::font_definitions());
+        for labels in [vec!["Close"], vec!["Save", "Cancel"], vec!["Save", "Exit", "Cancel"]] {
+            let mut group = Rect::NOTHING;
+            for _ in 0..4 {
+                ctx.run_ui(egui::RawInput::default(), |ui| {
+                    ui.set_width(400.0);
+                    group = Rect::NOTHING;
+                    dialog_footer(ui, |ui| {
+                        for label in &labels {
+                            group = group.union(dialog_button(ui, label, DialogAction::Confirm).rect);
+                        }
+                    });
+                })
+                .drop_without_applying_deltas();
+            }
+            assert!((group.center().x - 200.0).abs() < 1.0, "{labels:?}: {group:?}");
+        }
+    }
+
+    #[test]
+    fn dialog_button_outline_stays_inside_its_hit_box() {
+        let ctx = egui::Context::default();
+        ctx.set_fonts(theme::font_definitions());
+        let mut button = Rect::NOTHING;
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            button = dialog_button_marked(ui, "Save", DialogAction::Confirm, true).rect;
+        });
+        let shapes = output.shapes.clone();
+        output.drop_without_applying_deltas();
+        let mut outlines = 0;
+        for clipped in &shapes {
+            if let egui::epaint::Shape::Rect(shape) = &clipped.shape
+                && shape.stroke.width > 0.0
+                && shape.rect.intersects(button)
+            {
+                outlines += 1;
+                let paint = clipped.shape.visual_bounding_rect();
+                assert!(button.expand(0.01).contains_rect(paint), "button outline is clipped at a scroll-panel edge: {paint:?} outside {button:?}");
+            }
+        }
+        assert!(outlines > 0);
+    }
 
     #[test]
     fn search_placeholder_never_overlaps_the_shortcut() {
@@ -812,6 +1062,69 @@ mod tests {
     }
 
     #[test]
+    fn dialog_action_colors_and_dimensions_stay_consistent_in_both_themes() {
+        for kind in [theme::ThemeKind::Light, theme::ThemeKind::Dark] {
+            let ctx = egui::Context::default();
+            ctx.set_fonts(theme::font_definitions());
+            theme::apply(&ctx, kind);
+            let mut sizes = Vec::new();
+            let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+                for (label, role) in [
+                    ("Back", DialogAction::Back),
+                    ("Cancel", DialogAction::Cancel),
+                    ("Save", DialogAction::Confirm),
+                    ("Exit", DialogAction::Destructive),
+                ] {
+                    sizes.push(dialog_button_marked(ui, label, role, true).rect.size());
+                }
+            });
+            let shapes = out.shapes.clone();
+            out.drop_without_applying_deltas();
+            assert!(sizes.iter().all(|size| size.x >= 80. && size.y == 28.));
+            let colors: Vec<_> = shapes
+                .iter()
+                .filter_map(|s| match &s.shape {
+                    egui::Shape::Rect(r) if r.stroke.width == 2. => Some(r.stroke.color),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(colors.len(), 4);
+            let [back, cancel, save, exit]: [Color32; 4] = colors.try_into().unwrap();
+            assert!((i16::from(back.r()) - i16::from(back.b())).abs() < 20);
+            assert!(cancel.b() > cancel.r() && cancel.b() > cancel.g(), "Cancel must be blue");
+            assert!(save.g() > save.r() && save.g() > save.b(), "Save must be green");
+            assert!(exit.r() > exit.g() && exit.r() > exit.b(), "Exit must be red");
+        }
+    }
+
+    #[test]
+    fn dialogs_stay_centered_and_inside_the_window_when_their_contents_grow() {
+        let ctx = egui::Context::default();
+        ctx.set_fonts(theme::font_definitions());
+        for (width, height, rows) in [(1200., 900., 3), (1200., 900., 50), (640., 480., 50), (1600., 1000., 3)] {
+            let screen = Rect::from_min_size(egui::Pos2::ZERO, vec2(width, height));
+            for _ in 0..8 {
+                ctx.run_ui(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ui| {
+                    show_modal(ui.ctx(), "layout-check", |ui| {
+                        ui.set_width(720.);
+                        for row in 0..rows {
+                            ui.label(format!("Dialog content row {row}"));
+                        }
+                        dialog_button(ui, "Close", DialogAction::Cancel);
+                    });
+                })
+                .drop_without_applying_deltas();
+            }
+            let card = ctx.data(|d| d.get_temp::<Rect>(egui::Id::new("layout-check").with("card"))).unwrap();
+            assert!((card.center() - screen.center()).length() < 2., "Off center: {card:?} in {screen:?}");
+            assert!(screen.contains_rect(card), "Clipped dialog: {card:?} in {screen:?}");
+            if width >= 1200. {
+                assert!(card.width() >= 720. + 2. * f32::from(DIALOG_PAD_X) - 1., "The wrapper clipped the requested dialog width: {card:?}");
+            }
+        }
+    }
+
+    #[test]
     fn line_field_is_at_least_thirty_points_tall() {
         let ctx = egui::Context::default();
         let mut text = String::new();
@@ -835,5 +1148,226 @@ mod tests {
         assert!(long.starts_with(fitted.trim_end_matches('\u{2026}')));
         assert_eq!(fit_line(long, 0.0, width), "");
         assert_eq!(fit_line("ééé", 2.0, width), "é\u{2026}");
+    }
+}
+
+#[cfg(test)]
+mod drag_across_tests {
+    use super::*;
+    use egui::{Event, PointerButton, Pos2};
+
+    /// One frame of a column of checkboxes over `state`, the box at `disabled` greyed out, with
+    /// `events`. Returns each row's rect and whether its response said it changed.
+    fn frame(ctx: &egui::Context, state: &mut [bool], disabled: Option<usize>, events: Vec<Event>) -> (Vec<Rect>, Vec<bool>) {
+        let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))), events, ..Default::default() };
+        let (mut rects, mut changed) = (vec![], vec![]);
+        let output = ctx.run_ui(input, |ui| {
+            for (i, v) in state.iter_mut().enumerate() {
+                let r = ui.add_enabled(disabled != Some(i), checkbox(v, "Show the grid"));
+                rects.push(r.rect);
+                changed.push(r.changed());
+            }
+        });
+        output.drop_without_applying_deltas();
+        (rects, changed)
+    }
+
+    fn button(at: Pos2, pressed: bool) -> Event {
+        Event::PointerButton { pos: at, button: PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE }
+    }
+
+    /// Moves the pointer from `a` to `b` in eight steps, one frame each; returns which rows said
+    /// they changed in any of them.
+    fn sweep(ctx: &egui::Context, state: &mut [bool], disabled: Option<usize>, a: Pos2, b: Pos2) -> Vec<bool> {
+        let mut any = vec![false; state.len()];
+        for step in 1..=8 {
+            let (_, changed) = frame(ctx, state, disabled, vec![Event::PointerMoved(a + (b - a) * (step as f32 / 8.0))]);
+            for (seen, c) in any.iter_mut().zip(changed) {
+                *seen |= c;
+            }
+        }
+        any
+    }
+
+    /// #1662: a press on a checkbox and a drag over the boxes below it sets them all to the state
+    /// the first one switched to, each saying it changed. A box past the drag stays as it is,
+    /// and so does a disabled one the drag crosses.
+    #[test]
+    fn a_drag_across_checkboxes_sets_them_like_the_first() {
+        let ctx = egui::Context::default();
+        let mut state = [false, true, false, false, false];
+        let (rects, _) = frame(&ctx, &mut state, Some(2), vec![]);
+        let at = |i: usize| rects[i].left_center() + vec2(6.0, 0.0);
+        frame(&ctx, &mut state, Some(2), vec![Event::PointerMoved(at(0)), button(at(0), true)]);
+        let changed = sweep(&ctx, &mut state, Some(2), at(0), at(3));
+        frame(&ctx, &mut state, Some(2), vec![button(at(3), false)]);
+        frame(&ctx, &mut state, Some(2), vec![]);
+        assert_eq!(state, [true, true, false, true, false]);
+        assert_eq!(changed, [true, false, false, true, false], "the boxes the drag changed say so, the others don't");
+        // After the release, moving over a box changes nothing.
+        sweep(&ctx, &mut state, Some(2), at(3), at(4));
+        assert!(!state[4]);
+    }
+
+    /// A click still toggles one box; a drag from a ticked box clears the boxes it goes over.
+    #[test]
+    fn a_click_toggles_one_box_and_a_drag_from_a_ticked_box_clears() {
+        let ctx = egui::Context::default();
+        let mut state = [true, true, false, true];
+        let (rects, _) = frame(&ctx, &mut state, None, vec![]);
+        let at = |i: usize| rects[i].left_center() + vec2(6.0, 0.0);
+        frame(&ctx, &mut state, None, vec![Event::PointerMoved(at(2)), button(at(2), true)]);
+        let (_, changed) = frame(&ctx, &mut state, None, vec![button(at(2), false)]);
+        frame(&ctx, &mut state, None, vec![]);
+        assert_eq!(state, [true, true, true, true], "a click toggles only the box clicked");
+        // Callers act on `changed()` (the comment filters, the field properties).
+        assert_eq!(changed, [false, false, true, false], "the clicked box says it changed");
+        frame(&ctx, &mut state, None, vec![Event::PointerMoved(at(3)), button(at(3), true)]);
+        sweep(&ctx, &mut state, None, at(3), at(1));
+        frame(&ctx, &mut state, None, vec![button(at(1), false)]);
+        frame(&ctx, &mut state, None, vec![]);
+        assert_eq!(state, [true, false, false, false], "the drag up cleared the boxes it went over and stopped there");
+    }
+
+    /// The segment test behind a fast drag: where the way first meets the box, nothing when it
+    /// passes by, and nothing for a non-finite point.
+    #[test]
+    fn segment_entry_finds_where_the_way_meets_the_box() {
+        let r = Rect::from_min_max(Pos2::new(10.0, 10.0), Pos2::new(20.0, 20.0));
+        assert_eq!(segment_entry(r, Pos2::new(15.0, 0.0), Pos2::new(15.0, 40.0)), Some(Pos2::new(15.0, 10.0)), "through it");
+        assert_eq!(segment_entry(r, Pos2::new(12.0, 12.0), Pos2::new(50.0, 50.0)), Some(Pos2::new(12.0, 12.0)), "starting inside");
+        assert_eq!(segment_entry(r, Pos2::new(0.0, 0.0), Pos2::new(0.0, 40.0)), None, "beside it");
+        assert_eq!(segment_entry(r, Pos2::new(15.0, 0.0), Pos2::new(15.0, 5.0)), None, "short of it");
+        assert_eq!(segment_entry(r, Pos2::new(f32::NAN, 0.0), Pos2::new(15.0, 15.0)), None);
+    }
+
+    /// CodeRabbit on #4552: a fast drag that jumps over boxes between two frames sets them too,
+    /// not only the box the pointer lands on.
+    #[test]
+    fn a_fast_drag_sets_the_boxes_it_jumps_over() {
+        let ctx = egui::Context::default();
+        let mut state = [false, false, false, false, false];
+        let (rects, _) = frame(&ctx, &mut state, None, vec![]);
+        let at = |i: usize| rects[i].left_center() + vec2(6.0, 0.0);
+        frame(&ctx, &mut state, None, vec![Event::PointerMoved(at(0)), button(at(0), true)]);
+        // Far enough in one frame to start the drag, then straight to the fourth row.
+        frame(&ctx, &mut state, None, vec![Event::PointerMoved(at(0) + vec2(20.0, 0.0))]);
+        frame(&ctx, &mut state, None, vec![Event::PointerMoved(at(3))]);
+        frame(&ctx, &mut state, None, vec![button(at(3), false)]);
+        frame(&ctx, &mut state, None, vec![]);
+        assert_eq!(state, [true, true, true, true, false]);
+    }
+
+    #[test]
+    fn a_fast_upward_drag_sets_boxes_before_the_origin_is_drawn() {
+        let ctx = egui::Context::default();
+        let mut state = [false; 5];
+        let (rects, _) = frame(&ctx, &mut state, None, vec![]);
+        let at = |i: usize| rects[i].left_center() + vec2(6.0, 0.0);
+        frame(&ctx, &mut state, None, vec![Event::PointerMoved(at(3)), button(at(3), true)]);
+        frame(&ctx, &mut state, None, vec![Event::PointerMoved(at(0))]);
+        frame(&ctx, &mut state, None, vec![button(at(0), false)]);
+        frame(&ctx, &mut state, None, vec![]);
+        assert_eq!(state, [true, true, true, true, false], "a one-frame upward sweep must not skip the middle rows");
+    }
+
+    /// A press that drags and comes back to its own box before the release toggles that box
+    /// once: the drag toggled it, so the release is not a click that toggles it back.
+    #[test]
+    fn a_drag_that_returns_to_its_box_toggles_it_once() {
+        let ctx = egui::Context::default();
+        let mut state = [false, false];
+        let (rects, _) = frame(&ctx, &mut state, None, vec![]);
+        let at = |i: usize| rects[i].left_center() + vec2(6.0, 0.0);
+        frame(&ctx, &mut state, None, vec![Event::PointerMoved(at(0)), button(at(0), true)]);
+        sweep(&ctx, &mut state, None, at(0), at(0) + vec2(40.0, 0.0));
+        sweep(&ctx, &mut state, None, at(0) + vec2(40.0, 0.0), at(0));
+        frame(&ctx, &mut state, None, vec![button(at(0), false)]);
+        frame(&ctx, &mut state, None, vec![]);
+        assert_eq!(state, [true, false]);
+    }
+
+    /// A drag released on a frame that draws no checkbox (its dialog closed) is over: a later
+    /// press elsewhere, held down and moved over a checkbox, doesn't set it.
+    #[test]
+    fn a_drag_ends_with_its_release_even_when_no_checkbox_is_drawn() {
+        let ctx = egui::Context::default();
+        let mut state = [false, false, false, false];
+        let (rects, _) = frame(&ctx, &mut state, None, vec![]);
+        let at = |i: usize| rects[i].left_center() + vec2(6.0, 0.0);
+        frame(&ctx, &mut state, None, vec![Event::PointerMoved(at(0)), button(at(0), true)]);
+        sweep(&ctx, &mut state, None, at(0), at(1));
+        assert_eq!(state, [true, true, false, false]);
+        let output = ctx.run_ui(egui::RawInput { events: vec![button(at(1), false)], ..Default::default() }, |_| {});
+        output.drop_without_applying_deltas();
+        let empty = Pos2::new(380.0, at(3).y);
+        frame(&ctx, &mut state, None, vec![Event::PointerMoved(empty), button(empty, true)]);
+        sweep(&ctx, &mut state, None, empty, at(3));
+        frame(&ctx, &mut state, None, vec![button(at(3), false)]);
+        assert_eq!(state, [true, true, false, false], "the press beside the boxes started no drag across them");
+    }
+
+    /// Preferences and dialogs put their checkboxes in a scroll area, which scrolls when a drag
+    /// on something that doesn't take drags moves over it. The drag is the checkbox's, so the
+    /// panel stays where it is and the boxes are set.
+    #[test]
+    fn a_drag_in_a_scroll_area_sets_the_boxes_without_scrolling() {
+        let ctx = egui::Context::default();
+        let mut state = vec![false; 30];
+        let run = |state: &mut Vec<bool>, events: Vec<Event>| {
+            let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 200.0))), events, ..Default::default() };
+            let mut rects = vec![];
+            let mut offset = 0.0;
+            let output = ctx.run_ui(input, |ui| {
+                offset = egui::ScrollArea::vertical()
+                    .show(ui, |ui| {
+                        for v in state.iter_mut() {
+                            rects.push(ui.add(checkbox(v, "Show the grid")).rect);
+                        }
+                    })
+                    .state
+                    .offset
+                    .y;
+            });
+            output.drop_without_applying_deltas();
+            (rects, offset)
+        };
+        let (rects, _) = run(&mut state, vec![]);
+        let at = |i: usize| rects[i].left_center() + vec2(6.0, 0.0);
+        let (a, b) = (at(4), at(1));
+        run(&mut state, vec![Event::PointerMoved(a), button(a, true)]);
+        let mut offset = 0.0;
+        for step in 1..=8 {
+            offset = run(&mut state, vec![Event::PointerMoved(a + (b - a) * (step as f32 / 8.0))]).1;
+        }
+        run(&mut state, vec![button(b, false)]);
+        assert_eq!(offset, 0.0, "the drag didn't scroll the panel");
+        assert_eq!(&state[..6], [false, true, true, true, true, false]);
+    }
+
+    /// The page checkbox on Organize Pages thumbnails takes clicks only: a drag that starts on it
+    /// belongs to the thumbnail under it, which moves the page.
+    #[test]
+    fn the_thumbnail_checkbox_leaves_a_drag_to_the_thumbnail() {
+        let ctx = egui::Context::default();
+        let (mut checked, mut dragged) = (false, false);
+        let run = |checked: &mut bool, dragged: &mut bool, events: Vec<Event>| {
+            let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0))), events, ..Default::default() };
+            let output = ctx.run_ui(input, |ui| {
+                let cell = Rect::from_min_size(Pos2::new(10.0, 10.0), vec2(150.0, 200.0));
+                let thumbnail = ui.interact(cell, ui.id().with("thumbnail"), Sense::click_and_drag());
+                ui.put(Rect::from_min_size(cell.min + vec2(8.0, 8.0), egui::Vec2::splat(20.0)), checkbox_without_text(checked));
+                *dragged |= thumbnail.drag_started();
+            });
+            output.drop_without_applying_deltas();
+        };
+        let (a, b) = (Pos2::new(28.0, 28.0), Pos2::new(120.0, 150.0));
+        run(&mut checked, &mut dragged, vec![]);
+        run(&mut checked, &mut dragged, vec![Event::PointerMoved(a), button(a, true)]);
+        for step in 1..=8 {
+            run(&mut checked, &mut dragged, vec![Event::PointerMoved(a + (b - a) * (step as f32 / 8.0))]);
+        }
+        run(&mut checked, &mut dragged, vec![button(b, false)]);
+        assert!(dragged && !checked, "the thumbnail took the drag, the checkbox stayed as it was");
     }
 }

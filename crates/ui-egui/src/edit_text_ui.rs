@@ -973,7 +973,7 @@ pub(crate) fn image_input(
                     let y = if start.y < fixed.y { fixed.y - h } else { fixed.y };
                     Rect::from_min_size(Pos2::new(x, y), egui::vec2(w, h))
                 }
-                None => b.translate(p - start),
+                None => b.translate(view.objects.snap_drag(ui, xf, page, info, b, &[ObjectTarget { kind: ObjectKind::Image, index: i }], p - start)),
             };
             // Move/resize the full placement by the visible frame's change. The engine
             // transforms an isolated crop together with its image, preserving its contents.
@@ -1259,7 +1259,9 @@ pub(crate) fn page_input(
         let p = ui.input(|i| i.pointer.interact_pos()).unwrap_or(d.start);
         let dx = p.x - d.start.x;
         let preview = match d.grip {
-            Grip::Move => b.translate(p - d.start),
+            Grip::Move => {
+                b.translate(view.objects.snap_drag(ui, xf, page, info, b, &[ObjectTarget { kind: ObjectKind::Text, index: d.block }], p - d.start))
+            }
             Grip::Left => Rect::from_min_max(Pos2::new((b.left() + dx).min(b.right() - 12.0), b.min.y), b.max),
             Grip::Right => Rect::from_min_max(b.min, Pos2::new((b.right() + dx).max(b.left() + 12.0), b.max.y)),
         };
@@ -1668,7 +1670,7 @@ pub(crate) fn overlay(ctx: &egui::Context, view: &mut DocView, info: &DocInfo) -
                     let galley = editor_galley(ui, &snapshot, text.as_str(), scale, wrap_width);
                     if snapshot.changes_with(text.as_str()) { galley } else { unseen(galley) }
                 };
-                let output = egui::TextEdit::multiline(&mut ed.text)
+                let mut output = egui::TextEdit::multiline(&mut ed.text)
                     .id(egui::Id::new("edit-text-line-input"))
                     .font(font.clone())
                     .margin(egui::Margin::ZERO)
@@ -1678,6 +1680,7 @@ pub(crate) fn overlay(ctx: &egui::Context, view: &mut DocView, info: &DocInfo) -
                     .desired_width(width)
                     .desired_rows(rows)
                     .show(ui);
+                crate::spelling_ui::annotate(ui, &mut output, &mut ed.text, None);
                 if ed.has_changes() {
                     if background_ready {
                         reveal = true;
@@ -1704,7 +1707,7 @@ pub(crate) fn overlay(ctx: &egui::Context, view: &mut DocView, info: &DocInfo) -
                 let apply = ui.input(|i| i.key_pressed(egui::Key::Enter) && i.modifiers.command);
                 if esc {
                     done = Some(false);
-                } else if apply || (r.lost_focus() && !outside && !hold) {
+                } else if apply || (r.lost_focus() && !r.context_menu_opened() && !outside && !hold) {
                     done = Some(true);
                 }
             });

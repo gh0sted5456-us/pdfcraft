@@ -105,7 +105,6 @@ impl Draft {
 }
 
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
-    ui.heading(tl!("Word count"));
     let Some((view, id)) = app.active_ids() else { return true };
     let Some(doc) = app.session.get(id) else { return true };
     if let Err(error) = doc.check_copying() {

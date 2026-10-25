@@ -473,7 +473,7 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
         }
     });
     let open = h.get_by_label("Open").rect();
-    let discord = h.get_by_label("Discord").rect();
+    let discord = h.get_by_label("ArtCraft Community").rect();
     assert!(open.right() <= discord.left(), "Open {open:?} must not run under Discord {discord:?}");
     let mut previous_right = f32::MIN;
     for i in 0..5 {
@@ -498,14 +498,14 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
     assert_eq!(enabled(&h, "Scroll tabs right"), Some(true), "and then there is more to the right");
     let open = h.get_by_label("Open").rect();
     let right = h.get_by_label("Scroll tabs right").rect();
-    assert!(right.right() <= open.left() + 0.5 && open.right() <= h.get_by_label("Discord").rect().left());
+    assert!(right.right() <= open.left() + 0.5 && open.right() <= h.get_by_label("ArtCraft Community").rect().left());
     // Twenty: Open stays in sight left of Discord.
     for i in 0..13 {
         h.state_mut().open_bytes(&format!("more-{i:02}.pdf"), None, FIXTURE.to_vec()).unwrap();
     }
     h.run_steps(4);
     let open = h.get_by_label("Open").rect();
-    let discord = h.get_by_label("Discord").rect();
+    let discord = h.get_by_label("ArtCraft Community").rect();
     assert!(open.left() > 0.0 && open.right() <= discord.left(), "Open {open:?} stays in sight left of Discord {discord:?}");
 }
 
@@ -1054,7 +1054,10 @@ fn explicit_mode_overrides_default_before_and_after_open() {
 fn preferences_selects_default_workspace_for_next_open() {
     use egui::accesskit::Role;
     use pdfcraft_ui_egui::Mode;
-    let mut h = harness(|app| app.set_option("dialog", "preferences").unwrap());
+    let mut h = harness(|app| {
+        app.set_option("preferences-category", "documents").unwrap();
+        app.set_option("dialog", "preferences").unwrap()
+    });
     h.get_by_label("Default workspace mode");
     h.get_by_role_and_label(Role::RadioButton, "Read").scroll_to_me();
     h.run_steps(4);
@@ -1107,7 +1110,10 @@ fn use_system_title_bar_swaps_the_header_bar_for_the_window_frame() {
     assert!(!restored.system_title_bar);
     assert!(restored.set_option("system-title-bar", "maybe").is_err());
     // Where the desktop draws the frame there is nothing to choose.
-    let mut h = harness(|app| app.set_option("dialog", "preferences").unwrap());
+    let mut h = harness(|app| {
+        app.set_option("preferences-category", "appearance").unwrap();
+        app.set_option("dialog", "preferences").unwrap()
+    });
     h.run_steps(2);
     assert!(h.query_by_label("Use system title bar").is_none());
     assert!(h.query_by_label("Minimize").is_none());
@@ -1120,7 +1126,10 @@ fn use_system_title_bar_swaps_the_header_bar_for_the_window_frame() {
 fn preferences_choose_animation_effects_and_the_choice_is_saved() {
     use egui::accesskit::Role;
     use pdfcraft_ui_egui::motion::AnimationEffects;
-    let mut h = harness(|app| app.set_option("dialog", "preferences").unwrap());
+    let mut h = harness(|app| {
+        app.set_option("preferences-category", "appearance").unwrap();
+        app.set_option("dialog", "preferences").unwrap()
+    });
     assert_eq!(h.state().animation_effects, AnimationEffects::System);
     h.get_by_label("Animation effects");
     for (label, choice) in [
@@ -1265,7 +1274,7 @@ fn cancelling_then_discarding_an_earlier_dirty_tab_preserves_the_selected_docume
     assert_eq!(h.state().active_ids().map(|(_, id)| id), Some(ids[1]));
     assert!(h.state().session.get(ids[0]).unwrap().dirty);
     close_named_tab(&mut h, "first.pdf (edited)");
-    h.get_by_label("Don't save").click();
+    h.get_by_label("Exit").click();
     h.run_steps(3);
     assert_eq!(h.state().active_ids().map(|(_, id)| id), Some(ids[1]));
     assert_eq!(h.state().views.iter().map(|view| view.id).collect::<Vec<_>>(), [ids[1], ids[2]]);
@@ -1569,4 +1578,147 @@ fn short_window_rail_buttons_scroll_clear_of_page_navigation() {
     let tags = rail(&h, "Tags");
     assert!(tags.bottom() <= page.top(), "Tags {tags:?} scrolls into view above the page field {page:?}");
     assert_eq!(h.get(By::new().role(egui::accesskit::Role::TextInput).value("1")).rect(), page, "navigation stays put");
+}
+
+#[test]
+fn document_tabs_keep_red_unsaved_and_green_saved_dots_in_both_themes() {
+    let _gpu = crate::gpu();
+    for theme in ["light", "dark"] {
+        let mut h = harness(move |app| {
+            app.set_option("theme", theme).unwrap();
+            app.open_bytes("saved.pdf", None, FIXTURE.to_vec()).unwrap();
+            app.open_bytes("edited.pdf", None, FIXTURE.to_vec()).unwrap();
+            app.apply_edit(pdfcraft_engine::Edit::SetInfo { key: "Title".into(), value: "Changed".into() });
+        });
+        let saved = h.get_by_label("saved.pdf").rect();
+        let edited = h.get_by_label("edited.pdf (edited)").rect();
+        assert_eq!(h.get_by_label("saved.pdf").accesskit_node().description().as_deref(), Some("Saved"));
+        assert_eq!(h.get_by_label("edited.pdf (edited)").accesskit_node().description().as_deref(), Some("Unsaved changes"));
+        let dot = |image: &image::RgbaImage, tab: egui::Rect| image.get_pixel((tab.right() - 34.0) as u32, tab.center().y as u32).0;
+        let image = h.render().unwrap();
+        assert_eq!(dot(&image, saved), [54, 143, 92, 255]);
+        assert_eq!(dot(&image, edited), [200, 70, 85, 255]);
+        h.hover_at(edited.right_center() - egui::vec2(16.0, 0.0));
+        h.run_steps(4);
+        assert_eq!(dot(&h.render().unwrap(), edited), [200, 70, 85, 255], "hovering Close does not hide status");
+        if let Ok(dir) = std::env::var("PDFCRAFT_DIALOG_PREVIEW_DIR") {
+            image.save(std::path::Path::new(&dir).join(format!("tab-status-{theme}.png"))).unwrap();
+        }
+        let out = std::env::temp_dir().join(format!("pdfcraft-tab-status-{theme}-{}.pdf", std::process::id()));
+        h.state_mut().save_override = Some(out.to_string_lossy().into_owned());
+        assert!(h.state_mut().save_active(pdfcraft_ui_egui::SaveTarget::As));
+        h.run_steps(4);
+        let app = h.state();
+        let name = app.session.get(app.views[1].id).unwrap().name.clone();
+        let tab = h.get_by_role_and_label(egui::accesskit::Role::Tab, &name).rect();
+        assert_eq!(dot(&h.render().unwrap(), tab), [54, 143, 92, 255], "successful save changes red to green");
+        assert_eq!(h.get_by_role_and_label(egui::accesskit::Role::Tab, &name).accesskit_node().description().as_deref(), Some("Saved"));
+        let _ = std::fs::remove_file(out);
+    }
+}
+
+#[test]
+fn glass_theme_settings_validate_persist_and_keep_documents_opaque() {
+    use pdfcraft_ui_egui::theme::{GlassSettings, ThemeKind, ThemePreference};
+    let mut app = PdfCraftApp::new();
+    app.set_option("theme", "glass").unwrap();
+    app.set_option("glass-tint", "#2a9dcc").unwrap();
+    app.set_option("glass-opacity", "63").unwrap();
+    assert_eq!(app.theme_preference, ThemePreference::Glass);
+    assert_eq!(app.theme, ThemeKind::Dark);
+    assert_eq!(app.glass, GlassSettings { tint: [42, 157, 204], opacity: 63 });
+    for bad in ["NaN", "-1", "0", "34", "101", "256"] {
+        assert!(app.set_option("glass-opacity", bad).is_err());
+    }
+    for bad in ["#xx0000", "#fff", "abcdef00", "💧abcd"] {
+        assert!(app.set_option("glass-tint", bad).is_err());
+    }
+    let t = app.glass.tokens();
+    assert_eq!(t.panel.a(), 160);
+    assert_eq!(t.card.a(), 160);
+    assert_eq!(t.field.a(), 160);
+    assert_eq!(eframe::App::clear_color(&app, &egui::Visuals::dark()), [0.0; 4]);
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&app.persist());
+    assert_eq!(restored.glass, app.glass);
+    assert_eq!(restored.theme_preference, ThemePreference::Glass);
+    restored.restore(r#"{"glass":{"opacity":0}}"#);
+    assert_eq!(restored.glass.opacity, 35);
+    restored.restore(r#"{"glass":{"opacity":999,"tint":[1,2]}}"#);
+    assert_eq!(restored.glass.opacity, 35);
+    let mut h = harness(|app| {
+        app.open_bytes("glass.pdf", None, TEXT_FIXTURE.to_vec()).unwrap();
+        app.execute("view.theme.glass");
+    });
+    settle(&mut h);
+    assert_eq!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a(), 204);
+    h.state_mut().set_option("glass-opacity", "50").unwrap();
+    h.run();
+    assert_eq!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a(), 127);
+    h.state_mut().execute("view.theme.dark");
+    h.run();
+    assert_eq!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a(), 255);
+    assert_eq!(eframe::App::clear_color(h.state(), &egui::Visuals::dark())[3], 1.0);
+}
+
+#[test]
+fn glass_controls_are_visible_above_the_preview_cards_in_small_preferences() {
+    use egui::accesskit::Role;
+    let mut h = Harness::builder().with_size(egui::vec2(1024.0, 740.0)).build_eframe(|_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.set_option("theme", "glass").unwrap();
+        app.set_option("preferences-category", "appearance").unwrap();
+        app.set_option("dialog", "preferences").unwrap();
+        app
+    });
+    h.run_steps(8);
+    let opacity = h.get_by_role_and_label(Role::Slider, "Opacity").rect();
+    let footer = h.get_by_label("OK").rect();
+    assert!(opacity.top() > 0.0 && opacity.bottom() < footer.top(), "{opacity:?} vs {footer:?}");
+    let before = h.state().glass.opacity;
+    h.get_by_role_and_label(Role::Slider, "Opacity").click();
+    h.run_steps(3);
+    assert_ne!(h.state().glass.opacity, before);
+    assert!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a() < 255);
+}
+
+#[test]
+fn glass_panes_controls_and_windows_header_share_the_live_surface() {
+    let mut h = harness(|app| {
+        app.set_option("theme", "glass").unwrap();
+        app.set_option("glass-opacity", "50").unwrap();
+    });
+    h.run_steps(4);
+    let t = pdfcraft_ui_egui::theme::Tokens::get(&h.ctx);
+    for surface in [t.titlebar, t.chrome, t.panel, t.pasteboard, t.card, t.field] {
+        assert_eq!(surface, t.panel);
+        assert_eq!(surface.a(), 127);
+    }
+    for surface in [t.hover, t.pressed, t.selected, t.accent_soft] {
+        assert_eq!(surface.a(), 127);
+    }
+    // The Tools pane gets one backing fill, not three stacked translucent layers.
+    let point = egui::pos2(200.0, 450.0);
+    let fills = h
+        .output()
+        .shapes
+        .iter()
+        .filter(|s| s.clip_rect.contains(point) && matches!(&s.shape, egui::Shape::Rect(r) if r.rect.contains(point) && r.fill == t.panel))
+        .count();
+    assert_eq!(fills, 1);
+    #[cfg(windows)]
+    {
+        assert!(h.state().draws_window_frame());
+        for label in ["Minimize", "Maximize", "Close"] {
+            h.get_by_label(label);
+        }
+        h.state_mut().set_option("system-title-bar", "true").unwrap();
+        h.run_steps(2);
+        assert!(h.state().draws_window_frame(), "Glass uses the tinted header even when the system bar was saved");
+        h.state_mut().execute("view.theme.dark");
+        h.run_steps(2);
+        assert!(!h.state().draws_window_frame());
+        assert!(h.query_by_label("Minimize").is_none());
+    }
 }

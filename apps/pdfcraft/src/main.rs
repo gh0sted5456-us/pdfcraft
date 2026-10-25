@@ -5,7 +5,7 @@
 //!
 //! View options (applied after the files open; also the seed of the UI control channel):
 //! `--page N  --zoom 150  --layout single|continuous|two-up|two-page  --continuous on|off  --panel comments|bookmarks|pages|fields|layers|attachments|none
-//!  --theme light|dark|system  --language auto|<code>  --mode all|read|edit|convert|sign  --tool <catalogue id>  --left open|closed
+//!  --theme light|dark|glass|system  --language auto|<code>  --mode all|read|edit|convert|sign  --tool <catalogue id>  --left open|closed
 //!  --organize on  --fields on  --dialog properties|shortcuts|about  --palette <query>  --home on
 //!  --cover on|off  --default-layout single|continuous|two-up|two-page  --default-continuous on|off  --default-zoom fit-width|fit-page|<percent>  --always-default-view on|off
 //!  --page-gaps on|off  --default-page-gaps on|off
@@ -19,10 +19,8 @@
 //! app doesn't start if it can't.
 //! Agents then drive it with `pdfcraft-cli ui --control <file> <method> …`.
 
-// Release builds on Windows are GUI-subsystem programs, so launching the app doesn't open a console
-// window next to it (#57). `--version` and diagnostics then go nowhere when started from a terminal
-// (std ignores the missing console handles, so nothing fails); debug builds keep the console.
-#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+// Desktop builds use the GUI subsystem; diagnostics remain available in the log file.
+#![cfg_attr(windows, windows_subsystem = "windows")]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 use std::cell::Cell;
@@ -312,6 +310,7 @@ fn retry_with_gl(choice: RendererChoice, app_started: bool) -> bool {
 fn native_options(integrated: bool, app_frame: bool, renderer: eframe::Renderer) -> eframe::NativeOptions {
     let mut viewport = egui::ViewportBuilder::default()
         .with_title("PdfCraft")
+        .with_transparent(true)
         .with_inner_size([1440.0, 920.0])
         .with_min_inner_size([820.0, 520.0])
         .with_drag_and_drop(true)

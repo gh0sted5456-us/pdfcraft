@@ -449,6 +449,9 @@ fn print_as_image_is_an_advanced_choice_that_saves_pictures() {
     h.run_steps(3);
     h.get_by_label("Advanced".to_uppercase().as_str()).click();
     h.run_steps(2);
+    h.get_by_label("Print as image").scroll_to_me();
+    h.run_steps(4);
+    assert!(h.ctx.content_rect().contains_rect(h.get_by_label("Print as image").rect()));
     h.get_by_label("Print as image").click();
     h.run_steps(2);
     assert!(h.state().print_draft.as_image);

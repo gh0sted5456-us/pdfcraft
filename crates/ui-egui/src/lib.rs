@@ -32,6 +32,7 @@ macro_rules! tl_ctx {
 
 mod a11y_ui;
 mod actions_ui;
+mod alignment;
 mod appearance;
 mod calc_order_ui;
 pub mod canvas;
@@ -43,6 +44,7 @@ pub use combine_grid::ThumbState as CombineThumb;
 mod combine_ui;
 pub mod docking;
 pub use combine_ui::{Columns as CombineColumns, CombineView, Lock as CombineLock, SortKey};
+mod assistant_ui;
 mod camera_ui;
 mod commands;
 mod comment_props;
@@ -57,28 +59,37 @@ mod crop;
 mod drag_pointer;
 mod export_ui;
 mod js_ui;
+mod paper_ui;
+mod preferences_ui;
+mod production_ui;
+mod templates_ui;
+pub use preferences_ui::PreferencesCategory;
 #[cfg(target_os = "macos")]
 mod macos_association;
 mod marks_ui;
 mod measure_ui;
 mod ocr_ui;
 mod optimize_ui;
+mod page_transfer_ui;
 mod search_ui;
 mod sign_ui;
+mod spelling_ui;
 mod stamps_ui;
 mod standards_ui;
+mod timestamp_ui;
 mod zoom_snap;
 /// Header & footer / watermark / background dialog types (tests and automation).
 pub mod marks {
     pub use crate::marks_ui::{MarksDraft, PageRange, Subset};
 }
 mod content_ui;
+mod group_select;
 mod link_ui;
 mod object_ui;
 pub use create_ui::Clip;
 pub use link_ui::LinkDraft;
 pub use optimize_ui::{OptimizeDraft, OptimizeTab};
-pub use sign_ui::{DigitalIdEntry, SignDraft, SignGraphic, SignStep};
+pub use sign_ui::{DigitalIdEntry, SignDraft, SignGraphic, SignProtection, SignStep};
 mod autoscroll;
 mod bidi;
 pub mod bulk_fields;
@@ -92,6 +103,7 @@ pub mod file_watch;
 mod files;
 pub mod fill_sign;
 mod fling;
+mod folder_step;
 pub mod folders_ui;
 mod format_text_ui;
 pub mod forms_ui;
@@ -133,6 +145,7 @@ pub(crate) fn date_text_for_pdf(session: &Session) -> Result<String, String> {
 /// The longest author name kept (Preferences ▸ Identity, restored settings).
 pub(crate) const MAX_AUTHOR_CHARS: usize = 200;
 
+pub mod app_icon;
 #[cfg(not(target_arch = "wasm32"))]
 mod open_worker;
 mod organize_panel;
@@ -222,6 +235,7 @@ pub enum RightPanel {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QuickTool {
     Select,
+    GroupSelect,
     Hand,
     /// A commenting tool (Add comments).
     Comment(comments::CommentTool),
@@ -284,6 +298,8 @@ struct GridDrop {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Dialog {
+    Templates,
+    SaveTemplate,
     WordCount,
     CreateImages,
     Properties(PropsTab),
@@ -335,6 +351,8 @@ pub enum Dialog {
     SummarizeComments,
     /// Sign with a Digital ID ▸ Configure ▸ Sign as.
     Sign,
+    Timestamp,
+    Assistant,
     /// Optimize PDF ▸ Advanced optimization.
     Optimize,
     /// Prepare a form ▸ right-click a field ▸ Duplicate.
@@ -345,12 +363,22 @@ pub enum Dialog {
     AccessibilityOptions,
     /// Scan & OCR ▸ Recognize text.
     RecognizeText,
+    /// Edit detected a scan; recognition waits for the user's page choice.
+    RecognizeScan {
+        doc: DocId,
+        page: usize,
+        generation: u64,
+    },
     /// The JavaScript console (⌘J).
     JsConsole,
     /// Document JavaScripts.
     DocumentJs,
+    DocumentActions,
+    PrintProduction,
     /// Preferences.
     Preferences,
+    NewPaper,
+    ExportTo,
     /// Compare files: choose the older version.
     CompareFiles,
     /// Action Wizard.
@@ -365,6 +393,7 @@ pub enum Dialog {
     AuditSpace,
     /// Signatures ▸ Show certificate.
     CertificateViewer,
+    RemoveSignature,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -511,6 +540,10 @@ pub struct PdfCraftApp {
     pub view_defaults: canvas::ViewDefaults,
     /// The unit page sizes and margins are shown in (Preferences ▸ Documents and view).
     pub units: units::Unit,
+    pub default_paper: paper_ui::Paper,
+    pub new_paper: paper_ui::Paper,
+    pub actual_size_zoom: f32,
+    pub measured_ruler_mm: f32,
     /// The Preferences ▸ Date format box while it's being edited, or while it holds an invalid
     /// pattern (the session keeps the last valid one).
     pub date_format_draft: Option<String>,
@@ -539,6 +572,9 @@ pub struct PdfCraftApp {
     /// Resolved colours, including the current OS theme when following the system.
     pub theme: ThemeKind,
     pub theme_preference: ThemePreference,
+    pub glass: theme::GlassSettings,
+    #[cfg(target_os = "windows")]
+    native_frame_theme: Option<ThemeKind>,
     /// The reading-colours preference (Preferences ▸ Reading colours): applied to every open
     /// document, and documents open with it (Acrobat's Replace Document Colors).
     pub reading_colors: pdfcraft_render::ReadingColors,
@@ -555,8 +591,11 @@ pub struct PdfCraftApp {
     pub motion: motion::Motion,
     /// Interface language preference: `auto` (follow the system) or a code from [`i18n::LANGUAGES`].
     pub language: String,
+    pub(crate) spelling: spelling_ui::Settings,
     /// Preferences ▸ Interface size as a factor, or `None` to follow [`Self::system_text_scale`].
     pub ui_scale: Option<f32>,
+    /// Selected Settings category for this session.
+    pub preferences_category: PreferencesCategory,
     /// The desktop's text scaling (GNOME's text scaling factor), which the desktop app reads at
     /// launch. 1.0 elsewhere, so tests and screenshots don't depend on the machine.
     pub system_text_scale: f32,
@@ -591,6 +630,10 @@ pub struct PdfCraftApp {
     quit_session: Option<last_session::LastSession>,
     /// Preferences: reload a document when its file changes on disk (#431).
     pub reload_changed_files: bool,
+    /// Preferences: draw the validation outline and mark over signed signature widgets. Off
+    /// leaves the signer's own appearance uncovered; validation and the Signatures panel are
+    /// unchanged (#4221). Kept in the settings.
+    pub show_signature_badges: bool,
     /// Preferences: open every document at Default zoom and Default page display, whatever
     /// layout or zoom it asks for (#1618).
     pub always_default_view: bool,
@@ -604,6 +647,9 @@ pub struct PdfCraftApp {
     pending_opens: Vec<PendingOpen>,
     #[cfg(not(target_arch = "wasm32"))]
     next_open_token: u64,
+    /// The folder scan behind File ▸ Open next / previous PDF in folder, while it runs.
+    #[cfg(not(target_arch = "wasm32"))]
+    folder_step: Option<folder_step::FolderStep>,
     #[cfg(all(test, not(target_arch = "wasm32")))]
     open_prepare_gate: Option<std::sync::Arc<open_worker::PrepareGate>>,
     /// Folders pinned to Home, and what they held when last listed.
@@ -619,6 +665,8 @@ pub struct PdfCraftApp {
     pub system_title_bar: bool,
     /// Whether the window currently has the app's header bar (`None` until the first frame).
     app_frame_shown: Option<bool>,
+    #[cfg(not(target_arch = "wasm32"))]
+    window_icon_theme: Option<ThemeKind>,
     pub password_prompt: Option<PasswordPrompt>,
     pub unlock_prompt: Option<UnlockPrompt>,
     pub full_screen: bool,
@@ -669,6 +717,10 @@ pub struct PdfCraftApp {
     pub summary_sort: pdfcraft_engine::SummarySort,
     /// The signing dialogs' state.
     pub sign_draft: Option<SignDraft>,
+    pub remove_sig: Option<crate::sign_ui::RemoveSigDraft>,
+    pub timestamp_server: String,
+    pub(crate) timestamp_run: Option<timestamp_ui::TimestampRun>,
+    pub(crate) timestamp_error: Option<String>,
     /// Digital ID files the user has created or added.
     pub digital_ids: Vec<DigitalIdEntry>,
     /// Signatures panel: expanded entries (field names).
@@ -677,6 +729,7 @@ pub struct PdfCraftApp {
     pub a11y_options: a11y_ui::A11yOptions,
     /// Scan & OCR: the Recognize Text choices, the running job, and (tests) run it inline.
     pub ocr_draft: ocr_ui::OcrDraft,
+    pub auto_ocr: bool,
     pub ocr_run: Option<ocr_ui::OcrRun>,
     pub ocr_batch: Option<std::sync::Arc<std::sync::Mutex<ocr_ui::BatchProgress>>>,
     /// Background jobs (OCR, actions, listing pinned folders) run inline instead (tests).
@@ -694,6 +747,7 @@ pub struct PdfCraftApp {
     pub compare: Option<compare_ui::CompareState>,
     /// The JavaScript console and the Document JavaScripts draft.
     pub js_console: js_ui::JsConsole,
+    pub(crate) production: production_ui::Draft,
     pub doc_js: js_ui::DocJsDraft,
     pub a11y: a11y_ui::A11yState,
     pub(crate) tags_state: tags_ui::State,
@@ -725,6 +779,8 @@ pub struct PdfCraftApp {
     pub(crate) combine_thumbs: combine_grid::Thumbs,
     /// Images waiting for the resolution choice (released on cancel).
     pub image_import: Option<create_ui::ImageImport>,
+    pub template_gallery: Option<templates_ui::TemplateGallery>,
+    pub template_export: Option<templates_ui::TemplateExport>,
     /// The custom stamp library, and the stamp being created.
     pub custom_stamps: Vec<stamps_ui::CustomStamp>,
     pub stamp_draft: stamps_ui::StampDraft,
@@ -765,6 +821,9 @@ pub struct PdfCraftApp {
     /// Entries left by a previous session, offered in the Recovery dialog.
     pub recoverable: Vec<RecoveryMeta>,
     recovery_keys: std::collections::HashMap<DocId, String>,
+    /// Recovered documents whose path came from a recovery sidecar and no save has confirmed
+    /// yet: their first Save asks where, starting at that path, instead of writing it (#3923).
+    recovered_paths: std::collections::HashSet<DocId>,
     last_autosave: f64,
     allow_quit: bool,
     /// Shortcuts pressed while a text field had the keyboard, run on the next frame (see
@@ -792,6 +851,7 @@ pub struct PdfCraftApp {
     /// Number pages dialog settings (1-based pages).
     pub number_draft: NumberDraft,
     pub(crate) word_count_draft: word_count_ui::Draft,
+    pub(crate) assistant: assistant_ui::Draft,
     /// Protect Using Password dialog state.
     pub protect_draft: protect::ProtectDraft,
     /// Set Page Boxes dialog state.
@@ -813,6 +873,8 @@ pub struct PdfCraftApp {
     pub(crate) saved_signature_previews: [Option<(fill_sign::SavedSig, egui::TextureHandle)>; 2],
     /// What visible digital signatures show on their left, and its preview in Sign as.
     pub sign_graphic: sign_ui::SignGraphic,
+    pub sign_background: sign_ui::SignBackground,
+    pub(crate) sign_background_preview: Option<(fill_sign::SavedSig, egui::TextureHandle)>,
     pub(crate) sign_graphic_preview: Option<(fill_sign::SavedSig, egui::TextureHandle)>,
     #[cfg(target_arch = "wasm32")]
     pub(crate) signature_images: fill_sign::ImageInbox,
@@ -936,13 +998,22 @@ pub enum OpenOutcome {
 impl PdfCraftApp {
     pub fn new() -> Self {
         Self {
-            session: Session::new(),
+            session: {
+                let mut session = Session::new();
+                session.set_timestamp_certificates(pdfcraft_platform::timestamp::trusted_certificates());
+                session
+            },
             views: Vec::new(),
             closed_tabs: Vec::new(),
             active: None,
             mode: Mode::AllTools,
             default_mode: Mode::AllTools,
+            preferences_category: PreferencesCategory::default(),
             view_defaults: Default::default(),
+            default_paper: Default::default(),
+            new_paper: Default::default(),
+            actual_size_zoom: 1.0,
+            measured_ruler_mm: 50.0,
             units: Default::default(),
             date_format_draft: None,
             mode_override: None,
@@ -960,6 +1031,9 @@ impl PdfCraftApp {
             comment_prefs: Default::default(),
             theme: ThemeKind::Light,
             theme_preference: ThemePreference::Light,
+            glass: theme::GlassSettings::default(),
+            #[cfg(target_os = "windows")]
+            native_frame_theme: None,
             reading_colors: Default::default(),
             #[cfg(target_os = "linux")]
             desktop_theme: None,
@@ -969,6 +1043,7 @@ impl PdfCraftApp {
             animation_effects: motion::AnimationEffects::default(),
             motion: motion::Motion::default(),
             language: i18n::AUTO.to_string(),
+            spelling: Default::default(),
             ui_scale: None,
             system_text_scale: 1.0,
             ui_scale_applied: None,
@@ -988,6 +1063,7 @@ impl PdfCraftApp {
             last_session: Default::default(),
             quit_session: None,
             reload_changed_files: true,
+            show_signature_badges: true,
             always_default_view: false,
             #[cfg(not(target_arch = "wasm32"))]
             watch: Default::default(),
@@ -997,6 +1073,8 @@ impl PdfCraftApp {
             pending_opens: Vec::new(),
             #[cfg(not(target_arch = "wasm32"))]
             next_open_token: 0,
+            #[cfg(not(target_arch = "wasm32"))]
+            folder_step: None,
             #[cfg(all(test, not(target_arch = "wasm32")))]
             open_prepare_gate: None,
             pinned: Default::default(),
@@ -1005,6 +1083,8 @@ impl PdfCraftApp {
             window_controls: None,
             system_title_bar: false,
             app_frame_shown: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            window_icon_theme: None,
             password_prompt: None,
             unlock_prompt: None,
             full_screen: false,
@@ -1034,10 +1114,15 @@ impl PdfCraftApp {
             rotate_draft: RotateDraft::default(),
             summary_sort: Default::default(),
             sign_draft: None,
+            remove_sig: None,
+            timestamp_server: pdfcraft_platform::timestamp::DEFAULT_SERVER.into(),
+            timestamp_run: None,
+            timestamp_error: None,
             digital_ids: Vec::new(),
             sig_expanded: Vec::new(),
             a11y_options: a11y_ui::A11yOptions::default(),
             ocr_draft: ocr_ui::OcrDraft::default(),
+            auto_ocr: true,
             ocr_run: None,
             ocr_batch: None,
             run_inline: false,
@@ -1049,6 +1134,7 @@ impl PdfCraftApp {
             compare_old: None,
             compare: None,
             js_console: Default::default(),
+            production: Default::default(),
             doc_js: Default::default(),
             a11y: a11y_ui::A11yState::default(),
             tags_state: Default::default(),
@@ -1066,6 +1152,8 @@ impl PdfCraftApp {
             organize_zoom: 1.0,
             combine_thumbs: Default::default(),
             image_import: None,
+            template_gallery: None,
+            template_export: None,
             custom_stamps: Vec::new(),
             stamp_draft: Default::default(),
             optimize_draft: OptimizeDraft::default(),
@@ -1087,6 +1175,7 @@ impl PdfCraftApp {
             recovery: None,
             recoverable: Vec::new(),
             recovery_keys: Default::default(),
+            recovered_paths: Default::default(),
             last_autosave: 0.0,
             allow_quit: false,
             deferred_commands: Vec::new(),
@@ -1116,6 +1205,8 @@ impl PdfCraftApp {
             signature_photo: None,
             saved_signature_previews: [None, None],
             sign_graphic: sign_ui::SignGraphic::Name,
+            sign_background: sign_ui::SignBackground::Lion,
+            sign_background_preview: None,
             sign_graphic_preview: None,
             #[cfg(target_arch = "wasm32")]
             signature_images: Default::default(),
@@ -1134,6 +1225,7 @@ impl PdfCraftApp {
             replace_draft: None,
             number_draft: NumberDraft { from: 1, to: 1, style: pdfcraft_engine::LabelStyle::Decimal, prefix: String::new(), start: 1 },
             word_count_draft: word_count_ui::Draft::default(),
+            assistant: assistant_ui::Draft::default(),
         }
     }
 
@@ -1180,7 +1272,7 @@ impl PdfCraftApp {
             match v.magnification {
                 // The view opened at the default zoom already.
                 M::Default => {}
-                M::ActualSize => view.set_zoom(1.0),
+                M::ActualSize => view.set_zoom(self.actual_size_zoom),
                 M::Percent(p) => view.set_zoom((p / 100.0) as f32),
                 M::FitPage | M::FitVisible => view.fit = canvas::Fit::Page,
                 M::FitWidth => view.fit = canvas::Fit::Width,
@@ -1627,22 +1719,28 @@ impl PdfCraftApp {
         }
     }
 
-    /// Whether the app draws the window's title bar, buttons and resize edges: the desktop leaves
-    /// the frame to the app and Use system title bar is off.
+    /// Use the app header on desktops that request it, and for transparent Windows Glass.
     pub fn draws_window_frame(&self) -> bool {
-        self.window_controls.is_some() && !self.system_title_bar
+        self.window_frame_layout().is_some()
     }
 
-    /// Follow Use system title bar at once: the window starts without winit's frame wherever the
-    /// app may draw its own, and gets it back (or loses it again) when the preference changes.
+    pub(crate) fn window_frame_layout(&self) -> Option<window_controls::Layout> {
+        if cfg!(target_os = "windows") && self.theme_preference == ThemePreference::Glass {
+            Some(window_controls::Layout::default())
+        } else {
+            self.window_controls.clone().filter(|_| !self.system_title_bar)
+        }
+    }
+
+    /// Follow the desktop title-bar preference, or the transparent Windows Glass header.
     fn sync_window_frame(&mut self, ctx: &egui::Context) {
-        if self.window_controls.is_none() {
+        let app_frame = self.draws_window_frame();
+        if self.window_controls.is_none() && !app_frame && self.app_frame_shown.is_none() {
             return;
         }
-        let app_frame = self.draws_window_frame();
         if self.app_frame_shown != Some(app_frame) {
-            // The window opens undecorated, so only a change from that needs a command.
-            if self.app_frame_shown.is_some() || !app_frame {
+            // Linux app headers start undecorated; Windows Glass switches from the native frame.
+            if self.app_frame_shown.is_some() || !app_frame || self.window_controls.is_none() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(!app_frame));
             }
             self.app_frame_shown = Some(app_frame);
@@ -2053,6 +2151,7 @@ impl PdfCraftApp {
             || self.pending_link.is_some()
             || self.pending_remote_link.is_some()
             || self.updates.open
+            || self.timestamp_run.is_some()
     }
 
     /// Enable the UI control channel on `ctx` (opt-in; see [`control`]). Returns a client that
@@ -2128,9 +2227,27 @@ impl PdfCraftApp {
         self.theme_preference = preference;
         if let Some(ctx) = self.ctx.clone() {
             self.sync_theme(&ctx);
-            theme::apply(&ctx, self.theme);
+            self.apply_theme(&ctx);
         } else {
             self.theme = preference.resolve(None, ThemeKind::Light);
+        }
+    }
+
+    fn apply_theme(&self, ctx: &egui::Context) {
+        if self.theme_preference == ThemePreference::Glass {
+            theme::apply_glass(ctx, self.glass);
+        } else {
+            theme::apply(ctx, self.theme);
+        }
+        ctx.request_repaint();
+    }
+
+    pub fn set_glass_settings(&mut self, settings: theme::GlassSettings) {
+        self.glass = settings.normalized();
+        if self.theme_preference == ThemePreference::Glass
+            && let Some(ctx) = &self.ctx
+        {
+            self.apply_theme(ctx);
         }
     }
 
@@ -2181,8 +2298,23 @@ impl PdfCraftApp {
         let kind = self.theme_preference.resolve(system, ThemeKind::Light);
         if kind != self.theme {
             self.theme = kind;
-            theme::apply(ctx, kind);
+            self.apply_theme(ctx);
         }
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.window_icon_theme != Some(kind) {
+            match app_icon::window_icon(kind == ThemeKind::Dark) {
+                Ok(icon) => ctx.send_viewport_cmd(egui::ViewportCommand::Icon(Some(std::sync::Arc::new(icon)))),
+                Err(error) => log::warn!("window icon: {error}"),
+            }
+            self.window_icon_theme = Some(kind);
+        }
+        // Let egui theme the Windows frame too; System releases a manual override.
+        #[cfg(target_os = "windows")]
+        ctx.set_theme(match self.theme_preference {
+            ThemePreference::System => egui::ThemePreference::System,
+            ThemePreference::Light => egui::ThemePreference::Light,
+            ThemePreference::Dark | ThemePreference::Glass => egui::ThemePreference::Dark,
+        });
     }
 
     /// Run a catalogue command. Commands that aren't implemented yet say which milestone ships them.
@@ -2376,6 +2508,7 @@ impl PdfCraftApp {
             "system_title_bar": self.system_title_bar,
             "pinned_folders": self.pinned.folders,
             "theme": self.theme_preference,
+            "glass": self.glass,
             "scroll_speed": self.scroll_speed,
             "animation_effects": self.animation_effects,
             "default_mode": self.default_mode,
@@ -2384,7 +2517,11 @@ impl PdfCraftApp {
             "always_default_view": self.always_default_view,
             "highlight_fields": self.view_defaults.highlight_fields,
             "units": self.units,
+            "default_paper": self.default_paper,
+            "actual_size_zoom": self.actual_size_zoom,
             "language": self.language,
+            "spelling": { "enabled": self.spelling.enabled, "language": self.spelling.language, "words": self.spelling.words },
+            "assistant": self.assistant.settings,
             "reading_colors": self.reading_colors,
             // Null follows the system's text scaling.
             "ui_scale": self.ui_scale,
@@ -2413,6 +2550,8 @@ impl PdfCraftApp {
             "signature_image": match &self.signature { Some(s @ fill_sign::SavedSig::Image(_)) => Some(s), _ => None },
             "initials": self.initials,
             "sign_graphic": self.sign_graphic,
+            "sign_background": self.sign_background,
+            "timestamp_server": self.timestamp_server,
             // macOS Keychain and Windows store identities are read from their OS key stores each time.
             "digital_ids": self.digital_ids.iter().filter(|e| !e.path.starts_with("keychain:") && !e.path.starts_with("windows:")).collect::<Vec<_>>(),
             "trusted": trusted,
@@ -2430,7 +2569,10 @@ impl PdfCraftApp {
         v["redact_prefs"] = self.redact_defaults.to_json();
         // Set outside json! above, which is at serde_json's macro recursion limit.
         v["hide_empty_highlight_hover"] = serde_json::Value::Bool(self.comment_prefs.hide_empty_highlight_hover);
+        v["show_signature_badges"] = serde_json::Value::Bool(self.show_signature_badges);
         v["organize_zoom"] = serde_json::json!(self.organize_zoom);
+        v["auto_ocr"] = serde_json::Value::Bool(self.auto_ocr);
+        v["ocr"] = serde_json::json!({"language": self.ocr_draft.language, "dpi": self.ocr_draft.dpi, "text_pages": self.ocr_draft.text_pages});
         // Canonical names survive changes to the order of PAPERS and do not depend on UI language.
         v["print_paper"] = serde_json::json!(pdfcraft_engine::print::PAPERS.get(self.print_draft.paper).map(|(name, _)| *name));
         v.to_string()
@@ -2475,7 +2617,13 @@ impl PdfCraftApp {
         if let Some(on) = v["reload_changed_files"].as_bool() {
             self.reload_changed_files = on;
         }
+        if let Some(on) = v["show_signature_badges"].as_bool() {
+            self.show_signature_badges = on;
+        }
         self.pinned.restore(&v["pinned_folders"]);
+        if let Ok(glass) = serde_json::from_value::<theme::GlassSettings>(v["glass"].clone()) {
+            self.set_glass_settings(glass);
+        }
         if let Ok(preference) = serde_json::from_value::<ThemePreference>(v["theme"].clone()) {
             self.set_theme_preference(preference);
         }
@@ -2484,6 +2632,18 @@ impl PdfCraftApp {
         }
         if let Ok(effects) = serde_json::from_value::<motion::AnimationEffects>(v["animation_effects"].clone()) {
             self.animation_effects = effects;
+        }
+        if let Some(enabled) = v["auto_ocr"].as_bool() {
+            self.auto_ocr = enabled;
+        }
+        if let Some(language) = v["ocr"]["language"].as_str().filter(|code| pdfcraft_engine::ocr::LANGUAGES.iter().any(|l| l.0 == *code)) {
+            self.ocr_draft.language = language.into();
+        }
+        if let Some(dpi) = v["ocr"]["dpi"].as_u64().filter(|dpi| [72, 150, 300, 600].contains(dpi)) {
+            self.ocr_draft.dpi = dpi as u32;
+        }
+        if let Some(text_pages) = v["ocr"]["text_pages"].as_bool() {
+            self.ocr_draft.text_pages = text_pages;
         }
         if let Ok(mode) = serde_json::from_value::<Mode>(v["default_mode"].clone()) {
             self.default_mode = mode;
@@ -2496,6 +2656,15 @@ impl PdfCraftApp {
         }
         if let Ok(units) = serde_json::from_value::<units::Unit>(v["units"].clone()) {
             self.units = units;
+        }
+        if let Ok(paper) = serde_json::from_value::<paper_ui::Paper>(v["default_paper"].clone())
+            && paper.valid()
+        {
+            self.default_paper = paper;
+        }
+        if let Some(zoom) = v["actual_size_zoom"].as_f64().filter(|v| v.is_finite() && (0.25..=4.0).contains(v)) {
+            self.actual_size_zoom = zoom as f32;
+            self.measured_ruler_mm = 50.0 / self.actual_size_zoom;
         }
         if let Some(on) = v["always_default_view"].as_bool() {
             self.always_default_view = on;
@@ -2521,6 +2690,32 @@ impl PdfCraftApp {
         }
         if let Some(language) = v["language"].as_str().and_then(i18n::normalize_pref) {
             self.language = language.to_string();
+        }
+        if let Ok(mut settings) = serde_json::from_value::<assistant_ui::Settings>(v["assistant"].clone()) {
+            if pdfcraft_platform::assistant::check_model(&settings.model).is_err() {
+                settings.model.clear();
+            }
+            if settings.account.len() > 128 || !settings.account.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_".contains(&b)) {
+                settings.account.clear();
+            }
+            self.assistant.settings = settings;
+        }
+        if let Some(enabled) = v["spelling"]["enabled"].as_bool() {
+            self.spelling.enabled = enabled;
+        }
+        if let Some(language) = v["spelling"]["language"].as_str() {
+            if language == "auto" {
+                self.spelling.language = "auto".into();
+            } else if let Ok(language) = pdfcraft_engine::spelling::locale(language) {
+                self.spelling.language = language;
+            }
+        }
+        if let Some(words) = v["spelling"]["words"].as_array() {
+            self.spelling.words = words
+                .iter()
+                .take(1000)
+                .filter_map(|w| w.as_str().filter(|s| !s.is_empty() && s.len() <= 128 && !s.contains('\0')).map(str::to_lowercase))
+                .collect();
         }
         if let Some(on) = v["flatten_fill_sign"].as_bool() {
             self.flatten_fill_sign_on_save = on;
@@ -2598,6 +2793,9 @@ impl PdfCraftApp {
         }
         // An unreadable choice (a damaged image) falls back to the name.
         self.sign_graphic = serde_json::from_value(v["sign_graphic"].clone()).unwrap_or_default();
+        self.sign_background = serde_json::from_value(v["sign_background"].clone()).unwrap_or_default();
+        self.timestamp_server =
+            v["timestamp_server"].as_str().filter(|s| s.len() <= 2048).unwrap_or(pdfcraft_platform::timestamp::DEFAULT_SERVER).to_string();
         if let Ok(ids) = serde_json::from_value::<Vec<DigitalIdEntry>>(v["digital_ids"].clone()) {
             self.digital_ids = ids;
         }
@@ -2635,15 +2833,36 @@ impl PdfCraftApp {
                     "system" => ThemePreference::System,
                     "light" => ThemePreference::Light,
                     "dark" => ThemePreference::Dark,
-                    _ => return Err("theme must be light, dark, or system".into()),
+                    "glass" => ThemePreference::Glass,
+                    _ => return Err("theme must be light, dark, glass, or system".into()),
                 };
                 self.set_theme_preference(preference);
+            }
+            ("glass-opacity", _) => {
+                let opacity = value.parse::<u8>().ok().filter(|v| (35..=100).contains(v)).ok_or("glass-opacity must be 35 to 100 percent")?;
+                self.set_glass_settings(theme::GlassSettings { opacity, ..self.glass });
+            }
+            ("glass-tint", _) => {
+                let hex = value.strip_prefix('#').unwrap_or(value);
+                if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                    return Err("glass-tint must be #rrggbb".into());
+                }
+                let rgb = u32::from_str_radix(hex, 16).map_err(|_| "glass-tint must be #rrggbb")?;
+                self.set_glass_settings(theme::GlassSettings { tint: [(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8], ..self.glass });
             }
             ("scroll_speed", _) => {
                 self.scroll_speed = scroll_speed::ScrollSpeed::parse(value).ok_or("scroll_speed must be slow, normal, or fast")?;
             }
             ("animation_effects", _) => {
                 self.animation_effects = motion::AnimationEffects::parse(value).ok_or("animation_effects must be system, on, or off")?;
+            }
+            ("auto_ocr", _) => {
+                let enabled = match value {
+                    "on" | "true" => true,
+                    "off" | "false" => false,
+                    _ => return Err("auto_ocr must be on or off".into()),
+                };
+                self.set_auto_ocr(enabled);
             }
             ("panel", _) => {
                 self.right = match value {
@@ -2670,8 +2889,38 @@ impl PdfCraftApp {
             ("default-mode", _) => {
                 self.default_mode = Mode::parse(value).ok_or("default-mode must be all, read, edit, convert or sign")?;
             }
+            ("default-paper", _) => self.default_paper = paper_ui::Paper::preset(value).ok_or("Unknown paper preset")?,
+            ("default-page-width" | "default-page-height", _) => {
+                let side: f64 = value.parse().map_err(|_| "Paper dimension must be a number in PDF points")?;
+                if !side.is_finite() || !(3.0..=14_400.0).contains(&side) {
+                    return Err("Paper dimension must be 3 to 14400 PDF points".into());
+                }
+                if key == "default-page-width" {
+                    self.default_paper.width = side;
+                } else {
+                    self.default_paper.height = side;
+                }
+            }
+            ("actual-size-zoom", _) => {
+                let zoom: f32 = value.parse().map_err(|_| "Actual-size zoom must be a number")?;
+                if !zoom.is_finite() || !(0.25..=4.0).contains(&zoom) {
+                    return Err("Actual-size zoom must be 0.25 to 4".into());
+                }
+                self.actual_size_zoom = zoom;
+            }
+            ("preferences-category", _) => self.preferences_category = PreferencesCategory::parse(value)?,
             ("date-format", _) => self.session.set_date_format(value)?,
             ("date-language", _) => self.session.set_date_language(Some(value).filter(|v| *v != "auto"))?,
+            ("spell-check", _) => {
+                self.spelling.enabled = match value {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err("spell-check must be true or false".into()),
+                }
+            }
+            ("spelling-language", _) => {
+                self.spelling.language = if value == "auto" { "auto".into() } else { pdfcraft_engine::spelling::locale(value)? }
+            }
             ("tool", _) => {
                 let g = pdfcraft_engine::catalog::group(value).ok_or_else(|| format!("unknown tool {value}"))?;
                 self.select_tool(g.id);
@@ -2699,12 +2948,25 @@ impl PdfCraftApp {
                     "recognize-text" => Some(Dialog::RecognizeText),
                     "js-console" => Some(Dialog::JsConsole),
                     "document-js" => Some(Dialog::DocumentJs),
+                    "document-actions" => {
+                        self.execute("tools.document_actions");
+                        self.dialog
+                    }
+                    "print-production" | "output-inspection" => {
+                        self.open_production(value == "output-inspection");
+                        self.dialog
+                    }
                     "preferences" => Some(Dialog::Preferences),
+                    "templates" => Some(Dialog::Templates),
                     "compare-files" => Some(Dialog::CompareFiles),
                     "action-wizard" => Some(Dialog::ActionWizard),
                     "pdfa" => Some(Dialog::PdfA),
                     "signature" => Some(Dialog::Signature),
                     "optimize" => Some(Dialog::Optimize),
+                    "remove-signature" => {
+                        self.start_remove_signature(None);
+                        self.dialog
+                    }
                     "sign" | "certify" => {
                         // Sign with a Digital ID for an invisible signature on the current page.
                         let page = self.active.map_or(0, |i| self.views[i].current);
@@ -2849,6 +3111,11 @@ impl PdfCraftApp {
                 v.select_pages(&pages);
             }
             ("notice", Some(v)) => v.notice_dismissed = value == "off",
+            ("quick", _) if value == "group-select" => {
+                if !self.activate_group_select() {
+                    return Err("finish or correct the open text before selecting a group".into());
+                }
+            }
             ("quick", _) => {
                 // `--quick select|hand|note|freetext|highlight|underline|strikeout|ink|line|arrow|square|circle`
                 self.quick_tool = match value {
@@ -2903,6 +3170,14 @@ impl PdfCraftApp {
                 };
             }
             ("ui-scale", _) => self.ui_scale = ui_scale::parse(value)?,
+            // `--signature-badges false`: no validation outline and mark over signed signatures.
+            ("signature-badges", _) => {
+                self.show_signature_badges = match value {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err("signature-badges must be true or false".into()),
+                };
+            }
             ("system-title-bar", _) => {
                 self.system_title_bar = match value {
                     "true" => true,
@@ -2972,6 +3247,9 @@ impl PdfCraftApp {
     }
 
     fn shortcuts(&mut self, ctx: &egui::Context) {
+        for view in &mut self.views {
+            view.actual_size_zoom = self.actual_size_zoom;
+        }
         use egui::Key;
         let pasted = self.paste_key_released(ctx);
         // "Save changes?" is modal: its keys are its own (⌘D is Don't save there, not Document
@@ -3001,6 +3279,7 @@ impl PdfCraftApp {
         {
             return;
         }
+        self.text_alignment_keys(ctx);
         self.registry_shortcuts(ctx);
         // (Esc closes a Combine file shown large first.)
         if self.full_screen && self.combine_tab.preview.is_none() && ctx.input(|i| i.key_pressed(Key::Escape)) {
@@ -3023,10 +3302,15 @@ impl PdfCraftApp {
                 }
             }
             self.tool_keys(i, ctx);
-            if self.quick_tool == QuickTool::EditText
-                && let Some(doc) = self.session.get(self.views[i].id).filter(|d| d.allows_modification())
+            if matches!(self.quick_tool, QuickTool::EditText | QuickTool::GroupSelect)
+                && let Some(doc) = self.session.get(self.views[i].id)
             {
-                object_ui::nudge_keys(ctx, &mut self.views[i], doc);
+                if doc.allows_modification() || self.quick_tool == QuickTool::GroupSelect {
+                    object_ui::nudge_keys(ctx, &mut self.views[i], doc);
+                }
+                if self.quick_tool == QuickTool::EditText && doc.allows_modification() {
+                    object_ui::delete_keys(ctx, &mut self.views[i], doc);
+                }
             }
             // A selected field moves with the arrows too (Prepare a form, #2608), before the view
             // turns the page with them.
@@ -3121,6 +3405,14 @@ impl PdfCraftApp {
 }
 
 impl eframe::App for PdfCraftApp {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        if self.theme_preference == ThemePreference::Glass {
+            [0.0; 4]
+        } else {
+            theme::Tokens::for_kind(self.theme).pasteboard.to_normalized_gamma_f32()
+        }
+    }
+
     /// While files are dragged over the window the system sends no pointer moves, so egui
     /// would keep the place the pointer entered at: tell it where the pointer really is, so the
     /// page grid can show (and use) the gap under it.
@@ -3160,6 +3452,7 @@ impl eframe::App for PdfCraftApp {
                 worker.set_context(ctx);
             }
             self.poll_pending_opens();
+            self.poll_folder_step();
         }
         // Chinese wants its own faces before the Japanese ones (one baseline per line).
         let cjk = theme::CjkPreference::for_language(lang.code());
@@ -3167,7 +3460,7 @@ impl eframe::App for PdfCraftApp {
             egui_extras::install_image_loaders(ctx);
             theme::install_fonts_for(ctx, cjk);
             self.fonts_cjk = cjk;
-            theme::apply(ctx, self.theme);
+            self.apply_theme(ctx);
             self.styled = true;
         } else {
             self.fonts_ready = true;
@@ -3178,6 +3471,18 @@ impl eframe::App for PdfCraftApp {
             }
         }
         self.sync_theme(ctx);
+        #[cfg(target_os = "windows")]
+        if self.native_frame_theme != Some(self.theme) {
+            use winit::platform::windows::{Color, WindowExtWindows};
+            if let Some(window) = _frame.winit_window() {
+                let t = theme::Tokens::for_kind(self.theme);
+                let color = |c: egui::Color32| Color::from_rgb(c.r(), c.g(), c.b());
+                window.set_title_background_color(Some(color(t.titlebar)));
+                window.set_title_text_color(color(t.text));
+                window.set_border_color(Some(color(t.titlebar)));
+                self.native_frame_theme = Some(self.theme);
+            }
+        }
         let native = ctx.native_pixels_per_point().unwrap_or(1.0);
         ui_scale::sync(ctx, ui_scale::zoom(self.ui_scale, self.system_text_scale, native), &mut self.ui_scale_applied);
         // Remember user work even if its tab is subsequently closed or Home is selected.
@@ -3291,6 +3596,7 @@ impl eframe::App for PdfCraftApp {
         let blocked = self.modal_open() || self.palette_open || !ctx.input(|i| i.focused);
         for (index, view) in self.views.iter_mut().enumerate() {
             view.objects.set_input_blocked(blocked || self.active != Some(index));
+            view.group.set_input_blocked(blocked || self.active != Some(index));
             if blocked || self.active != Some(index) {
                 view.auto_scroll.cancel();
             }
@@ -3307,7 +3613,9 @@ impl eframe::App for PdfCraftApp {
         }
         self.poll_export();
         self.poll_ocr();
+        self.prompt_scan_ocr();
         self.poll_optimize();
+        self.poll_timestamp();
         self.poll_action();
         self.process_file_requests();
         #[cfg(not(target_arch = "wasm32"))]
@@ -3317,6 +3625,7 @@ impl eframe::App for PdfCraftApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         i18n::set_current(i18n::Lang::from_pref(&self.language));
+        spelling_ui::begin_frame(&ctx, &mut self.spelling, i18n::Lang::from_pref(&self.language).code());
         // Fonts registered via set_fonts only take effect next frame; named families would panic now.
         if !self.fonts_ready {
             ctx.request_repaint();
@@ -3330,7 +3639,7 @@ impl eframe::App for PdfCraftApp {
             .active
             .and_then(|i| crate::canvas::tab_label(self, i))
             .or_else(|| self.combine_showing().then(|| tl!("Combine files").to_owned()))
-            .map_or_else(|| "PdfCraft".to_owned(), |name| format!("{name} — PdfCraft"));
+            .unwrap_or_else(|| "PdfCraft".to_owned());
         if title != self.window_title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.window_title = title;
@@ -3374,7 +3683,10 @@ impl eframe::App for PdfCraftApp {
             }
         }
         let t = theme::Tokens::get(&ctx);
-        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.pasteboard)).show(ui, |ui| {
+        // Docked panes paint their own Glass surface once; stacking it hides the desktop.
+        let background =
+            if self.theme_preference == ThemePreference::Glass && self.mode != Mode::Read { egui::Color32::TRANSPARENT } else { t.pasteboard };
+        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(background)).show(ui, |ui| {
             if self.mode == Mode::Read {
                 match self.active {
                     None if self.combine_showing() => combine_ui::page(self, ui),
@@ -3389,6 +3701,7 @@ impl eframe::App for PdfCraftApp {
             }
         });
         self.process_pending_edits();
+        self.finish_page_transfer(&ctx);
         palette::show(self, &ctx);
         dialogs::show(self, &ctx);
         self.show_progress(&ctx);

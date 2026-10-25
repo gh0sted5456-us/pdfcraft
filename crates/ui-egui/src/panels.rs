@@ -263,8 +263,12 @@ fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static
                     .color(t.text_muted),
                 );
             }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.add_enabled_ui(marks > 0, |ui| widgets::pill_button(ui, tl!("Redact all"), true)).inner.clicked() {
+            crate::widgets::dialog_footer(ui, |ui| {
+                if ui
+                    .add_enabled_ui(marks > 0, |ui| widgets::dialog_button(ui, tl!("Redact all"), widgets::DialogAction::Destructive))
+                    .inner
+                    .clicked()
+                {
                     run = Some("redact.apply");
                 }
                 if ui.add_enabled_ui(marks > 0, |ui| widgets::pill_button(ui, tl!("Clear all"), false)).inner.clicked() {
@@ -326,6 +330,7 @@ fn edit_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static 
     }
     // Format text at the top while text is selected or being added.
     format_section(app, ui, t);
+    crate::ocr_ui::toggle(ui, app);
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         widgets::section_title(ui, tl!("Modify page"));
         ui.horizontal(|ui| {
@@ -559,6 +564,21 @@ fn format_section(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         }
         return;
     }
+    // Selected vector lines and shapes: their width and colour.
+    let paths = app.active_ids().and_then(|(i, _)| {
+        let (_, objects) = app.views[i].objects.paths()?;
+        Some((i, objects.len(), objects.first()?.outline.clone()?))
+    });
+    if let Some((i, count, look)) = paths {
+        if let Some(style) = crate::object_ui::line_panel(ui, count, &look)
+            && let Some(edit) = app.views[i].objects.style_edit(style)
+        {
+            app.apply_edit(edit);
+        }
+        ui.add_space(6.0);
+        ui.separator();
+        return;
+    }
     let image = app.active_ids().and_then(|(i, id)| {
         let (page, index) = app.views[i].content.selected?;
         let doc = app.session.get(id)?;
@@ -619,6 +639,53 @@ fn added_text_format(ui: &mut egui::Ui, t: &Tokens, style: &mut pdfcraft_engine:
 }
 
 impl PdfCraftApp {
+    /// Text alignment owns these keys before the document-wide shortcuts (Ctrl+L is full screen).
+    pub(crate) fn text_alignment_keys(&mut self, ctx: &egui::Context) {
+        use egui::{Key, Modifiers};
+        use pdfcraft_engine::{AddedContent, Edit, TextAlign};
+        let Some((i, id)) = self.active_ids() else { return };
+        let view = &self.views[i];
+        let selected = self.session.get(id).and_then(|doc| {
+            let (page, index) = view.content.selected?;
+            let item = doc.added().iter().filter(|a| a.page == page).nth(index)?;
+            match &item.content {
+                AddedContent::Text(text) => Some((page, index, text.clone())),
+                _ => None,
+            }
+        });
+        if view.line_editor.is_none() && view.content.draft.is_none() && selected.is_none() {
+            return;
+        }
+        let focused = ctx.memory(|m| m.focused());
+        let editing = view.line_editor.is_some() && focused == Some(egui::Id::new("edit-text-line-input"))
+            || view.content.draft.is_some() && focused == Some(crate::content_ui::editor_id(id));
+        if ctx.text_edit_focused() && !editing || ctx.input(|input| input.modifiers.shift || input.modifiers.alt) {
+            return;
+        }
+        let align = ctx.input_mut(|input| {
+            [(Key::L, TextAlign::Left), (Key::E, TextAlign::Center), (Key::R, TextAlign::Right)]
+                .into_iter()
+                .find_map(|(key, align)| input.consume_key(Modifiers::COMMAND, key).then_some(align))
+        });
+        let Some(align) = align else { return };
+        if let Some(mut editor) = self.views[i].line_editor.clone() {
+            if editor.look.align != align {
+                editor.look.align = align;
+                self.apply_line_format(i, editor, Some(ctx));
+            }
+        } else if let Some(draft) = self.views[i].content.draft.as_mut() {
+            draft.style.align = align;
+            self.text_style.align = align;
+        } else if let Some((page, index, mut text)) = selected
+            && text.align != align
+        {
+            text.align = align;
+            if self.apply_edit(Edit::UpdateContent { page, index, content: AddedContent::Text(text) }) {
+                self.text_style.align = align;
+            }
+        }
+    }
+
     /// Apply the open paragraph's formatting as one change; the paragraph stays open.
     pub(crate) fn apply_line_format(&mut self, index: usize, mut ed: crate::edit_text_ui::LineEditor, ctx: Option<&egui::Context>) {
         let edit = pdfcraft_engine::Edit::EditTextBlock { page: ed.page, block: ed.block, text: ed.text.clone(), style: ed.style() };
@@ -879,7 +946,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         }
                         panel_edit = edit;
                     }
-                    RightPanel::Search => crate::search_ui::panel(ui, &t, view, info.pages.len()),
+                    RightPanel::Search => crate::search_ui::panel(ui, &t, view, info.pages.len(), doc.allows_assembly()),
                     RightPanel::Compare => compare_action = crate::compare_ui::panel(ui, &t, compare, id),
                     RightPanel::Attachments => {
                         if info.attachments.is_empty() {
@@ -949,6 +1016,7 @@ pub fn right_panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             app.dialog = Some(crate::Dialog::CertificateViewer);
         }
         Some(crate::sign_ui::PanelAction::ViewSigned { len, revision }) => app.view_signed_version(len, revision),
+        Some(crate::sign_ui::PanelAction::Remove(field)) => app.start_remove_signature(Some(&field)),
         Some(crate::sign_ui::PanelAction::Sign(field)) => {
             let page = app.views[index].current;
             app.start_signing(page, None, Some(field), None);
@@ -1405,7 +1473,7 @@ fn file_drop(ui: &mut egui::Ui, t: &Tokens, view: &mut crate::DocView, rows: &[R
     view.pages_panel = Some(clip);
     let pointer = ui.input(|i| i.pointer.hover_pos()).filter(|p| clip.contains(*p));
     view.panel_gap = pointer.filter(|_| view.panel_drag.is_none()).and_then(|p| panel_gap(rows, p.y));
-    if pointer.is_none() || ui.input(|i| i.raw.hovered_files.is_empty()) {
+    if pointer.is_none() || (ui.input(|i| i.raw.hovered_files.is_empty()) && !crate::page_transfer_ui::incoming(ui.ctx(), view.id)) {
         return;
     }
     let painter = ui.painter().with_clip_rect(clip);
@@ -1462,7 +1530,7 @@ fn page_drag(ui: &mut egui::Ui, t: &Tokens, view: &mut crate::DocView, rows: &[R
         return;
     }
     let pointer = ui.input(|i| i.pointer.interact_pos());
-    let gap = pointer.and_then(|p| panel_gap(rows, p.y));
+    let gap = pointer.filter(|p| ui.clip_rect().contains(*p)).and_then(|p| panel_gap(rows, p.y));
     if let (Some(gap), Some(first), Some(last)) = (gap, rows.first(), rows.last()) {
         let y = rows.get(gap).map_or(last.bottom() + 20.0, |r| r.top() - 3.0);
         ui.painter().line_segment([pos2(first.left(), y), pos2(first.right(), y)], Stroke::new(3.0, t.accent));

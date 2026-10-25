@@ -125,9 +125,13 @@ pub(crate) fn show(
     }
     // "Add a comment": a sticky note on the current page, near its top-right corner.
     if allowed {
-        let r = ui.add(
-            crate::widgets::line(&mut view.comments.add_box).hint_text(tl!("Add a comment")).desired_width(f32::INFINITY).id_salt("comment-add-box"),
-        );
+        let mut out = crate::widgets::line(&mut view.comments.add_box)
+            .hint_text(tl!("Add a comment"))
+            .desired_width(f32::INFINITY)
+            .id_salt("comment-add-box")
+            .show(ui);
+        crate::spelling_ui::annotate(ui, &mut out, &mut view.comments.add_box, None);
+        let r = out.response;
         if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) && !view.comments.add_box.trim().is_empty() {
             let page = view.current.min(info.pages.len().saturating_sub(1));
             if let Some(p) = info.pages.get(page) {
@@ -332,7 +336,9 @@ fn card(
             egui::Frame::NONE.inner_margin(egui::Margin { left: 34, right: 0, top: 4, bottom: 0 }).show(ui, |ui| {
                 ui.set_width(ui.available_width());
                 if editing && let Some((_, _, text)) = view.comments.editing.as_mut() {
-                    let r = ui.add(crate::widgets::block(text).desired_rows(2).desired_width(f32::INFINITY).id_salt(("comment-edit", key)));
+                    let mut out = crate::widgets::block(text).desired_rows(2).desired_width(f32::INFINITY).id_salt(("comment-edit", key)).show(ui);
+                    crate::spelling_ui::annotate(ui, &mut out, text, None);
+                    let r = out.response;
                     match view.comments.editor_focus.take() {
                         Some(crate::comments::EditorFocus::Take) => r.request_focus(),
                         Some(crate::comments::EditorFocus::Release) => r.surrender_focus(),
@@ -340,15 +346,14 @@ fn card(
                     }
                     let submit = crate::comments::submit_key(ui, &r, false);
                     ui.horizontal(|ui| {
-                        if (ui
-                            .add(egui::Button::new(egui::RichText::new(tl!("Save")).color(Color32::WHITE)).fill(t.accent).corner_radius(12))
-                            .clicked()
-                            || submit)
+                        if (widgets::dialog_button(ui, tl!("Save"), widgets::DialogAction::Confirm).clicked() || submit)
                             && let Some((page, index, text)) = view.comments.editing.take()
                         {
                             edit = Some(Edit::SetAnnotationContents { page, index, text });
                         }
-                        if ui.button(tl!("Cancel")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+                        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked()
+                            || ui.input(|i| i.key_pressed(egui::Key::Escape))
+                        {
                             view.comments.editing = None;
                         }
                     });
@@ -399,18 +404,20 @@ fn card(
                     // The field fills its line and Post sits right-aligned under it: a field sized
                     // around the button can't fit every language's "Post" exactly, and any overflow
                     // would widen the resizable panel again on every repaint.
-                    let r = ui.add(
-                        crate::widgets::block(&mut view.comments.reply)
-                            .desired_rows(1)
-                            .return_key(egui::KeyboardShortcut::new(egui::Modifiers::SHIFT, egui::Key::Enter))
-                            .hint_text(tl!("Add a reply"))
-                            .desired_width(f32::INFINITY)
-                            .id_salt(("comment-reply", key)),
-                    );
+                    let mut out = crate::widgets::block(&mut view.comments.reply)
+                        .desired_rows(1)
+                        .return_key(egui::KeyboardShortcut::new(egui::Modifiers::SHIFT, egui::Key::Enter))
+                        .hint_text(tl!("Add a reply"))
+                        .desired_width(f32::INFINITY)
+                        .id_salt(("comment-reply", key))
+                        .show(ui);
+                    crate::spelling_ui::annotate(ui, &mut out, &mut view.comments.reply, None);
+                    let r = out.response;
                     let enter = crate::comments::submit_key(ui, &r, true);
                     let ok = !view.comments.reply.trim().is_empty();
-                    let post =
-                        ui.with_layout(Layout::right_to_left(Align::Min), |ui| ui.add_enabled(ok, egui::Button::new(tl!("Post")).corner_radius(12)));
+                    let post = ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+                        ui.add_enabled_ui(ok, |ui| widgets::dialog_button(ui, tl!("Post"), widgets::DialogAction::Confirm)).inner
+                    });
                     if (post.inner.clicked() || enter) && ok {
                         let text = std::mem::take(&mut view.comments.reply).trim().to_string();
                         edit = Some(Edit::ReplyToAnnotation { page: a.page, index: a.index, text, author: prefs.author.clone() });

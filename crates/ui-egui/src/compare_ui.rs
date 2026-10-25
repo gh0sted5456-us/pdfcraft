@@ -2,11 +2,11 @@
 //! (replaced blue, inserted green, deleted red), shades them on the newer document's pages, and
 //! offers a report or the differences as comments.
 
-use egui::{Align, Color32, Layout};
+use egui::Color32;
 use pdfcraft_engine::DocId;
 use pdfcraft_engine::compare::{Comparison, Kind};
 
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{PdfCraftApp, RightPanel, widgets};
 
 /// The last comparison.
@@ -50,7 +50,7 @@ pub fn colour(kind: Kind) -> Color32 {
 
 /// The Compare Files dialog: pick the older document. Returns (compare, cancel).
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (bool, bool) {
-    ui.label(egui::RichText::new(tl!("Compare Files")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Compare Files"));
     ui.add_space(8.0);
     let Some((_, new)) = app.active_ids() else { return (false, true) };
     let others: Vec<(DocId, String)> =
@@ -78,11 +78,15 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     ui.add_space(10.0);
     let (mut go, mut cancel) = (false, false);
     ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui.add_enabled_ui(app.compare_old.is_some(), |ui| widgets::pill_button(ui, tl!("Compare"), true)).inner.clicked() {
+        crate::widgets::dialog_footer(ui, |ui| {
+            if ui
+                .add_enabled_ui(app.compare_old.is_some(), |ui| widgets::dialog_button(ui, tl!("Compare"), widgets::DialogAction::Confirm))
+                .inner
+                .clicked()
+            {
                 go = true;
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 cancel = true;
             }
         })

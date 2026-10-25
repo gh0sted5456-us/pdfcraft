@@ -430,7 +430,7 @@ fn cards(ui: &mut egui::Ui, t: &Tokens, pal: &Palette, order: &CalculationOrder,
             }
             ui.add_space(2.0);
             ui.horizontal(|ui| {
-                let fix = ui.add_enabled_ui(editable, |ui| widgets::pill_button(ui, tl!("Fix order"), true)).inner;
+                let fix = ui.add_enabled_ui(editable, |ui| widgets::dialog_button(ui, tl!("Fix order"), widgets::DialogAction::Confirm)).inner;
                 if fix.on_hover_text(tl!("Move only what must move, so every field calculates after the fields it reads.")).clicked() {
                     act = Some(Act::Order(order.fixed()));
                 }

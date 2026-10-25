@@ -62,7 +62,7 @@ const fn menu_item(label: &'static str, icon: &'static str, actions: &'static [&
     ToolItem { label, icon, command, availability: Ready, actions }
 }
 
-use Availability::{Planned, Provider, Ready};
+use Availability::{Planned, Ready};
 
 const RED: [u8; 3] = [0xE0, 0x3E, 0x3E];
 const PURPLE: [u8; 3] = [0x8E, 0x4E, 0xE6];
@@ -167,6 +167,7 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
                 item("Separate PDFs", "files", "create.multiple_separate", Ready),
                 item("Images", "image", "create.images", Ready),
                 item("Clipboard", "copy-plus", "create.clipboard", Ready),
+                item("From template", "file-plus-2", "create.new", Ready),
                 item("Blank page", "file-plus-2", "create.blank", Ready),
             ],
         }],
@@ -390,8 +391,9 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
             title: "Certificates",
             items: &[
                 item("Digitally sign", "signature", "sign.digital", Ready),
-                item("Timestamp", "clock-3", "sign.timestamp", Planned("M9")),
+                item("Timestamp", "clock-3", "sign.timestamp", Ready),
                 item("Validate all signatures", "badge-check", "sign.validate", Ready),
+                item("Remove signature", "eraser", "sign.remove", Ready),
                 item("Certify (visible signature)", "badge-check", "sign.certify", Ready),
                 item("Certify (invisible signature)", "badge-check", "sign.certify_invisible", Ready),
             ],
@@ -403,12 +405,12 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
         icon: "printer",
         hue: PURPLE,
         badge: None,
-        availability: Planned("M11"),
+        availability: Ready,
         sections: &[ToolSection {
             title: "Print production",
             items: &[
-                item("Output preview", "layers", "prepress.output_preview", Planned("M11")),
-                item("Preflight", "file-check", "preflight.run", Planned("M11")),
+                item("Output preview", "layers", "prepress.output_preview", Ready),
+                item("Preflight", "file-check", "preflight.run", Ready),
                 item("Convert colors", "palette", "prepress.convert_colors", Planned("M11")),
                 item("Set page boxes", "square-dashed-mouse-pointer", "page.boxes", Ready),
                 item("Add printer marks", "ruler", "prepress.marks", Planned("M11")),
@@ -518,13 +520,13 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
         icon: "braces",
         hue: BLUE,
         badge: None,
-        availability: Planned("M6"),
+        availability: Ready,
         sections: &[ToolSection {
             title: "JavaScript",
             items: &[
-                item("Console", "braces", "js.console", Planned("M6")),
-                item("Document JavaScripts", "file-text", "js.document", Planned("M6")),
-                item("Document actions", "list-checks", "js.actions", Planned("M6")),
+                item("Console", "braces", "tools.js_console", Ready),
+                item("Document JavaScripts", "file-text", "tools.document_js", Ready),
+                item("Document actions", "list-checks", "tools.document_actions", Ready),
             ],
         }],
     },
@@ -534,13 +536,15 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
         icon: "sparkles",
         hue: PINK,
         badge: Some("Optional"),
-        availability: Provider,
+        availability: Ready,
         sections: &[ToolSection {
             title: "Bring your own model (off by default)",
             items: &[
-                item("Summarize", "sparkles", "ai.summary", Provider),
-                item("Ask about this document", "message-circle-reply", "ai.ask", Provider),
-                item("Translate", "languages", "ai.translate", Provider),
+                item("AI assistant", "settings", "ai.setup", Ready),
+                item("Suggest edits", "pencil", "ai.suggest", Ready),
+                item("Summarize", "sparkles", "ai.summary", Ready),
+                item("Ask about this document", "message-circle-reply", "ai.ask", Ready),
+                item("Translate", "languages", "ai.translate", Ready),
             ],
         }],
     },

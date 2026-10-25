@@ -77,7 +77,7 @@ pub(crate) fn options_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     let o = &mut app.a11y_options;
     o.to = o.to.clamp(1, pages);
     o.from = o.from.clamp(1, o.to);
-    ui.label(egui::RichText::new(tl!("Accessibility Checker Options")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Accessibility Checker Options"));
     ui.add_space(8.0);
     let group = |ui: &mut egui::Ui, title: &str, body: &mut dyn FnMut(&mut egui::Ui)| {
         ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(13.0)));
@@ -135,11 +135,11 @@ pub(crate) fn options_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     ui.add_space(10.0);
     let (mut start, mut cancel) = (false, false);
     ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("Start Checking"), true).clicked() {
+        crate::widgets::dialog_footer(ui, |ui| {
+            if widgets::dialog_button(ui, tl!("Start Checking"), widgets::DialogAction::Confirm).clicked() {
                 start = true;
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 cancel = true;
             }
         })
@@ -169,7 +169,7 @@ pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, state: &mut A11yState, doc: D
             ui.add_space(6.0);
             ui.label(egui::RichText::new(tl!("This document hasn't been checked yet.")).color(t.text_muted));
             ui.add_space(6.0);
-            if widgets::pill_button(ui, tl!("Check for accessibility"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("Check for accessibility"), widgets::DialogAction::Confirm).clicked() {
                 action = Some(PanelAction::Options);
             }
         });
@@ -563,14 +563,14 @@ pub(crate) fn alt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> 
     let ctx = ui.ctx().clone();
     let doc = app.alt_draft.doc.and_then(|id| app.session.get(id));
     let d = &mut app.alt_draft;
-    ui.label(egui::RichText::new(tl!("Set Alternate Text")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Set Alternate Text"));
     ui.add_space(8.0);
     let n = d.figures.len();
     if n == 0 {
         ui.label(egui::RichText::new(tl!("This document has no tagged figures.")).color(t.text_muted));
         let mut cancel = false;
         ui.horizontal(|ui| {
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| cancel = widgets::pill_button(ui, tl!("Close"), true).clicked())
+            crate::widgets::dialog_footer(ui, |ui| cancel = widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked())
         });
         return (false, cancel);
     }
@@ -616,14 +616,14 @@ pub(crate) fn alt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> 
         if ui.add_enabled_ui(i + 1 < n, |ui| icons::button(ui, "chevron-right", 28.0, false, tl!("Next figure"))).inner.clicked() {
             d.index += 1;
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("Save & Close"), true).clicked() {
-                save = true;
-            }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
-                cancel = true;
-            }
-        });
+    });
+    crate::widgets::dialog_footer(ui, |ui| {
+        if widgets::dialog_button(ui, tl!("Save & Close"), widgets::DialogAction::Confirm).clicked() {
+            save = true;
+        }
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+            cancel = true;
+        }
     });
     (save, cancel)
 }

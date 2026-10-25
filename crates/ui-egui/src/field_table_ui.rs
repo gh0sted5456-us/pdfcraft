@@ -166,7 +166,8 @@ pub(crate) fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
         .order(egui::Order::Foreground)
         .min_width(440.0)
         .max_width(440.0)
-        .default_pos(egui::pos2(120.0, 100.0))
+        .pivot(egui::Align2::CENTER_CENTER)
+        .default_pos(ctx.content_rect().center())
         .show(ctx, |ui| {
             widgets::begin_dialog(ui);
             let (c, l) = body(ui, draft, info, form, &t);
@@ -295,11 +296,11 @@ fn body(ui: &mut egui::Ui, d: &mut FieldTableDraft, info: &PageInfo, form: &[For
 
     ui.add_space(14.0);
     let mut choice = None;
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        if ui.add_enabled_ui(laid.edit.is_ok(), |ui| widgets::pill_button(ui, tl!("Add fields"), true)).inner.clicked() {
+    crate::widgets::dialog_footer(ui, |ui| {
+        if ui.add_enabled_ui(laid.edit.is_ok(), |ui| widgets::dialog_button(ui, tl!("Add fields"), widgets::DialogAction::Confirm)).inner.clicked() {
             choice = Some(Choice::Add);
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             choice = Some(Choice::Cancel);
         }
     });

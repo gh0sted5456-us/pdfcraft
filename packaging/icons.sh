@@ -18,7 +18,7 @@ trap 'rm -rf "$TMP"' EXIT
 
 command -v resvg >/dev/null || { echo "error: resvg not found (brew install resvg)" >&2; exit 1; }
 
-# The master is a full-bleed 512 tile (rx=112): right for Windows and Linux. macOS icons follow
+# The master has transparent surroundings. macOS icons follow
 # Apple's grid instead: an 824 px body centred on a transparent 1024 canvas.
 MAC="$TMP/macos.svg"
 {
@@ -34,6 +34,10 @@ render() {
 
 # 1024 px PNG on Apple's grid (also the runtime Dock icon on macOS, see apps/pdfcraft/src/main.rs).
 render "$MAC" 1024 "$DIR/pdfcraft-1024.png"
+
+# The same engraving reverses its two colors for dark window chrome, Home and About.
+sed -e 's/#0b0b0c/#SWAP/g' -e 's/#efe9dc/#0b0b0c/g' -e 's/#SWAP/#efe9dc/g' "$SVG" >"$TMP/dark.svg"
+render "$TMP/dark.svg" 256 "$DIR/pdfcraft-dark.png"
 
 # Linux hicolor theme (full bleed; hicolor/256x256 is also the runtime icon on Windows and Linux).
 for s in 16 24 32 48 64 128 256 512; do

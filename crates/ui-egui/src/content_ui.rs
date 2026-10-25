@@ -70,6 +70,10 @@ pub struct TextDraft {
     pub focus: bool,
 }
 
+pub(crate) fn editor_id(doc: pdfcraft_engine::DocId) -> egui::Id {
+    egui::Id::new(("added-text-edit", doc.0))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Grab {
     Move,
@@ -85,6 +89,7 @@ pub struct ContentView {
     /// Select the item an add creates (the page's item count before it).
     pub select_added: Option<(usize, usize)>,
     grab: Option<(usize, Grab, Pos2)>,
+    move_delta: Option<egui::Vec2>,
     undrawable: UndrawableMemo,
     layout: Option<(AddedText, f32, f64, [f64; 4])>,
 }
@@ -117,6 +122,11 @@ pub(crate) struct MoveBackground {
     key: Option<(u64, usize, usize)>,
     renderer: Option<pdfcraft_render::RenderPool>,
     texture: Option<egui::TextureHandle>,
+    /// The item alone on a transparent page: the pixels that follow the pointer. The page's own
+    /// raster has whatever the item covers in its box too, which must stay where it is (#4464).
+    item_renderer: Option<pdfcraft_render::RenderPool>,
+    item: Option<egui::TextureHandle>,
+    item_bounds: Option<[f64; 4]>,
     tag: Option<u64>,
     /// The item's display-space box when the gesture started.
     from: Option<[f64; 4]>,
@@ -129,7 +139,12 @@ pub(crate) struct MoveBackground {
 
 impl MoveBackground {
     pub fn pending(&self) -> bool {
-        self.renderer.is_some() && self.texture.is_none()
+        self.renderer.is_some() && self.item_renderer.is_some() && (self.texture.is_none() || self.item.is_none())
+    }
+
+    /// Both rasters are in: the page without the item, and the item alone.
+    fn ready(&self) -> bool {
+        self.texture.is_some() && self.item.is_some()
     }
 
     pub fn prepare(&mut self, ctx: &egui::Context, doc: &pdfcraft_engine::Document, cv: &ContentView, scale: f32) {
@@ -140,10 +155,14 @@ impl MoveBackground {
             (Some((gp, Grab::Corner(..), _)), Some((sp, si))) if gp == sp && picture(sp, si) => Some((doc.edit_generation(), sp, si)),
             _ => None,
         };
-        if !(key.is_none() && self.settling.is_some()) && self.key != key {
+        if !(key.is_none() && self.settling.is_some()) && (self.key != key || key.is_some() && self.settling.is_some()) {
             *self = Self { key, ..Default::default() };
             if let Some((_, page, index)) = key {
                 self.renderer = doc.added_content_preview(page, index).ok().map(|p| p.renderer());
+                if let Ok(preview) = doc.added_content_alone(page, index) {
+                    self.item_bounds = preview.content_bounds();
+                    self.item_renderer = Some(preview.renderer());
+                }
                 self.from = on_page(doc.added(), page).into_iter().find(|(i, _)| *i == index).map(|(_, a)| a.content.rect());
                 self.picture = picture(page, index);
             }
@@ -151,28 +170,41 @@ impl MoveBackground {
         if self.settling.is_some() {
             return;
         }
-        let (Some((_, page, _)), Some(renderer)) = (self.key, self.renderer.as_ref()) else { return };
+        let (Some((_, page, _)), Some(renderer), Some(item_renderer)) = (self.key, self.renderer.as_ref(), self.item_renderer.as_ref()) else {
+            return;
+        };
         let Some(p) = doc.info.pages.get(page) else { return };
         let max_side = ctx.input(|i| i.max_texture_side) as f32;
         let scale = scale.min(crate::canvas::BASE_SIDE.min(max_side) / p.width.max(p.height).max(1.0));
         let tag = (scale * 1000.0) as u64;
         if self.tag != Some(tag) {
-            renderer.set_queue(vec![pdfcraft_render::RenderRequest { page, scale, tag, ..Default::default() }]);
+            let item_side = self.item_bounds.map_or(1.0, |r| ((r[2] - r[0]).max(r[3] - r[1])) as f32).max(1.0);
+            let item_scale = scale.min(crate::canvas::BASE_SIDE.min(max_side) / item_side);
+            for (r, scale) in [(renderer, scale), (item_renderer, item_scale)] {
+                r.set_queue(vec![pdfcraft_render::RenderRequest { page, scale, tag, ..Default::default() }]);
+            }
             self.tag = Some(tag);
         }
-        if let Some(out) = renderer.try_recv() {
+        let mut failed = false;
+        for (r, slot, name) in
+            [(renderer, &mut self.texture, "added-content-move-background"), (item_renderer, &mut self.item, "added-content-move-item")]
+        {
+            let Some(out) = r.try_recv() else { continue };
             if out.error.is_some() {
-                // Without a background the item stays put while dragged, as before.
-                self.renderer = None;
-                return;
-            }
-            if out.request.tag == tag {
-                self.texture = Some(ctx.load_texture(
-                    "added-content-move-background",
+                failed = true;
+            } else if out.request.tag == tag {
+                *slot = Some(ctx.load_texture(
+                    name,
                     crate::canvas::texture_image([out.width as usize, out.height as usize], out.rgba),
                     egui::TextureOptions::LINEAR,
                 ));
             }
+        }
+        if failed {
+            // Without both rasters the item stays put while dragged, as before.
+            self.renderer = None;
+            self.item_renderer = None;
+            return;
         }
         if self.pending() {
             ctx.request_repaint_after(std::time::Duration::from_millis(16));
@@ -183,7 +215,7 @@ impl MoveBackground {
     /// rendered again. Any other edit ends it.
     pub fn committed(&mut self, edit: &Edit, generation: u64) {
         match edit {
-            Edit::UpdateContent { page, index, content } if self.texture.is_some() && self.key.is_some_and(|(_, p, i)| (p, i) == (*page, *index)) => {
+            Edit::UpdateContent { page, index, content } if self.ready() && self.key.is_some_and(|(_, p, i)| (p, i) == (*page, *index)) => {
                 self.key = Some((generation, *page, *index));
                 self.settling = Some(content.rect());
             }
@@ -197,27 +229,18 @@ impl MoveBackground {
         }
     }
 
-    /// The page without the moving item, then the item's pixels taken from `page_tex` (the page
-    /// as rendered, item included where it was) at the dragged or applied position.
-    #[allow(clippy::too_many_arguments)]
-    pub fn paint(
-        &self,
-        ui: &egui::Ui,
-        painter: &egui::Painter,
-        xf: &PageXform,
-        page: usize,
-        info: &DocInfo,
-        cv: &ContentView,
-        page_tex: Option<egui::TextureId>,
-    ) {
-        let (Some((_, kp, _)), Some(background), Some(page_tex), Some(from)) = (self.key, &self.texture, page_tex, self.from) else { return };
+    /// The page without the moving item, then the item's own pixels (from its raster alone, so
+    /// nothing it covered comes along) at the dragged or applied position.
+    pub fn paint(&self, ui: &egui::Ui, painter: &egui::Painter, xf: &PageXform, page: usize, info: &DocInfo, cv: &ContentView) {
+        let (Some((_, kp, _)), Some(background), Some(item), Some(from)) = (self.key, &self.texture, &self.item, self.from) else { return };
         if kp != page {
             return;
         }
         let r = screen_rect(xf, info, page, from);
         let to = if let Some((_, grab, start)) = cv.grab {
             let Some(p) = ui.input(|i| i.pointer.hover_pos()) else { return };
-            dragged(r, grab, p - start, self.picture)
+            let delta = if grab == Grab::Move { cv.move_delta.unwrap_or(p - start) } else { p - start };
+            dragged(r, grab, delta, self.picture)
         } else if let Some(to) = self.settling {
             let to = screen_rect(xf, info, page, to);
             // A moved text box keeps its top edge (its height follows its lines).
@@ -229,14 +252,23 @@ impl MoveBackground {
         xf.paint_image(&painter, background.id(), 0.0, 0.0, 1.0, 1.0);
         // A pixel around the box, so its edges come along.
         let (r, to) = (r.expand(1.0), to.expand(1.0));
-        let mut mesh = egui::Mesh::with_texture(page_tex);
+        let mut mesh = egui::Mesh::with_texture(item.id());
         for (a, b) in [
             (r.left_top(), to.left_top()),
             (r.right_top(), to.right_top()),
             (r.right_bottom(), to.right_bottom()),
             (r.left_bottom(), to.left_bottom()),
         ] {
-            let (u, v) = xf.screen_to_norm(a);
+            let (u, v) = self.item_bounds.map_or_else(
+                || xf.screen_to_norm(a),
+                |[left, bottom, right, top]| {
+                    let (x, y) = xf.screen_to_view(a);
+                    (
+                        ((f64::from(x) - left) / (right - left).max(1e-3)) as f32,
+                        ((f64::from(y) - (f64::from(xf.ph) - top)) / (top - bottom).max(1e-3)) as f32,
+                    )
+                },
+            );
             mesh.vertices.push(egui::epaint::Vertex { pos: b, uv: Pos2::new(u, v), color: Color32::WHITE });
         }
         mesh.add_triangle(0, 1, 2);
@@ -251,7 +283,7 @@ pub fn default_style() -> AddedText {
 }
 
 /// Display-space rect → screen.
-fn screen_rect(xf: &PageXform, info: &DocInfo, page: usize, r: [f64; 4]) -> Rect {
+pub(crate) fn screen_rect(xf: &PageXform, info: &DocInfo, page: usize, r: [f64; 4]) -> Rect {
     let ph = info.pages[page].height as f64;
     xf.view_rect([r[0] as f32, (ph - r[3]) as f32, r[2] as f32, (ph - r[1]) as f32])
 }
@@ -281,7 +313,9 @@ fn dragged(r: Rect, grab: Grab, d: egui::Vec2, keep_aspect: bool) -> Rect {
         Grab::Corner(left, top) => {
             let (mut dx, mut dy) = (if left { -d.x } else { d.x }, if top { -d.y } else { d.y });
             if keep_aspect && r.width() > 0.0 && r.height() > 0.0 {
-                let k = ((r.width() + dx) / r.width()).max((r.height() + dy) / r.height()).max(0.05);
+                let (horizontal, vertical) = (dx / r.width(), dy / r.height());
+                let delta = if horizontal.abs() > vertical.abs() { horizontal } else { vertical };
+                let k = (1.0 + delta).max(0.05);
                 dx = r.width() * k - r.width();
                 dy = r.height() * k - r.height();
             }
@@ -339,6 +373,15 @@ pub(crate) fn page_input(
         && gp == page
     {
         consumed = true;
+        if grab == Grab::Move
+            && let Some((sp, si)) = cv.selected
+            && sp == page
+            && let Some((_, item)) = on_page(added, page).into_iter().find(|(i, _)| *i == si)
+        {
+            let rect = screen_rect(xf, info, page, item.content.rect());
+            let target = pdfcraft_engine::ObjectTarget { kind: pdfcraft_engine::ObjectKind::Added, index: si };
+            cv.move_delta = Some(view.objects.snap_drag(ui, xf, page, info, rect, &[target], pointer.unwrap_or(start) - start));
+        }
         if resp.drag_stopped() || !ui.input(|i| i.pointer.primary_down()) {
             cv.grab = None;
             let end = pointer.unwrap_or(start);
@@ -348,7 +391,8 @@ pub(crate) fn page_input(
                 && (end - start).length() >= 1.0
             {
                 let keep = matches!(a.content, AddedContent::Image(_));
-                let r = dragged(screen_rect(xf, info, page, a.content.rect()), grab, end - start, keep);
+                let delta = if grab == Grab::Move { cv.move_delta.unwrap_or(end - start) } else { end - start };
+                let r = dragged(screen_rect(xf, info, page, a.content.rect()), grab, delta, keep);
                 let (p0, p1) = (to_display(xf, info, page, r.left_bottom()), to_display(xf, info, page, r.right_top()));
                 let mut rect = [p0[0], p0[1], p1[0], p1[1]];
                 if let AddedContent::Text(t) = &a.content
@@ -408,6 +452,7 @@ pub(crate) fn page_input(
         ui.ctx().set_cursor_icon(egui::CursorIcon::Move);
     }
     if resp.drag_started() {
+        cv.move_delta = None;
         let origin = ui.input(|i| i.pointer.press_origin()).unwrap_or(p);
         if let Some((_, left, top)) = selected_rect.and_then(|r| handles(r).into_iter().find(|(c, ..)| c.distance(origin) <= 6.0)) {
             cv.grab = Some((page, Grab::Corner(left, top), origin));
@@ -464,7 +509,8 @@ pub(crate) fn paint_page(ui: &egui::Ui, painter: &egui::Painter, xf: &PageXform,
             && let (Some((gp, g, start)), Some(p)) = (cv.grab, pointer)
             && gp == page
         {
-            r = dragged(r, g, p - start, matches!(a.content, AddedContent::Image(_)));
+            let delta = if g == Grab::Move { cv.move_delta.unwrap_or(p - start) } else { p - start };
+            r = dragged(r, g, delta, matches!(a.content, AddedContent::Image(_)));
         }
         if selected {
             painter.rect_stroke(r.expand(1.0), CornerRadius::ZERO, Stroke::new(1.5, SELECT_BLUE), egui::StrokeKind::Outside);
@@ -537,6 +583,16 @@ pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, ad
     }
     let r = screen_rect(&xf, info, page, draft.rect);
     let source_rect = draft.index.map(|_| screen_rect(&xf, info, page, draft.style.rect));
+    // At least 60 points wide, so a short box can still be clicked into. Where that is wider than
+    // the box, the editor reaches past it away from the edge its text keeps (the right edge for
+    // right-aligned text, both halves for centred), so the text stays where the page draws it.
+    let width = r.width().max(60.0);
+    let anchor = match draft.style.align {
+        pdfcraft_engine::TextAlign::Center => 0.5,
+        pdfcraft_engine::TextAlign::Right => 1.0,
+        pdfcraft_engine::TextAlign::Left | pdfcraft_engine::TextAlign::Justify => 0.0,
+    };
+    let at = r.min - egui::vec2((width - r.width()) * anchor, 0.0);
     let background_ready = draft.index.is_some_and(|index| view.text_background.ready_added(page, index));
     let tokens = Tokens::get(ctx);
     let (mut commit, mut cancel, mut done) = (false, false, false);
@@ -548,7 +604,7 @@ pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, ad
     egui::Area::new(egui::Id::new(("added-text", view.id.0)))
         .fade_in(false)
         .order(egui::Order::Foreground)
-        .fixed_pos(r.min)
+        .fixed_pos(at)
         .constrain_to(view.viewport_rect())
         .constrain(false)
         .show(ctx, |ui| {
@@ -560,18 +616,27 @@ pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, ad
             // The box is white in every theme, so the caret must not follow the theme (pale in dark mode) (#655).
             ui.visuals_mut().text_cursor.stroke.color = crate::edit_text_ui::caret_color_on(Color32::WHITE);
             let [cr, cg, cb] = t.style.color.map(|v| (v.clamp(0.0, 1.0) * 255.0) as u8);
+            // Laid out as the page draws it, so opening the box doesn't show it realigned.
+            // shortcut: justified text is shown left-aligned here (TextEdit can't justify), until the editor gets its own layouter.
+            let halign = match t.style.align {
+                pdfcraft_engine::TextAlign::Center => egui::Align::Center,
+                pdfcraft_engine::TextAlign::Right => egui::Align::Max,
+                pdfcraft_engine::TextAlign::Left | pdfcraft_engine::TextAlign::Justify => egui::Align::Min,
+            };
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
-                let resp = ui.add(
-                    egui::TextEdit::multiline(&mut t.text)
-                        .font(font)
-                        .desired_width(r.width().max(60.0))
-                        .desired_rows(1)
-                        .background_color(if background_ready { Color32::TRANSPARENT } else { Color32::WHITE })
-                        .text_color(Color32::from_rgb(cr, cg, cb))
-                        .hint_text(tl!("Type text"))
-                        .id_salt("added-text-edit"),
-                );
+                let mut out = egui::TextEdit::multiline(&mut t.text)
+                    .font(font)
+                    .desired_width(width)
+                    .desired_rows(1)
+                    .horizontal_align(halign)
+                    .background_color(if background_ready { Color32::TRANSPARENT } else { Color32::WHITE })
+                    .text_color(Color32::from_rgb(cr, cg, cb))
+                    .hint_text(tl!("Type text"))
+                    .id(editor_id(view.id))
+                    .show(ui);
+                crate::spelling_ui::annotate(ui, &mut out, &mut t.text, None);
+                let resp = out.response;
                 if t.focus {
                     resp.request_focus();
                     t.focus = false;
@@ -593,7 +658,7 @@ pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, ad
                 // Pressing a button takes the focus from the text: that is not a click away.
                 let on_buttons = ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| buttons.contains(p));
                 cancel |= ui.input(|i| i.key_pressed(egui::Key::Escape));
-                commit = done || resp.lost_focus() && !on_buttons && !view.objects.hold_editor;
+                commit = done || resp.lost_focus() && !resp.context_menu_opened() && !on_buttons && !view.objects.hold_editor;
             });
             // Page text is drawn with the standard fonts; anything else would be saved as `?` (#125).
             undrawable = self::undrawable(t, memo);
@@ -932,6 +997,14 @@ mod tests {
     use egui_kittest::kittest::Queryable;
 
     use super::*;
+
+    #[test]
+    fn a_picture_corner_shrinks_when_only_one_axis_moves() {
+        let rect = Rect::from_min_size(Pos2::new(10.0, 20.0), egui::vec2(100.0, 50.0));
+        let result = dragged(rect, Grab::Corner(false, false), egui::vec2(-25.0, 0.0), true);
+        assert_eq!(result.min, rect.min);
+        assert_eq!(result.size(), egui::vec2(75.0, 37.5));
+    }
 
     /// The image a flip button leaves behind, as the panel returns it.
     fn flipped(tooltip: &str) -> pdfcraft_engine::AddedImage {

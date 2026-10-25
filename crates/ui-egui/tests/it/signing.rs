@@ -94,6 +94,7 @@ fn ctrl_alt_q_types_an_email_without_quitting() {
 
 #[test]
 fn drawing_a_signature_creating_an_id_signing_and_trusting() {
+    let _gpu = std::env::var_os("PDFCRAFT_SHOTS").map(|_| crate::gpu());
     let dir = dir();
     let mut h = harness(dir.clone());
     assert!(h.state_mut().execute("sign.digital"));
@@ -128,6 +129,11 @@ fn drawing_a_signature_creating_an_id_signing_and_trusting() {
     field(&h, "Digital ID password").click();
     h.run_steps(1);
     field(&h, "Digital ID password").type_text("nope");
+    h.get_by_label("Signing date uses this computer's clock.");
+    assert!(!h.state().sign_draft.as_ref().unwrap().timestamp, "ordinary signing uses computer time without a server request");
+    if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+        h.render().unwrap().save(format!("{dir}/signing-clock-default.png")).unwrap();
+    }
     h.get_by_label("Sign").click();
     h.run_steps(3);
     h.get_by_label("The password is incorrect.");
@@ -143,7 +149,9 @@ fn drawing_a_signature_creating_an_id_signing_and_trusting() {
     assert!(dir.join("contract_signed.pdf").exists());
     let doc = s.session.get(s.views[0].id).unwrap();
     assert_eq!(doc.name, "contract_signed.pdf");
+    assert!(doc.bytes.windows(b"/Watermark".len()).any(|s| s == b"/Watermark"), "the default lion reaches the signed PDF");
     let sig = doc.signatures.iter().find(|x| x.signed).expect("signed");
+    assert!(!sig.timestamp, "the local signing date is not presented as a trusted server timestamp");
     assert_eq!((sig.status, sig.reason.as_deref(), sig.page), (SignatureStatus::Unknown, Some("I approve"), Some(0)));
     assert_eq!(s.right, Some(RightPanel::Signatures));
     h.get_by_label("At least one signature has problems.");
@@ -236,7 +244,7 @@ fn drawing_a_signature_creating_an_id_signing_and_trusting() {
     h.run_steps(2);
     assert_eq!(h.state().views.len(), 2);
     h.get_by_label("Save changes to “contract_signed (signed version).pdf” before closing?");
-    h.get_by_label("Don't save").click();
+    h.get_by_label("Exit").click();
     h.run_steps(2);
     assert_eq!(h.state().views.len(), 1);
     // Trusted certificates and the ID list persist.
@@ -273,7 +281,7 @@ fn certifying_without_a_visible_signature() {
     h.get_by_label("Continue").click();
     h.run_steps(2);
     h.get_by_label("Certify as \"Test Signer EC\"");
-    h.get_by_label("Permitted actions after certifying");
+    h.get_by_label("After signing");
     h.state_mut().sign_draft.as_mut().unwrap().password = "test".into();
     h.get_by_label("Sign").click();
     h.run_steps(6);
@@ -493,6 +501,7 @@ fn os_store_identities_are_not_persisted() {
     app.set_option("language", "en").unwrap();
     for path in ["windows:Store signer", "keychain:Store signer", "file-id.p12"] {
         app.digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+            fingerprint: String::new(),
             path: path.into(),
             name: "Signer".into(),
             issuer: "Test issuer".into(),
@@ -518,6 +527,7 @@ fn windows_store_identity_does_not_ask_for_a_file_password() {
     h.state_mut().start_signing(0, None, None, None);
     // A synthetic picker entry exercises the dialog without a real Windows identity.
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "windows:No Such Signer".into(),
         name: "Store signer".into(),
         issuer: "Test issuer".into(),
@@ -548,6 +558,7 @@ fn long_digital_id_names_stay_inside_the_picker() {
     h.state_mut().start_signing(0, None, None, None);
     let long = "a certificate subject much longer than the picker is wide ".repeat(4);
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "windows:No Such Signer".into(),
         name: long.clone(),
         issuer: long,
@@ -557,7 +568,7 @@ fn long_digital_id_names_stay_inside_the_picker() {
     });
     h.state_mut().sign_draft.as_mut().unwrap().step = SignStep::Choose;
     h.run_steps(3);
-    let right = h.get_by_label("Continue").rect().right();
+    let right = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap().right() - 16.0;
     let lines: Vec<_> = h
         .output()
         .shapes
@@ -572,7 +583,7 @@ fn long_digital_id_names_stay_inside_the_picker() {
         assert!(line.galley.elided, "{}", line.galley.job.text);
         assert!(
             line.pos.x + line.galley.size().x <= right,
-            "the line ends at {} but the dialog's buttons end at {right}",
+            "the line ends at {} but the dialog's inner edge is {right}",
             line.pos.x + line.galley.size().x
         );
     }
@@ -585,6 +596,7 @@ fn an_unusable_id_is_shown_with_its_reason_and_cannot_be_chosen() {
     let mut h = harness(dir());
     // Not a `windows:` path: those are replaced by the real store listing when signing starts.
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "store-test:broken".into(),
         name: "Broken signer".into(),
         issuer: String::new(),
@@ -605,6 +617,7 @@ fn an_unusable_id_is_shown_with_its_reason_and_cannot_be_chosen() {
     assert_eq!(h.state().sign_draft.as_ref().unwrap().step, SignStep::Choose);
     // A usable ID after it is the one selected to begin with.
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "store-test:fine".into(),
         name: "Working signer".into(),
         issuer: "Test issuer".into(),
@@ -685,4 +698,141 @@ fn signing_preserves_destination_opening_attributes() {
     assert_eq!(xattr::get(&dest, "com.apple.LaunchServices.OpenWith").unwrap(), Some(b"existing binding".to_vec()));
     assert_eq!(xattr::get(&dest, "com.apple.quarantine").unwrap(), Some(b"0082;1234;Preview;".to_vec()));
     let _ = std::fs::remove_dir_all(dir);
+}
+
+/// #4221: the validation outline and mark drawn over a signed signature widget can be turned off
+/// in Preferences (or `--signature-badges false`), leaving the signer's own appearance uncovered;
+/// the signature stays valid and the setting is kept.
+#[test]
+fn the_validation_marks_over_signatures_can_be_turned_off() {
+    let _gpu = std::env::var_os("PDFCRAFT_SHOTS").map(|_| crate::gpu());
+    let p12 = concat!(env!("CARGO_MANIFEST_DIR"), "/../sign/tests/data/ec-p256.p12");
+    let digital_id = pdfcraft_engine::sign::pkcs12::open(&std::fs::read(p12).unwrap(), "test").unwrap();
+    let mut s = pdfcraft_engine::Session::new();
+    let id = s.open("contract.pdf", None, std::sync::Arc::new(FIXTURE.to_vec()), None).unwrap();
+    let widget = [20.0, 20.0, 180.0, 60.0];
+    let opts = pdfcraft_engine::SignOptions { page: 0, rect: Some(widget), ..Default::default() };
+    let signed = s.sign(id, &digital_id, opts).unwrap();
+    let (bytes, cert) = (signed.to_vec(), digital_id.certificate.clone());
+    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(move |_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.open_bytes("contract.pdf", None, bytes).expect("opens");
+        app.session.set_trusted_certificates(vec![cert]);
+        app
+    });
+    h.run_steps(4);
+    // The outline is a rectangle stroked just outside the widget's box on screen.
+    let outlines = |h: &Harness<'static, PdfCraftApp>| {
+        let (a, b) = (at(h, widget[0] as f32, widget[3] as f32), at(h, widget[2] as f32, widget[1] as f32));
+        let boxed = egui::Rect::from_two_pos(a, b);
+        h.output()
+            .shapes
+            .iter()
+            .filter(|c| match &c.shape {
+                egui::Shape::Rect(r) => r.stroke.width == 1.5 && (r.rect.min - boxed.min).length() < 1.0 && (r.rect.max - boxed.max).length() < 1.0,
+                _ => false,
+            })
+            .count()
+    };
+    let status = |h: &Harness<'static, PdfCraftApp>| {
+        let s = h.state();
+        s.session.get(s.views[0].id).unwrap().signatures.iter().find(|x| x.signed).map(|x| x.status)
+    };
+    assert!(h.state().show_signature_badges, "on by default");
+    assert_eq!(status(&h), Some(SignatureStatus::Valid));
+    assert_eq!(outlines(&h), 1, "the valid signature is outlined");
+
+    h.state_mut().set_option("signature-badges", "false").unwrap();
+    h.run_steps(2);
+    assert_eq!(outlines(&h), 0, "no outline once the marks are off");
+    assert_eq!(status(&h), Some(SignatureStatus::Valid), "validation is unchanged");
+    h.get_by_label("Signed and all signatures are valid.");
+
+    // Kept in the settings, and turned back on.
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&h.state().persist());
+    assert!(!restored.show_signature_badges);
+    h.state_mut().set_option("signature-badges", "true").unwrap();
+    h.run_steps(2);
+    assert_eq!(outlines(&h), 1);
+    assert_eq!(h.state_mut().set_option("signature-badges", "maybe"), Err("signature-badges must be true or false".into()));
+    let hover = at(&h, 100.0, 40.0);
+    h.hover_at(hover);
+    h.run_steps(3);
+    h.get_by_label("Signature is valid");
+    assert!(h.state_mut().execute("app.preferences"));
+    h.run_steps(3);
+    assert!(h.query_by_label("Signature is valid").is_none(), "document tooltips cannot show through a modal dialog");
+    if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+        h.hover_at(egui::pos2(700.0, 650.0));
+        h.event(egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -360.0),
+            phase: egui::TouchPhase::Move,
+            modifiers: egui::Modifiers::NONE,
+        });
+        h.run_steps(8);
+        h.render().unwrap().save(format!("{dir}/signature-overlay-preference.png")).unwrap();
+    }
+}
+
+#[test]
+fn signing_confirmation_selects_page_protection_and_preserves_it_after_signing() {
+    use pdfcraft_ui_egui::SignProtection;
+    let dir = dir();
+    let mut h = harness(dir.clone());
+    h.state_mut().os_key_store_ids = false;
+    let p12 = concat!(env!("CARGO_MANIFEST_DIR"), "/../sign/tests/data/ec-p256.p12");
+    let id = pdfcraft_engine::sign::pkcs12::open(&std::fs::read(p12).unwrap(), "test").unwrap();
+    let index = h.state_mut().add_digital_id(p12, &id.certificate);
+    h.state_mut().start_signing(0, Some([20., 20., 180., 60.]), None, None);
+    {
+        let d = h.state_mut().sign_draft.as_mut().unwrap();
+        d.selected = Some(index);
+        d.step = SignStep::SignAs;
+        d.password = "test".into();
+    }
+    h.run_steps(6);
+    h.get_by_role_and_label(egui::accesskit::Role::ComboBox, "After signing").click();
+    h.run_steps(6);
+    h.get_by_label("Protect selected pages (PdfCraft)").scroll_to_me();
+    h.run_steps(4);
+    h.get_by_label("Protect selected pages (PdfCraft)").click();
+    h.run_steps(4);
+    let page = h.get_by_label("Choose pages in Organize Pages…").rect();
+    let reason = h.get_by_role_and_label(egui::accesskit::Role::TextInput, "Reason").rect();
+    assert!(page.bottom() <= reason.top(), "protected pages overlap the next input: {page:?} vs {reason:?}");
+    assert_eq!(h.state().sign_draft.as_ref().unwrap().protection, SignProtection::SelectedPages);
+    if let Ok(dir) = std::env::var("PDFCRAFT_SIGNATURE_SHOTS") {
+        let _gpu = crate::gpu();
+        h.render().unwrap().save(format!("{dir}/signing-page-protection.png")).unwrap();
+    }
+    h.get_by_label("Choose pages in Organize Pages…").click();
+    h.run_steps(6);
+    assert!(h.state().views[0].organize && h.state().views[0].organize_pick);
+    assert!(h.get_by_label("Lock page 1").accesskit_node().is_disabled(), "the signing chooser only selects pages");
+    assert_eq!(h.state().dialog, None);
+    h.get_by_label("Page 1").click();
+    h.run_steps(3);
+    h.get_by_label("Use selected pages").click();
+    h.run_steps(6);
+    assert_eq!(h.state().dialog, Some(Dialog::Sign));
+    assert!(!h.state().views[0].organize_pick);
+    assert_eq!(h.state().sign_draft.as_ref().unwrap().password, "test");
+    assert_eq!(h.state().sign_draft.as_ref().unwrap().protected_pages, vec![0]);
+    h.get_by_label("Sign").click();
+    h.run_steps(6);
+    let doc = h.state().session.get(h.state().views[0].id).unwrap();
+    assert!(doc.is_signed());
+    assert_eq!(doc.protected_pages(), vec![0]);
+    let doc_id = doc.id;
+    assert!(h.state_mut().session.apply(doc_id, pdfcraft_engine::Edit::RotatePages { pages: vec![0], degrees: 90 }).is_err());
+    h.state_mut().set_option("organize", "on").unwrap();
+    h.run_steps(4);
+    assert!(h.get_by_label("Unlock page 1").accesskit_node().is_disabled(), "signed locks cannot be toggled");
+    h.get_by_label("Unlock page 1").click();
+    h.run_steps(3);
+    assert_eq!(h.state().session.get(doc_id).unwrap().protected_pages(), [0]);
+    assert!(!h.state().session.get(doc_id).unwrap().dirty);
 }

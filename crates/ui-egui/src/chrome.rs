@@ -48,11 +48,8 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             }
             // GNOME on Wayland: the strip is the header bar, with the window buttons at its ends.
             let fullscreen = ui.ctx().input(|i| i.viewport().fullscreen.unwrap_or(false));
-            let controls = app
-                .window_controls
-                .clone()
-                .filter(|_| app.draws_window_frame() && !fullscreen)
-                .unwrap_or_else(|| window_controls::Layout { left: Vec::new(), right: Vec::new() });
+            let controls =
+                app.window_frame_layout().filter(|_| !fullscreen).unwrap_or_else(|| window_controls::Layout { left: Vec::new(), right: Vec::new() });
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 if !controls.left.is_empty() {
@@ -66,11 +63,8 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     app.active = None;
                     app.combine_tab.focused = false;
                 }
-                // Keep the two icon buttons, Discord's text/padding and three gaps outside the scrolling tabs.
-                let controls_width = ui.fonts_mut(|f| f.layout_no_wrap("Discord".into(), theme::medium(13.0), t.text).size().x)
-                    + 2.0 * button
-                    + 50.0
-                    + window_controls::width(&controls.right);
+                // Keep all three icon buttons and their gaps outside the scrolling tabs.
+                let controls_width = 3.0 * button + 12.0 + window_controls::width(&controls.right);
                 // Open stays in sight after the tabs: its icon, text and padding, and the gaps around it.
                 let open_width = ui.fonts_mut(|f| f.layout_no_wrap(tl!("Open").into(), theme::medium(13.0), t.text).size().x) + 38.0 + 12.0;
                 let mut tabs_width = (ui.available_width() - controls_width - open_width).max(0.0);
@@ -170,6 +164,11 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                                 });
                                 if response.clicked() {
                                     app.active = Some(i);
+                                }
+                                if crate::page_transfer_ui::hover_tab(ui.ctx(), id, response.rect) {
+                                    app.active = Some(i);
+                                    app.views[i].organize = true;
+                                    app.combine_tab.focused = false;
                                 }
                                 // A middle click closes the tab, as in Acrobat and browsers (#1853);
                                 // unsaved changes ask first, as the close button does.
@@ -284,15 +283,17 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         ThemePreference::System => ("monitor", tl!("Use system setting")),
                         ThemePreference::Light => ("sun", tl!("Light gray")),
                         ThemePreference::Dark => ("moon", tl!("Dark gray")),
+                        ThemePreference::Glass => ("monitor", tl!("Glass")),
                     };
                     let tip = format!("{}: {label}", tl!("Display theme"));
                     let response = icons::button(ui, icon, button, false, &tip);
-                    // A click cycles System, Light, Dark; a right-click opens the menu.
+                    // A click cycles System, Light, Dark, Glass; a right-click opens the menu.
                     if response.clicked() {
                         app.execute(match app.theme_preference {
                             ThemePreference::System => "view.theme.light",
                             ThemePreference::Light => "view.theme.dark",
-                            ThemePreference::Dark => "view.theme.system",
+                            ThemePreference::Dark => "view.theme.glass",
+                            ThemePreference::Glass => "view.theme.system",
                         });
                     }
                     egui::Popup::context_menu(&response).id(response.id.with("theme_menu")).show(|ui| appearance_menu(app, ui));
@@ -300,7 +301,7 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         app.dialog = Some(Dialog::Shortcuts);
                     }
                     // One click to the community, from anywhere in the app.
-                    if widgets::ghost_button_sized(ui, "messages-square", "Discord", tab_h).on_hover_text(pdfcraft_engine::links::DISCORD).clicked() {
+                    if icons::button(ui, "discord", button, false, "ArtCraft Community").clicked() {
                         app.execute("help.discord");
                     }
                 });
@@ -314,6 +315,7 @@ fn theme_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         (ThemePreference::System, "view.theme.system", "Use system setting"),
         (ThemePreference::Light, "view.theme.light", "Light gray"),
         (ThemePreference::Dark, "view.theme.dark", "Dark gray"),
+        (ThemePreference::Glass, "view.theme.glass", "Glass"),
     ] {
         if ui.add(widgets::radio(app.theme_preference == preference, tl!(label))).clicked() {
             app.execute(command);
@@ -335,8 +337,8 @@ fn appearance_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     }
 }
 
-/// A tab's chrome around its name: the icon on the left, the close button on the right.
-const TAB_CHROME: f32 = 64.0;
+/// Room for the file icon, name, persistent save-status dot and close button.
+const TAB_CHROME: f32 = 78.0;
 /// The narrowest a tab shrinks to before the strip scrolls: room for most of a name.
 const TAB_MIN_WIDTH: f32 = 180.0;
 /// The arrows either side of tabs that don't fit.
@@ -464,14 +466,17 @@ fn tab(
         );
         ui.painter().text(rect.min + vec2(28.0, rect.height() / 2.0), Align2::LEFT_CENTER, label, font, if active { t.text } else { t.text_muted });
     });
+    if draggable {
+        // Document status stays visible while hovering the separate close button.
+        let color = if dirty { Color32::from_rgb(200, 70, 85) } else { Color32::from_rgb(54, 143, 92) };
+        ui.painter().circle_filled(rect.right_center() - vec2(34.0, 0.0), 3.5, color);
+        ui.ctx().accesskit_node_builder(id, |node| node.set_description(if dirty { tl!("Unsaved changes") } else { tl!("Saved") }));
+    }
     let x_rect = Rect::from_center_size(rect.right_center() - vec2(16.0, 0.0), vec2(20.0, 20.0));
     let x = ui.interact(x_rect, id.with("close"), Sense::click());
     let x_press = theme::Press::track(ui, &x);
     x_press.wash(ui, x_rect, 4, false);
-    // Unsaved changes: a dot where the close button sits, until the tab is hovered.
-    if dirty && !resp.hovered() && !x.hovered() {
-        ui.painter().circle_filled(x_rect.center(), 4.0, if active { t.text } else { t.text_muted });
-    } else if active || resp.hovered() || x.hovered() {
+    if active || resp.hovered() || x.hovered() {
         icons::paint(ui, x_rect.translate(x_press.offset()), "x", 13.0, t.text_muted);
     }
     if theme::hand(x).clicked() {
@@ -509,29 +514,46 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
+                    let room = ui.available_width();
                     let has_doc = app.active.is_some();
                     ui.add_enabled_ui(has_doc, |ui| {
-                        let tip = crate::commands::command_tip(ui.ctx(), tl!("Print ({key})"), "print.dialog");
-                        // A document that forbids printing says so here, before the dialog (#2669).
-                        let may_print = !has_doc || pdfcraft_engine::commands::command("print.dialog").is_some_and(|c| app.command_enabled(c));
-                        let mut print = ui.add_enabled_ui(may_print, |ui| icons::button(ui, "printer", 32.0, false, &tip)).inner;
-                        if !may_print {
-                            print = print.on_disabled_hover_text(crate::print_refused());
-                        }
-                        if print.clicked() {
-                            app.run_command("print.dialog");
+                        if room >= 180.0 {
+                            let tip = crate::commands::command_tip(ui.ctx(), tl!("Print ({key})"), "print.dialog");
+                            let may_print = !has_doc || pdfcraft_engine::commands::command("print.dialog").is_some_and(|c| app.command_enabled(c));
+                            let mut print = ui.add_enabled_ui(may_print, |ui| icons::button(ui, "printer", 32.0, false, &tip)).inner;
+                            if !may_print {
+                                print = print.on_disabled_hover_text(crate::print_refused());
+                            }
+                            if print.clicked() {
+                                app.run_command("print.dialog");
+                            }
                         }
                         let tip = crate::commands::command_tip(ui.ctx(), tl!("Save ({key})"), "file.save");
                         if icons::button(ui, "save", 32.0, false, &tip).clicked() {
                             app.run_command("file.save");
                         }
-                        let tip = crate::commands::command_tip(ui.ctx(), tl!("Document properties ({key})"), "file.properties");
-                        if icons::button(ui, "info", 32.0, false, &tip).clicked() {
-                            app.dialog = Some(Dialog::Properties(PropsTab::Description));
+                        if room >= 280.0 {
+                            let tip = crate::commands::command_tip(ui.ctx(), tl!("Document properties ({key})"), "file.properties");
+                            if icons::button(ui, "info", 32.0, false, &tip).clicked() {
+                                app.dialog = Some(Dialog::Properties(PropsTab::Description));
+                            }
                         }
                     });
+                    ui.add_space(4.0);
+                    for (id, icon, label) in [("edit.redo", "redo-2", "Redo"), ("edit.undo", "undo-2", "Undo")] {
+                        let enabled = pdfcraft_engine::commands::command(id).is_some_and(|c| app.command_enabled(c));
+                        let tip = format!("{} ({})", tl!(label), crate::commands::command_shortcut_label(ui.ctx(), id));
+                        if ui.add_enabled_ui(enabled, |ui| icons::button(ui, icon, 32.0, false, &tip)).inner.clicked() {
+                            app.run_command(id);
+                        }
+                    }
                     ui.add_space(8.0);
-                    if widgets::search_box(ui, tl!("Find tools and commands"), 260.0).clicked() {
+                    let width = (ui.available_width() - 8.0).min(260.0);
+                    if width >= 90.0 {
+                        if widgets::search_box(ui, tl!("Find tools and commands"), width).clicked() {
+                            app.palette_open = true;
+                        }
+                    } else if width >= 32.0 && icons::button(ui, "search", 32.0, false, tl!("Find tools and commands")).clicked() {
                         app.palette_open = true;
                     }
                 });
@@ -553,7 +575,6 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             ui.set_min_width(230.0);
             ui.menu_button(tl!("File"), |ui| scroll_menu(ui, |ui| crate::commands::registry_menu(app, ui, "File")));
             ui.menu_button(tl!("Edit"), |ui| scroll_menu(ui, |ui| crate::commands::registry_menu(app, ui, "Edit")));
-            ui.menu_button(tl!("Pages"), |ui| scroll_menu(ui, |ui| crate::commands::registry_menu(app, ui, "Pages")));
             ui.menu_button(tl!("View"), |ui| {
                 scroll_menu(ui, |ui| {
                     if let Some(i) = app.active {
@@ -563,7 +584,7 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         use crate::commands::{ACTUAL_SIZE, FIT_WIDTH, NEXT_VIEW, PAGE_LEVEL, PREV_VIEW, ROTATE_CCW, ROTATE_CW, ZOOM_IN, ZOOM_OUT};
                         ui.label(egui::RichText::new(tl!("Zoom")).color(t.text_faint).small());
                         if widgets::menu_item(ui, tl!("Actual size"), &key(ACTUAL_SIZE)).clicked() {
-                            v.set_zoom(1.0);
+                            v.set_actual_size();
                         }
                         if widgets::menu_item(ui, tl!("Zoom to page level"), &key(PAGE_LEVEL)).clicked() {
                             v.fit = Fit::Page;
@@ -631,6 +652,7 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     });
                 })
             });
+            ui.menu_button(tl!("Pages"), |ui| scroll_menu(ui, |ui| crate::commands::registry_menu(app, ui, "Pages")));
             ui.menu_button(tl!("Help"), |ui| scroll_menu(ui, |ui| crate::commands::registry_menu(app, ui, "Help")));
         })
     });
@@ -862,7 +884,7 @@ fn rail_view_menu(ui: &mut egui::Ui, view: &mut DocView) -> Option<&'static str>
     }
     ui.separator();
     if ui.button(tl!("Actual size")).clicked() {
-        view.set_zoom(1.0);
+        view.set_actual_size();
         ui.close();
     }
     if ui.button(tl!("Zoom to page level")).clicked() {

@@ -7,6 +7,50 @@ use pdfcraft_automation::mcp::McpServer;
 use pdfcraft_automation::{Automation, Content, ToolError, tools};
 use serde_json::{Value, json};
 
+fn xps_print_fixture() -> Vec<u8> {
+    let mut zip = pdfcraft_export::Zip::default();
+    let page=br##"<FixedPage xmlns="http://schemas.microsoft.com/xps/2005/06" Width="816" Height="1056"><Canvas><Canvas.RenderTransform><MatrixTransform Matrix="1,0,0,1,0,0"/></Canvas.RenderTransform><Glyphs Fill="#000000" FontUri="/Resources/font.ttf" FontRenderingEmSize="20" OriginX="72" OriginY="96" UnicodeString="Highlight these words"/><Path Data="M96,160L176,160 176,200 96,200Z" Fill="#008080"/></Canvas></FixedPage>"##;
+    let page: Vec<u8> = [0xff, 0xfe].into_iter().chain(std::str::from_utf8(page).unwrap().encode_utf16().flat_map(u16::to_le_bytes)).collect();
+    for (name,data) in [
+        ("_rels/.rels",br#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Type="http://schemas.microsoft.com/xps/2005/06/fixedrepresentation" Target="Fixed.fdseq" Id="r1"/></Relationships>"#.as_slice()),
+        ("Fixed.fdseq",br#"<FixedDocumentSequence><DocumentReference Source="Documents/1.fdoc"/></FixedDocumentSequence>"#.as_slice()),
+        ("Documents/1.fdoc",br#"<FixedDocument><PageContent Source="Pages/1.fpage"/></FixedDocument>"#.as_slice()),
+        ("Documents/Pages/1.fpage",page.as_slice()),
+        ("Resources/font.ttf",include_bytes!("../../../../assets/fonts/Inter-Regular.ttf").as_slice()),
+    ] {zip.add(name,data,true);}
+    zip.finish()
+}
+
+#[test]
+fn xps_print_conversion_retains_highlightable_text_and_vectors_through_save_reopen() {
+    let dir = workdir("xps-print-engine");
+    std::fs::write(dir.join("print.xps"), xps_print_fixture()).unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_create", json!({"from":"xps","path":"print.xps"}))["doc"].as_u64().unwrap();
+    let found = ok(&mut a, "text_find", json!({"doc":doc,"query":"Highlight these words"}));
+    assert_eq!(found["matches"].as_array().unwrap().len(), 1);
+    ok(&mut a, "comment_add", json!({"doc":doc,"page":1,"type":"highlight","find":"these words"}));
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"converted.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"converted.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":reopened}))["count"], 1);
+    assert!(page_text(&mut a, reopened)[0].contains("Highlight these words"));
+    let rendered = a.call("page_render", &json!({"doc":reopened,"page":1,"dpi":72})).unwrap();
+    assert!(rendered.iter().any(|c| matches!(c,Content::Png{data,..} if !data.is_empty())));
+    let pdf = pdfcraft_cos::Document::open(std::sync::Arc::new(std::fs::read(dir.join("converted.pdf")).unwrap())).unwrap();
+    assert_eq!(
+        pdf.scan_objects().filter(|(_, o)| o.as_dict().is_some_and(|d| d.name(b"Subtype") == Some(b"Image".as_slice()))).count(),
+        0,
+        "text/vector page was never rasterized"
+    );
+    let before = ok(&mut a, "doc_list", json!({}));
+    std::fs::write(dir.join("bad.xps"), b"not XPS").unwrap();
+    assert!(a.call("doc_create", &json!({"from":"xps","path":"bad.xps"})).is_err());
+    let outside = workdir("xps-print-outside").join("print.xps");
+    std::fs::write(&outside, xps_print_fixture()).unwrap();
+    assert!(a.call("doc_create", &json!({"from":"xps","path":outside})).is_err());
+    assert_eq!(ok(&mut a, "doc_list", json!({})), before);
+}
+
 /// A PDF with `n` 200×300 pt pages reading "Page 1", "Page 2", …
 fn fixture(n: usize) -> Vec<u8> {
     let mut objs: Vec<Vec<u8>> = vec![b"<< /Type /Catalog /Pages 2 0 R >>".to_vec()];
@@ -506,12 +550,51 @@ fn ok(a: &mut Automation, tool: &str, args: Value) -> Value {
     }
 }
 
+#[cfg(windows)]
+#[test]
+fn spelling_tools_report_local_unicode_ranges_and_refuse_unavailable_languages() {
+    let mut a = Automation::new();
+    let available = ok(&mut a, "spelling_languages", json!({}));
+    assert!(available["installed"].as_array().unwrap().iter().any(|l| l == "en-US"));
+    let text = "café 😀 beleeve";
+    let result = ok(&mut a, "text_spellcheck", json!({"text":text,"language":"en_US","suggestions":true}));
+    let issue = result["issues"].as_array().unwrap().iter().find(|i| i["word"] == "beleeve").unwrap();
+    assert_eq!(text.get(issue["start"].as_u64().unwrap() as usize..issue["end"].as_u64().unwrap() as usize), Some("beleeve"));
+    assert!(!issue["suggestions"].as_array().unwrap().is_empty());
+    assert!(a.call("text_spellcheck", &json!({"text":"hello","language":"zz-ZZ"})).is_err());
+    assert!(a.call("text_spellcheck", &json!({"text":"a".repeat(16385)})).is_err());
+    assert!(a.call("text_spellcheck", &json!({"text":"hello","language":"../en-US"})).is_err());
+}
+
 fn err(a: &mut Automation, tool: &str, args: Value) -> ToolError {
     a.call(tool, &args).unwrap_err()
 }
 
 fn page_text(a: &mut Automation, doc: u64) -> Vec<String> {
     ok(a, "text_extract", json!({ "doc": doc }))["pages"].as_array().unwrap().iter().map(|p| p["text"].as_str().unwrap().trim().to_string()).collect()
+}
+
+#[test]
+fn search_page_sets_extract_and_transfer_between_open_documents() {
+    let dir = workdir("page-workflows");
+    let mut a = auto(&dir);
+    let source = ok(&mut a, "doc_open", json!({"path":"a.pdf"}))["doc"].as_u64().unwrap();
+    let target = ok(&mut a, "doc_create", json!({"from":"blank","pages":1}))["doc"].as_u64().unwrap();
+    let found = ok(&mut a, "text_search_pages", json!({"doc":source,"query":"Page"}));
+    assert_eq!(found["pages"], json!([1, 2, 3]));
+    assert_eq!(found["page_numbers"], "1, 2, 3");
+    let extracted = ok(&mut a, "text_search_pages", json!({"doc":source,"query":"Page 2","extract":true,"out":"found.pdf","open":true}));
+    let id = extracted["extracted"]["document"]["doc"].as_u64().unwrap();
+    assert_eq!(page_text(&mut a, id), ["Page 2"]);
+    assert!(a.call("text_search_pages", &json!({"doc":source,"query":"Page","extract":true,"out":"../outside.pdf"})).is_err());
+    let transferred = ok(&mut a, "page_transfer", json!({"doc":target,"source":source,"pages":[3,1],"at":1,"move":true}));
+    assert_eq!(transferred["moved"], true);
+    assert_eq!(page_text(&mut a, source), ["Page 2"]);
+    assert_eq!(page_text(&mut a, target).len(), 3);
+    assert!(a.call("page_transfer", &json!({"doc":target,"source":source,"pages":[1],"at":1,"move":true})).is_err());
+    ok(&mut a, "doc_save", json!({"doc":target,"path":"transferred.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"transferred.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(page_text(&mut a, reopened), page_text(&mut a, target));
 }
 
 #[test]
@@ -1429,6 +1512,7 @@ fn command_list_reports_enablement_and_tools() {
     let find = |id: &str| list["commands"].as_array().unwrap().iter().find(|c| c["id"] == id).unwrap().clone();
     assert_eq!(find("page.rotate")["tool"], "page_rotate");
     assert_eq!(find("page.rotate")["enabled"], true);
+    assert_eq!(find("sign.remove")["tool"], "sign_clear");
     assert_eq!(find("edit.undo")["enabled"], false);
     ok(&mut a, "page_rotate", json!({ "doc": doc, "pages": [1], "degrees": 90 }));
     let list = ok(&mut a, "command_list", json!({ "doc": doc }));
@@ -2408,6 +2492,38 @@ fn page_duplicate_at_inserts_the_copies_there() {
     // `at` is 1-based and within 1..=pages+1, as for the other page inserts.
     assert!(matches!(a.call("page_duplicate", &json!({ "doc": doc, "pages": [1], "at": 0 })), Err(ToolError::InvalidArgs(_))), "1-based");
     assert!(matches!(a.call("page_duplicate", &json!({ "doc": doc, "pages": [1], "at": 6 })), Err(ToolError::InvalidArgs(_))), "past the end");
+}
+
+/// #2228: page_duplicate keeps the copies' field names by default (one field, filled in on both
+/// pages); field_conflicts "rename" gives the copy a field of its own, filled in alone, and
+/// doc_info's repairs say what was renamed. It survives a save and reopen.
+#[test]
+fn page_duplicate_can_give_the_copies_fields_of_their_own() {
+    let dir = workdir("duplicate-rename-fields");
+    std::fs::write(dir.join("form.pdf"), form_pdf("Text1")).unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "form.pdf" }))["doc"].as_u64().unwrap();
+    let names = |a: &mut pdfcraft_automation::Automation, doc: u64| -> Vec<String> {
+        let list = ok(a, "form_fields", json!({ "doc": doc }));
+        list["fields"].as_array().unwrap().iter().map(|f| f["name"].as_str().unwrap().to_string()).collect()
+    };
+    ok(&mut a, "page_duplicate", json!({ "doc": doc, "pages": [1] }));
+    assert_eq!(names(&mut a, doc), ["Text1", "Text1"], "merge by default: both copies keep the name, so they are one field");
+    ok(&mut a, "edit_undo", json!({ "doc": doc }));
+    let r = ok(&mut a, "page_duplicate", json!({ "doc": doc, "pages": [1], "field_conflicts": "rename" }));
+    assert_eq!(r["pages"], 2);
+    assert_eq!(names(&mut a, doc), ["Text1", "Text1-1"]);
+    let info = ok(&mut a, "doc_info", json!({ "doc": doc }));
+    assert!(info["repairs"].as_array().unwrap().iter().any(|l| l.as_str().unwrap().contains("Text1 → Text1-1")), "{info}");
+    ok(&mut a, "form_fill", json!({ "doc": doc, "values": { "Text1-1": "copy" } }));
+    ok(&mut a, "doc_save", json!({ "doc": doc, "path": "renamed.pdf" }));
+    let reopened = ok(&mut a, "doc_open", json!({ "path": "renamed.pdf" }))["doc"].as_u64().unwrap();
+    let list = ok(&mut a, "form_fields", json!({ "doc": reopened }));
+    let value = |name: &str| list["fields"].as_array().unwrap().iter().find(|f| f["name"] == name).map(|f| f["value"].clone());
+    assert_eq!(value("Text1-1"), Some(json!("copy")), "{list}");
+    assert_ne!(value("Text1"), Some(json!("copy")), "the original keeps its value: {list}");
+    let bad = a.call("page_duplicate", &json!({ "doc": doc, "pages": [1], "field_conflicts": "keep" }));
+    assert!(matches!(bad, Err(ToolError::InvalidArgs(_))), "{bad:?}");
 }
 
 #[test]
@@ -7179,6 +7295,41 @@ fn object_move_rejects_invalid_nested_references_without_any_change() {
 }
 
 #[test]
+fn object_align_preserves_text_sizes_and_history_through_save_reopen() {
+    let dir = workdir("object-align");
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({"path":"a.pdf"}))["doc"].as_u64().unwrap();
+    for (text, rect) in [("First label", [40, 100, 150, 130]), ("Second label", [140, 200, 260, 230])] {
+        ok(&mut a, "page_add_text", json!({"doc":doc,"page":1,"text":text,"rect":rect}));
+    }
+    let before = ok(&mut a, "object_list", json!({"doc":doc,"page":1}));
+    let refs: Vec<_> = before["objects"].as_array().unwrap().iter().map(|o| json!({"kind":o["kind"],"index":o["index"]})).collect();
+    for objects in [json!([refs[0].clone()]), json!([refs[0].clone(), refs[0].clone()]), json!([refs[0].clone(),{"kind":"image","index":999}])] {
+        assert!(a.call("object_align", &json!({"doc":doc,"page":1,"objects":objects,"alignment":"left"})).is_err());
+        assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1})), before);
+    }
+    let result = ok(&mut a, "object_align", json!({"doc":doc,"page":1,"objects":refs,"generation":before["generation"],"alignment":"left"}));
+    assert_eq!(result["aligned"], 3);
+    let after = ok(&mut a, "object_list", json!({"doc":doc,"page":1}));
+    let left = after["objects"][0]["rect"][0].as_f64().unwrap();
+    for (old, new) in before["objects"].as_array().unwrap().iter().zip(after["objects"].as_array().unwrap()) {
+        assert!((new["rect"][0].as_f64().unwrap() - left).abs() < 0.02);
+        assert_eq!(old["text"], new["text"]);
+        let width = |o: &Value| o["rect"][2].as_f64().unwrap() - o["rect"][0].as_f64().unwrap();
+        assert!((width(old) - width(new)).abs() < 0.02);
+    }
+    assert!(a.call("object_align", &json!({"doc":doc,"page":1,"objects":refs,"generation":before["generation"],"alignment":"right"})).is_err());
+    ok(&mut a, "edit_undo", json!({"doc":doc}));
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1}))["objects"], before["objects"]);
+    ok(&mut a, "edit_redo", json!({"doc":doc}));
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"aligned.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"aligned.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":reopened,"page":1}))["objects"], after["objects"]);
+    let rendered = a.call("page_render", &json!({"doc":reopened,"page":1,"dpi":72})).unwrap();
+    assert!(rendered.iter().any(|c| matches!(c,Content::Png{data,..} if !data.is_empty())));
+}
+
+#[test]
 fn a_deleted_image_is_not_kept_by_reduce_or_optimize() {
     let dir = workdir("deleted-image");
     let (w, h) = (600u32, 400u32);
@@ -8195,4 +8346,193 @@ fn comments_are_reshaped_through_the_tool() {
     assert_eq!(ok(&mut a, "edit_undo", json!({ "doc": doc }))["undone"], "Reshape comment");
     assert!(a.call("comment_edit", &json!({ "doc": doc, "page": 1, "index": 1, "points": [[1, 2]] })).is_err(), "a line has two ends");
     assert!(matches!(a.call("comment_edit", &json!({ "doc": doc, "page": 1, "index": 1, "points": "no" })), Err(ToolError::InvalidArgs(_))));
+}
+
+#[test]
+fn object_delete_is_atomic_undoable_and_rejects_stale_references() {
+    let dir = workdir("object-delete");
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({"path":"a.pdf"}))["doc"].as_u64().unwrap();
+    ok(&mut a, "page_add_text", json!({"doc":doc,"page":1,"text":"Delete this note","rect":[20,20,130,45]}));
+    let before = ok(&mut a, "object_list", json!({"doc":doc,"page":1}));
+    let objects: Vec<_> = before["objects"].as_array().unwrap().iter().map(|o| json!({"kind":o["kind"],"index":o["index"]})).collect();
+    for invalid in [
+        json!([]),
+        json!([{"kind":"text","index":0}]),
+        json!([{"kind":"text","index":1},{"kind":"image","index":999}]),
+        json!([{"kind":"text","index":1},{"kind":"text","index":1}]),
+        json!([{"kind":"text","index":1,"extra":true}]),
+    ] {
+        assert!(a.call("object_delete", &json!({"doc":doc,"page":1,"objects":invalid})).is_err());
+        assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1})), before);
+    }
+    let deleted = ok(&mut a, "object_delete", json!({"doc":doc,"page":1,"generation":before["generation"],"objects":objects}));
+    assert_eq!(deleted["deleted"], 2);
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1}))["count"], 0);
+    ok(&mut a, "edit_undo", json!({"doc":doc}));
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1}))["objects"], before["objects"]);
+    assert!(a.call("object_delete", &json!({"doc":doc,"page":1,"generation":before["generation"],"objects":objects})).is_err());
+    ok(&mut a, "edit_redo", json!({"doc":doc}));
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"deleted.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"deleted.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":reopened,"page":1}))["count"], 0);
+    assert!(page_text(&mut a, reopened)[1].contains("Page 2"));
+}
+
+#[test]
+fn comment_delete_group_validates_atomically_and_undoes_and_reopens() {
+    let dir = workdir("comment-delete-group");
+    std::fs::write(dir.join("in.pdf"), fixture(1)).unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({"path":"in.pdf"}))["doc"].as_u64().unwrap();
+    for x in [20, 70, 120] {
+        ok(&mut a, "comment_add", json!({"doc":doc,"page":1,"type":"note","at":[x,20],"contents":format!("Note {x}")}));
+    }
+    for y in [80, 110] {
+        ok(&mut a, "page_add_text", json!({"doc":doc,"page":1,"at":[20,y],"text":"Added words"}));
+    }
+    let list = ok(&mut a, "comment_list", json!({"doc":doc}));
+    let indices: Vec<_> = list["comments"].as_array().unwrap().iter().take(2).map(|c| c["index"].clone()).collect();
+    for bad in [json!([]), json!([0]), json!([-1]), json!([1, 999]), json!([1.5]), json!(["1"]), json!(vec![1; 1001])] {
+        assert!(a.call("comment_delete", &json!({"doc":doc,"page":1,"indices":bad})).is_err());
+        assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 3);
+    }
+    ok(&mut a, "comment_lock", json!({"doc":doc,"page":1,"index":indices[1]}));
+    assert!(a.call("comment_delete", &json!({"doc":doc,"page":1,"indices":indices,"content_indices":[1,2,1]})).is_err());
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 3);
+    ok(&mut a, "comment_lock", json!({"doc":doc,"page":1,"index":indices[1],"locked":false}));
+    ok(&mut a, "comment_delete", json!({"doc":doc,"page":1,"indices":indices,"content_indices":[1,2,1]}));
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 1);
+    assert_eq!(ok(&mut a, "content_list", json!({"doc":doc}))["count"], 0);
+    ok(&mut a, "edit_undo", json!({"doc":doc}));
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 3);
+    assert_eq!(ok(&mut a, "content_list", json!({"doc":doc}))["count"], 2);
+    ok(&mut a, "edit_redo", json!({"doc":doc}));
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"group.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"group.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":reopened}))["count"], 1);
+    assert_eq!(ok(&mut a, "content_list", json!({"doc":reopened}))["count"], 0);
+}
+
+#[test]
+fn additions_move_preserves_spacing_validates_atomically_and_reopens() {
+    for rotation in [0, 90, 180, 270] {
+        let dir = workdir(&format!("additions-move-{rotation}"));
+        std::fs::write(dir.join("in.pdf"), fixture(1)).unwrap();
+        let mut a = auto(&dir);
+        let doc = ok(&mut a, "doc_open", json!({"path":"in.pdf"}))["doc"].as_u64().unwrap();
+        ok(&mut a, "page_rotate", json!({"doc":doc,"pages":[1],"degrees":rotation}));
+        for x in [20, 70] {
+            ok(&mut a, "comment_add", json!({"doc":doc,"page":1,"type":"note","at":[x,20],"contents":"Move me"}));
+        }
+        ok(&mut a, "page_add_text", json!({"doc":doc,"page":1,"at":[20,80],"text":"Move text"}));
+        let before = ok(&mut a, "comment_list", json!({"doc":doc}));
+        let content = ok(&mut a, "content_list", json!({"doc":doc}));
+        let rect = |list: &Value, index: &Value| list["comments"].as_array().unwrap().iter().find(|c| &c["index"] == index).unwrap()["rect"].clone();
+        let index = before["comments"][0]["index"].clone();
+        let blocked = before["comments"][1]["index"].clone();
+        for bad in [json!([]), json!([0]), json!([1, 999]), json!(["1"]), json!(vec![1; 1001])] {
+            assert!(a.call("additions_move", &json!({"doc":doc,"page":1,"indices":bad,"offset":[10,15]})).is_err());
+            assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc})), before);
+        }
+        ok(&mut a, "comment_lock", json!({"doc":doc,"page":1,"index":blocked}));
+        let locked = ok(&mut a, "comment_list", json!({"doc":doc}));
+        assert!(a.call("additions_move", &json!({"doc":doc,"page":1,"indices":[index,blocked],"content_indices":[1],"offset":[10,15]})).is_err());
+        assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc})), locked);
+        assert_eq!(ok(&mut a, "content_list", json!({"doc":doc})), content);
+        ok(&mut a, "comment_lock", json!({"doc":doc,"page":1,"index":blocked,"locked":false}));
+        ok(&mut a, "additions_move", json!({"doc":doc,"page":1,"indices":[index,index],"content_indices":[1],"offset":[10,15]}));
+        let moved = ok(&mut a, "comment_list", json!({"doc":doc}));
+        let moved_content = ok(&mut a, "content_list", json!({"doc":doc}));
+        for (i, delta) in [(0, 10.0), (1, 15.0), (2, 10.0), (3, 15.0)] {
+            assert!(
+                (rect(&moved, &index)[i].as_f64().unwrap() - rect(&before, &index)[i].as_f64().unwrap() - delta).abs() < 0.01,
+                "rotation={rotation}, coordinate={i}, before={before}, moved={moved}"
+            );
+        }
+        assert_eq!(rect(&moved, &blocked), rect(&before, &blocked));
+        assert_ne!(moved_content, content);
+        ok(&mut a, "edit_undo", json!({"doc":doc}));
+        assert_eq!(rect(&ok(&mut a, "comment_list", json!({"doc":doc})), &index), rect(&before, &index));
+        assert_eq!(ok(&mut a, "content_list", json!({"doc":doc})), content);
+        ok(&mut a, "edit_redo", json!({"doc":doc}));
+        ok(&mut a, "doc_save", json!({"doc":doc,"path":"moved.pdf"}));
+        let reopened = ok(&mut a, "doc_open", json!({"path":"moved.pdf"}))["doc"].as_u64().unwrap();
+        assert_eq!(rect(&ok(&mut a, "comment_list", json!({"doc":reopened})), &index), rect(&moved, &index));
+        assert_eq!(ok(&mut a, "content_list", json!({"doc":reopened}))["items"], moved_content["items"]);
+    }
+}
+
+#[test]
+fn mixed_originals_and_comments_move_delete_undo_and_reopen_atomically() {
+    let dir = workdir("mixed-originals-and-comments");
+    std::fs::write(dir.join("in.pdf"), fixture(1)).unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({"path":"in.pdf"}))["doc"].as_u64().unwrap();
+    ok(&mut a, "comment_add", json!({"doc":doc,"page":1,"type":"note","at":[20,20],"contents":"Group note"}));
+    ok(&mut a, "page_add_text", json!({"doc":doc,"page":1,"at":[20,80],"text":"Added words"}));
+    let comments = ok(&mut a, "comment_list", json!({"doc":doc}));
+    let index = comments["comments"][0]["index"].clone();
+    let before = ok(&mut a, "object_list", json!({"doc":doc,"page":1}));
+    let original = before["objects"].as_array().unwrap().iter().find(|o| o["kind"] == "text").unwrap();
+    let objects = json!([{"kind":"text","index":original["index"]}]);
+    let generation = before["generation"].clone();
+    for tool in ["additions_move", "comment_delete"] {
+        let mut args = json!({"doc":doc,"page":1,"indices":[index],"content_indices":[1],"objects":[{"kind":"text","index":999}]});
+        if tool == "additions_move" {
+            args["offset"] = json!([10, 15]);
+        }
+        assert!(a.call(tool, &args).is_err());
+        assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1})), before);
+        assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc})), comments);
+    }
+    ok(
+        &mut a,
+        "additions_move",
+        json!({"doc":doc,"page":1,"indices":[index],"content_indices":[1],"objects":objects,"generation":generation,"offset":[10,15]}),
+    );
+    let moved = ok(&mut a, "object_list", json!({"doc":doc,"page":1}));
+    for old in before["objects"].as_array().unwrap() {
+        let new = moved["objects"].as_array().unwrap().iter().find(|o| o["kind"] == old["kind"] && o["text"] == old["text"]).unwrap();
+        for i in 0..4 {
+            assert!((new["rect"][i].as_f64().unwrap() - old["rect"][i].as_f64().unwrap() - if i % 2 == 0 { 10.0 } else { 15.0 }).abs() < 0.02);
+        }
+    }
+    assert!(a.call("additions_move", &json!({"doc":doc,"page":1,"objects":objects,"generation":generation,"offset":[10,15]})).is_err());
+    ok(&mut a, "edit_undo", json!({"doc":doc}));
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1}))["objects"], before["objects"]);
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["comments"][0]["rect"], comments["comments"][0]["rect"]);
+    ok(&mut a, "edit_redo", json!({"doc":doc}));
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"moved.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"moved.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":reopened,"page":1}))["objects"], moved["objects"]);
+    ok(&mut a, "comment_delete", json!({"doc":doc,"page":1,"indices":[index],"content_indices":[1],"objects":objects}));
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1}))["count"], 0);
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 0);
+    ok(&mut a, "edit_undo", json!({"doc":doc}));
+    assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1}))["objects"], moved["objects"]);
+    assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 1);
+}
+
+#[test]
+fn accented_ocr_is_available_through_the_tools_and_searches_saved_text() {
+    let dir = workdir("ocr-accents");
+    let mut a = auto(&dir);
+    let status = ok(&mut a, "ocr_status", json!({}));
+    let french = status["languages"].as_array().unwrap().iter().find(|l| l["code"] == "fr").unwrap();
+    if french["available"] != true {
+        eprintln!("skipped: Latin OCR model not installed");
+        return;
+    }
+    let doc = ok(&mut a, "doc_create", json!({"from":"text", "text":"Café été façade où"}))["doc"].as_u64().unwrap();
+    ok(&mut a, "doc_export_images", json!({"doc":doc,"folder":"scan","dpi":300,"pages":[1]}));
+    let png = std::fs::read_dir(dir.join("scan")).unwrap().next().unwrap().unwrap().path();
+    let scan = ok(&mut a, "doc_create", json!({"from":"images","paths":[png.to_string_lossy()]}))["doc"].as_u64().unwrap();
+    let found = ok(&mut a, "ocr_recognize", json!({"doc":scan,"language":"fr"}));
+    let text = found["pages"][0]["text"].as_str().unwrap();
+    assert!(text.contains('é') && text.contains('ç') && text.contains('ù'), "{text}");
+    assert!(ok(&mut a, "text_find", json!({"doc":scan,"query":"Café"}))["count"].as_u64().unwrap() > 0);
+    ok(&mut a, "doc_save", json!({"doc":scan,"path":"searchable.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"searchable.pdf"}))["doc"].as_u64().unwrap();
+    assert!(ok(&mut a, "text_find", json!({"doc":reopened,"query":"façade"}))["count"].as_u64().unwrap() > 0);
 }

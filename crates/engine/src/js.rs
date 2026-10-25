@@ -70,7 +70,34 @@ fn display(doc: &pdfcraft_cos::Document, f: &Field) -> i32 {
 
 /// A form field as scripts see it.
 pub fn field_state(doc: &pdfcraft_cos::Document, f: &Field) -> pdfcraft_js::FieldState {
-    field_state_with_display(f, display(doc, f))
+    let mut s = field_state_with_display(f, display(doc, f));
+    s.actions = widget_scripts(doc, f);
+    for (name, script) in [
+        ("Keystroke", &f.actions.scripts.keystroke),
+        ("Validate", &f.actions.scripts.validate),
+        ("Calculate", &f.actions.scripts.calculate),
+        ("Format", &f.actions.scripts.format),
+    ] {
+        if let Some(script) = script {
+            s.actions.push((name.into(), script.clone()));
+        }
+    }
+    if let Some(w) = f.widgets.first() {
+        let mk = doc.get(w.obj).as_dict().and_then(|d| d.get(b"MK")).map(|m| doc.resolve(m));
+        let color = mk.as_ref().and_then(|m| m.as_dict()).and_then(|m| m.get(b"BC")).map(|c| doc.resolve(c));
+        if let Some(values) = color.as_ref().and_then(|c| c.as_array()) {
+            let space = match values.len() {
+                1 => "G",
+                3 => "RGB",
+                4 => "CMYK",
+                _ => "T",
+            };
+            let mut parts = vec![space.into()];
+            parts.extend(values.iter().filter_map(|v| v.as_f64()).map(|v| v.to_string()));
+            s.stroke_color = Some(parts);
+        }
+    }
+    s
 }
 
 fn field_state_with_display(f: &Field, display: i32) -> pdfcraft_js::FieldState {
@@ -85,6 +112,34 @@ fn field_state_with_display(f: &Field, display: i32) -> pdfcraft_js::FieldState 
         _ => f.options.clone(),
     };
     s
+}
+
+fn widget_scripts(doc: &pdfcraft_cos::Document, f: &Field) -> Vec<(String, String)> {
+    use pdfcraft_cos::Object;
+    let Some(w) = f.widgets.first() else { return Vec::new() };
+    let widget = doc.get(w.obj);
+    let Some(d) = widget.as_dict() else { return Vec::new() };
+    let aa = d.get(b"AA").map(|a| doc.resolve(a));
+    let aa = aa.as_ref().and_then(|a| a.as_dict());
+    let mut out = Vec::new();
+    for (name, key) in
+        [("MouseUp", b"U".as_slice()), ("MouseDown", b"D"), ("MouseEnter", b"E"), ("MouseExit", b"X"), ("OnFocus", b"Fo"), ("OnBlur", b"Bl")]
+    {
+        let action = if name == "MouseUp" { d.get(b"A").or_else(|| aa.and_then(|a| a.get(key))) } else { aa.and_then(|a| a.get(key)) };
+        let Some(action) = action.map(|a| doc.resolve(a)) else { continue };
+        let Some(action) = action.as_dict().filter(|a| a.name(b"S") == Some(b"JavaScript")) else { continue };
+        let Some(source) = action.get(b"JS").map(|s| doc.resolve(s)) else { continue };
+        let source = match &*source {
+            Object::String(s) => s.to_text(),
+            Object::Stream(s) => match s.decoded_within(1_048_576) {
+                Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+                Err(_) => continue,
+            },
+            _ => continue,
+        };
+        out.push((name.into(), source));
+    }
+    out
 }
 
 /// The changes a script made, against the fields as they were.
@@ -108,8 +163,18 @@ fn changes(before: &[pdfcraft_js::FieldState], after: &[pdfcraft_js::FieldState]
                 read_only: (a.readonly != b.readonly).then_some(a.readonly),
                 required: (a.required != b.required).then_some(a.required),
                 display: (a.display != b.display).then_some(a.display),
+                options: (a.options != b.options).then(|| a.options.clone()),
+                stroke_color: (a.stroke_color != b.stroke_color).then(|| a.stroke_color.clone()).flatten(),
+                actions: a.actions.iter().filter(|action| !b.actions.contains(action)).cloned().collect(),
             };
-            (c.value.is_some() || c.read_only.is_some() || c.required.is_some() || c.display.is_some()).then_some(c)
+            (c.value.is_some()
+                || c.read_only.is_some()
+                || c.required.is_some()
+                || c.display.is_some()
+                || c.options.is_some()
+                || c.stroke_color.is_some()
+                || !c.actions.is_empty())
+            .then_some(c)
         })
         .collect()
 }
@@ -126,9 +191,18 @@ pub struct JsRunner {
     // otherwise reparse every widget for every calculation. Values/flags still come from
     // the live `fields` snapshot on each call. A new edit gets a new runner and cache.
     displays: std::collections::HashMap<pdfcraft_cos::ObjRef, i32>,
+    runtime: Option<pdfcraft_js::Runtime>,
+    pub(crate) allow_structure: bool,
+    metadata: std::collections::HashMap<pdfcraft_cos::ObjRef, pdfcraft_js::FieldState>,
 }
 
 impl JsRunner {
+    pub fn with_runtime(cos: &pdfcraft_cos::Document, file_name: &str, runtime: pdfcraft_js::Runtime) -> Self {
+        let mut runner = Self::new(cos, file_name);
+        runner.runtime = Some(runtime);
+        runner
+    }
+
     pub fn new(cos: &pdfcraft_cos::Document, file_name: &str) -> JsRunner {
         let doc = pdfcraft_js::DocInfo { file_name: file_name.to_string(), num_pages: pdfcraft_model::pages(cos).len(), page: 0, info: info(cos) };
         JsRunner {
@@ -137,6 +211,9 @@ impl JsRunner {
             output: JsOutput::default(),
             cos: cos.clone(),
             displays: std::collections::HashMap::new(),
+            runtime: None,
+            allow_structure: true,
+            metadata: std::collections::HashMap::new(),
         }
     }
 }
@@ -161,23 +238,32 @@ impl Scripts for JsRunner {
                     Some(w) => *self.displays.entry(w.obj).or_insert_with(|| display(&self.cos, f)),
                     None => pdfcraft_js::DISPLAY_VISIBLE,
                 };
-                field_state_with_display(f, display)
+                let mut state = field_state_with_display(f, display);
+                let metadata = self.metadata.entry(f.obj).or_insert_with(|| field_state(&self.cos, f));
+                state.stroke_color.clone_from(&metadata.stroke_color);
+                state.actions.clone_from(&metadata.actions);
+                state
             })
             .collect();
         let states = std::sync::Arc::new(states);
         let ev = pdfcraft_js::Event::field(event.name(), &target.name, value);
-        let o = pdfcraft_js::run_shared(script, &ev, &self.doc, std::sync::Arc::clone(&states), &self.doc_scripts, Limits::default());
+        let o = match &self.runtime {
+            Some(runtime) => runtime.run_shared(script, &ev, &self.doc, std::sync::Arc::clone(&states), &self.doc_scripts, Limits::default()),
+            None => pdfcraft_js::run_shared(script, &ev, &self.doc, std::sync::Arc::clone(&states), &self.doc_scripts, Limits::default()),
+        };
         self.output.absorb(&o);
         if o.error.is_some() {
             // As in Acrobat, a failing script leaves the value alone (the error goes to the console).
             return ScriptResult { rc: true, value: value.to_string(), changes: Vec::new(), message: None };
         }
-        ScriptResult {
-            rc: o.rc,
-            value: o.value.clone(),
-            changes: changes(&states, &o.changed),
-            message: (!o.rc).then(|| o.alerts.last().cloned()).flatten(),
+        let changes = changes(&states, &o.changed);
+        if !self.allow_structure && structural_changes(&changes) {
+            self.output
+                .errors
+                .push("The form script tried to change field definitions in a certified or restricted PDF; those changes were refused.".into());
+            return ScriptResult { rc: true, value: value.into(), changes: Vec::new(), message: None };
         }
+        ScriptResult { rc: o.rc, value: o.value.clone(), changes, message: (!o.rc).then(|| o.alerts.last().cloned()).flatten() }
     }
 }
 
@@ -190,6 +276,12 @@ impl crate::Document {
     /// Field Properties ▸ Actions: field `name`'s action per trigger.
     pub fn field_actions(&self, name: &str) -> Vec<(pdfcraft_forms::Trigger, pdfcraft_forms::FieldAction)> {
         self.editor.as_ref().and_then(|e| pdfcraft_forms::field_actions(&e.cos, name).ok()).unwrap_or_default()
+    }
+
+    /// Stored lifecycle scripts. Unsupported actions are preserved by the editor.
+    pub fn document_actions(&self) -> Vec<(String, String)> {
+        let Some(editor) = &self.editor else { return Vec::new() };
+        DOCUMENT_EVENTS.iter().map(|event| ((*event).into(), lifecycle_scripts(&editor.cos, event).join("\n"))).collect()
     }
 
     /// Document JavaScripts (name, source), in name order.
@@ -239,14 +331,24 @@ impl Session {
                 ..Default::default()
             });
         }
-        let runner = JsRunner::new(&cos, &doc.name);
-        let fields = pdfcraft_forms::fields(&cos);
-        let states: Vec<_> = fields.iter().map(|f| field_state(&cos, f)).collect();
         let event = match target {
             Some(t) => pdfcraft_js::Event { will_commit: false, ..pdfcraft_js::Event::field("Mouse Up", t, "") },
             None => pdfcraft_js::Event::doc("Console"),
         };
-        let mut o = pdfcraft_js::run(script, &event, &runner.doc, &states, &runner.doc_scripts, Limits::default());
+        self.run_js_event(id, script, event)
+    }
+
+    fn run_js_event(&mut self, id: DocId, script: &str, event: pdfcraft_js::Event) -> Result<Outcome, EditError> {
+        let runtime = self.js_runtime(id)?;
+        let doc = self.get(id).ok_or(EditError::NoDocument)?;
+        let cos = doc.editor.as_ref().map(|e| e.cos.clone()).ok_or_else(|| EditError::ReadOnly(doc.read_only_reason.clone().unwrap_or_default()))?;
+        let runner = JsRunner::new(&cos, &doc.name);
+        let fields = pdfcraft_forms::fields(&cos);
+        let states: Vec<_> = fields.iter().map(|f| field_state(&cos, f)).collect();
+        let mut o = runtime.run(script, &event, &runner.doc, &states, &runner.doc_scripts, Limits::default());
+        if o.error.is_some() {
+            return Ok(o);
+        }
         let changes = changes(&states, &o.changed);
         let resets: Vec<Vec<String>> = o
             .requests
@@ -272,6 +374,123 @@ impl Session {
         }
         Ok(o)
     }
+
+    pub(crate) fn js_runtime(&mut self, id: DocId) -> Result<pdfcraft_js::Runtime, EditError> {
+        let doc = self.doc_mut(id)?;
+        if doc.js_runtime.is_none() {
+            doc.js_runtime = Some(pdfcraft_js::Runtime::new().map_err(EditError::Invalid)?);
+        }
+        doc.js_runtime.clone().ok_or_else(|| EditError::Invalid("the script engine could not start".into()))
+    }
+
+    /// Dispatch a stored widget JavaScript action, using the same realm as document scripts.
+    pub fn run_field_event(&mut self, id: DocId, field: &str, trigger: pdfcraft_forms::Trigger) -> Result<JsOutput, EditError> {
+        if self.js_off {
+            return Ok(JsOutput::default());
+        }
+        let doc = self.get(id).ok_or(EditError::NoDocument)?;
+        let cos = doc.editor.as_ref().map(|e| &e.cos).ok_or_else(|| EditError::ReadOnly(doc.read_only_reason.clone().unwrap_or_default()))?;
+        let target =
+            pdfcraft_forms::fields(cos).into_iter().find(|f| f.name == field).ok_or_else(|| EditError::Invalid(format!("no field named {field}")))?;
+        let scripts = pdfcraft_forms::field_actions(cos, field)?;
+        let mut output = JsOutput::default();
+        for (t, action) in scripts {
+            if t == trigger
+                && let pdfcraft_forms::FieldAction::JavaScript(script) = action
+            {
+                let name = match trigger {
+                    pdfcraft_forms::Trigger::OnFocus => "Focus",
+                    pdfcraft_forms::Trigger::OnBlur => "Blur",
+                    _ => trigger.label(),
+                };
+                let event = pdfcraft_js::Event { will_commit: false, ..pdfcraft_js::Event::field(name, field, &target.value.join(",")) };
+                let out = self.run_js_event(id, &script, event)?;
+                output.absorb(&out);
+            }
+        }
+        Ok(output)
+    }
+
+    /// Document lifecycle actions share the same realm as field and console scripts.
+    pub fn run_document_event(&mut self, id: DocId, name: &str) -> Result<(), EditError> {
+        if self.js_off {
+            return Ok(());
+        }
+        let doc = self.get(id).ok_or(EditError::NoDocument)?;
+        let Some(cos) = doc.editor.as_ref().map(|e| &e.cos) else { return Ok(()) };
+        let scripts = lifecycle_scripts(cos, name);
+        if scripts.is_empty() && (name != "Open" || pdfcraft_forms::document_scripts(cos).is_empty()) {
+            return Ok(());
+        }
+        // Even with no OpenAction, evaluate document scripts once on opening.
+        let scripts = if scripts.is_empty() { vec![String::new()] } else { scripts };
+        for script in scripts {
+            let out = self.run_js_event(id, &script, pdfcraft_js::Event::doc(name))?;
+            self.doc_mut(id)?.js_output.absorb(&out);
+            if let Some(error) = out.error
+                && name == "WillSave"
+            {
+                return Err(EditError::Invalid(format!("Will Save script failed: {error}")));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn lifecycle_scripts(cos: &pdfcraft_cos::Document, name: &str) -> Vec<String> {
+    use pdfcraft_cos::Object;
+    let Some(root) = cos.trailer().get(b"Root").map(|o| cos.resolve(o)) else { return Vec::new() };
+    let Some(catalog) = root.as_dict() else { return Vec::new() };
+    let action = if name == "Open" {
+        catalog.get(b"OpenAction").cloned()
+    } else {
+        let key: &[u8] = match name {
+            "WillSave" => b"WS",
+            "DidSave" => b"DS",
+            "WillPrint" => b"WP",
+            "DidPrint" => b"DP",
+            _ => return Vec::new(),
+        };
+        catalog.get(b"AA").map(|a| cos.resolve(a)).and_then(|a| a.as_dict().and_then(|d| d.get(key)).cloned())
+    };
+    let mut pending: Vec<_> = action.into_iter().collect();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut out = Vec::new();
+    let mut count = 0;
+    while let Some(action) = pending.pop() {
+        count += 1;
+        if count > 256 {
+            break;
+        }
+        if let Some(r) = action.as_ref()
+            && !seen.insert(r)
+        {
+            continue;
+        }
+        let action = cos.resolve(&action);
+        if let Some(array) = action.as_array() {
+            pending.extend(array.iter().rev().take(256).cloned());
+            continue;
+        }
+        let Some(d) = action.as_dict() else { continue };
+        if d.name(b"S") == Some(b"JavaScript")
+            && let Some(js) = d.get(b"JS")
+        {
+            match &*cos.resolve(js) {
+                Object::String(s) => out.push(s.to_text()),
+                Object::Stream(s) => {
+                    if let Ok(bytes) = s.decoded_within(1_048_576) {
+                        out.push(String::from_utf8_lossy(&bytes).into_owned());
+                    }
+                }
+                _ => {}
+            }
+        }
+        if let Some(next) = d.get(b"Next") {
+            pending.push(next.clone());
+        }
+    }
+    out
 }
 
 /// A page's words for form-field detection, in user space (underscore runs split from the
@@ -477,5 +696,94 @@ mod review_tests {
         let mut missing = first;
         missing.name = "missing".into();
         assert!(changes(&before, &[missing]).is_empty());
+    }
+}
+
+pub const DOCUMENT_EVENTS: [&str; 3] = ["Open", "WillSave", "WillPrint"];
+
+pub(crate) fn set_document_action(cos: &mut pdfcraft_cos::Document, event: &str, script: Option<&str>) -> Result<(), EditError> {
+    use pdfcraft_cos::{Dict, Object, PdfString};
+    let key: &[u8] = match event {
+        "Open" => b"OpenAction",
+        "WillSave" => b"WS",
+        "WillPrint" => b"WP",
+        _ => return Err(EditError::Invalid("expected Open, WillSave or WillPrint".into())),
+    };
+    if script.is_some_and(|s| s.len() > 1_048_576) {
+        return Err(EditError::Invalid("document action exceeds 1 MiB".into()));
+    }
+    let root = cos.root().ok_or_else(|| EditError::Invalid("missing document catalog".into()))?;
+    let catalog = cos.get(root);
+    let mut parent = if event == "Open" {
+        catalog.as_dict().cloned().unwrap_or_default()
+    } else {
+        catalog.as_dict().and_then(|d| d.get(b"AA")).map(|o| cos.resolve(o)).and_then(|o| o.as_dict().cloned()).unwrap_or_default()
+    };
+    if let Some(old) = parent.get(key) {
+        let old = cos.resolve(old);
+        if old.as_dict().is_none_or(|d| d.name(b"S") != Some(b"JavaScript") || d.contains(b"Next")) {
+            return Err(EditError::Invalid("this event already has a destination or an action chain; it was preserved".into()));
+        }
+    }
+    match script {
+        Some(source) => {
+            let mut action = Dict::new();
+            action.set(b"S".to_vec(), Object::name("JavaScript"));
+            action.set(b"JS".to_vec(), PdfString::text(source));
+            parent.set(key.to_vec(), Object::Dict(action));
+        }
+        None => {
+            parent.remove(key);
+        }
+    }
+    if event == "Open" {
+        cos.update_dict(root, |d| *d = parent).map_err(|e| EditError::Invalid(e.to_string()))?;
+    } else {
+        cos.update_dict(root, |d| d.set(b"AA".to_vec(), Object::Dict(parent))).map_err(|e| EditError::Invalid(e.to_string()))?;
+    }
+    Ok(())
+}
+
+pub(crate) fn structural_changes(changes: &[FieldChange]) -> bool {
+    changes.iter().any(|c| c.options.is_some() || c.stroke_color.is_some() || !c.actions.is_empty())
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    use std::sync::Arc;
+    #[test]
+    fn save_errors_disable_switch_and_print_hooks_preserve_document_rules() {
+        let mut session = Session::new();
+        let id = session.open("actions.pdf", None, Arc::new(crate::tests::fixture(1)), None).unwrap();
+        session.apply(id, Edit::SetDocumentAction { event: "WillPrint".into(), script: Some("console.println('before print');".into()) }).unwrap();
+        session.print_pdf(id, &crate::print::Settings { pages: vec![0], ..Default::default() }).unwrap();
+        assert_eq!(session.take_js_output(id).console, ["before print"]);
+        session.apply(id, Edit::SetDocumentAction { event: "WillSave".into(), script: Some("throw new Error('cannot save');".into()) }).unwrap();
+        let generation = session.get(id).unwrap().edit_generation();
+        assert!(session.save_bytes(id).unwrap_err().to_string().contains("cannot save"));
+        assert_eq!(session.get(id).unwrap().edit_generation(), generation);
+        session.set_javascript(false);
+        assert!(session.save_bytes(id).is_ok());
+        session.set_javascript(true);
+        session.apply(id, Edit::SetDocumentAction { event: "WillSave".into(), script: None }).unwrap();
+        session.apply(id, Edit::SetPageLocks { pages: vec![0], locked: true }).unwrap();
+        assert!(session.run_javascript(id, "app.launchURL('https://example.com');", None).unwrap().requests.len() == 1);
+        assert!(session.get(id).unwrap().protected_pages().contains(&0));
+    }
+    #[test]
+    fn action_editor_refuses_to_destroy_destinations_or_action_chains() {
+        use pdfcraft_cos::{Dict, Object};
+        let mut cos = pdfcraft_cos::Document::open(Arc::new(crate::tests::fixture(1))).unwrap();
+        let root = cos.root().unwrap();
+        cos.update_dict(root, |d| d.set(b"OpenAction".to_vec(), Object::Array(vec![Object::Int(0), Object::name("Fit")]))).unwrap();
+        assert!(set_document_action(&mut cos, "Open", Some("1")).is_err());
+        assert!(set_document_action(&mut cos, "Open", None).is_err());
+        let mut action = Dict::new();
+        action.set(b"S".to_vec(), Object::name("JavaScript"));
+        action.set(b"JS".to_vec(), pdfcraft_cos::PdfString::text("1"));
+        action.set(b"Next".to_vec(), Object::Null);
+        cos.update_dict(root, |d| d.set(b"OpenAction".to_vec(), Object::Dict(action))).unwrap();
+        assert!(set_document_action(&mut cos, "Open", Some("2")).is_err());
     }
 }

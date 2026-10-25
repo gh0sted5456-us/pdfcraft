@@ -35,7 +35,7 @@ use pdfcraft_render::{PageRenderer, RenderConfig, RenderRequest, RequestKind, in
 macro_rules! mcp_usage {
     () => {
         "\
-pdfcraft-cli mcp    [--root DIR] [--compact] [--automation-read-root DIR] [--automation-write-root DIR]
+pdfcraft-cli mcp    [--root DIR] [--compact] [--network] [--automation-read-root DIR] [--automation-write-root DIR]
                                                            MCP server on stdin/stdout (opt-in)
                                                            --compact lists a core set of tools plus tool_search and tool_call
                                                            --automation-read-root / --automation-write-root confine the files the
@@ -72,8 +72,8 @@ pdfcraft-cli batch <files or dirs...> --steps convert,ocr,optimize --out-dir DIR
                       [--recursive] [--root DIR] [--stop-on-error]
                       [--ppi 150] [--quality 60] [--dpi 300] [--language en] [--ocr-all-pages]
 pdfcraft-cli tools                                       automation tools and their JSON Schemas
-pdfcraft-cli run    <tool> [key=value …] [--root DIR] [--out image.png]
-pdfcraft-cli run    --script steps.json [--root DIR] [--report]
+pdfcraft-cli run    <tool> [key=value …] [--root DIR] [--out image.png] [--network]
+pdfcraft-cli run    --script steps.json [--root DIR] [--report] [--network]
                       [{\"tool\": \"doc_open\", \"args\": {…}}, …]; --report prints one JSON document for the run
 ",
     mcp_usage!(),
@@ -268,6 +268,7 @@ const CHECK_OPTIONS: &[OptionSpec] = &[
     OptionSpec { name: "--json", takes_value: true },
 ];
 const RUN_OPTIONS: &[OptionSpec] = &[
+    OptionSpec { name: "--network", takes_value: false },
     OptionSpec { name: "--root", takes_value: true },
     OptionSpec { name: "--script", takes_value: true },
     OptionSpec { name: "--out", takes_value: true },
@@ -276,7 +277,11 @@ const RUN_OPTIONS: &[OptionSpec] = &[
 const UI_OPTIONS: &[OptionSpec] = &[OptionSpec { name: "--control", takes_value: true }, OptionSpec { name: "--out", takes_value: true }];
 
 #[cfg(feature = "mcp")]
-const MCP_OPTIONS: &[OptionSpec] = &[OptionSpec { name: "--root", takes_value: true }, OptionSpec { name: "--compact", takes_value: false }];
+const MCP_OPTIONS: &[OptionSpec] = &[
+    OptionSpec { name: "--network", takes_value: false },
+    OptionSpec { name: "--root", takes_value: true },
+    OptionSpec { name: "--compact", takes_value: false },
+];
 
 fn positional(args: &[String]) -> Vec<&str> {
     let mut out = Vec::new();
@@ -287,7 +292,7 @@ fn positional(args: &[String]) -> Vec<&str> {
             continue;
         }
         if a.starts_with("--") {
-            skip = true;
+            skip = a != "--network";
             continue;
         }
         out.push(a.as_str());
@@ -866,7 +871,7 @@ fn run_child(exe: &Path, file: &Path, dpi: &str, timeout: Duration) -> serde_jso
 // ---- automation --------------------------------------------------------------------------------
 
 fn automation(args: &[String]) -> Result<pdfcraft_automation::Automation, String> {
-    let a = pdfcraft_automation::Automation::new();
+    let a = pdfcraft_automation::Automation::new().with_network(args.iter().any(|a| a == "--network"));
     match flag(args, "--root") {
         Some(root) => a.with_root(root).map_err(|e| format!("--root {root}: {e}")),
         None => Ok(a),
@@ -1150,6 +1155,19 @@ fn current_uid() -> u32 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn network_flag_preserves_the_tool_and_arguments_in_any_position() {
+        for args in [
+            vec!["--network", "doc_timestamp", "doc=999"],
+            vec!["doc_timestamp", "--network", "doc=999"],
+            vec!["doc_timestamp", "doc=999", "--network"],
+        ] {
+            let args: Vec<String> = args.into_iter().map(str::to_string).collect();
+            assert!(super::validate_options("run", &args, super::RUN_OPTIONS).is_ok());
+            assert_eq!(super::positional(&args), ["doc_timestamp", "doc=999"]);
+        }
+    }
+
     use super::control_file_problem;
 
     #[test]

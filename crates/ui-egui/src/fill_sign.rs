@@ -776,7 +776,7 @@ pub(crate) fn signature_pad(
 ) -> (bool, bool, bool) {
     let what = if d.initials { tl!("initials") } else { tl!("signature") };
     let title = if d.editing { tl!("Change {what}") } else { tl!("Create {what}") };
-    ui.label(egui::RichText::new(crate::i18n::fmt(title, &[("what", what)])).font(crate::theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, crate::i18n::fmt(title, &[("what", what)]));
     ui.horizontal(|ui| {
         if crate::widgets::pill_button(ui, tl_ctx!("signature pad", "Type"), !d.drawing && !d.image_mode && !d.scan_mode).clicked() {
             d.drawing = false;
@@ -1083,15 +1083,15 @@ fn pad_buttons(ui: &mut egui::Ui, d: &mut SigDraft) -> (bool, bool) {
                 d.scan = None;
             }
         }
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let ready = d.ready();
-            if ui.add_enabled_ui(ready, |ui| crate::widgets::pill_button(ui, tl!("Apply"), true)).inner.clicked() {
-                apply = true;
-            }
-            if crate::widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
-                cancel = true;
-            }
-        });
+    });
+    crate::widgets::dialog_footer(ui, |ui| {
+        let ready = d.ready();
+        if ui.add_enabled_ui(ready, |ui| crate::widgets::dialog_button(ui, tl!("Apply"), crate::widgets::DialogAction::Confirm)).inner.clicked() {
+            apply = true;
+        }
+        if crate::widgets::dialog_button(ui, tl!("Cancel"), crate::widgets::DialogAction::Cancel).clicked() {
+            cancel = true;
+        }
     });
     (apply, cancel)
 }

@@ -2,11 +2,10 @@
 //! properties"): Appearance (colour, fill, opacity, line thickness, note icon), General (author,
 //! subject, modified) and Review History (status changes), with Acrobat's Locked box.
 
-use egui::{Align, Layout};
 use pdfcraft_engine::{CommentProps, Edit, LineEnding, NoteIcon};
 
 use crate::comments::swatch_grid;
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{PdfCraftApp, widgets};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -186,7 +185,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     });
     let Some(d) = app.comment_props.as_mut() else { return (false, true) };
     let kind = tl!(crate::comments_panel::subtype_label(&d.edited.subtype)).to_string();
-    ui.label(egui::RichText::new(crate::i18n::fmt(tl!("{kind} Properties"), &[("kind", &kind)])).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, crate::i18n::fmt(tl!("{kind} Properties"), &[("kind", &kind)]));
     ui.add_space(6.0);
     ui.horizontal_wrapped(|ui| {
         for (tab, label) in
@@ -295,11 +294,11 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
         ui.add_enabled(defaultable, widgets::checkbox(&mut d.make_default, tl!("Make Properties Default")));
     });
     let (mut apply, mut cancel) = (false, false);
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        if widgets::pill_button(ui, tl!("OK"), true).clicked() {
+    crate::widgets::dialog_footer(ui, |ui| {
+        if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
             apply = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             cancel = true;
         }
     });

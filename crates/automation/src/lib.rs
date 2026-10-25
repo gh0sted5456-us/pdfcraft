@@ -15,6 +15,7 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 mod a11y;
+mod assistant;
 mod batch;
 mod comments;
 mod content;
@@ -114,6 +115,8 @@ const FIND_MAX_WARNING_BYTES: usize = 1024;
 
 /// A headless PdfCraft session driven by tool calls.
 pub struct Automation {
+    network: bool,
+    ai_login: Option<pdfcraft_platform::assistant::Login>,
     session: Session,
     root: Option<PathBuf>,
     /// The read and write folders of `--automation-read-root` / `--automation-write-root`.
@@ -139,7 +142,13 @@ impl Default for Automation {
 impl Automation {
     pub fn new() -> Self {
         Self {
-            session: Session::new(),
+            network: false,
+            ai_login: None,
+            session: {
+                let mut session = Session::new();
+                session.set_timestamp_certificates(pdfcraft_platform::timestamp::trusted_certificates());
+                session
+            },
             root: None,
             roots: None,
             renderers: HashMap::new(),
@@ -173,6 +182,12 @@ impl Automation {
         self
     }
 
+    /// Allow explicitly invoked timestamp and AI tools to contact their selected service. Off by default.
+    pub fn with_network(mut self, enabled: bool) -> Self {
+        self.network = enabled;
+        self
+    }
+
     /// The clock and time zone of a host without its own. See [`Session::with_wall_clock`].
     pub fn with_wall_clock(mut self, clock: fn() -> i64, utc_offset: fn() -> i64) -> Self {
         self.session = std::mem::take(&mut self.session).with_wall_clock(clock, utc_offset);
@@ -181,6 +196,11 @@ impl Automation {
 
     pub fn session(&self) -> &Session {
         &self.session
+    }
+
+    /// Direct engine access for operations that dispatch document actions (save and print).
+    pub fn session_mut(&mut self) -> &mut Session {
+        &mut self.session
     }
 
     /// Save `bytes` that a caller writes on the session's behalf, such as `pdfcraft-cli run`
@@ -210,6 +230,15 @@ impl Automation {
         tools::check_args(def, args)?;
         let a = Args(args);
         let out = match name {
+            "ai_prepare" => self.ai_prepare(&a)?,
+            "ai_assist" => self.ai_assist(&a)?,
+            "ai_accounts" => self.ai_accounts()?,
+            "ai_models" => self.ai_models(&a)?,
+            "ai_key_connect" => self.ai_key_connect(&a)?,
+            "ai_disconnect" => self.ai_disconnect(&a)?,
+            "ai_login_start" => self.ai_login_start(&a)?,
+            "ai_login_finish" => self.ai_login_finish(&a)?,
+            "ai_claude_login" => self.ai_claude_login()?,
             "doc_open" => self.doc_open(&a)?,
             "doc_batch" => self.doc_batch(&a)?,
             "doc_list" => json!({ "documents": self.session.docs().iter().map(summary).collect::<Vec<_>>() }),
@@ -229,6 +258,53 @@ impl Automation {
             "text_extract" => self.text_extract(&a)?,
             "text_word_count" => self.text_word_count(&a)?,
             "text_find" => self.text_find(&a)?,
+            "spelling_languages" => json!({"installed": pdfcraft_engine::spelling::Checker::available_languages()}),
+            "text_spellcheck" => {
+                let language = a.opt_str("language")?.unwrap_or("en-US");
+                let checker = pdfcraft_engine::spelling::Checker::new(language).map_err(failed)?;
+                let text = a.str("text")?;
+                let suggestions = a.opt_bool("suggestions")?.unwrap_or(false);
+                let ranges = checker.check(text).map_err(failed)?;
+                let mut issues = Vec::new();
+                for range in ranges {
+                    let Some(word) = text.get(range.clone()) else { continue };
+                    // Suggestions are deliberately opt-in, and capped to avoid hundreds of OS calls.
+                    let fixes =
+                        if suggestions && issues.len() < 32 && word.len() <= 128 { checker.suggest(word).map_err(failed)? } else { Vec::new() };
+                    issues.push(json!({"start":range.start,"end":range.end,"word":word,"suggestions":fixes}));
+                }
+                json!({"language": pdfcraft_engine::spelling::locale(language).map_err(failed)?, "issues":issues, "limited": issues.len() == 256})
+            }
+            "text_search_pages" => {
+                let id = self.doc(&a)?.id;
+                let pages = self.session.matching_pages(
+                    id,
+                    a.str("query")?,
+                    a.opt_bool("case_sensitive")?.unwrap_or(false),
+                    a.opt_bool("whole_words")?.unwrap_or(false),
+                )?;
+                let numbers: Vec<usize> = pages.iter().map(|p| p.saturating_add(1)).collect();
+                let mut out = json!({"pages": numbers, "count": numbers.len(), "page_numbers": numbers.iter().map(usize::to_string).collect::<Vec<_>>().join(", ")});
+                if a.opt_bool("extract")?.unwrap_or(false) {
+                    if pages.is_empty() {
+                        return Err(failed("no pages match the search"));
+                    }
+                    let bytes = self.session.extract(id, &pages)?;
+                    out["extracted"] = self.deliver(&a, "Search results", bytes)?;
+                } else if a.get("out").is_some() || a.get("open").is_some() {
+                    return Err(ToolError::InvalidArgs("out and open require extract: true".into()));
+                }
+                out
+            }
+            "page_transfer" => {
+                let target = self.doc(&a)?.id;
+                let source = DocId(u64::try_from(a.int("source")?).map_err(|_| ToolError::InvalidArgs("source must be a document id".into()))?);
+                let pages = one_based(&a.ints("pages")?)?;
+                let at = self.position(&a, "at")?;
+                let moving = a.opt_bool("move")?.unwrap_or(false);
+                let warning = self.session.transfer_pages(source, target, &pages, at, moving)?;
+                json!({"document": summary(self.doc(&a)?), "source": summary(self.session.get(source).ok_or_else(|| failed("source is closed"))?), "moved": moving && warning.is_none(), "warning": warning})
+            }
             "page_rotate" => {
                 let degrees = a.int("degrees")?;
                 if degrees % 90 != 0 {
@@ -291,6 +367,15 @@ impl Automation {
                 out["corners"] = json!(used);
                 out["detected"] = json!(given.is_none());
                 out
+            }
+            "page_locks" => {
+                let d = self.doc(&a)?;
+                json!({"pages": d.protected_pages().iter().map(|p| p + 1).collect::<Vec<_>>(), "signed_pages":d.signed_protected_pages().iter().map(|p| p + 1).collect::<Vec<_>>()})
+            }
+            "page_lock" => {
+                let pages = self.pages(&a, "pages")?;
+                let locked = a.opt_bool("locked")?.unwrap_or(true);
+                self.apply(&a, Edit::SetPageLocks { pages, locked })?
             }
             "page_delete" => {
                 let pages = self.pages(&a, "pages")?;
@@ -405,10 +490,22 @@ impl Automation {
             "page_duplicate" => {
                 let pages = self.pages(&a, "pages")?;
                 let at = self.opt_position(&a, "at")?;
-                self.apply(&a, Edit::DuplicatePages { pages, at })?
+                // Duplicate keeps the copies' field names unless asked (#2228).
+                let field_conflicts = match a.opt_str("field_conflicts")? {
+                    None | Some("merge") => pdfcraft_organize::FieldConflicts::Merge,
+                    Some("rename") => pdfcraft_organize::FieldConflicts::Rename,
+                    Some(other) => {
+                        return Err(ToolError::InvalidArgs(format!("field_conflicts must be \"merge\" or \"rename\", not {other:?}")));
+                    }
+                };
+                self.apply(&a, Edit::DuplicatePages { pages, at, field_conflicts })?
             }
             "page_set_box" => self.page_set_box(&a)?,
             "page_transition_set" => self.page_transition_set(&a)?,
+            "template_list" => {
+                json!({"templates":pdfcraft_engine::templates::STARTERS.iter().map(|t|json!({"id":t.id,"title":t.title,"category":t.category,"description":t.description,"pages":t.pages})).collect::<Vec<_>>(),"papers":["letter","a4"],"format":"pdfcraft-template","version":1})
+            }
+            "template_export" => self.template_export(&a)?,
             "doc_create" => self.doc_create(&a)?,
             "xfa_to_static" => self.apply(&a, Edit::XfaToStatic)?,
             "doc_flatten" => {
@@ -800,6 +897,8 @@ impl Automation {
             "links_remove" => self.links_remove(&a)?,
             "object_list" => self.object_list(&a)?,
             "object_move" => self.object_move(&a)?,
+            "object_align" => self.object_align(&a)?,
+            "object_delete" => self.object_delete(&a)?,
             "content_list" => self.content_list(&a)?,
             "page_add_text" => self.page_add_text(&a)?,
             "page_add_image" => self.page_add_image(&a)?,
@@ -824,12 +923,17 @@ impl Automation {
             "comment_reply" => self.comment_reply(&a)?,
             "comment_set_status" => self.comment_set_status(&a)?,
             "sign_list" => self.sign_list(&a)?,
+            "sign_removable" => self.sign_removable(&a)?,
+            "sign_clear" => self.sign_clear(&a)?,
             "accessibility_check" => self.a11y_check(&a)?,
             "accessibility_find_untagged" => self.a11y_find_untagged(&a)?,
             "accessibility_autotag_preview" => self.accessibility_autotag_preview(&a)?,
             "accessibility_autotag_apply" => self.accessibility_autotag_apply(&a)?,
             "accessibility_autotag_form_fields" => self.accessibility_autotag_form_fields(&a)?,
             "ocr_recognize" => self.ocr_recognize(&a)?,
+            "js_field_event" => self.js_field_event(&a)?,
+            "js_document_actions" => self.js_document_actions(&a)?,
+            "js_set_document_action" => self.js_set_document_action(&a)?,
             "js_run" => self.js_run(&a)?,
             "js_document_scripts" => self.js_document_scripts(&a)?,
             "js_set_document_script" => self.js_set_document_script(&a)?,
@@ -841,6 +945,7 @@ impl Automation {
             "doc_compare" => self.doc_compare(&a)?,
             "action_list" => self.action_list()?,
             "pdfa_verify" => self.pdfa_verify(&a)?,
+            "output_inspection" => self.output_inspection(&a)?,
             "print_readiness" => self.print_readiness(&a)?,
             "doc_export_office" => self.doc_export_office(&a)?,
             "pdfa_convert" => self.pdfa_convert(&a)?,
@@ -873,6 +978,7 @@ impl Automation {
             "accessibility_move_tag" => self.accessibility_move_tag(&a)?,
             "sign_id_create" => self.sign_id_create(&a)?,
             "sign_document" => self.sign_document(&a)?,
+            "doc_timestamp" => self.doc_timestamp(&a)?,
             "sign_keychain_ids" => {
                 #[cfg(target_os = "macos")]
                 let ids: Vec<Value> = pdfcraft_engine::sign::keychain::identities(None)
@@ -913,6 +1019,7 @@ impl Automation {
             "comments_summarize" => self.comments_summarize(&a)?,
             "comment_edit" => self.comment_edit(&a)?,
             "comment_delete" => self.comment_delete(&a)?,
+            "additions_move" => self.additions_move(&a)?,
             other => return Err(ToolError::UnknownTool(other.into())),
         };
         Ok(vec![Content::Json(out)])
@@ -1007,8 +1114,20 @@ impl Automation {
 
     fn doc_open(&mut self, a: &Args) -> Result<Value> {
         let path = self.resolve(a.str("path")?, false)?;
-        let bytes = std::fs::read(&path).map_err(|e| failed(format!("{}: {e}", path.display())))?;
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if name.to_ascii_lowercase().ends_with(".pdfcraft-template") {
+            use std::io::Read as _;
+            let mut bytes = Vec::new();
+            std::fs::File::open(&path)
+                .map_err(failed)?
+                .take(pdfcraft_engine::templates::MAX_BYTES as u64 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(failed)?;
+            let (info, bytes) = self.session.import_template(Arc::new(bytes)).map_err(failed)?;
+            let id = self.session.open_new(format!("{}.pdf", info.title), bytes).map_err(failed)?;
+            return Ok(summary(self.session.get(id).ok_or_else(|| failed("the document vanished"))?));
+        }
+        let bytes = std::fs::read(&path).map_err(|e| failed(format!("{}: {e}", path.display())))?;
         let id = self.session.open(name, Some(path.to_string_lossy().into_owned()), Arc::new(bytes), a.opt_str("password")?).map_err(failed)?;
         let doc = self.session.get(id).ok_or_else(|| failed("the document vanished"))?;
         Ok(summary(doc))
@@ -1048,8 +1167,9 @@ impl Automation {
             }
         };
         let same_file = doc.path.as_deref().is_some_and(|p| Path::new(p) == target);
-        // Saving to a new file is a full rewrite unless asked otherwise, like Save As.
-        let full = a.opt_bool("full")?.unwrap_or(!same_file);
+        // Saving to a new file is a full rewrite unless asked otherwise, like Save As; a document
+        // that is still signed is appended to instead, since a rewrite would break its signatures.
+        let full = a.opt_bool("full")?.unwrap_or(!same_file && !doc.is_signed());
         let flatten_fill_sign = a.opt_bool("flatten_fill_sign")?.unwrap_or(false);
         if flatten_fill_sign {
             self.apply(a, Edit::FlattenFillSign)?;
@@ -1439,8 +1559,62 @@ impl Automation {
         }
     }
 
+    fn template_export(&self, a: &Args) -> Result<Value> {
+        let doc = self.doc(a)?;
+        let info = pdfcraft_engine::templates::TemplateInfo {
+            title: a.opt_str("title")?.unwrap_or(doc.name.trim_end_matches(".pdf")).into(),
+            description: a.opt_str("description")?.unwrap_or("").into(),
+            category: a.opt_str("category")?.unwrap_or("Custom").into(),
+        };
+        let target = self.resolve(a.str("path")?, true)?;
+        if self.session.docs().iter().filter_map(|d| d.path.as_deref()).any(|p| Path::new(p) == target) {
+            return Err(failed("Choose a different path for the template; the original document is open"));
+        }
+        let bytes = self.session.export_template(doc.id, &info).map_err(failed)?;
+        let path = self.write_output(a.str("path")?, &bytes)?;
+        Ok(json!({"path":path.to_string_lossy(),"format":"pdfcraft-template","version":1}))
+    }
+
     fn doc_create(&mut self, a: &Args) -> Result<Value> {
         let (name, bytes) = match a.str("from")? {
+            "starter" => {
+                let id = a.str("template")?;
+                let bytes = self.session.create_starter(id, a.opt_str("paper")?.unwrap_or("letter")).map_err(failed)?;
+                (format!("{}.pdf", pdfcraft_engine::templates::find(id).map_err(failed)?.title), bytes)
+            }
+            "template" => {
+                use std::io::Read as _;
+                let path = self.resolve(a.str("path")?, false)?;
+                let mut bytes = Vec::new();
+                std::fs::File::open(path)
+                    .map_err(failed)?
+                    .take(pdfcraft_engine::templates::MAX_BYTES as u64 + 1)
+                    .read_to_end(&mut bytes)
+                    .map_err(failed)?;
+                let (info, bytes) = self.session.import_template(std::sync::Arc::new(bytes)).map_err(failed)?;
+                (format!("{}.pdf", info.title), bytes)
+            }
+            "xps" => {
+                use std::io::Read as _;
+                let path = self.resolve(a.str("path")?, false)?;
+                let mut file = std::fs::File::open(&path).map_err(failed)?;
+                let mut bytes = Vec::new();
+                let mut chunk = [0u8; 8192];
+                loop {
+                    let count = file.read(&mut chunk).map_err(failed)?;
+                    if count == 0 {
+                        break;
+                    }
+                    if bytes.len().checked_add(count).is_none_or(|n| n > 256 * 1024 * 1024) {
+                        return Err(failed("XPS package exceeds 256 MiB"));
+                    }
+                    bytes.try_reserve(count).map_err(|_| failed("not enough memory for the XPS package"))?;
+                    bytes.extend_from_slice(chunk.get(..count).ok_or_else(|| failed("invalid XPS read size"))?);
+                }
+                let title = path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "Print job".into());
+                let pdf = self.session.create_from_xps(&title, &bytes).map_err(failed)?;
+                (format!("{title}.pdf"), pdf)
+            }
             "blank" => {
                 let n = a.opt_int("pages")?.unwrap_or(1).clamp(1, 10_000) as usize;
                 let (w, h) = (a.opt_num("width")?.unwrap_or(612.0), a.opt_num("height")?.unwrap_or(792.0));

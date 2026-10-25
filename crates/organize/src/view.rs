@@ -105,10 +105,10 @@ pub fn initial_view(doc: &Document) -> InitialView {
         v.hide_window_ui = flag(b"HideWindowUI");
         v.right_to_left = name(&vp, b"Direction").as_deref() == Some(b"R2L");
     }
-    // The opening destination: an explicit array, or a GoTo action's.
+    // Named destinations stand for their explicit page and magnification (ISO 32000-2 §12.3.2.4).
     let dest = c.get(b"OpenAction").map(|o| doc.resolve(o)).and_then(|o| match &*o {
-        Object::Array(a) => Some(a.clone()),
-        Object::Dict(d) if d.name(b"S") == Some(b"GoTo") => d.get(b"D").map(|x| doc.resolve(x)).and_then(|x| x.as_array().cloned()),
+        Object::Array(_) | Object::Name(_) | Object::String(_) => crate::outline::resolve_dest(doc, &o),
+        Object::Dict(d) if d.name(b"S") == Some(b"GoTo") => d.get(b"D").and_then(|x| crate::outline::resolve_dest(doc, x)),
         _ => None,
     });
     if let Some(d) = dest {
@@ -152,6 +152,8 @@ pub fn displays_doc_title(doc: &Document) -> bool {
 /// kept unless the page or magnification asks for a destination.
 pub fn set_initial_view(doc: &mut Document, v: &InitialView) -> Result<(), OrganizeError> {
     let (root, c) = catalog(doc)?;
+    let old = initial_view(doc);
+    let keep_opening = old.page == v.page && old.magnification == v.magnification;
     let pages = crate::walk(doc)?;
     if v.page >= pages.len() {
         return Err(OrganizeError::NoSuchPage(v.page));
@@ -179,7 +181,9 @@ pub fn set_initial_view(doc: &mut Document, v: &InitialView) -> Result<(), Organ
     }
     let open_action_is_dest = match c.get(b"OpenAction").map(|o| doc.resolve(o)) {
         None => true,
-        Some(o) => matches!(&*o, Object::Array(_)) || o.as_dict().is_some_and(|d| d.name(b"S") == Some(b"GoTo")),
+        Some(o) => {
+            matches!(&*o, Object::Array(_) | Object::Name(_) | Object::String(_)) || o.as_dict().is_some_and(|d| d.name(b"S") == Some(b"GoTo"))
+        }
     };
     let dest = match v.magnification {
         Magnification::Default if v.page == 0 => None,
@@ -238,6 +242,8 @@ pub fn set_initial_view(doc: &mut Document, v: &InitialView) -> Result<(), Organ
             }
         }
         match (&dest, open_action_is_dest) {
+            // Keep untouched coordinates, named references and action chains.
+            _ if keep_opening => {}
             (Some(d), _) => c.set(b"OpenAction".to_vec(), Object::Array(d.clone())),
             (None, true) => {
                 c.remove(b"OpenAction");

@@ -921,7 +921,7 @@ fn skip_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
         left_out.push((f.name.as_str(), f.problem.as_deref().unwrap_or_default()));
     }
     let mut choice: Option<bool> = None;
-    let modal = egui::Modal::new(egui::Id::new("combine-skip")).show(ctx, |ui| {
+    let modal = crate::widgets::show_modal(ctx, "combine-skip", |ui| {
         ui.set_width(460.0);
         ui.horizontal(|ui| {
             ui.add(icons::image("triangle-alert", 22.0, ERROR));
@@ -941,11 +941,11 @@ fn skip_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
             ui.label(egui::RichText::new(crate::i18n::fmt(tl!("and {n} more"), &[("n", &more)])).color(t.text_muted));
         }
         ui.add_space(14.0);
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("Combine the rest"), true).clicked() {
+        crate::widgets::dialog_footer(ui, |ui| {
+            if widgets::dialog_button(ui, tl!("Combine the rest"), widgets::DialogAction::Confirm).clicked() {
                 choice = Some(true);
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 choice = Some(false);
             }
         });
@@ -1015,11 +1015,15 @@ fn unlock_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
             ui.add_space(6.0);
             ui.label(egui::RichText::new(tl!("The password is only used to read the file; it isn't saved.")).small().color(t.text_faint));
             ui.add_space(8.0);
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if ui.add_enabled_ui(!prompt.input.0.is_empty(), |ui| widgets::pill_button(ui, tl!("Unlock"), true)).inner.clicked() {
+            crate::widgets::dialog_footer(ui, |ui| {
+                if ui
+                    .add_enabled_ui(!prompt.input.0.is_empty(), |ui| widgets::dialog_button(ui, tl!("Unlock"), widgets::DialogAction::Confirm))
+                    .inner
+                    .clicked()
+                {
                     submit = true;
                 }
-                if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                     cancel = true;
                 }
             });
@@ -1226,7 +1230,7 @@ fn empty_state(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, files_hover
         ui.horizontal(|ui| {
             ui.add_space(((ui.available_width() - total) / 2.0).max(0.0));
             ui.spacing_mut().item_spacing.x = 8.0;
-            if widgets::pill_button(ui, tl!("Add files…"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("Add files…"), widgets::DialogAction::Confirm).clicked() {
                 app.combine_dialog();
             }
             if folders && widgets::icon_pill(ui, "folder", tl!("Add folder…"), false).clicked() {
@@ -1643,7 +1647,7 @@ fn title_of(name: &str) -> &str {
 
 /// File names in the order people expect: case-insensitive, with numbers by value
 /// ("scan2" before "scan10").
-fn natural(a: &str, b: &str) -> Ordering {
+pub(crate) fn natural(a: &str, b: &str) -> Ordering {
     let (mut a, mut b) = (a.chars().peekable(), b.chars().peekable());
     loop {
         match (a.peek().copied(), b.peek().copied()) {

@@ -39,6 +39,49 @@ pub enum SaveTarget {
 }
 
 impl PdfCraftApp {
+    /// Put page text editors down before the group tool owns their pointer and keyboard.
+    pub(crate) fn activate_group_select(&mut self) -> bool {
+        if let Some((i, id)) = self.active_ids() {
+            if let Some(c) = self.views.get_mut(i).and_then(|v| {
+                let c = v.content.blocked()?;
+                v.content.hold_blocked();
+                Some(c)
+            }) {
+                self.notify(crate::content_ui::undrawable_message(c));
+                return false;
+            }
+            if !self.commit_form_typing() {
+                return false;
+            }
+            let mut edits = Vec::new();
+            if let Some(edit) = self.views.get(i).and_then(|v| v.line_editor.clone()).and_then(crate::edit_text_ui::finished_edit) {
+                edits.push(edit);
+            }
+            let added = self.session.get(id).map(|d| d.added().to_vec()).unwrap_or_default();
+            if let Some(edit) = self.views.get(i).and_then(|v| v.content.clone().finish_draft(&added)) {
+                edits.push(edit);
+            }
+            if !edits.is_empty() && !self.apply_edit(Edit::Batch { label: "Edit content".into(), edits }) {
+                return false;
+            }
+            if let Some(view) = self.views.get_mut(i) {
+                view.line_editor = None;
+                view.content.draft = None;
+                view.content.select_added = None;
+                view.block_drag = None;
+            }
+        }
+        if let Some(ctx) = &self.ctx {
+            ctx.memory_mut(|m| {
+                if let Some(id) = m.focused() {
+                    m.surrender_focus(id);
+                }
+            });
+        }
+        self.quick_tool = crate::QuickTool::GroupSelect;
+        true
+    }
+
     /// Apply an edit to the active document. Returns `true` on success; failures are shown.
     pub fn apply_edit(&mut self, edit: Edit) -> bool {
         let Some((i, id)) = self.active_ids() else { return false };
@@ -53,10 +96,18 @@ impl PdfCraftApp {
                 let Some(doc) = self.session.get(id) else { return true };
                 let info = &doc.info;
                 let view = &mut self.views[i];
+                view.group.committed(&edit, doc);
                 view.applied_editor = None;
                 // A picture picked with the Select tool may be the one this edit removed or moved:
                 // drop its highlight now, not on the next frame (which only comes with the next input).
                 view.picked_image = None;
+                if matches!(edit, Edit::DeleteObjects { .. }) {
+                    view.objects.clear();
+                    view.image_selection = None;
+                    view.content.selected = None;
+                    view.line_editor = None;
+                    view.block_drag = None;
+                }
                 if let Some(ctx) = &self.ctx {
                     ctx.request_repaint();
                 }
@@ -138,7 +189,7 @@ impl PdfCraftApp {
                         let to = to.min(info.pages.len() - n);
                         view.select_pages(&(to..to + n).collect::<Vec<_>>());
                     }
-                    Edit::DuplicatePages { pages, at: Some(at) } => {
+                    Edit::DuplicatePages { pages, at: Some(at), .. } => {
                         let n = pages.iter().collect::<std::collections::BTreeSet<_>>().len();
                         let at = at.min(info.pages.len().saturating_sub(n));
                         view.select_pages(&(at..at + n).collect::<Vec<_>>());
@@ -641,7 +692,9 @@ impl PdfCraftApp {
                 (_, _, Some(p)) => p.clone(),
                 // An email attachment's temporary copy is no place to keep work: ask, as for a new
                 // document (`is_mail_temp_copy`).
-                (SaveTarget::InPlace, Some(p), _) if !is_mail_temp_copy(&p) => p,
+                // Neither is a path read back from a recovery sidecar until a save confirms it:
+                // anyone who can write the recovery folder can name any file there (#3923).
+                (SaveTarget::InPlace, Some(p), _) if !is_mail_temp_copy(&p) && !self.recovered_paths.contains(&id) => p,
                 _ => {
                     let name = if name.to_ascii_lowercase().ends_with(".pdf") { name } else { format!("{name}.pdf") };
                     let dialog = rfd::AsyncFileDialog::new().add_filter("PDF", &["pdf"]).set_file_name(name);
@@ -741,7 +794,7 @@ impl PdfCraftApp {
 
     /// Write document `id` to `dest` and make it the document's file. Returns `true` if written.
     #[cfg(not(target_arch = "wasm32"))]
-    fn save_doc_to(&mut self, id: pdfcraft_engine::DocId, dest: &str, target: SaveTarget) -> bool {
+    pub(crate) fn save_doc_to(&mut self, id: pdfcraft_engine::DocId, dest: &str, target: SaveTarget) -> bool {
         // Save As answers on a later frame: commit what was typed meanwhile, too (#166), even
         // if another tab is active by then.
         if !self.commit_typing_in(id) || !self.flatten_fill_sign_for_save(id) {
@@ -751,7 +804,7 @@ impl PdfCraftApp {
             // Save As to another file is a clean copy, without the earlier revisions that still
             // hold deleted pages or replaced text (#2165). A signed document stays incremental so
             // its signatures keep covering the file.
-            let full = target == SaveTarget::As
+            let full = (target == SaveTarget::As || self.recovered_paths.contains(&id))
                 && !d.path.as_deref().is_some_and(|p| crate::same_file(p, dest))
                 && d.read_only_reason.is_none()
                 && !d.is_signed();
@@ -967,6 +1020,10 @@ impl PdfCraftApp {
 fn content_page(edit: &Edit) -> Option<usize> {
     match edit {
         Edit::MoveObjects { page, .. }
+        | Edit::DeleteObjects { page, .. }
+        | Edit::DeletePaths { page, .. }
+        | Edit::StylePaths { page, .. }
+        | Edit::MovePathPoint { page, .. }
         | Edit::EditTextLine { page, .. }
         | Edit::EditTextBlock { page, .. }
         | Edit::EditPageImage { page, .. }
@@ -1621,6 +1678,7 @@ mod content_page_tests {
     fn single_page_content_edits_map_to_their_page() {
         let moved = Edit::MoveObjects { page: 3, objects: vec![ObjectTarget { kind: ObjectKind::Text, index: 0 }], offset: [1.0, 0.0] };
         assert_eq!(content_page(&moved), Some(3));
+        assert_eq!(content_page(&Edit::DeleteObjects { page: 3, objects: vec![] }), Some(3));
         assert_eq!(content_page(&Edit::RotatePages { pages: vec![0], degrees: 90 }), None);
         assert_eq!(content_page(&Edit::SetInfo { key: "Title".into(), value: "x".into() }), None);
     }

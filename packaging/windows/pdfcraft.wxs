@@ -10,17 +10,18 @@
   right-click menu and "Create PDF with PdfCraft…" on image files' right-click menu (both on by
   default, optional, and an update keeps the installed version's choice). Files opened with
   PdfCraft arrive on its command line.
+  While PdfCraft is the default PDF app, Explorer shows first-page thumbnails.
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
   <Package
       Name="PdfCraft"
-      Manufacturer="Learning Machines LLC"
+      Manufacturer="gh0sted5456-us"
       Version="$(var.Version)"
       UpgradeCode="EA00C367-7270-4C50-9D8B-A7A5C88AD27F"
       Scope="perMachine"
       Compressed="yes"
       Language="1033">
-    <SummaryInformation Description="PdfCraft PDF workbench" Manufacturer="Learning Machines LLC" />
+    <SummaryInformation Description="PdfCraft personal build" Manufacturer="gh0sted5456-us" />
     <!-- HKLM registrations must never point into a per-user installation (#305). Allow removal
          of an existing installation even if an older MSI let it install per-user. -->
     <Launch Condition="ALLUSERS = 1 OR (Installed AND REMOVE = &quot;ALL&quot;)"
@@ -35,9 +36,9 @@
          Add/Remove Programs show a blank icon (#57). -->
     <Icon Id="PdfcraftIcon.ico" SourceFile="$(var.IconPath)" />
     <Property Id="ARPPRODUCTICON" Value="PdfcraftIcon.ico" />
-    <Property Id="ARPURLINFOABOUT" Value="https://getartcraft.com/apps/pdfcraft" />
-    <Property Id="ARPURLUPDATEINFO" Value="https://getartcraft.com/apps/pdfcraft" />
-    <Property Id="ARPHELPLINK" Value="https://discord.gg/artcraft" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/gh0sted5456-us/pdfcraft" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/gh0sted5456-us/pdfcraft" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/gh0sted5456-us/pdfcraft/issues" />
     <!-- Desktop shortcut (#143): on by default for a first install, a checkbox in the full-UI
          welcome dialog, and INSTALLDESKTOPSHORTCUT=0 on the msiexec command line for unattended
          installs. Secure, so the choice made in the (unelevated) UI reaches the elevated install.
@@ -97,6 +98,7 @@
     <ComponentGroup Id="PdfcraftFiles" Directory="INSTALLFOLDER">
       <Component Id="PdfcraftApp" Guid="E724C1C6-091F-4E21-A685-80D089FDBE21">
         <File Id="PdfcraftExe" Source="$(var.BinDir)\pdfcraft.exe" KeyPath="yes" />
+        <File Id="PdfcraftBadge" Source="$(var.IconPath)" Name="pdfcraft-badge-$(var.Version).ico" />
 
         <RegistryValue Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\pdfcraft.exe" Value="[#PdfcraftExe]" Type="string" />
 
@@ -111,11 +113,8 @@
              Resource 1 is the app's lion; resource 2 is the PDF document (build.rs). -->
         <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document\DefaultIcon" Value="&quot;[#PdfcraftExe]&quot;,-2" Type="string" />
         <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document\shell\open\command" Value="&quot;[#PdfcraftExe]&quot; &quot;%1&quot;" Type="string" />
-        <!-- No overlay on thumbnails and in the preview pane: without TypeOverlay, Windows paints
-             the default program's icon (the lion) over the lower-right corner of every PDF
-             thumbnail, covering part of the page. An empty string means none ("Thumbnail
-             Handlers", Microsoft Learn). -->
-        <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document" Name="TypeOverlay" Value="" Type="string" />
+        <!-- A versioned icon path prevents Explorer retaining the previous release's lion. -->
+        <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document" Name="TypeOverlay" Value="&quot;[#PdfcraftBadge]&quot;,0" Type="string" />
         <RegistryValue Root="HKLM" Key="Software\Classes\.pdf\OpenWithProgids" Name="PdfCraft.Document" Value="" Type="string" />
         <RegistryValue Root="HKLM" Key="Software\Classes\Applications\pdfcraft.exe" Name="FriendlyAppName" Value="PdfCraft" Type="string" />
         <RegistryValue Root="HKLM" Key="Software\Classes\Applications\pdfcraft.exe\DefaultIcon" Value="&quot;[#PdfcraftExe]&quot;,-2" Type="string" />
@@ -134,14 +133,14 @@
            (#143). Each has its own component with an HKLM key path, so Windows Installer removes it
            on uninstall; in this per-machine package both folders are the all-users ones. -->
       <Component Id="PdfcraftStartMenuShortcut" Directory="ProgramMenuFolder" Guid="DC028192-C233-4F99-9A77-ED458C60DF26">
-        <Shortcut Id="StartMenuShortcut" Name="PdfCraft" Description="PdfCraft PDF workbench"
+        <Shortcut Id="StartMenuShortcut" Name="PdfCraft" Description="PdfCraft personal build"
             Target="[#PdfcraftExe]" WorkingDirectory="INSTALLFOLDER" Icon="PdfcraftIcon.ico" IconIndex="0" />
         <RegistryValue Root="HKLM" Key="Software\PdfCraft\Shortcuts" Name="StartMenu" Type="integer" Value="1" KeyPath="yes" />
       </Component>
 
       <Component Id="PdfcraftDesktopShortcut" Directory="DesktopFolder" Guid="F6948627-32AB-4D78-8865-0FDF417CE442"
           Condition="INSTALLDESKTOPSHORTCUT = 1">
-        <Shortcut Id="DesktopShortcut" Name="PdfCraft" Description="PdfCraft PDF workbench"
+        <Shortcut Id="DesktopShortcut" Name="PdfCraft" Description="PdfCraft personal build"
             Target="[#PdfcraftExe]" WorkingDirectory="INSTALLFOLDER" Icon="PdfcraftIcon.ico" IconIndex="0" />
         <RegistryValue Root="HKLM" Key="Software\PdfCraft\Shortcuts" Name="Desktop" Type="integer" Value="1" KeyPath="yes" />
       </Component>
@@ -200,12 +199,28 @@
         <RegistryValue Root="HKLM" Key="Software\Classes\SystemFileAssociations\.jpx\shell\PdfCraft.CreatePdf\command" Value="&quot;[#PdfcraftExe]&quot; --create-images &quot;%1&quot;" Type="string" />
       </Component>
 
+      <!-- First-page thumbnails in File Explorer: pdfcraft_thumbnails.dll (crates/thumbnails) is an
+           IThumbnailProvider registered for PdfCraft.Document, the file type .pdf files have while
+           PdfCraft is the default PDF app. With another default app, that app's thumbnails (if any)
+           apply: neither .pdf nor another app's file type is touched. Explorer runs thumbnail
+           handlers in its own isolated process. -->
+      <Component Id="PdfcraftThumbnails" Guid="75E01844-838F-403B-B75B-3E07E8EBC68F">
+        <File Id="PdfcraftThumbnailsDll" Source="$(var.BinDir)\pdfcraft_thumbnails.dll" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{68E114F4-EB01-42A6-BD92-1695F3711CD1}" Value="PdfCraft PDF thumbnails" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{68E114F4-EB01-42A6-BD92-1695F3711CD1}\InprocServer32" Value="[#PdfcraftThumbnailsDll]" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\CLSID\{68E114F4-EB01-42A6-BD92-1695F3711CD1}\InprocServer32" Name="ThreadingModel" Value="Apartment" Type="string" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document\ShellEx\{e357fccd-a995-4576-b01f-234630154e96}" Value="{68E114F4-EB01-42A6-BD92-1695F3711CD1}" Type="string" />
+      </Component>
+
       <Component Id="PdfcraftCli">
         <File Id="PdfcraftCliExe" Source="$(var.BinDir)\pdfcraft-cli.exe" KeyPath="yes" />
       </Component>
       <!-- The embedded PDF icon's ISC notice and project licences travel with the binaries. -->
       <Component Id="PdfcraftDocumentIconLicense">
         <File Id="PdfcraftDocumentIconLicenseFile" Source="$(var.BinDir)\LICENSE-document.txt" KeyPath="yes" />
+      </Component>
+      <Component Id="PdfcraftBrandIconLicense">
+        <File Id="PdfcraftBrandIconLicenseFile" Source="$(var.BinDir)\LICENSE-simple-icons.txt" KeyPath="yes" />
       </Component>
       <Component Id="PdfcraftMitLicense">
         <File Id="PdfcraftMitLicenseFile" Source="$(var.BinDir)\LICENSE-MIT" KeyPath="yes" />

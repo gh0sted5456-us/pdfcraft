@@ -194,9 +194,15 @@ impl DigestCache {
 #[derive(Clone, Debug, Default)]
 pub struct TrustStore {
     pub certs: Vec<Certificate>,
+    /// Extra authorities trusted only for RFC 3161 timestamps, never ordinary PDF signers.
+    pub timestamp_certs: Vec<Certificate>,
 }
 
 impl TrustStore {
+    fn trusts_timestamp(&self, c: &Certificate) -> bool {
+        self.trusts(c) || self.timestamp_certs.iter().any(|t| t.raw == c.raw)
+    }
+
     fn trusts(&self, c: &Certificate) -> bool {
         self.certs.iter().any(|t| t.raw == c.raw)
     }
@@ -440,6 +446,10 @@ pub struct SignatureInfo {
     pub doc_timestamp: bool,
     /// DocMDP permissions when this is a certification signature (1–3).
     pub certify: Option<u8>,
+    /// PdfCraft-specific page locks from the cryptographically verified signed revision.
+    pub protection: Option<crate::protection::PageProtection>,
+    /// Signature bytes verified; independent of certificate trust and subsequent changes.
+    pub integrity_valid: bool,
     /// 1-based revision the signature covers.
     pub revision: usize,
     /// Length of the signed revision (bytes) — "View signed version".
@@ -606,6 +616,8 @@ pub fn list_cached(doc: &Document, bytes: &[u8], trust: &TrustStore, cache: &Dig
             sub_filter: None,
             doc_timestamp: false,
             certify: None,
+            protection: None,
+            integrity_valid: false,
             revision: 0,
             signed_len: 0,
             digest: None,
@@ -649,6 +661,8 @@ pub fn list_cached(doc: &Document, bytes: &[u8], trust: &TrustStore, cache: &Dig
             sub_filter: Some("ETSI.RFC3161".to_string()),
             doc_timestamp: true,
             certify: None,
+            protection: None,
+            integrity_valid: false,
             revision: 0,
             signed_len: 0,
             digest: None,
@@ -771,11 +785,11 @@ fn validate_into(doc: &Document, bytes: &[u8], trust: &TrustStore, v: &Dict, inf
                     // time; otherwise its time is reported but validation uses the signer's
                     // own claimed time, as without a timestamp.
                     let mut pool = crate::timestamp::token_certs(raw);
-                    pool.extend(trust.certs.iter().cloned());
+                    pool.extend(trust.certs.iter().chain(&trust.timestamp_certs).cloned());
                     let tsa = t.signer_certificate();
                     let trusted_tsa = tsa
                         .as_ref()
-                        .is_some_and(|c| c.valid_at(t.gen_time) && build_chain(c, &pool, Some(t.gen_time)).iter().any(|x| trust.trusts(x)));
+                        .is_some_and(|c| c.valid_at(t.gen_time) && build_chain(c, &pool, Some(t.gen_time)).iter().any(|x| trust.trusts_timestamp(x)));
                     if !trusted_tsa {
                         unverified_time = Some(t.gen_time);
                     } else if tsa.as_ref().is_some_and(Certificate::may_timestamp) {
@@ -874,6 +888,17 @@ fn finish_validation(
     cms_time: Option<Time>,
     unverified_time: Option<Time>,
 ) {
+    info.integrity_valid = true;
+    // Always read restrictions from the signed bytes, never a later rewritten signature dictionary.
+    if let Some(old) = cache.revision(doc, bytes, covered)
+        && let Some(v) = sig_fields(&old)
+            .iter()
+            .filter_map(|f| f.signature(&old))
+            .find(|v| nums(&old, v, b"ByteRange").is_some_and(|b| b.len() == 4 && b[2] + b[3] == covered as f64))
+    {
+        info.protection = crate::protection::read(&v);
+        info.certify = docmdp(&old, &v);
+    }
     info.signing_time = cms_time.or_else(|| info.date.as_deref().and_then(Time::from_pdf));
     let mut pool = embedded.to_vec();
     pool.extend(trust.certs.iter().cloned());
@@ -1195,12 +1220,13 @@ fn validate_doc_timestamp(doc: &Document, bytes: &[u8], v: &Dict, info: &mut Sig
         // An untrusted TSA is not proof of anything: the verdict stays Unknown, like an
         // ordinary signature from an unknown signer.
         let mut pool = crate::timestamp::token_certs(&contents);
-        pool.extend(trust.certs.iter().cloned());
+        pool.extend(trust.certs.iter().chain(&trust.timestamp_certs).cloned());
         // A trusted authority whose certificate was not valid at the time it stamped proves
         // nothing either (its detail is already recorded above): never upgrade that to Valid.
         // Nor does one whose certificate is not issued for time stamping.
         let may_stamp = token.signer_certificate().is_some_and(|c| c.valid_at(token.gen_time) && c.may_timestamp());
-        let trusted_tsa = token.signer_certificate().is_some_and(|c| build_chain(&c, &pool, Some(token.gen_time)).iter().any(|x| trust.trusts(x)));
+        let trusted_tsa =
+            token.signer_certificate().is_some_and(|c| build_chain(&c, &pool, Some(token.gen_time)).iter().any(|x| trust.trusts_timestamp(x)));
         if trusted_tsa && may_stamp {
             info.status = Status::Valid;
             info.details.push(Detail::plain("The timestamp token is valid and its authority is trusted."));
@@ -1906,11 +1932,16 @@ pub struct SignOptions {
     pub date: String,
     /// Certify with these DocMDP permissions (1 no changes, 2 form fill and signing, 3 also comments).
     pub certify: Option<u8>,
+    /// PdfCraft-only locks, 0-based pages; unlike DocMDP these are not enforced by other readers.
+    pub protected_pages: Vec<usize>,
+    pub allow_insert: bool,
     pub appearance: Appearance,
     /// The words of the labels the visible signature shows.
     pub appearance_labels: AppearanceLabels,
     /// A drawing, typed signature or image shown where the large name would be.
     pub graphic: Option<crate::graphic::Graphic>,
+    /// Optional subdued graphic behind the signature details, independent of the left graphic.
+    pub background: Option<crate::graphic::Graphic>,
 }
 
 /// What an encrypted document's permissions (ISO 32000-2 §7.6.4.2, Table 22) allow when it was
@@ -1942,6 +1973,14 @@ fn check_signing_permissions(doc: &Document, opts: &SignOptions) -> Result<(), S
 
 /// Placeholder `/ByteRange` values: fixed width, patched after writing.
 const BR_MARK: [i64; 3] = [1_111_111_111, 2_222_222_222, 3_333_333_333];
+
+fn timestamp_query(imprint: Vec<u8>) -> Result<crate::timestamp::TimestampQuery, SignError> {
+    let mut query = crate::timestamp::TimestampQuery::new(DigestAlg::Sha256, imprint)?;
+    let mut random = [0; 8];
+    getrandom::fill(&mut random).map_err(|e| SignError::Crypto(format!("could not generate a timestamp nonce: {e}")))?;
+    query.nonce = Some(u64::from_be_bytes(random));
+    Ok(query)
+}
 
 /// Sign `doc` with `id`; returns the signed file (an incremental update when possible).
 pub fn sign(doc: &Document, id: &DigitalId, opts: &SignOptions) -> Result<Vec<u8>, SignError> {
@@ -1976,6 +2015,12 @@ fn sign_inner(
         return Err(SignError::Pdf("save the document's new security settings before signing it".into()));
     }
     check_signing_permissions(doc, opts)?;
+    let before = doc;
+    let existing = list(doc, doc.bytes(), &TrustStore::default());
+    if existing.iter().any(|s| s.integrity_valid && s.certify == Some(1)) {
+        return Err(SignError::Pdf("The certification permits no further signatures; remove it first".into()));
+    }
+    let page_rules: Vec<_> = existing.iter().filter_map(|s| s.protection.clone()).collect();
     let mut doc = doc.clone();
     let root = doc.root().ok_or_else(|| SignError::Pdf("the document has no catalog".into()))?;
     let alg = id.key.preferred_digest();
@@ -2011,6 +2056,9 @@ fn sign_inner(
         sr.set(b"TransformMethod".to_vec(), Object::name("DocMDP"));
         sr.set(b"TransformParams".to_vec(), Object::Dict(tp));
         v.set(b"Reference".to_vec(), Object::Array(vec![Object::Dict(sr)]));
+    }
+    if let Some(policy) = crate::protection::write(&doc, &opts.protected_pages, opts.allow_insert)? {
+        v.set(b"PdfCraftProtection".to_vec(), policy);
     }
     let sig = doc.add(Object::Dict(v.clone()));
     if opts.certify.is_some() {
@@ -2112,6 +2160,7 @@ fn sign_inner(
     let mut apd = Dict::new();
     apd.set(b"N".to_vec(), Object::Ref(ap_ref));
     doc.update_dict(widget, |w| w.set(b"AP".to_vec(), Object::Dict(apd)))?;
+    crate::protection::check(before, &doc, &page_rules)?;
     // Write with the placeholders, then patch them.
     let save = SaveOptions { mod_date: Some(opts.date.clone()), object_streams: false, ..SaveOptions::default() };
     let mut out = pdfcraft_cos::write_incremental(&doc, &save)?;
@@ -2133,7 +2182,7 @@ fn sign_inner(
             // The imprint covers the signature value, which attaching an unsigned attribute
             // does not change (PAdES B-T).
             let sd = SignedData::parse(&base)?;
-            let q = crate::timestamp::TimestampQuery::new(DigestAlg::Sha256, DigestAlg::Sha256.digest(&[&sd.signer.signature]))?;
+            let q = timestamp_query(DigestAlg::Sha256.digest(&[&sd.signer.signature]))?;
             let resp = t.timestamp(&q.encode()?)?;
             let token = crate::timestamp::parse_response(&resp, &q)?;
             crate::cms::attach_timestamp_token(&base, &token.raw)?
@@ -2187,7 +2236,7 @@ pub fn timestamp_document(doc: &Document, tsa: &dyn crate::timestamp::TimestampA
     }
     br_text.resize(width, b' ');
     out[br_at..br_at + width].copy_from_slice(&br_text);
-    let q = crate::timestamp::TimestampQuery::new(DigestAlg::Sha256, DigestAlg::Sha256.digest(&[&out[..start], &out[end..]]))?;
+    let q = timestamp_query(DigestAlg::Sha256.digest(&[&out[..start], &out[end..]]))?;
     let resp = tsa.timestamp(&q.encode()?)?;
     let token = crate::timestamp::parse_response(&resp, &q)?;
     let hex: Vec<u8> = token.raw.iter().flat_map(|b| format!("{b:02X}").into_bytes()).collect();
@@ -2306,6 +2355,7 @@ fn appearance(doc: &mut Document, rect: [f64; 4], name: &str, cert: &Certificate
     lines.retain(|l| !l.is_empty());
     let mut out = Vec::new();
     let mut image = None;
+    let mut watermark = None;
     let mut fonts = Dict::new();
     let (font_tag, metrics) = if needs_unicode {
         let tag = pdfcraft_fonts::embedding::embed(doc, &mut fonts, pdfcraft_fonts::INTER_REGULAR, "Inter")
@@ -2339,6 +2389,33 @@ fn appearance(doc: &mut Document, rect: [f64; 4], name: &str, cert: &Certificate
             (None, false) => (0.0, pad),
         };
         let right_w = (w - right_x - pad).max(1.0);
+        if !lines.is_empty()
+            && let Some(g) = &opts.background
+        {
+            let (ops, im) = g.draw(doc, [right_x, pad, right_w, (h - 2.0 * pad).max(0.0)])?;
+            let mut resources = Dict::new();
+            if let Some(im) = im {
+                let mut images = Dict::new();
+                images.set(b"Im1".to_vec(), Object::Ref(im));
+                resources.set(b"XObject".to_vec(), Object::Dict(images));
+            }
+            let mut alpha = Dict::new();
+            alpha.set(b"ca".to_vec(), Object::Real(0.12));
+            alpha.set(b"CA".to_vec(), Object::Real(0.12));
+            let mut states = Dict::new();
+            states.set(b"Fade".to_vec(), Object::Dict(alpha));
+            resources.set(b"ExtGState".to_vec(), Object::Dict(states));
+            let mut form = Dict::new();
+            form.set(b"Type".to_vec(), Object::name("XObject"));
+            form.set(b"Subtype".to_vec(), Object::name("Form"));
+            form.set(b"BBox".to_vec(), Object::Array([0.0, 0.0, w, h].into_iter().map(Object::Real).collect()));
+            form.set(b"Resources".to_vec(), Object::Dict(resources));
+            let mut content = b"q /Fade gs\n".to_vec();
+            content.extend(ops.bytes());
+            content.extend_from_slice(b"Q\n");
+            watermark = Some(doc.add(Object::Stream(Stream::flate(form, &content))));
+            out.extend_from_slice(b"q /Watermark Do Q\n");
+        }
         if let Some(g) = &opts.graphic {
             let (ops, im) = g.draw(doc, [pad, pad, (left_w - 2.0 * pad).max(0.0), (h - 2.0 * pad).max(0.0)])?;
             out.extend(ops.bytes());
@@ -2385,9 +2462,14 @@ fn appearance(doc: &mut Document, rect: [f64; 4], name: &str, cert: &Certificate
     d.set(b"BBox".to_vec(), Object::Array([0.0, 0.0, w, h].iter().map(|x| Object::Real(*x)).collect()));
     let mut res = Dict::new();
     res.set(b"Font".to_vec(), Object::Dict(fonts));
+    let mut xobjects = Dict::new();
     if let Some(im) = image {
-        let mut xobjects = Dict::new();
         xobjects.set(b"Im1".to_vec(), Object::Ref(im));
+    }
+    if let Some(mark) = watermark {
+        xobjects.set(b"Watermark".to_vec(), Object::Ref(mark));
+    }
+    if !xobjects.is_empty() {
         res.set(b"XObject".to_vec(), Object::Dict(xobjects));
     }
     d.set(b"Resources".to_vec(), Object::Dict(res));

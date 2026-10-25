@@ -1,5 +1,52 @@
 # PdfCraft parity with Adobe Acrobat Pro
 
+**2026-10-25 Glass refinement:** Shared tint/opacity now covers dialogs, cards, fields, settings rails and floating panes. Redundant dock backgrounds are removed so desktop transparency is preserved. Windows Glass reuses the app header and window controls; leaving Glass restores the normal frame. Installer behavior is unchanged. Native Linux/macOS transparency remains unverified.
+
+**2026-10-25:** Glass is a PdfCraft-specific appearance choice, available through `view.theme.glass` and UI control `theme`, `glass-tint`, `glass-opacity`. Thumbnail raster padding is removed geometrically, preserving actual white margins. Named opening optimization fix and its modern/legacy, name/string, direct/indirect save/reopen tests adapt [@KyleKassen’s PR #4678](https://github.com/storytold/pdfcraft/pull/4678), commit `f2a155237cb31203fe738ac1580852e4017c8ebc`, under this repository’s MIT/Apache-2.0 licenses. No unrelated PR changes were imported.
+
+> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Change:** Wider New PDF gallery with a responsive grid of real template previews, one background worker and bounded Letter/A4 thumbnail caching; compact filters and centered actions. Shared dialogs use thinner borders, less padding and smaller shadows. Undo/Redo controls reuse document/Combine commands with responsive toolbar spacing. Named opening destinations now report the right page and can be redirected to page 1; finite form numbers avoid overflow during decimal rounding. Status notices no longer intercept dialog clicks. Native Linux/macOS and browser runtime remain unverified; readiness estimates unchanged.
+
+
+- **2026-10-24:** Centered shared confirmation groups (including Back/Cancel/primary actions); long tool bodies scroll independently. Button outlines remain inside their hit boxes. Small/large light/dark dialog and changing-action layout regressions cover this UI pass.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Shared centered modal titles across document tools, compact Assistant setup with aligned full-width fields and a dedicated connection footer, theme-aware semantic actions and wrapping narrow-screen footers. File/Edit/Pages commands are grouped by workflow, with separators and File/Edit/View/Pages/Help navigation. Existing permission/consent behavior is retained. Native Linux/macOS UI and browser runtime remain unverified; readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 fixes JavaScript tool routing, preserves one isolated script realm per open PDF, dispatches Open/WillSave/WillPrint and widget actions, and adds an undoable standard document-action editor. Print Production now exposes existing resolution/font/bleed preflight plus bounded source-colour/spot/overprint inspection and page-box maps. Assistant size and shared dialog widths are capped for small viewports. Full Adobe/Foxit APIs, post-save/close/page/timer events, ICC soft proofing, separations, composited total ink coverage, conversion, printer marks and hairline repair remain separate; readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 adds a centered starter gallery with 34 editable layouts, live form fields and versioned .pdfcraft-template import/export. Opening templates creates unsaved copies and preserves unsigned page locks; signed/protected sources are refused. Headless listing/creation/export and root-confinement coverage accompany the UI. Starter wording is English; booklet imposition and native Linux/macOS/browser runtime verification remain separate. Readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Locked pages now refuse Edit-mode interaction immediately: original text/images, added content, group selection, forms, crop and modifying context actions. Locked scans defer automatic OCR until unlocked. Engine write guards still apply; other readers may ignore these PdfCraft-only locks. Readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Organize Pages padlocks now toggle individual unsigned page locks without changing the page selection, reuse Undo and persist after save/reopen. Signed locks, certification, restricted documents and the signing chooser keep their existing guards. Other readers may ignore PdfCraft page locks; readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Compact Settings now has twelve categories, solid scrollbars in both panes, shorter category labels, centered headings and fixed themed confirmation actions. The personal build also adapts community #2520 for local accented Latin OCR with persisted choices and Unicode search layers, and fixes repeated added-image resizing and off-page preview clipping (#4477). Readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal build adapts upstream #4533 search-focus selection, #4552 checkbox drag selection and #4557 independent form-field copies on duplicated pages. Ordinary duplication keeps shared field names; renamed copies report their new names and do not rewrite scripts. Readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal build adds optional per-user AI subscription/API setup and reviewed read-only assistance, unsigned page locks captured by subsequent signatures, an Organize Pages signing chooser, and bounded centered shared dialogs. Live AI/provider login, native Linux/macOS credential stores and physical CAC remain unverified. Other readers may ignore PdfCraft page locks; readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal M9 signing adds fresh private-key proof for signature removal, authoritative signature hit targets, native certification edit guards and explicitly PdfCraft-only signed page protection with organizer lock indicators. Policies follow pages and come from the verified signed revision. Physical CAC and other-reader page enforcement remain unverified; readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 groups language/spelling controls, adds US/UK English interface choices and local spelling marks/suggestions in editable text, comments and eligible form fields, with independent installed-dictionary language and a persistent personal dictionary. No dictionary assets or external service added. Native Linux/macOS spelling runtime remains unverified; readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 adds search page extraction/page-number copying and tested transfers between open PDFs (copy by default, Shift to move, separate Undo per document). Adopts #4502 signature-overlay preference, #4475 clean drag previews and #4479 folder navigation. Signing explicitly uses the computer clock by default with server timestamps optional; modal document tooltips are suppressed. Native Linux/CAC runtime limits and readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Dialog actions share matte theme-aware styling, dimensions and explicit semantic colors; timestamp selection retains Sectigo by default and offers FreeTSA (manual trust) or Custom. Recovery now asks for the first save destination and caps metadata, adapted from #4327. Native Linux/CAC runtime limits unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** personal M9 signing: independent subdued lion/custom background, reviewed unsigned copies and a matching-ID page menu, plus opt-in RFC 3161 timestamps with a Sectigo HTTPS default, fresh nonces and timestamp-only OS trust. 2,504 scoped tests, strict lint, Windows and wasm checks pass; live Sectigo signing/document timestamps validate. Native Linux/CAC checks remain pending; Linux cross-check needs a C toolchain. Readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** context-sensitive Ctrl+L/E/R aligns an original paragraph, a selected added text box or an open text draft; existing formatting and Undo paths are reused, other text inputs keep their shortcuts, and Ctrl+L remains full screen outside document text. Estimates and printer runtime limits unchanged.
+
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** Edit-mode Group select includes original editable text, images and paths with annotations and added content; atomic move/delete and arrow-key nudging (one point, Shift ten), repeated-move remapping and preserved/refused text drafts. Content batches also refresh warmed added-content caches. Outside Edit it remains additions-only. Estimates and printer runtime limits unchanged.
+
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 adopts added-text editor alignment from upstream PR #4178 by @RiceDee; centered/right-aligned text stays anchored when editing, including boxes narrower than the editor minimum. Justified editing remains left-aligned; readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1 adds same-page group selection of comments and added content, atomic group dragging/Delete/Undo, a centered theme-aware close prompt with matte hover colors, and persistent red/green document-status dots. Crop-from-grid fix adopted from PR #3974 by @eliets2. Existing readiness estimates and native printer validation limits unchanged.
+
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** experimental personal Windows printer and Linux CUPS 2.x backend; Linux cross-target checks pass, native Linux queue testing remains pending. No readiness estimate change.
+
+> **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** personal 0.13.1: object alignment/distribution and drag guides. The separate PDF printer is excluded from this version. Upstream readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-20 · **Last updated:** 2026-10-20 · **Change:** minor (M12 #3673: Character encoding CJK mapping routes corrected; scores and estimates unchanged)
 
 > **Last reviewed:** 2026-10-10 · **Last updated:** 2026-10-13 · **Change:** minor (localization ≈59% → ≈68%; weighted readiness 49.25 → 49.7 ≈ 50%) · **Target:** Adobe Acrobat Pro (Acrobat DC, continuous track 26.002.21931, macOS)
@@ -294,6 +341,8 @@ licensed OCR or AI model.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-24 | minor | Personal 0.13.1 adds a centered starter gallery with 34 editable layouts, live form fields and versioned .pdfcraft-template import/export. Opening templates creates unsaved copies and preserves unsigned page locks; signed/protected sources are refused. Headless listing/creation/export and root-confinement coverage accompany the UI. Starter wording is English; booklet imposition and native Linux/macOS/browser runtime verification remain separate. Readiness estimates unchanged. |
+| 2026-10-24 | minor | Organize Pages padlocks now toggle individual unsigned page locks without changing the page selection, reuse Undo and persist after save/reopen. Signed locks, certification, restricted documents and the signing chooser keep their existing guards. Other readers may ignore PdfCraft page locks; readiness estimates unchanged. |
 | 2026-10-20 | minor | M12 #3673: the Character encoding rule accepts Identity-H/V fonts with Adobe CJK collections, or a predefined non-Identity CMap, while rejecting unknown names and foreign registries. Synthetic checker and read-only automation regressions passed after failing before the fix; per-glyph mapping validation and embedded-font extraction remain separate. Breadth, readiness and hours unchanged. |
 | 2026-10-12 | minor | Exclusive image crops resize with their pixels across nested states, intervening operators and content streams; shared clips remain fixed. Synthetic engine/tool regressions and private image save/reopen checks; estimates unchanged. |
 | 2026-10-11 | minor | Web printing shipped (gap 4): Hardware, Platforms and L Print text updated. Text only: scores, readiness and hours not re-judged |
@@ -306,3 +355,5 @@ licensed OCR or AI model.
 | 2026-10-10 | major | Created from ROADMAP.md §Estimate summary and §Honest assessment (2026-10-05/07). Full re-measure against Acrobat Pro 26.002.21931: checklist recomputed (56.9% unweighted, ≈ 67% tier-weighted), ready for real work ≈ 40%, stage alpha, hours re-calibrated (780–1,400 h to parity, 400–700 h to beta), dimension and area tables |
 | 2026-10-07 | minor | (in ROADMAP.md) 806 tracked features, 51.0% shipped, effort-weighted ≈ 30–35%, 600–1,100 h |
 | 2026-10-05 | major | (in ROADMAP.md) First honest assessment by dimension and area |
+
+- **2026-10-24:** Personal paper defaults, business-card starter, calibrated actual-size viewing and unified export picker; physical printing and native non-Windows runtime remain unverified.

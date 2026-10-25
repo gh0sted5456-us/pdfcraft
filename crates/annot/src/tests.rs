@@ -1622,3 +1622,41 @@ fn cloud_outline_has_a_bump_budget() {
     let bumps = appearance::cloud_path(&pts, 1.0).lines().filter(|l| l.ends_with(" c")).count();
     assert!((pts.len()..=appearance::MAX_CLOUD_BUMPS + 2 * pts.len()).contains(&bumps), "{bumps} bumps");
 }
+
+#[test]
+fn bulk_delete_resolves_original_indices_before_cascading_popups() {
+    let mut doc = fixture();
+    let a = add_annotation(&mut doc, &new(0, Shape::Note { at: [100.0, 100.0], icon: NoteIcon::Comment }), &meta("a")).unwrap();
+    let b = add_annotation(&mut doc, &new(0, Shape::Note { at: [200.0, 100.0], icon: NoteIcon::Comment }), &meta("b")).unwrap();
+    let page = page_refs(&doc).unwrap()[0];
+    let entries = annots(&doc, page);
+    set_annots(&mut doc, page, vec![entries[b + 1].clone(), entries[0].clone(), entries[a].clone(), entries[b].clone(), entries[a + 1].clone()])
+        .unwrap();
+    delete_annotations(&mut doc, 0, &[2, 3, 2]).unwrap();
+    let saved = reopen(&doc);
+    assert_eq!(list(&saved, 0).len(), 1);
+    assert_eq!(list(&saved, 0)[0].name(b"Subtype"), Some(b"Square".as_slice()));
+}
+
+#[test]
+fn bulk_delete_validates_all_targets_before_changing_the_document() {
+    let mut doc = fixture();
+    let note = add_annotation(&mut doc, &new(0, Shape::Note { at: [100.0, 100.0], icon: NoteIcon::Comment }), &meta("locked")).unwrap();
+    set_locked(&mut doc, 0, note, true).unwrap();
+    for indices in [&[0, note][..], &[0, 999][..], &[][..]] {
+        let before = pdfcraft_cos::write_incremental(&doc, &SaveOptions::default()).unwrap();
+        assert!(delete_annotations(&mut doc, 0, indices).is_err());
+        assert_eq!(pdfcraft_cos::write_incremental(&doc, &SaveOptions::default()).unwrap(), before);
+    }
+}
+
+#[test]
+fn bulk_delete_honors_locked_inline_annotations() {
+    let mut doc = fixture();
+    let page = page_refs(&doc).unwrap()[0];
+    let Object::Dict(mut annotation) = annots(&doc, page)[0].clone() else { panic!("inline fixture") };
+    annotation.set(b"F".to_vec(), Object::Int(FLAG_LOCKED));
+    set_annots(&mut doc, page, vec![Object::Dict(annotation)]).unwrap();
+    assert!(delete_annotations(&mut doc, 0, &[0]).is_err());
+    assert_eq!(list(&reopen(&doc), 0).len(), 1);
+}

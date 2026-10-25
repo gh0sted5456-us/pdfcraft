@@ -37,18 +37,33 @@ enum Act {
     Edit(Box<Edit>),
     View(ViewAction),
     Command(&'static str),
+    Transfer(pdfcraft_engine::DocId, Vec<usize>, usize),
 }
 
 pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
     let Some((index, id)) = app.active_ids() else { return };
     let Some(doc) = app.session.get(id) else { return };
     let info = &doc.info;
-    let editable = doc.allows_assembly();
+    let editable = doc.allows_assembly() && doc.certification().is_none();
     let n = info.pages.len();
+    let protected = doc.protected_pages();
+    let signed = doc.signed_protected_pages();
+    let choosing = app.sign_draft.as_ref().is_some_and(|d| d.choosing_pages == Some(id));
+    let mut choice = None;
+    let sources: Vec<_> = app
+        .views
+        .iter()
+        .filter(|v| v.id != id)
+        .filter_map(|v| {
+            let doc = app.session.get(v.id)?;
+            doc.allows_assembly().then(|| (v.id, doc.name.clone(), v.target_pages()))
+        })
+        .collect();
     let mut act: Option<Act> = None;
     let mut back = false;
     let mut close = false;
     let Some(view) = app.views.get_mut(index) else { return };
+    view.organize_pick = choosing;
 
     ui.horizontal(|ui| {
         if icons::button(ui, "chevron-left", 26.0, false, tl!("Back to all tools")).clicked() {
@@ -66,6 +81,31 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
     ui.separator();
 
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        if choosing {
+            ui.label("Select pages to protect after signing. Hold Ctrl to pick individual pages or Shift for a range.");
+            if ui
+                .add_enabled_ui(!view.selected.is_empty(), |ui| widgets::dialog_button(ui, "Use selected pages", widgets::DialogAction::Confirm))
+                .inner
+                .clicked()
+            {
+                choice = Some(true);
+            }
+            if widgets::dialog_button(ui, "Return to signing", widgets::DialogAction::Back).clicked() {
+                choice = Some(false);
+            }
+            ui.separator();
+        }
+        if !protected.is_empty() {
+            ui.horizontal_wrapped(|ui| {
+                ui.add(icons::image("lock", 16.0, t.text_muted));
+                ui.label(format!(
+                    "{} locked page(s); {} require signature removal before unlocking. Other readers may ignore PdfCraft page locks.",
+                    protected.len(),
+                    signed.len()
+                ));
+            });
+            ui.separator();
+        }
         widgets::section_title(ui, tl!("Pages selected"));
         let current = view.current;
         let picked = view.organize_range.show(ui, &view.selected, n, current, |ui| {
@@ -94,6 +134,26 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
 
         let targets = view.target_pages();
         let last = targets.last().copied().unwrap_or(0);
+        if !choosing {
+            ui.horizontal_wrapped(|ui| {
+                if ui.add_enabled(editable && doc.allows_modification(), egui::Button::new("Lock pages")).clicked() {
+                    act = Some(Act::Edit(Box::new(Edit::SetPageLocks { pages: targets.clone(), locked: true })));
+                }
+                let may_unlock = editable
+                    && doc.allows_modification()
+                    && targets.iter().any(|p| protected.contains(p))
+                    && !targets.iter().any(|p| signed.contains(p));
+                if ui
+                    .add_enabled(may_unlock, egui::Button::new("Unlock pages"))
+                    .on_hover_text("Signed page locks require verified signature removal first.")
+                    .clicked()
+                {
+                    act = Some(Act::Edit(Box::new(Edit::SetPageLocks { pages: targets.clone(), locked: false })));
+                }
+            });
+        } else {
+            return;
+        }
         widgets::section_title(ui, tl!("Page options"));
         ui.add_enabled_ui(editable, |ui| {
             ui.horizontal(|ui| {
@@ -105,7 +165,7 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                     act = Some(Act::Edit(Box::new(Edit::RotatePages { pages: targets.clone(), degrees: 90 })));
                 }
                 // A document keeps at least one page.
-                let can_delete = targets.len() < n;
+                let can_delete = targets.len() < n && !targets.iter().any(|p| protected.contains(p));
                 if ui.add_enabled_ui(can_delete, |ui| icons::button(ui, "trash-2", 34.0, false, tl!("Delete pages (Delete)"))).inner.clicked() {
                     act = Some(Act::Edit(Box::new(Edit::DeletePages { pages: targets.clone() })));
                 }
@@ -125,8 +185,22 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
                 if ui.button(tl!("Insert pages from a file…")).clicked() {
                     act = Some(Act::View(ViewAction::InsertFromFile));
                 }
+                ui.menu_button("Insert selected pages from an open PDF", |ui| {
+                    if sources.is_empty() {
+                        ui.label("Open another PDF first.");
+                    }
+                    for (source, name, pages) in &sources {
+                        if ui.button(format!("{name} ({} pages)", pages.len())).clicked() {
+                            act = Some(Act::Transfer(*source, pages.clone(), last.saturating_add(1)));
+                            ui.close();
+                        }
+                    }
+                });
                 if ui.button(tl!("Duplicate pages")).clicked() {
                     act = Some(Act::Command("page.duplicate"));
+                }
+                if ui.button(tl!("Duplicate pages with new field names")).clicked() {
+                    act = Some(Act::Command("page.duplicate_renaming_fields"));
                 }
             });
             if row(ui, t, "replace", tl!("Replace"), Availability::Ready, false).clicked() {
@@ -160,6 +234,14 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         row(ui, t, "info", tl!("Page properties"), Availability::Later, false);
     });
 
+    if let Some(accept) = choice {
+        app.finish_sign_page_choice(accept);
+        return;
+    }
+    if choosing && (close || back) {
+        app.finish_sign_page_choice(false);
+        return;
+    }
     if close {
         view.organize = false;
         app.left = workspace_panel(app.mode);
@@ -172,6 +254,9 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         Some(Act::Edit(edit)) => view.pending_edit = Some(*edit),
         Some(Act::View(action)) => view.pending_action = Some(action),
         Some(Act::Command(command)) => app.run_command(command),
+        Some(Act::Transfer(source, pages, at)) => {
+            app.transfer_open_pages(source, id, &pages, at, false);
+        }
         None => {}
     }
 }

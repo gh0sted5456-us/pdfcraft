@@ -13,12 +13,14 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod actions;
+pub mod assistant;
 pub mod autotag;
 pub mod build_info;
 pub mod camera;
 pub mod camera_clean;
 pub mod camera_edges;
 pub mod catalog;
+pub mod clear_signature;
 pub mod commands;
 pub mod compare;
 mod copy_image;
@@ -29,13 +31,17 @@ pub mod js;
 pub mod links;
 pub mod ocr;
 pub mod optimizer;
+pub mod outputcheck;
+mod page_workflows;
 pub mod print_raster;
 pub mod printcheck;
 mod scan_colours;
 mod scan_fields;
 pub mod signature_image;
 pub mod signature_scan;
+pub mod spelling;
 mod stamp_preview;
+pub mod templates;
 pub mod text_fonts;
 mod text_preview;
 pub mod word_count;
@@ -67,11 +73,13 @@ pub use pdfcraft_forms::{
 };
 
 pub use pdfcraft_a11y as a11y;
-pub use pdfcraft_edit::{BlockKey, BlockStyle, PageImage, RangeStyle, TextBlock, TextLine, block_overlapping, first_undrawable};
+pub use pdfcraft_edit::{
+    BlockKey, BlockStyle, PageImage, PathOutline, PathStyle, RangeStyle, TextBlock, TextLine, block_overlapping, first_undrawable,
+};
 pub use pdfcraft_measure as measure;
 pub use pdfcraft_xfa::Report as XfaLayout;
 
-pub use pdfcraft_edit::{EditableObject, MAX_MOVE_OBJECTS, ObjectKind, ObjectTarget};
+pub use pdfcraft_edit::{EditableObject, MAX_MOVE_OBJECTS, ObjectAlign, ObjectKind, ObjectTarget};
 
 /// A change to an existing page image.
 #[derive(Clone, Debug, PartialEq)]
@@ -275,6 +283,7 @@ fn uses_scripts(edit: &Edit) -> bool {
 
 fn scope_of(edit: &Edit) -> Scope {
     match edit {
+        Edit::ApplyScriptChanges { changes } if js::structural_changes(changes) => Scope::Full,
         Edit::SetInfo { .. } => Scope::Metadata,
         // A file attachment also changes the Attachments list.
         Edit::AddAnnotation(a) if matches!(a.shape, Shape::Attachment { .. }) => Scope::Full,
@@ -282,6 +291,7 @@ fn scope_of(edit: &Edit) -> Scope {
         | Edit::AddAnnotation(_)
         | Edit::AddCustomStamp { .. }
         | Edit::DeleteAnnotation { .. }
+        | Edit::DeleteAnnotations { .. }
         | Edit::SetAnnotationContents { .. }
         | Edit::ReplyToAnnotation { .. }
         | Edit::SetAnnotationStatus { .. }
@@ -301,6 +311,11 @@ fn scope_of(edit: &Edit) -> Scope {
         // Page content, resources and added content/marks only: the page tree, annotations,
         // fields, links and document metadata are untouched (see `refresh_content`).
         Edit::MoveObjects { .. }
+        | Edit::AlignObjects { .. }
+        | Edit::DeleteObjects { .. }
+        | Edit::DeletePaths { .. }
+        | Edit::StylePaths { .. }
+        | Edit::MovePathPoint { .. }
         | Edit::EditTextLine { .. }
         | Edit::EditTextBlock { .. }
         | Edit::EditPageImage { .. }
@@ -340,6 +355,8 @@ struct Editor {
     unsaved_file: bool,
     undo: Vec<Snapshot>,
     redo: Vec<Snapshot>,
+    /// See [`Document::edit_position`].
+    position: u64,
     keys: Keys,
     /// Display appearances built for annotations without any, reused while no annotation edit
     /// runs (content edits leave every annotation dictionary alone). Cleared on any refresh
@@ -421,6 +438,7 @@ pub struct Document {
     config: RenderConfig,
     /// What field scripts printed or asked for (see [`Session::take_js_output`]).
     js_output: js::JsOutput,
+    js_runtime: Option<pdfcraft_js::Runtime>,
     /// Dynamic XFA forms: what laying the template out produced (pages and fields are
     /// PdfCraft's; Adobe's viewers draw the form from the XFA packets themselves).
     pub xfa: Option<XfaLayout>,
@@ -543,6 +561,12 @@ impl Document {
         pdfcraft_edit::editable_objects(&editor.cos, page).map_err(|e| e.to_string())
     }
 
+    /// Per-object user-space offsets for an alignment; used to retain the UI selection after the edit.
+    pub fn object_alignment_offsets(&self, page: usize, objects: &[ObjectTarget], how: ObjectAlign) -> Result<Vec<(ObjectTarget, [f64; 2])>, String> {
+        let editor = self.editor.as_ref().ok_or("the document can't be read")?;
+        pdfcraft_edit::object_alignment_offsets(&editor.cos, page, objects, how).map_err(|e| e.to_string())
+    }
+
     /// Displayed top-left-origin motion to a user-space vector. Use the linear map only,
     /// so even a large crop-box origin cannot erase a small drag by cancellation.
     pub fn object_move_offset(&self, page: usize, delta: [f64; 2]) -> Result<[f64; 2], String> {
@@ -601,6 +625,57 @@ impl Document {
     pub fn measurement_to_view(&self, page: usize, point: measure::Point) -> Result<measure::Point, String> {
         let e = self.editor.as_ref().ok_or("the document can't be read")?;
         measure::user_to_view(&e.cos, page, point).map_err(|e| e.to_string())
+    }
+
+    /// Move a page's comments and PdfCraft-added content together. Indices are zero-based;
+    /// offset is in displayed-page points, x right/y down (before any view-only rotation).
+    pub fn move_additions(&self, page: usize, annotations: &[usize], content: &[usize], offset: [f64; 2]) -> Result<Edit, String> {
+        self.move_selection(page, annotations, content, &[], offset)
+    }
+
+    /// Move comments, added content and original editable page objects as one transaction.
+    /// Original-object references come from `editable_objects`; added items use `content`.
+    pub fn move_selection(
+        &self,
+        page: usize,
+        annotations: &[usize],
+        content: &[usize],
+        objects: &[ObjectTarget],
+        offset: [f64; 2],
+    ) -> Result<Edit, String> {
+        let count = annotations.len().saturating_add(content.len()).saturating_add(objects.len());
+        if objects.iter().any(|o| o.kind == ObjectKind::Added) {
+            return Err("use content indices for added text and images".into());
+        }
+        if count == 0 || count > 1_000 {
+            return Err("select between 1 and 1000 objects to move".into());
+        }
+        if !offset.iter().all(|v| v.is_finite() && v.abs() <= 10_000_000.0) || offset == [0.0, 0.0] {
+            return Err("the move must be finite, non-zero and at most 10000000 points".into());
+        }
+        let [dx, dy] = self.object_move_offset(page, offset)?;
+        let mut edits = Vec::new();
+        for index in annotations.iter().copied().collect::<std::collections::BTreeSet<_>>() {
+            if !self.info.annotations.iter().any(|a| a.page == page && a.index == index && a.subtype != "Popup") {
+                return Err("that comment no longer exists; select it again".into());
+            }
+            edits.push(Edit::MoveAnnotation { page, index, dx, dy });
+        }
+        let added: Vec<_> = self.added().iter().filter(|a| a.page == page).collect();
+        for index in content.iter().copied().collect::<std::collections::BTreeSet<_>>() {
+            let item = added.get(index).ok_or("that added content no longer exists; select it again")?;
+            let r = item.content.rect();
+            let rect = [r[0] + offset[0], r[1] - offset[1], r[2] + offset[0], r[3] - offset[1]];
+            if !rect.iter().all(|v| v.is_finite()) {
+                return Err("invalid move offset".into());
+            }
+            edits.push(Edit::UpdateContent { page, index, content: item.content.with_rect(rect) });
+        }
+        if !objects.is_empty() {
+            edits.push(Edit::MoveObjects { page, objects: objects.to_vec(), offset: [dx, dy] });
+        }
+        let label = if objects.is_empty() { "Move additions" } else { "Move objects" };
+        Ok(Edit::Batch { label: label.into(), edits })
     }
     pub fn measurement_paths(&self, page: usize) -> Result<measure::snap::Geometry, String> {
         let e = self.editor.as_ref().ok_or("the document can't be read")?;
@@ -698,8 +773,43 @@ impl Document {
         self.editor.as_ref().and_then(|e| e.redo.last()).map(|(l, ..)| l)
     }
 
+    /// How many edits are applied, net of undo and redo: an edit or a redo raises it by one, an
+    /// undo lowers it by one. Unlike the undo history it has no cap, so an interface can note it
+    /// and later undo back to exactly that point.
+    pub fn edit_position(&self) -> Option<u64> {
+        self.editor.as_ref().map(|e| e.position)
+    }
+
     pub fn editable(&self) -> bool {
         self.editor.is_some()
+    }
+
+    /// Strictest verified certification in the document, independent of signer trust.
+    pub fn certification(&self) -> Option<u8> {
+        self.signatures.iter().filter(|s| s.integrity_valid).filter_map(|s| s.certify).min()
+    }
+
+    /// Current 0-based pages protected by a signed PdfCraft policy.
+    pub fn signed_protected_pages(&self) -> Vec<usize> {
+        self.page_locks(false)
+    }
+
+    /// Current 0-based pages with either unsigned or signed protection.
+    pub fn protected_pages(&self) -> Vec<usize> {
+        self.page_locks(true)
+    }
+
+    fn page_locks(&self, include_local: bool) -> Vec<usize> {
+        let Some(editor) = &self.editor else { return Vec::new() };
+        let Ok(pages) = pdfcraft_annot::page_refs(&editor.cos) else { return Vec::new() };
+        let local = if include_local { pdfcraft_sign::protection::local_pages(&editor.cos).unwrap_or_default() } else { Vec::new() };
+        pages
+            .iter()
+            .enumerate()
+            .filter_map(|(i, page)| {
+                (local.contains(page) || self.signatures.iter().filter_map(|s| s.protection.as_ref()).any(|p| p.pages.contains(page))).then_some(i)
+            })
+            .collect()
     }
 
     /// What the opening password allows; `None` when the document is not encrypted.
@@ -784,17 +894,17 @@ impl Document {
 
     /// Changes to content and document information are allowed.
     pub fn allows_modification(&self) -> bool {
-        self.editable() && self.permissions().is_none_or(|p| p.modify())
+        self.editable() && self.certification().is_none() && self.permissions().is_none_or(|p| p.modify())
     }
 
     /// Filling in form fields is allowed (Table 22, bits 6 and 9).
     pub fn allows_form_filling(&self) -> bool {
-        self.editable() && self.permissions().is_none_or(|p| p.fill_forms())
+        self.editable() && self.certification() != Some(1) && self.permissions().is_none_or(|p| p.fill_forms())
     }
 
     /// Adding and changing comments is allowed (Table 22, bit 6).
     pub fn allows_annotation(&self) -> bool {
-        self.editable() && self.permissions().is_none_or(|p| p.annotate())
+        self.editable() && self.certification().is_none_or(|p| p == 3) && self.permissions().is_none_or(|p| p.annotate())
     }
 
     /// The document's security may be changed (Protect, Remove security): it is editable and,
@@ -1351,6 +1461,9 @@ pub enum Edit {
     DuplicatePages {
         pages: Vec<usize>,
         at: Option<usize>,
+        /// The copies' form fields: `Merge` keeps their names, so each copy is one field with
+        /// its original (Duplicate pages); `Rename` gives each its own (#2228).
+        field_conflicts: pdfcraft_organize::FieldConflicts,
     },
     /// Replace Pages: the content of `pages` is replaced by `src_pages` of another PDF; the
     /// pages' links, comments and bookmarks stay.
@@ -1451,6 +1564,11 @@ pub enum Edit {
     DeleteAnnotation {
         page: usize,
         index: usize,
+    },
+    /// Delete original annotation indices together, so cascading replies cannot shift targets.
+    DeleteAnnotations {
+        page: usize,
+        indices: Vec<usize>,
     },
     SetAnnotationContents {
         page: usize,
@@ -1582,6 +1700,18 @@ pub enum Edit {
     DeleteField {
         name: String,
     },
+    /// Set unsigned PdfCraft locks; signed locks require prior verified signature removal.
+    SetPageLocks {
+        pages: Vec<usize>,
+        locked: bool,
+    },
+    /// Remove the signature in a signature field (Acrobat: Clear Signature): the whole field
+    /// when `remove_field`, otherwise its value and appearance, leaving an empty field to sign
+    /// again ([`clear_signature::clear`]).
+    ClearSignature {
+        field: String,
+        remove_field: bool,
+    },
     /// Page properties ▸ Tab order, for pages (0-based).
     SetTabOrder {
         pages: Vec<usize>,
@@ -1621,6 +1751,10 @@ pub enum Edit {
     },
     /// Document JavaScripts: add, replace (`script`) or remove (`None`) the document-level
     /// script `name`.
+    SetDocumentAction {
+        event: String,
+        script: Option<String>,
+    },
     SetDocumentScript {
         name: String,
         script: Option<String>,
@@ -1677,6 +1811,35 @@ pub enum Edit {
         page: usize,
         objects: Vec<ObjectTarget>,
         offset: [f64; 2],
+    },
+    /// Align or distribute mixed page objects without retyping their content.
+    AlignObjects {
+        page: usize,
+        objects: Vec<ObjectTarget>,
+        how: ObjectAlign,
+    },
+    /// Delete a mixed selection from `Document::editable_objects`, as one atomic undo step.
+    DeleteObjects {
+        page: usize,
+        objects: Vec<ObjectTarget>,
+    },
+    /// Delete vector paths on `page` (indexes of `ObjectKind::Path` objects from `Document::editable_objects`).
+    DeletePaths {
+        page: usize,
+        paths: Vec<usize>,
+    },
+    /// Change the colour and/or line width of vector paths.
+    StylePaths {
+        page: usize,
+        paths: Vec<usize>,
+        style: PathStyle,
+    },
+    /// Drag one point of a vector path to `to` (user-space point).
+    MovePathPoint {
+        page: usize,
+        path: usize,
+        point: usize,
+        to: [f64; 2],
     },
     /// Edit text in a paragraph box: replace paragraph `block` (from `Document::text_blocks`),
     /// rewrapped to the box's width.
@@ -1912,6 +2075,8 @@ pub const EDIT_LABELS: &[&str] = &[
     "Insert pages from {name}",
     "Insert pages from {name} — 1 field renamed",
     "Insert pages from {name} — fields renamed",
+    "Duplicate pages — 1 field renamed",
+    "Duplicate pages — fields renamed",
     "Add bookmark",
     "Rename bookmark",
     "Delete bookmark",
@@ -1970,6 +2135,7 @@ pub const EDIT_LABELS: &[&str] = &[
     "Add field",
     "Change field properties",
     "Delete field",
+    "Remove the signature {name}",
     "Duplicate field",
     "Set tab order",
     "Set calculation order",
@@ -2071,7 +2237,7 @@ impl Edit {
             Edit::SetMeasurementScale { .. } => Label::of("Set measurement scale"),
             Edit::AddAnnotation(a) => Label::of(add_annotation(&a.shape)),
             Edit::AddCustomStamp { .. } => Label::of("Add stamp"),
-            Edit::DeleteAnnotation { .. } => Label::of("Delete comment"),
+            Edit::DeleteAnnotation { .. } | Edit::DeleteAnnotations { .. } => Label::of("Delete comment"),
             Edit::SetAnnotationContents { .. } => Label::of("Edit comment"),
             Edit::ReplyToAnnotation { .. } => Label::of("Reply"),
             // The state's name is part of the wording: a language may need to agree it with the rest.
@@ -2100,6 +2266,8 @@ impl Edit {
             Edit::AddField { .. } => Label::of("Add field"),
             Edit::SetFieldProps { .. } => Label::of("Change field properties"),
             Edit::DeleteField { .. } => Label::of("Delete field"),
+            Edit::SetPageLocks { locked, .. } => Label::of(if *locked { "Lock pages" } else { "Unlock pages" }),
+            Edit::ClearSignature { field, .. } => Label::with("Remove the signature {name}", field.as_str()),
             Edit::DuplicateField { .. } => Label::of("Duplicate field"),
             Edit::SetTabOrder { .. } | Edit::MoveInTabOrder { .. } => Label::of("Set tab order"),
             Edit::SetCalculationOrder { .. } => Label::of("Set calculation order"),
@@ -2118,11 +2286,16 @@ impl Edit {
             Edit::ConvertPdfA { level } => Label::with("Save as {level}", level.label()),
             Edit::RemoveStandardId { standard } => Label::with("Remove {standard} identification", standard.label()),
             Edit::SetFieldScript { name, .. } => Label::with("Edit script of {name}", name.as_str()),
+            Edit::SetDocumentAction { .. } => Label::of("Edit document action"),
             Edit::SetDocumentScript { script: None, .. } => Label::of("Delete document JavaScript"),
             Edit::SetDocumentScript { .. } => Label::of("Edit document JavaScript"),
             Edit::EditTextLine { .. } | Edit::EditTextBlock { .. } => Label::of("Edit text"),
             Edit::RegisterTextFont { .. } => Label::of("Load document font"),
-            Edit::MoveObjects { objects, .. } => plural("Move object", "Move objects", objects.len()),
+            Edit::MoveObjects { objects, .. } | Edit::AlignObjects { objects, .. } => plural("Move object", "Move objects", objects.len()),
+            Edit::DeleteObjects { .. } => Label::of("Delete content"),
+            Edit::DeletePaths { paths, .. } => plural("Delete line", "Delete lines", paths.len()),
+            Edit::StylePaths { paths, .. } => plural("Format line", "Format lines", paths.len()),
+            Edit::MovePathPoint { .. } => Label::of("Move line point"),
             Edit::EditPageImage { change, .. } => Label::of(match change {
                 ImageEdit::Move(_) => "Move image",
                 ImageEdit::Rotate(_) | ImageEdit::RotateBy(_) => "Rotate image",
@@ -2209,8 +2382,27 @@ fn unrestricted(p: &pdfcraft_cos::Permissions) -> bool {
 }
 
 /// Whether the opening password allows an edit (§7.6.4.2, Table 22).
+fn check_certified_edit(edit: &Edit, permission: Option<u8>) -> Result<(), EditError> {
+    let Some(p) = permission else { return Ok(()) };
+    if let Edit::Batch { edits, .. } = edit {
+        for e in edits {
+            check_certified_edit(e, permission)?;
+        }
+        return Ok(());
+    }
+    let allowed = matches!(edit, Edit::ClearSignature { .. })
+        || (p >= 2 && matches!(scope_of(edit), Scope::Form))
+        || (p == 3 && matches!(scope_of(edit), Scope::Comments));
+    if allowed {
+        Ok(())
+    } else {
+        Err(EditError::Invalid("The document's certification does not permit this edit; remove the signature first".into()))
+    }
+}
+
 fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), EditError> {
     match edit {
+        Edit::ApplyScriptChanges { changes } if js::structural_changes(changes) && !p.modify() => Err(EditError::NotPermitted("changes to field definitions")),
         Edit::RotatePages { .. }
         | Edit::DeletePages { .. }
         | Edit::MovePages { .. }
@@ -2239,6 +2431,7 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::AddAnnotation(_)
         | Edit::AddCustomStamp { .. }
         | Edit::DeleteAnnotation { .. }
+        | Edit::DeleteAnnotations { .. }
         | Edit::SetAnnotationContents { .. }
         | Edit::ReplyToAnnotation { .. }
         | Edit::SetAnnotationStatus { .. }
@@ -2285,6 +2478,11 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::AddImage { .. }
         | Edit::UpdateContent { .. }
         | Edit::MoveObjects { .. }
+        | Edit::AlignObjects { .. }
+        | Edit::DeleteObjects { .. }
+        | Edit::DeletePaths { .. }
+        | Edit::StylePaths { .. }
+        | Edit::MovePathPoint { .. }
         | Edit::DeleteContent { .. }
         | Edit::ReplaceImage { .. }
         | Edit::ClearRedactions
@@ -2299,6 +2497,8 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::XfaToStatic
         | Edit::SetFieldProps { .. }
         | Edit::DeleteField { .. }
+        | Edit::SetPageLocks { .. }
+        | Edit::ClearSignature { .. }
         | Edit::DuplicateField { .. }
         | Edit::SetTabOrder { .. }
         | Edit::MoveInTabOrder { .. }
@@ -2312,6 +2512,7 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::MarkDecorative { .. }
         | Edit::MarkTagArtifact { .. }
         | Edit::AddOcrText { .. }
+        | Edit::SetDocumentAction { .. }
         | Edit::SetDocumentScript { .. }
         | Edit::SetFieldScript { .. }
         | Edit::ConvertPdfA { .. }
@@ -2437,7 +2638,10 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             pdfcraft_organize::insert_blank_page(doc, *at, *width, *height)?;
         }
         Edit::SetInfo { key, value } => pdfcraft_organize::set_info(doc, key, value)?,
-        Edit::DuplicatePages { pages, at } => pdfcraft_organize::duplicate_pages(doc, pages, *at)?,
+        Edit::DuplicatePages { pages, at, field_conflicts } => {
+            // Added to, not replaced: a batch can duplicate (or insert) more than once.
+            cx.renamed_fields.extend(pdfcraft_organize::duplicate_pages_with(doc, pages, *at, *field_conflicts)?);
+        }
         Edit::ReplacePages { pages, name, bytes, src_pages } => {
             let src = open_source(name, bytes)?;
             pdfcraft_organize::replace_pages(doc, pages, &src, src_pages)?;
@@ -2453,7 +2657,7 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             // The file's bookmarks come along under one named after it, as in Combine Files.
             let title = std::path::Path::new(name).file_stem().map_or_else(|| name.clone(), |s| s.to_string_lossy().into_owned());
             let outcome = pdfcraft_organize::insert_file_pages(doc, &src, &title, &pages, *at, *field_conflicts)?;
-            cx.renamed_fields = outcome.renamed_fields;
+            cx.renamed_fields.extend(outcome.renamed_fields);
         }
         Edit::AddBookmark { parent, index, title, page, left, top } => {
             pdfcraft_organize::add_bookmark_at(doc, parent, *index, title, *page, *left, *top)?;
@@ -2498,6 +2702,7 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             pdfcraft_annot::orient_image_stamp(doc, *page, index, rotation)?;
         }
         Edit::DeleteAnnotation { page, index } => pdfcraft_annot::delete_annotation(doc, *page, *index)?,
+        Edit::DeleteAnnotations { page, indices } => pdfcraft_annot::delete_annotations(doc, *page, indices)?,
         Edit::SetAnnotationContents { page, index, text } => pdfcraft_annot::set_contents(doc, *page, *index, text, &cx.meta())?,
         Edit::ReplyToAnnotation { page, index, text, author } => {
             pdfcraft_annot::add_reply(doc, *page, *index, text, author, &cx.meta())?;
@@ -2529,10 +2734,32 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
         Edit::SetAnnotationInfo { page, index, author, subject, icon } => {
             pdfcraft_annot::set_info(doc, *page, *index, author.as_deref(), subject.as_deref(), *icon, &cx.meta())?;
         }
-        Edit::SetFieldValue { name, value } => match cx.js.as_mut() {
-            Some(js) => pdfcraft_forms::set_value_with(doc, name, value, js)?,
-            None => pdfcraft_forms::set_value(doc, name, value)?,
-        },
+        Edit::SetFieldValue { name, value } => {
+            match cx.js.as_mut() {
+                Some(js) => pdfcraft_forms::set_value_with(doc, name, value, js)?,
+                None => pdfcraft_forms::set_value(doc, name, value)?,
+            }
+            if let Some(js) = cx.js.as_mut() {
+                let fields = pdfcraft_forms::fields(doc);
+                if let Some(target) = fields.iter().find(|f| f.name == *name && matches!(f.kind, FormFieldKind::CheckBox | FormFieldKind::Radio)) {
+                    for (trigger, action) in pdfcraft_forms::field_actions(doc, name)? {
+                        if trigger == pdfcraft_forms::Trigger::MouseUp
+                            && let pdfcraft_forms::FieldAction::JavaScript(script) = action
+                        {
+                            let result = pdfcraft_forms::Scripts::run(
+                                js,
+                                pdfcraft_forms::FieldEvent::MouseUp,
+                                &script,
+                                target,
+                                &target.value.join(","),
+                                &fields,
+                            );
+                            pdfcraft_forms::apply_script_changes(doc, &result.changes, js)?;
+                        }
+                    }
+                }
+            }
+        }
         Edit::ApplyScriptChanges { changes } => match cx.js.as_mut() {
             Some(js) => pdfcraft_forms::apply_script_changes(doc, changes, js)?,
             None => pdfcraft_forms::apply_script_changes(doc, changes, &mut pdfcraft_forms::NoScripts)?,
@@ -2595,6 +2822,10 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             }
         }
         Edit::DeleteField { name } => pdfcraft_forms::delete_field(doc, name)?,
+        Edit::SetPageLocks { pages, locked } => pdfcraft_sign::protection::set_local(doc, pages, *locked)?,
+        Edit::ClearSignature { field, remove_field } => {
+            clear_signature::clear(doc, field, *remove_field).map_err(|e| EditError::Sign(e.to_string()))?;
+        }
         Edit::SetTabOrder { pages, order } => pdfcraft_forms::set_tab_order(doc, pages, *order)?,
         Edit::MoveInTabOrder { name, earlier } => pdfcraft_forms::move_in_tab_order(doc, name, *earlier)?,
         // As after a script edit: the values the new order gives show at once.
@@ -2636,9 +2867,10 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             pdfcraft_preflight::convert(doc, *level).map_err(|e| EditError::Invalid(e.to_string()))?;
         }
         Edit::RemoveStandardId { standard } => pdfcraft_organize::remove_standard_id(doc, *standard)?,
+        Edit::SetDocumentAction { event, script } => js::set_document_action(doc, event, script.as_deref())?,
         Edit::SetDocumentScript { name, script } => pdfcraft_forms::set_document_script(doc, name, script.as_deref())?,
         Edit::AddOcrText { page, words } => {
-            pdfcraft_edit::stamp(doc, *page, "OCR", pdfcraft_ocr::text_layer(words))?;
+            ocr::add_text(doc, *page, words)?;
         }
         Edit::EditPageImage { page, index, change } => {
             let img = pdfcraft_edit::page_images(doc, *page)?
@@ -2675,6 +2907,11 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             pdfcraft_edit::change_image(doc, *page, *index, &c)?;
         }
         Edit::MoveObjects { page, objects, offset } => pdfcraft_edit::move_objects(doc, *page, objects, *offset)?,
+        Edit::AlignObjects { page, objects, how } => pdfcraft_edit::align_objects(doc, *page, objects, *how)?,
+        Edit::DeleteObjects { page, objects } => pdfcraft_edit::delete_objects(doc, *page, objects)?,
+        Edit::DeletePaths { page, paths } => pdfcraft_edit::delete_paths(doc, *page, paths)?,
+        Edit::StylePaths { page, paths, style } => pdfcraft_edit::style_paths(doc, *page, paths, *style)?,
+        Edit::MovePathPoint { page, path, point, to } => pdfcraft_edit::move_path_point(doc, *page, *path, *point, *to)?,
         Edit::EditTextBlock { page, block, text, style } => {
             pdfcraft_edit::rewrite_block(doc, *page, *block, Some(text), style)?;
         }
@@ -3476,6 +3713,11 @@ impl Session {
         let mut document = prepared.document;
         document.id = id;
         self.docs.push(document);
+        if let Err(error) = self.run_document_event(id, "Open")
+            && let Some(d) = self.docs.iter_mut().find(|d| d.id == id)
+        {
+            d.js_output.errors.push(format!("The document's open scripts could not be applied: {error}"));
+        }
         id
     }
 
@@ -3685,6 +3927,7 @@ impl Session {
                         unsaved_file: false,
                         undo: Vec::new(),
                         redo: Vec::new(),
+                        position: 0,
                         keys,
                         appearances: AppearanceCache::default(),
                         field_appearances: pdfcraft_forms::FieldAppearanceCache::default(),
@@ -3741,6 +3984,7 @@ impl Session {
             editor,
             config,
             js_output: Default::default(),
+            js_runtime: None,
             xfa,
             xfa_template: None,
             xfa_scripts_off: false,
@@ -3759,6 +4003,7 @@ impl Session {
         let now = self.now();
         let today = self.today();
         let js_off = self.js_off;
+        let runtime = if !js_off && uses_scripts(&edit) { Some(self.js_runtime(id)?) } else { None };
         let doc = self.doc_mut(id)?;
         doc.edit_notices.clear();
         let name = doc.name.clone();
@@ -3772,6 +4017,9 @@ impl Session {
         cx.today = today;
         let reason = doc.read_only_reason.clone().unwrap_or_default();
         let signed = doc.is_signed();
+        let structural_scripts = doc.certification().is_none() && doc.permissions().is_none_or(|p| p.modify());
+        check_certified_edit(&edit, doc.certification())?;
+        let page_rules: Vec<_> = doc.signatures.iter().filter_map(|s| s.protection.clone()).collect();
         let editor = doc.editor.as_mut().ok_or(EditError::ReadOnly(reason))?;
         if let Some(p) = editor.cos.permissions() {
             check_permission(&edit, &p)?;
@@ -3798,8 +4046,10 @@ impl Session {
             return Ok(());
         }
         let mut next = editor.cos.clone();
-        if !js_off && uses_scripts(&edit) {
-            cx.js = Some(js::JsRunner::new(&next, &name));
+        if let Some(runtime) = runtime {
+            let mut runner = js::JsRunner::with_runtime(&next, &name, runtime);
+            runner.allow_structure = structural_scripts;
+            cx.js = Some(runner);
         }
         cx.renamed_fields.clear();
         cx.redaction_overlays.clear();
@@ -3822,7 +4072,12 @@ impl Session {
                 let more = renamed.len().saturating_sub(shown.len());
                 let more = if more > 0 { format!(", and {more} more") } else { String::new() };
                 format!(
-                    "inserted pages renamed {} form field{} to keep their names separate ({}{more}); scripts that refer to the old names were not rewritten",
+                    "{} renamed {} form field{} to keep their names separate ({}{more}); scripts that refer to the old names were not rewritten",
+                    match &edit {
+                        Edit::DuplicatePages { .. } => "duplicated pages",
+                        Edit::InsertPagesFrom { .. } => "inserted pages",
+                        _ => "page operations",
+                    },
                     renamed.len(),
                     if renamed.len() == 1 { "" } else { "s" },
                     shown.join(", ")
@@ -3832,14 +4087,17 @@ impl Session {
         if let Some(note) = renamed_note(&cx.renamed_fields) {
             next.note_repair(note);
         }
-        // Only Insert from File renames fields; its label says so in a wording the interface
-        // translates (the count lives in the repair note).
+        // Only Insert from File and Duplicate pages with new field names rename fields; their
+        // labels say so in a wording the interface translates (the count lives in the repair
+        // note).
         let label = match (&edit, cx.renamed_fields.len()) {
             (_, 0) => edit.label(),
             (Edit::InsertPagesFrom { name, .. }, n) => Label::with(
                 if n == 1 { "Insert pages from {name} — 1 field renamed" } else { "Insert pages from {name} — fields renamed" },
                 name.as_str(),
             ),
+            (Edit::DuplicatePages { .. }, 1) => Label::of("Duplicate pages — 1 field renamed"),
+            (Edit::DuplicatePages { .. }, _) => Label::of("Duplicate pages — fields renamed"),
             _ => edit.label(),
         };
         // An XFA form's scripts answer the change: exit and validate scripts of the field, then
@@ -3911,6 +4169,29 @@ impl Session {
         } else {
             Vec::new()
         };
+        if !matches!(&edit, Edit::ClearSignature { .. }) {
+            if let Edit::SetPageLocks { pages, locked: false } = &edit {
+                let refs = pdfcraft_annot::page_refs(&editor.cos)?;
+                if pages.iter().filter_map(|i| refs.get(*i)).any(|r| page_rules.iter().any(|p| p.pages.contains(r))) {
+                    return Err(EditError::Invalid("Remove the protecting signature before unlocking these pages".into()));
+                }
+            }
+            let old_locks = pdfcraft_sign::protection::local_pages(&editor.cos)?;
+            let next_locks = pdfcraft_sign::protection::local_pages(&next)?;
+            if old_locks.iter().any(|r| !next_locks.contains(r) && page_rules.iter().any(|p| p.pages.contains(r))) {
+                return Err(EditError::Invalid("Remove the protecting signature before unlocking these pages".into()));
+            }
+            pdfcraft_sign::protection::check(&editor.cos, &next, &page_rules)?;
+            // Only the explicit unlock edit can release unsigned locks; batches and rewrites cannot bypass them.
+            let local = pdfcraft_sign::protection::local_pages(if matches!(&edit, Edit::SetPageLocks { .. }) { &next } else { &editor.cos })?;
+            if !local.is_empty() {
+                pdfcraft_sign::protection::check(
+                    &editor.cos,
+                    &next,
+                    &[pdfcraft_sign::protection::PageProtection { pages: local, allow_insert: true }],
+                )?;
+            }
+        }
         let previous = std::mem::replace(&mut editor.cos, next);
         let keys = keys_after(&edit).unwrap_or_else(|| editor.keys.clone());
         let previous_keys = std::mem::replace(&mut editor.keys, keys);
@@ -3935,6 +4216,9 @@ impl Session {
                 Self::show_released(doc);
             }
             return Err(e);
+        }
+        if let Some(ed) = doc.editor.as_mut() {
+            ed.position = ed.position.saturating_add(1);
         }
         doc.dirty = true;
         doc.generation += 1;
@@ -3983,6 +4267,9 @@ impl Session {
             }
             return Err(e);
         }
+        if let Some(ed) = doc.editor.as_mut() {
+            ed.position = ed.position.saturating_sub(1);
+        }
         doc.edit_notices.clear();
         Self::sync_dirty(doc);
         doc.generation += 1;
@@ -4011,6 +4298,9 @@ impl Session {
                 Self::show_released(doc);
             }
             return Err(e);
+        }
+        if let Some(ed) = doc.editor.as_mut() {
+            ed.position = ed.position.saturating_add(1);
         }
         doc.edit_notices.clear();
         Self::sync_dirty(doc);
@@ -4132,11 +4422,18 @@ impl Session {
     /// Which derived lists a content-only edit can change: added content (`None`, from
     /// undo/redo, re-reads both: always correct, rarely paid).
     fn content_refresh_lists(edit: Option<&Edit>) -> (bool, bool) {
+        if let Some(Edit::Batch { edits, .. }) = edit {
+            return edits.iter().fold((false, false), |(added, marks), edit| {
+                // Nested batches conservatively refresh both lists, keeping recursion bounded.
+                let (a, m) = if matches!(edit, Edit::Batch { .. }) { (true, true) } else { Self::content_refresh_lists(Some(edit)) };
+                (added || a, marks || m)
+            });
+        }
         let touches_added = edit.is_none_or(|e| {
             matches!(
                 e,
                 Edit::AddText { .. } | Edit::AddImage { .. } | Edit::UpdateContent { .. } | Edit::DeleteContent { .. } | Edit::ReplaceImage { .. }
-            ) || matches!(e, Edit::MoveObjects { objects, .. } if objects.iter().any(|o| o.kind == ObjectKind::Added))
+            ) || matches!(e, Edit::MoveObjects { objects, .. } | Edit::AlignObjects { objects, .. } | Edit::DeleteObjects { objects, .. } if objects.iter().any(|o| o.kind == ObjectKind::Added))
         });
         let touches_marks = edit.is_none_or(|e| {
             matches!(e, Edit::AddHeaderFooter { .. } | Edit::AddWatermark { .. } | Edit::AddBackground { .. } | Edit::RemoveMarks { .. })
@@ -4258,7 +4555,8 @@ impl Session {
     /// was edited: its bytes as opened are the damaged file, and this save is how the repair the
     /// user was told about reaches the disk (#1937). Not a signed one: a full rewrite would
     /// break its signatures, so with no edits it keeps its bytes, damage and all.
-    pub fn save_bytes(&self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
+    pub fn save_bytes(&mut self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
+        self.run_document_event(id, "WillSave")?;
         let doc = self.get(id).ok_or(EditError::NoDocument)?;
         let Some(editor) = doc.editor.as_ref() else { return Ok(doc.bytes.clone()) };
         let on_saved = Arc::ptr_eq(editor.cos.bytes(), &editor.saved);
@@ -4285,11 +4583,13 @@ impl Session {
     }
 
     /// A compact, garbage-collected rewrite (Save As ▸ "Optimized" / Reduce File Size groundwork).
-    pub fn save_full_bytes(&self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
+    pub fn save_full_bytes(&mut self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
         let doc = self.get(id).ok_or(EditError::NoDocument)?;
         if doc.is_signed() {
             return Err(EditError::Signed);
         }
+        self.run_document_event(id, "WillSave")?;
+        let doc = self.get(id).ok_or(EditError::NoDocument)?;
         let editor = doc.editor.as_ref().ok_or_else(|| EditError::ReadOnly(doc.read_only_reason.clone().unwrap_or_default()))?;
         let opts = SaveOptions { mod_date: self.now().map(pdfcraft_cos::pdf_date), ..SaveOptions::default() };
         guard(|| write_full(&editor.cos, &opts)).map_err(EditError::Write)?.map(Arc::new).map_err(|e| EditError::Write(e.to_string()))
@@ -4376,6 +4676,8 @@ impl Session {
             .into_iter()
             .find_map(|k| pdfcraft_cos::Document::open_with_password(base.clone(), k.reopen.as_deref()).ok().map(|c| (c, k)))
             .ok_or_else(|| EditError::Reopen("the saved file can't be opened".into()))?;
+        doc.js_runtime = None;
+        doc.js_output = js::JsOutput::default();
         editor.cos = cos;
         editor.keys = keys;
         editor.undo.clear();
@@ -4433,6 +4735,13 @@ impl Session {
         self.write_new(&pdfcraft_create::from_images(images)?)
     }
 
+    /// Convert a vector/text XPS print intermediate with PdfCraft's own writer. Unsupported
+    /// content is refused; there is no page rasterization or Microsoft PDF driver dependency.
+    pub fn create_from_xps(&self, title: &str, bytes: &[u8]) -> Result<Arc<Vec<u8>>, EditError> {
+        guard(|| self.write_new(&pdfcraft_create::from_xps(title, bytes)?))
+            .map_err(|_| EditError::Source("the XPS print intermediate could not be converted".into()))?
+    }
+
     /// Create image pages at embedded resolution or a fixed dpi, without resampling.
     pub fn create_from_images_with_resolution(&self, images: &[(String, Vec<u8>)], resolution: ImageResolution) -> Result<Arc<Vec<u8>>, EditError> {
         self.write_new(&pdfcraft_create::from_images_with_resolution(images, resolution)?)
@@ -4464,6 +4773,7 @@ impl Session {
             SourceKind::Pdf => open_source(name, bytes).map(|_| bytes.clone()),
             SourceKind::Image => self.create_from_images(&[(name.to_string(), bytes.to_vec())]),
             SourceKind::Text => self.create_from_text(title, &decode_text(bytes)),
+            SourceKind::Template => self.import_template(bytes.clone()).map(|(_, pdf)| pdf),
         })
         .map_err(|_| EditError::Source(format!("{name}: the file could not be read")))?;
         Ok((kind, created?))
@@ -4475,7 +4785,7 @@ impl Session {
     pub fn as_pdf(&self, name: &str, bytes: &Arc<Vec<u8>>) -> Result<Arc<Vec<u8>>, EditError> {
         let pdf = match source_kind(name, bytes) {
             Some(SourceKind::Pdf) => true,
-            Some(SourceKind::Image | SourceKind::Text) => false,
+            Some(SourceKind::Image | SourceKind::Text | SourceKind::Template) => false,
             None => name.to_ascii_lowercase().ends_with(".pdf"),
         };
         if pdf { Ok(bytes.clone()) } else { self.convert_to_pdf(name, bytes).map(|(_, pdf)| pdf) }
@@ -4526,7 +4836,11 @@ impl Session {
     }
 
     /// The print-ready PDF for `settings` (sheets laid out for the paper; see `pdfcraft-print`).
-    pub fn print_pdf(&self, id: DocId, settings: &print::Settings) -> Result<Vec<u8>, EditError> {
+    pub fn print_pdf(&mut self, id: DocId, settings: &print::Settings) -> Result<Vec<u8>, EditError> {
+        if !self.get(id).ok_or(EditError::NoDocument)?.allows_printing() {
+            return Err(EditError::NotPermitted("printing"));
+        }
+        self.run_document_event(id, "WillPrint")?;
         let doc = self.get(id).ok_or(EditError::NoDocument)?;
         if !doc.allows_printing() {
             return Err(EditError::NotPermitted("printing"));
@@ -5040,7 +5354,17 @@ impl Session {
     /// and rebuild its display copy and renderer to match (working file untouched,
     /// generation/dirty unchanged: trust alone is not an edit).
     pub fn set_trusted_certificates(&mut self, certs: Vec<pdfcraft_sign::Certificate>) {
-        self.trust = Arc::new(TrustStore { certs });
+        self.trust = Arc::new(TrustStore { certs, ..(*self.trust).clone() });
+        self.refresh_signature_trust();
+    }
+
+    /// Set authorities trusted only for RFC 3161 timestamps; ordinary signer trust is unchanged.
+    pub fn set_timestamp_certificates(&mut self, certs: Vec<pdfcraft_sign::Certificate>) {
+        self.trust = Arc::new(TrustStore { timestamp_certs: certs, ..(*self.trust).clone() });
+        self.refresh_signature_trust();
+    }
+
+    fn refresh_signature_trust(&mut self) {
         for doc in &mut self.docs {
             doc.trust = self.trust.clone();
             let Some(editor) = doc.editor.as_mut() else { continue };
@@ -5051,6 +5375,29 @@ impl Session {
             doc.signatures = Arc::new(signatures);
             doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), doc.config.clone());
         }
+    }
+
+    /// The signatures of document `id` that Remove Signature lists, with what removing each would
+    /// do and why some can't be removed ([`clear_signature::removable`]).
+    pub fn removable_signatures(&self, id: DocId) -> Result<Vec<clear_signature::Removable>, EditError> {
+        let doc = self.get(id).ok_or(EditError::NoDocument)?;
+        let editor = doc.editor.as_ref().ok_or_else(|| EditError::ReadOnly(doc.read_only_reason.clone().unwrap_or_default()))?;
+        let mut list = guard(|| clear_signature::removable(&editor.cos, &doc.signatures)).map_err(EditError::Sign)?;
+        for r in list.iter_mut().filter(|r| r.blocked.is_none()) {
+            // What applying the edit would check (`check_permission`): a visual signature is a
+            // comment, a digital one changes the document.
+            let why = match (&doc.read_only_reason, &r.target) {
+                (Some(reason), _) => Some(reason.clone()),
+                (None, clear_signature::Target::Annotation { .. }) if !doc.allows_annotation() => {
+                    Some("its security doesn't allow changing comments".into())
+                }
+                (None, clear_signature::Target::Annotation { .. }) => None,
+                (None, _) if doc.permissions().is_some_and(|p| !p.modify()) => Some("its security doesn't allow changing it".into()),
+                (None, _) => None,
+            };
+            r.blocked = why.map(clear_signature::Blocker::ReadOnly);
+        }
+        Ok(list)
     }
 
     /// The signing time as a PDF date in local time with its offset (`D:…+02'00'`).
@@ -5076,6 +5423,17 @@ impl Session {
             opts.date = self.signing_date();
         }
         Ok(Arc::new(pdfcraft_sign::sign(&editor.cos, id, &opts)?))
+    }
+
+    /// Snapshot the current signing input for a background worker. Check its output with
+    /// [`Session::check_save`] and ensure the document's generation is unchanged before saving.
+    pub fn signing_input(&self, doc: DocId, mut opts: SignOptions) -> Result<(pdfcraft_cos::Document, SignOptions), EditError> {
+        let d = self.get(doc).ok_or(EditError::NoDocument)?;
+        let editor = d.editor.as_ref().ok_or_else(|| EditError::ReadOnly(d.read_only_reason.clone().unwrap_or_default()))?;
+        if opts.date.is_empty() {
+            opts.date = self.signing_date();
+        }
+        Ok((editor.cos.clone(), opts))
     }
 
     /// [`Session::sign`], embedding an RFC 3161 signature timestamp (PAdES B-T) produced by

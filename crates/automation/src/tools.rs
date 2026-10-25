@@ -42,6 +42,10 @@ fn point() -> Value {
     json!({ "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2, "description": "[x, y] in points from the top-left of the displayed page." })
 }
 
+fn selection_objects() -> Value {
+    json!({"type":"array","minItems":1,"maxItems":1000,"uniqueItems":true,"description":"Original page-object references from object_list; use content_indices for added content.","items":{"type":"object","properties":{"kind":{"type":"string","enum":["text","image","path"]},"index":{"type":"integer","minimum":1}},"required":["kind","index"],"additionalProperties":false}})
+}
+
 fn measure_points() -> Value {
     json!({"type":"array","items":point(),"minItems":1,"maxItems":2048})
 }
@@ -118,6 +122,15 @@ pub fn tools() -> Vec<ToolDef> {
     let save_out = json!({ "type": "string", "description": "File to write. Omit to open the result as a new unsaved document instead." });
     let open = json!({ "type": "boolean", "description": "Also open the result as a new document (default: only when out is omitted)." });
     vec![
+        t("ai_prepare", "Review Assistant input", "Extract marked page text locally for review. No network request and no document changes. At most 256 pages and 200 KB; scans need OCR first.").ro().with(schema(json!({"doc":doc(),"pages":pages("to review")}), &["doc"])),
+        t("ai_assist", "Ask your own AI", "Send explicitly reviewed text (or selected extracted pages) to this computer user's selected AI connection. Requires --network. Subscription choices never fall back to separately billed API usage. Returns suggestions only; never edits the PDF.").cmd("ai.summary").with(schema(json!({"doc":doc(),"provider":{"type":"string","enum":["chatgpt","claude-subscription","openai-api","anthropic-api"]},"account":{"type":"string"},"model":{"type":"string","maxLength":160},"task":{"type":"string","enum":["summary","suggestions","ask","translate"]},"question":{"type":"string","maxLength":8000},"pages":pages("to send"),"reviewed_text":{"type":"string","maxLength":200000}}), &["doc","provider","model"])),
+        t("ai_accounts", "List your ChatGPT connections", "Read only this user's saved PdfCraft ChatGPT account metadata from the OS credential store. Never returns access tokens, refresh tokens or API keys.").ro().cmd("ai.setup").with(schema(json!({}), &[])),
+        t("ai_models", "List available AI models", "Explicitly fetch the selected user's account-specific model catalog; requires --network. Claude subscription aliases require the official Claude Code CLI.").with(schema(json!({"provider":{"type":"string"},"account":{"type":"string"}}), &["provider"])),
+        t("ai_key_connect", "Connect your personal API key", "Store only the explicitly selected provider's OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable in this user's OS credential store. Raw keys are not accepted as tool arguments or returned. Never imports Codex/ChatGPT credentials.").with(schema(json!({"provider":{"type":"string","enum":["openai-api","anthropic-api"]},"key_env":{"type":"string","enum":["OPENAI_API_KEY","ANTHROPIC_API_KEY"]}}), &["provider","key_env"])),
+        t("ai_disconnect", "Disconnect an AI account", "Remove this user's selected PdfCraft connection. With --network, attempts to revoke a ChatGPT session; without it, removes ChatGPT credentials locally and reports remote revocation unconfirmed. Claude subscription logout needs --network and affects only the PdfCraft-specific Claude Code profile.").with(schema(json!({"provider":{"type":"string"},"account":{"type":"string"}}), &["provider"])),
+        t("ai_login_start", "Sign in with your ChatGPT account", "Start the official public-client OAuth flow after --network is enabled. Returns the official browser authorization URL, with fresh state, nonce and PKCE; no PDF text is sent. Finish using ai_login_finish. Never reads the developer's Codex login.").with(schema(json!({"account":{"type":"string"}}), &[])),
+        t("ai_login_finish", "Finish ChatGPT sign-in", "Poll an explicitly started browser sign-in. Verifies identity, client, nonce and granted plan permission before securely storing this user's tokens. cancel:true closes the local attempt. No tokens are returned.").with(schema(json!({"cancel":{"type":"boolean"}}), &[])),
+        t("ai_claude_login", "Sign in to your Claude subscription", "Launch the user's official native Claude Code CLI browser sign-in for a separate PdfCraft profile. Requires --network and an installed CLI. Never imports the developer's login or enables API billing.").with(schema(json!({}), &[])),
         t("doc_batch", "Process files and folders", "Run convert, ocr and/or optimize over files and folders, one file at a time. recursive defaults to false. Preserve paths relative to each selected folder inside out_dir; duplicate inputs run once. Skip unsupported files, links and the output subtree. Existing outputs receive numbered names and are never replaced. Continue after per-file errors unless stop_on_error is true. Return completed/failed/skipped counts and per-file results. Discovery is bounded to 10000 entries and 64 folder levels. Convert must be first; each step can appear once. OCR uses installed models. Optimize uses Reduce File Size settings, optionally overriding target ppi (threshold 1.5 times ppi) and JPEG quality; a larger candidate keeps the original bytes. Sources and open documents are unchanged.")
             .with(schema(json!({
                 "paths": {"type":"array","items":{"type":"string"},"minItems":1,"maxItems":1000},
@@ -143,7 +156,7 @@ pub fn tools() -> Vec<ToolDef> {
         t(
             "doc_save",
             "Save a document",
-            "Save to its own file (an incremental update, which keeps signatures valid) or to a new path (a full rewrite). The write is atomic. flatten_fill_sign bakes Fill & Sign text, marks and signatures into the page first and removes those annotations; other comments and form fields stay. Omit it, or pass false, to leave them editable.",
+            "Save to its own file (an incremental update, which keeps signatures valid) or to a new path (a full rewrite, or an incremental update when the document is signed: a rewrite would break the signatures). The write is atomic. flatten_fill_sign bakes Fill & Sign text, marks and signatures into the page first and removes those annotations; other comments and form fields stay. Omit it, or pass false, to leave them editable.",
         )
         .destructive()
         .cmd("file.save")
@@ -164,14 +177,29 @@ pub fn tools() -> Vec<ToolDef> {
                 "hide_text_block": { "type": "integer", "minimum": 1, "description": "Render an inline editor background without this paragraph (number from text_paragraphs, resolved as text_edit does: refused once an edit merged that paragraph into a neighbour). Does not modify the document." },
                 "hide_added_text": { "type": "integer", "minimum": 1, "description": "Render a retyping background without this added text item (added index from object_list). Mutually exclusive with hide_text_block. Does not modify the document." }
             }), &["doc", "page"])),
-        t("object_list", "List editable objects", "List existing paragraphs, Image/Form artwork and added content once, with source kind/index references, displayed rectangles and document generation. Indexes change when content changes; use generation in object_move to reject stale references.")
+        t("object_list", "List editable objects", "List existing paragraphs, Image/Form artwork, vector paths and added content once, with source kind/index references, displayed rectangles and document generation. Indexes change when content changes; use generation in object_move to reject stale references.")
             .ro().with(schema(json!({"doc":doc(),"page":{"type":"integer","minimum":1}}), &["doc","page"])),
         t("object_move", "Move objects together", "Atomically translate 1–1000 mixed references from object_list by [dx, dy] in displayed points (right/down). Preserves glyph codes, fonts, image data and relative spacing; success is one undo step. Clipping and vertical text are refused. A bad/stale reference refuses the entire move.")
             .with(schema(json!({"doc":doc(),"page":{"type":"integer","minimum":1},
                 "objects":{"type":"array","minItems":1,"maxItems":1000,"uniqueItems":true,"items":{
-                    "type":"object","properties":{"kind":{"type":"string","enum":["added","text","image"]},"index":{"type":"integer","minimum":1}},"required":["kind","index"],"additionalProperties":false}},
+                    "type":"object","properties":{"kind":{"type":"string","enum":["added","text","image","path"]},"index":{"type":"integer","minimum":1}},"required":["kind","index"],"additionalProperties":false}},
                 "offset":{"type":"array","items":{"type":"number"},"minItems":2,"maxItems":2},
                 "generation":{"type":"integer","minimum":0,"description":"Use generation returned by object_list to reject a stale selection."}}), &["doc","page","objects","offset"])),
+        t("object_align", "Align or distribute objects", "Align 2–1000 mixed objects to an edge or center of their selection, or distribute at least three objects with equal gaps. Uses displayed page orientation; preserves content and object sizes. One atomic undo step. References and optional generation come from object_list; a stale or unsupported selection refuses the entire edit.")
+            .with(schema(json!({"doc":doc(),"page":{"type":"integer","minimum":1},
+                "objects":{"type":"array","minItems":2,"maxItems":1000,"uniqueItems":true,"items":{
+                    "type":"object","properties":{"kind":{"type":"string","enum":["added","text","image","path"]},"index":{"type":"integer","minimum":1}},"required":["kind","index"],"additionalProperties":false}},
+                "alignment":{"type":"string","enum":["left","center_horizontal","right","top","center_vertical","bottom","distribute_horizontal","distribute_vertical"]},
+                "generation":{"type":"integer","minimum":0}}), &["doc","page","objects","alignment"])),
+        t("object_delete", "Delete selected objects", "Delete 1–1000 text, image, Form, vector-path or added-content references from object_list as one undo step. A missing, repeated or stale reference refuses the entire edit. This is ordinary editing, not secure redaction.")
+            .with(schema(json!({"doc":doc(),"page":{"type":"integer","minimum":1},
+                "objects":{"type":"array","minItems":1,"maxItems":1000,"uniqueItems":true,"items":{
+                    "type":"object","properties":{"kind":{"type":"string","enum":["added","text","image","path"]},"index":{"type":"integer","minimum":1}},"required":["kind","index"],"additionalProperties":false}},
+                "generation":{"type":"integer","minimum":0}}), &["doc","page","objects"])),
+        t("spelling_languages", "Spelling languages", "List locally installed spelling dictionaries. Never downloads dictionaries or sends text to a server.")
+            .ro().with(schema(json!({}), &[])),
+        t("text_spellcheck", "Check spelling", "Check up to 16 KiB of supplied text locally. Returns at most 256 UTF-8 byte ranges. Suggestions are optional and limited to the first 32 issues. Missing dictionaries return an error. Never changes a PDF.")
+            .ro().with(schema(json!({"text":{"type":"string","maxLength":16384},"language":{"type":"string","maxLength":40},"suggestions":{"type":"boolean"}}), &["text"])),
         t("text_word_count", "Word count", "Count Unicode words and characters on selected pages (default all), with totals and per-page counts. Table/code exclusions use PDF structure tags, not visual guesses; unclassified text is retained. Image exclusion removes Figure-tagged and invisible/OCR text. Does not run OCR. Copy permission is required. Fails rather than returning a partial total when a page cannot be read.")
             .ro()
             .cmd("file.word_count")
@@ -194,6 +222,10 @@ pub fn tools() -> Vec<ToolDef> {
             .with(schema(json!({ "doc": doc(), "query": { "type": "string", "minLength": 1 }, "limit": { "type": "integer", "minimum": 1, "description": "Maximum matches (default 500). When another match exists, next holds start_page and skip to continue. complete is false for either additional matches or failed pages; an exhausted search with warnings has no next." },
                 "start_page": { "type": "integer", "minimum": 1, "description": "Page to start searching from (default 1)." },
                 "skip": { "type": "integer", "minimum": 0, "description": "Matches to pass over on start_page before returning any (default 0)." } }), &["doc", "query"])),
+        t("text_search_pages", "Search matching pages", "Return unique matching pages in document order and comma-separated page_numbers. An unreadable page refuses the complete search. extract: true copies matching pages to a new PDF using out/open; the source is kept.")
+            .with(schema(json!({"doc": doc(), "query": {"type":"string"}, "case_sensitive": {"type":"boolean"}, "whole_words": {"type":"boolean"}, "extract": {"type":"boolean"}, "out": save_out.clone(), "open": open.clone()}), &["doc", "query"])),
+        t("page_transfer", "Transfer pages between open PDFs", "Copy 1–1000 pages from source to doc at a 1-based insertion position (page count + 1 appends). move: true removes source pages only after successful insertion; at least one source page must remain. Each document has its own Undo. If removal fails, moved is false and warning explains that both copies were kept. No file is written.")
+            .with(schema(json!({"doc": doc(), "source": doc(), "pages": pages("to transfer"), "at": {"type":"integer", "minimum":1}, "move": {"type":"boolean"}}), &["doc", "source", "pages", "at"])),
         t("page_rotate", "Rotate pages", "Rotate pages by a multiple of 90 degrees (positive is clockwise): the listed pages (default all), filtered like Acrobat's Rotate Pages by subset (all, even, odd page numbers) and orientation (all, landscape, portrait). Undoable.")
             .cmd("page.rotate")
             .with(schema(
@@ -216,6 +248,8 @@ pub fn tools() -> Vec<ToolDef> {
                 }),
                 &["doc", "page"],
             )),
+        t("page_locks", "List page locks", "List locked pages and the subset requiring verified signature removal before unlocking. PdfCraft-only protection.").ro().with(schema(json!({"doc":doc()}), &["doc"])),
+        t("page_lock", "Lock or unlock pages", "Set unsigned PdfCraft page locks. Signed locks require signature removal before unlocking. Undoable.").with(schema(json!({"doc":doc(),"pages":pages("to lock or unlock"),"locked":{"type":"boolean","default":true}}), &["doc","pages"])),
         t("page_delete", "Delete pages", "Delete pages. Undoable until saved.")
             .destructive()
             .cmd("page.delete")
@@ -714,6 +748,13 @@ pub fn tools() -> Vec<ToolDef> {
         t("sign_list", "List and validate signatures", "Every signature field with its validation: status (valid, unknown = intact but the signer isn't trusted, invalid, unsigned), signer and certificate, date, reason, location, certification level, page and rect, the revision it covers and changes made after signing (none, allowed, disallowed), with Acrobat-style explanations.")
             .ro()
             .with(schema(json!({ "doc": doc() }), &["doc"])),
+        t("sign_removable", "List removable signatures", "The signatures Remove Signature can take out (Acrobat: Clear Signature), each with what removing it does: digital and certification signatures (a signature field's value), document timestamps (listed, never removable on their own) and Fill & Sign signatures or initials (visual: annotations, with no cryptography). removable is false, with the reason in blocked, when another signature's certification or field lock doesn't permit it, or the document can't be changed. effects say what else changes: other signatures will report the change and must be checked again, a certification ends, and whether the removed signature stays recoverable in an earlier revision of the saved file. A signature drawn into a page's content is never listed. status is what validation found; it is not a claim that the signature is valid.")
+            .ro()
+            .with(schema(json!({ "doc": doc() }), &["doc"])),
+        t("sign_clear", "Remove a signature", "Remove one signature from sign_removable, chosen by field (a digital signature) or item (its index there, any kind). Digital signatures require id (a matching .p12, windows: or keychain: identity) and its password if needed; a fresh private-key challenge proves access. A cached certificate alone is insufficient. By default a digital signature's field and its widgets are removed from the form; with keep_field: true only its value and appearance go, leaving an empty field to sign again; a certification entry naming it goes too. A visual signature's annotation is deleted. Refused, changing nothing, when sign_removable says it isn't removable. Nothing is written until the document is saved: save to a new path to keep the original. With no signature left, Save As to a new file writes a clean copy without earlier revisions; otherwise the save is incremental and the removed signature stays recoverable in the earlier revision. Undoable.")
+            .destructive()
+            .cmd("sign.remove")
+            .with(schema(json!({ "doc": doc(), "field": { "type": "string" }, "item": { "type": "integer", "minimum": 0 }, "keep_field": { "type": "boolean" }, "id": { "type": "string" }, "password": { "type": "string" } }), &["doc"])),
         t("sign_id_create", "Create a digital ID", "Create a self-signed digital ID and save it as a password-protected .p12 file (Acrobat: Configure a new digital ID ▸ Create a new digital ID ▸ Save to file). Default key: 2048-bit RSA, valid 5 years.").with(schema(
             json!({
                 "name": { "type": "string", "minLength": 1 },
@@ -736,12 +777,17 @@ pub fn tools() -> Vec<ToolDef> {
             .ro()
             .cmd("sign.digital")
             .with(schema(json!({}), &[])),
+        t("doc_timestamp", "Timestamp a document", "Append an RFC 3161 document timestamp and atomically save to out. Requires --network and an explicit HTTPS server. No signing identity is needed; TSA trust is reported by sign_list, never assumed.")
+            .cmd("sign.timestamp")
+            .with(schema(json!({ "doc": doc(), "out": {"type": "string"}, "timestamp_server": {"type": "string"} }), &["doc", "out", "timestamp_server"])),
         t("sign_document", "Sign a document", "Sign with a digital ID (a .p12/.pfx path, or on macOS a Keychain identity: \"keychain:<common name or fingerprint>\" from sign_keychain_ids, or on Windows a store identity: \"windows:<common name or fingerprint>\" from sign_windows_ids) and save the signed file to `out` (signing always saves, as in Acrobat; the document then shows the signed file). Sign an existing empty signature field (`field`), or a new one on `page` at `rect` (omit rect for an invisible signature). certify: no_changes, form_fill or comments makes a certification signature. graphic shows a picture where the signer's name would be large (Acrobat: Configure Signature Appearance): {\"image\": path} (PNG or JPEG), {\"text\": name} (typed in the Fill & Sign script font) or {\"strokes\": [[[x, y], …], …]} (y up, the drawing pad 1 wide); it needs a visible signature. appearance chooses what a visible signature shows (default: name, date and labels; reason, location and distinguished_name are off unless turned on). labels gives the words of its labels, e.g. in another language (default English: \"Digitally signed by\", \"DN: \", \"Reason: \", \"Location: \", \"Date: \"; include the separator); each must be in Western European characters (Windows-1252), the only ones the signature's font draws, or the call is refused naming the label and character. PAdES B-B, SHA-256 (SHA-384 for P-384 keys).")
             .cmd("sign.digital")
             .with(schema(
                 json!({
                     "doc": doc(),
                     "id": { "type": "string", "description": "Digital ID file (.p12 / .pfx), keychain: reference on macOS, or windows: reference on Windows." },
+                    "background": { "description": "Subdued watermark behind signature details: pdfcraft for the lion, or a graphic object like graphic. Independent of the left graphic." },
+                    "timestamp_server": { "type": "string", "description": "Optional HTTPS RFC 3161 server; requires --network. Failure never falls back to an unstamped signature." },
                     "password": { "type": "string" },
                     "field": { "type": "string" },
                     "page": { "type": "integer", "minimum": 1 },
@@ -750,6 +796,8 @@ pub fn tools() -> Vec<ToolDef> {
                     "location": { "type": "string" },
                     "contact": { "type": "string" },
                     "certify": { "type": "string", "enum": ["no_changes", "form_fill", "comments"] },
+                    "protected_pages": { "type": "array", "maxItems": 10000, "items": { "type": "integer", "minimum": 1 }, "description": "PdfCraft-only signed page locks; other readers may ignore them. 1-based pages." },
+                    "allow_insert": { "type": "boolean", "default": true, "description": "Allow adding unprotected pages under PdfCraft page protection." },
                     "graphic": {
                         "type": "object",
                         "description": "Exactly one of image, text or strokes.",
@@ -845,7 +893,14 @@ pub fn tools() -> Vec<ToolDef> {
         )),
         t("comment_image_preview", "Preview image signature layers", "Return a PNG of the page without the selected image signature/initials (layer=background, default), or its embedded image with alpha (layer=image). Includes the displayed rectangle, document rotation, image_rotation (how far clockwise the image is shown turned) and annotation opacity. Cache these layers for live placement/resizing; commit once with comment_edit. Does not change the document or undo history.")
             .ro().with(schema(comment_ref(json!({ "layer": { "type": "string", "enum": ["background", "image"], "default": "background" }, "dpi": { "type": "number", "minimum": 1, "maximum": 600, "default": 96 } })), &["doc"])),
-        t("comment_delete", "Delete a comment", "Delete a comment with its pop-up and replies. Undoable.").destructive().with(schema(comment_ref(json!({})), &["doc"])),
+        t("additions_move", "Move selected objects", "Move comments, PdfCraft-added content and original editable page objects together on one page, preserving their spacing. offset is [right, down] in displayed-page points, accounting for crop, rotation and UserUnit. One undo step; locked, restricted or missing targets refuse the entire edit. Re-list original object references after every edit, and comment/added positions after unrelated edits.")
+            .with(schema(json!({
+                "doc": doc(), "page": { "type": "integer", "minimum": 1 },
+                "indices": { "type": "array", "maxItems": 1000, "items": { "type": "integer", "minimum": 1 }, "description": "Original 1-based annotation positions from comment_list." },
+                "content_indices": { "type": "array", "maxItems": 1000, "items": { "type": "integer", "minimum": 1 }, "description": "Page-local 1-based positions from content_list; at most 1000 selected additions total." },
+                "offset": point(), "objects": selection_objects(), "generation": {"type":"integer","minimum":0},
+            }), &["doc", "page", "offset"])),
+        t("comment_delete", "Delete comments", "Delete a comment with its pop-up and replies, or a page group using indices (original 1-based annotation positions) and/or content_indices from content_list, plus optional original objects from object_list. One undo step; locked or missing targets refuse the whole edit.").destructive().with(schema(comment_ref(json!({ "objects": selection_objects(), "generation": {"type":"integer","minimum":0}, "indices": { "type": "array", "maxItems": 1000, "items": { "type": "integer", "minimum": 1 }, "description": "With page; mutually exclusive with id and index." }, "content_indices": { "type": "array", "maxItems": 1000, "items": { "type": "integer", "minimum": 1 }, "description": "Page-local 1-based positions from content_list. Optional with indices for a mixed group, at most 1000 additions total." } })), &["doc"])),
         t(
             "doc_protect",
             "Protect with passwords",
@@ -873,9 +928,12 @@ pub fn tools() -> Vec<ToolDef> {
         t("page_replace", "Replace pages", "Replace the content of pages with pages of another PDF (same count). Links, comments, form fields and bookmarks on the original pages stay, as in Acrobat. Undoable.")
             .cmd("page.replace")
             .with(schema(json!({ "doc": doc(), "pages": pages("to replace"), "path": path_arg(), "from_pages": pages("of the other file, in order (default: its first pages)") }), &["doc", "pages", "path"])),
-        t("page_duplicate", "Duplicate pages", "Insert copies of pages so the first copy becomes page `at`, or after the last of them when `at` is left out (fonts and images are shared, not copied). Undoable.")
+        t("page_duplicate", "Duplicate pages", "Insert copies of pages so the first copy becomes page `at`, or after the last of them when `at` is left out (fonts and images are shared, not copied). field_conflicts says what happens to the copies' form fields: \"merge\" (the default) keeps their names, so each copy is one field with its original and filling in one fills in both; \"rename\" gives each copied field the first free name (Text1 becomes Text1-1), so the copies are filled in on their own, and doc_info's repairs list what was renamed (scripts that refer to the old names are not rewritten). Undoable.")
             .cmd("page.duplicate")
-            .with(schema(json!({ "doc": doc(), "pages": pages("to duplicate"), "at": { "type": "integer", "minimum": 1 } }), &["doc", "pages"])),
+            .with(schema(
+                json!({ "doc": doc(), "pages": pages("to duplicate"), "at": { "type": "integer", "minimum": 1 }, "field_conflicts": { "type": "string", "enum": ["merge", "rename"] } }),
+                &["doc", "pages"],
+            )),
         t(
             "page_transition_set",
             "Set page transitions",
@@ -1094,6 +1152,9 @@ pub fn tools() -> Vec<ToolDef> {
         t("form_merge_data", "Merge data files into spreadsheet", "Collect the field values of form data files (FDF, XFDF) or filled-in PDF forms into one CSV file at path: a column per field name, a row per file. Returns the row and column counts.")
             .cmd("form.merge_data")
             .with(schema(json!({ "paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 }, "path": { "type": "string" } }), &["paths", "path"])),
+        t("js_field_event", "Run a field action", "Dispatch a stored widget JavaScript trigger in the document realm; returns alerts, console, requests and errors. Field changes are undoable; external requests are only returned.").cmd("tools.js_console").with(schema(json!({"doc":doc(),"field":{"type":"string"},"trigger":{"type":"string","enum":["mouse_up","mouse_down","mouse_enter","mouse_exit","on_focus","on_blur"]}}), &["doc","field","trigger"])),
+        t("js_document_actions", "Document actions", "List Open, WillSave and WillPrint JavaScript actions.").ro().cmd("tools.document_actions").with(schema(json!({"doc": doc()}), &["doc"])),
+        t("js_set_document_action", "Edit document action", "Set or remove one Open, WillSave or WillPrint JavaScript action. Preserves non-JavaScript actions and chains by refusing to replace them. Undoable.").cmd("tools.document_actions").with(schema(json!({"doc": doc(), "event": {"type":"string", "enum":["Open","WillSave","WillPrint"]}, "script":{"type":"string"}}), &["doc", "event"])),
         t("js_run", "Run JavaScript", "Run Acrobat JavaScript in the document, as the JavaScript console does (or as push button `field`'s Mouse Up script when field is given; on a laid-out XFA form, `field` runs that button's XFA click script instead, JavaScript or FormCalc, which can add and remove rows and show or hide subforms). The form object model is available: this/getField, event, app, util, console, display, color, and the document-level scripts. Field changes and resetForm are applied as one undoable step; returns the script's alerts, console output, requests (print, page, url, submit) and error.")
             .cmd("tools.js_console")
             .with(schema(
@@ -1120,8 +1181,9 @@ pub fn tools() -> Vec<ToolDef> {
             .ro()
             .cmd("standards.pdfa")
             .with(schema(json!({ "doc": doc(), "level": { "type": "string", "enum": ["2b", "3b"], "description": "Default 2b." } }), &["doc"])),
+        t("output_inspection", "Inspect output source colours", "Bounded read-only page inspection of source colour spaces, declared spot colours and overprint, and largest explicit DeviceCMYK source component sum. This is not composited total ink coverage or an ICC soft proof.").ro().cmd("prepress.output_preview").with(schema(json!({"doc": doc(), "page":{"type":"integer","minimum":1}}), &["doc", "page"])),
         t("print_readiness", "Print readiness", "Verification only. Reports effective image resolution where each image is drawn (not against the page size), page boxes and bleed past the trim, output intents, fonts that are not embedded, and the PDF/A-2b structural result. Does not modify the document, embed fonts, invent a press profile, or check PDF/X.")
-            .ro()
+            .cmd("preflight.run").ro()
             .with(schema(json!({ "doc": doc() }), &["doc"])),
         t("pdfa_convert", "Save as PDF/A", "Standards ▸ Save as PDF/A: fix what can be fixed for PDF/A-2b or 3b (XMP identification and metadata, an sRGB output intent, forbidden actions and JavaScript, annotation print flags, image interpolation, encryption). Returns what was fixed and what remains (e.g. fonts that aren't embedded). Undoable; save the document to keep it.")
             .cmd("standards.pdfa")
@@ -1179,7 +1241,7 @@ pub fn tools() -> Vec<ToolDef> {
                     "doc": doc(),
                     "pages": pages("to recognise (default: all)"),
                     "dpi": { "type": "number", "minimum": 72, "maximum": 600, "description": "Resolution pages are read at (default 300; a scanned page is read at most at its own resolution)." },
-                    "language": { "type": "string", "enum": ["en"], "description": "Document language (default en)." },
+                    "language": { "type": "string", "enum": ["en", "la", "fr", "de", "es", "pt", "it", "nl", "da", "no", "sv", "is", "fi", "cs", "pl"], "description": "Document language (default en). la reads accented Latin; named European languages use the same model with language preferences. Recognition may still misread individual letters." },
                     "skip_text_pages": { "type": "boolean", "description": "Leave pages that already contain text alone (default true). false also reads pictures on such pages, without adding their text again." },
                 }),
                 &["doc"],
@@ -1191,7 +1253,7 @@ pub fn tools() -> Vec<ToolDef> {
                     "paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
                     "folder": { "type": "string" },
                     "dpi": { "type": "number", "minimum": 72, "maximum": 600 },
-                    "language": { "type": "string", "enum": ["en"] },
+                    "language": { "type": "string", "enum": ["en", "la", "fr", "de", "es", "pt", "it", "nl", "da", "no", "sv", "is", "fi", "cs", "pl"] },
                     "skip_text_pages": { "type": "boolean", "description": "Leave pages that already contain text alone (default true); see ocr_recognize." },
                 }),
                 &["paths", "folder"],
@@ -1239,14 +1301,16 @@ pub fn tools() -> Vec<ToolDef> {
         )),
         t("fill_sign_date_format", "Date format for Fill & Sign", "Preferences ▸ Date format: the pattern Fill & Sign dates use (default m/d/yyyy). Set it with `format` (Acrobat date codes yyyy yy mmmm mmm mm m dddd ddd dd d, other runs of y, m or d are refused; H h M s t are time letters and need \\ before them; \\ shows the next character as is), or read it. `language` sets the language of month and weekday names (a code from `languages`, or `auto` to follow the app's interface language; English headless). Returns the format, the language, today in them, `unwritable` (characters of today's date that Fill & Sign can't write into a PDF yet, Western European only; fill_sign_add refuses such a date), the ready-made presets and the languages.")
             .with(schema(json!({ "format": { "type": "string", "minLength": 1, "maxLength": 64 }, "language": { "type": "string" } }), &[])),
+        t("template_list","Starter templates","List built-in editable PDF starters, their categories, descriptions and page counts. Booklet pages are in reading order, not imposed for printing.").ro().with(schema(json!({}),&[])),
+        t("template_export","Export reusable template","Write a version-1 .pdfcraft-template snapshot of current contents and form values without saving or changing the original. Signed and password-protected documents must be unsigned/unprotected first. At most 64 MiB.").cmd("create.save_template").with(schema(json!({"doc":doc(),"path":{"type":"string"},"title":{"type":"string","maxLength":120},"description":{"type":"string","maxLength":1000},"category":{"type":"string","maxLength":64}}),&["doc","path"])),
         t(
             "doc_create",
             "Create a PDF",
-            "Create a new, unsaved document and return it like doc_open: `blank` (pages, width, height in points; default 1 US Letter page), `images` (paths of PNG, JPEG, TIFF (every page), GIF or BMP files, one page each at the image's resolution) or `text` (a .txt path, or `text` directly; Western European (WinAnsi) characters only, others are refused). Save it with doc_save and a path.",
+            "Create a new, unsaved document and return it like doc_open: `blank` (pages, width, height in points; default 1 US Letter page), `images` (paths of PNG, JPEG, TIFF (every page), GIF or BMP files, one page each at the image's resolution), `text` (a .txt path, or `text` directly; Western European (WinAnsi) characters only, others are refused), or experimental `xps` (a package path, at most 256 MiB; preserves supported text, solid paths and PNG/JPEG pictures, refuses unsupported drawing without raster fallback). Use `starter` with a `template` id from template_list and optional `paper` (letter/a4), or `template` with a .pdfcraft-template `path` to create a new working copy (at most 64 MiB). Save it with doc_save and a path.",
         )
         .with(schema(
             json!({
-                "from": { "type": "string", "enum": ["blank", "images", "text"] },
+                "from": { "type": "string", "enum": ["blank", "images", "text", "xps", "starter", "template"] },
                 "paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
                 "dpi": { "type": "number", "minimum": 1, "maximum": 1200, "description": "For images: override the embedded resolution without resampling. 72 gives one point per pixel; omit to use each image's resolution (72 when absent)." },
                 "text": { "type": "string" },
@@ -1254,6 +1318,8 @@ pub fn tools() -> Vec<ToolDef> {
                 "pages": { "type": "integer", "minimum": 1, "maximum": 10000 },
                 "width": { "type": "number", "minimum": 3 },
                 "height": { "type": "number", "minimum": 3 },
+                "template": {"type":"string","description":"Built-in starter id from template_list, for from=starter."},
+                "paper": {"type":"string","enum":["letter","a4"],"default":"letter"},
                 "name": { "type": "string", "description": "Name for the new document (default derived from the source)." },
             }),
             &["from"],

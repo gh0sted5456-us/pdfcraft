@@ -3,6 +3,11 @@
 The façade every frontend talks to. It holds the open documents, their edit history and the tool
 catalogue; frontends never reach past it into the parsing, rendering or editing crates.
 
+`Session::matching_pages` returns unique matching pages using the renderer's case/word rules
+and refuses incomplete extraction. `Session::transfer_pages` copies working pages between
+open documents, with optional source removal after successful insertion and a warning if that
+removal fails. Each document has its own Undo. See [search and transfers](../../docs/page-search-and-transfers.md).
+
 `word_count::count` provides cancellable, page-at-a-time Unicode word and character statistics
 with optional semantic exclusions; see [word-count behavior and limits](../../docs/word-count.md).
 
@@ -85,3 +90,5 @@ family (`sign`, `sign_with_timestamp`, `timestamp_document`, `embed_ltv`).
 `doc.text_edit_preview(page, block)` prepares a read-only page background with the selected
 paragraph’s glyphs removed, preserving text positioning, images and colours. It shares the
 working document’s render configuration and never enters the undo history.
+
+Offline spelling API: `spelling::Checker` uses installed native dictionaries on Windows/macOS and a Rust parser for installed Hunspell data on Linux/BSD. Missing dictionaries are explicit errors; text and dictionary reads are bounded. See [language and spelling](../../docs/language-and-spelling.md).

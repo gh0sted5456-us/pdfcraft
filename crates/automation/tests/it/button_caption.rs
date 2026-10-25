@@ -32,7 +32,7 @@ fn button_caption_can_be_changed_after_creation() {
     std::fs::write(dir.join("buttons.pdf"), session.save_bytes(id).unwrap().as_slice()).unwrap();
     let mut a = Automation::new().with_root(&dir).unwrap().with_clock(|| 1_700_000_000);
     let id = tool(&mut a, "doc_open", json!({"path": "buttons.pdf"}))["doc"].as_u64().unwrap();
-    let before = a.session().save_bytes(DocId(id)).unwrap();
+    let before = a.session_mut().save_bytes(DocId(id)).unwrap();
     let (_, _, empty_pixels) = a.render_pixels(id, 1, 1.0).unwrap();
     tool(&mut a, "form_set_props", json!({"doc": id, "field": "clear_button", "caption": "Clear Form"}));
     let fields = tool(&mut a, "form_fields", json!({"doc": id}));
@@ -42,7 +42,7 @@ fn button_caption_can_be_changed_after_creation() {
     let (_, _, labelled_pixels) = a.render_pixels(id, 1, 1.0).unwrap();
     assert_ne!(empty_pixels, labelled_pixels, "the label must reach the actual page appearance");
     tool(&mut a, "edit_undo", json!({"doc": id}));
-    assert_eq!(a.session().save_bytes(DocId(id)).unwrap(), before);
+    assert_eq!(a.session_mut().save_bytes(DocId(id)).unwrap(), before);
     tool(&mut a, "edit_redo", json!({"doc": id}));
     tool(&mut a, "doc_save", json!({"doc": id, "path": "labelled.pdf"}));
     let saved = std::sync::Arc::new(std::fs::read(dir.join("labelled.pdf")).unwrap());
@@ -73,14 +73,14 @@ fn button_caption_can_be_changed_after_creation() {
         json!({"doc": id, "field": "clear_button", "widget": 1, "tooltip": "bad"}),
         json!({"doc": id, "fields": ["clear_button"], "caption": "bad"}),
     ] {
-        let before = a.session().save_bytes(DocId(id)).unwrap();
+        let before = a.session_mut().save_bytes(DocId(id)).unwrap();
         assert!(a.call("form_set_props", &invalid).is_err(), "{invalid}");
-        assert_eq!(a.session().save_bytes(DocId(id)).unwrap(), before, "{invalid}");
+        assert_eq!(a.session_mut().save_bytes(DocId(id)).unwrap(), before, "{invalid}");
     }
     tool(&mut a, "form_set_props", json!({"doc": id, "field": "clear_button", "locked": true}));
-    let before = a.session().save_bytes(DocId(id)).unwrap();
+    let before = a.session_mut().save_bytes(DocId(id)).unwrap();
     assert!(a.call("form_set_props", &json!({"doc": id, "field": "clear_button", "caption": "bad"})).is_err());
-    assert_eq!(a.session().save_bytes(DocId(id)).unwrap(), before);
+    assert_eq!(a.session_mut().save_bytes(DocId(id)).unwrap(), before);
     tool(&mut a, "form_set_props", json!({"doc": id, "field": "clear_button", "locked": false}));
     tool(&mut a, "form_set_props", json!({"doc": id, "field": "clear_button", "caption": ""}));
     let fields = tool(&mut a, "form_fields", json!({"doc": id}));

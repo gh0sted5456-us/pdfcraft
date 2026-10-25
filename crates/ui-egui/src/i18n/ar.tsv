@@ -2340,6 +2340,7 @@ key	Space	مسافة
 	Printer paper and scaling may differ. Check driver settings.	قد يختلف ورق الطابعة ومقياس الطباعة. تحقق من إعدادات برنامج التشغيل.
 	Drawing scale changes. Use Actual size for full-scale plans.	يتغير مقياس الرسم. استخدم الحجم الفعلي لطباعة المخططات بمقياسها الأصلي.
 	Reload documents when their files change on disk	إعادة تحميل المستندات عند تغيّر ملفاتها على القرص
+	Show validation marks over signed signatures	إظهار علامات التحقق فوق التوقيعات الموقَّعة
 	Always use my default zoom and page layout	استخدام التكبير وتخطيط الصفحة الافتراضيين دائمًا
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	تغيّر هذا الملف على القرص. «إعادة التحميل» تعرض النسخة الجديدة وتُسقط تغييراتك غير المحفوظة؛ و«حفظ» يستبدلها بهذه النسخة.
 	Reload	إعادة تحميل
@@ -2791,3 +2792,111 @@ certificate	Version	الإصدار
 	field names can't contain a period: {name}	لا يمكن أن تحتوي أسماء الحقول على نقطة: {name}
 	two cells would both be named {name}	ستحمل خليتان الاسم نفسه {name}
 	a field named {name} already exists	يوجد حقل باسم {name} بالفعل
+	Lines	خطوط
+	Line colour	لون الخط
+	Drag a point to reshape the line. Delete removes it.	اسحب نقطة لتغيير شكل الخط. يحذفه مفتاح Delete.
+	This point could not be moved. Try a smaller move.	تعذّر نقل هذه النقطة. جرّب إزاحة أصغر.
+	Recognize scanned text automatically	التعرّف تلقائيًا على النص الممسوح ضوئيًا
+	Ask whether to recognize the current page or all pages when editing a scan.	السؤال عمّا إذا كان ينبغي التعرّف على الصفحة الحالية أو جميع الصفحات عند تحرير مستند ممسوح ضوئيًا.
+	Scanned text detected	تم اكتشاف نص ممسوح ضوئيًا
+	Recognize text on this page or throughout the document?	هل تريد التعرّف على النص في هذه الصفحة أم في المستند بأكمله؟
+
+# Group selection and document save status.
+	Exit	خروج
+	Group select	تحديد مجموعة
+	Return to document	العودة إلى المستند
+	Saved	محفوظ
+	Saves document	يحفظ المستند
+	Unsaved changes	تغييرات غير محفوظة
+
+
+# Remove Signature (sign.remove)
+	Remove signature…	إزالة التوقيع…
+	Remove signature	إزالة التوقيع
+	Remove Signature	إزالة التوقيع
+	Remove the signature {name}	إزالة التوقيع {name}
+	Certification signature (level {p})	توقيع تصديق (المستوى {p})
+	Document timestamp	ختم زمني للمستند
+	Visual signature (Fill & Sign, not digital)	توقيع مرئي (تعبئة وتوقيع، ليس رقميًا)
+	Visual initials (Fill & Sign, not digital)	أحرف أولى مرئية (تعبئة وتوقيع، ليست رقمية)
+	{name}_unsigned.pdf	{name}_بدون_توقيع.pdf
+	this signature can't be removed on its own	لا يمكن إزالة هذا التوقيع وحده
+	it was still in the document afterwards, so the change was undone	بقي في المستند بعد إزالته، لذا تم التراجع عن التغيير
+	Choose another file: the original is kept as it is, and the version without the signature is saved next to it.	اختر ملفًا آخر: يبقى الأصل كما هو، ويُحفظ الإصدار الذي لا يحتوي على التوقيع بجانبه.
+	The signature was not removed: {e}	لم تتم إزالة التوقيع: {e}
+	Removed the visual signature on page {p}	تمت إزالة التوقيع المرئي في الصفحة {p}
+	Removed the signature {field} and kept its empty field	تمت إزالة التوقيع {field} مع الإبقاء على حقله فارغًا
+	Removed the signature {field} with its field	تمت إزالة التوقيع {field} مع حقله
+	Other signatures remain, so the removed one is still in the file's earlier revision; check the remaining signatures again.	لا تزال هناك توقيعات أخرى، لذا يبقى التوقيع المُزال في المراجعة السابقة للملف؛ تحقق من التوقيعات المتبقية من جديد.
+	The new file has no signature left and no earlier revision holding it.	لم يعد في الملف الجديد أي توقيع ولا مراجعة سابقة تحتفظ به.
+	{what}. Saved {file}, checked to reopen with every page. {history}	{what}. تم حفظ {file} والتحقق من أنه يُفتح من جديد بكل صفحاته. {history}
+	This document has no signature that can be removed.	لا يحتوي هذا المستند على توقيع يمكن إزالته.
+	A signature that is part of a page's content, like a scanned page, is not a field or an annotation, so it can't be removed on its own, and PdfCraft doesn't erase parts of a page to hide it. To take it out, redact that area (Redact), or delete the picture with Edit PDF when the signature is an image of its own.	التوقيع الذي يكون جزءًا من محتوى الصفحة، كما في صفحة ممسوحة ضوئيًا، ليس حقلًا ولا تعليقًا توضيحيًا، لذا لا يمكن إزالته وحده، ولا يمسح PdfCraft أجزاءً من الصفحة لإخفائه. لإزالته، احجب تلك المنطقة (حجب)، أو إذا كان التوقيع صورة مستقلة فاحذف الصورة باستخدام تحرير ملف PDF.
+	Choose the signature to remove:	اختر التوقيع المراد إزالته:
+	unknown signer	موقّع غير معروف
+	Field: {field}	الحقل: {field}
+	Page {p}	الصفحة {p}
+	validated: valid	التحقق: صالح
+	validated: validity unknown	التحقق: الصلاحية غير معروفة
+	validated: invalid	التحقق: غير صالح
+	None of these signatures can be removed.	لا يمكن إزالة أي من هذه التوقيعات.
+	Keep an empty signature field to sign again	الإبقاء على حقل توقيع فارغ للتوقيع من جديد
+	Removing this signature changes the document and invalidates this signature in the version that results. It can affect the other signatures and certifications. The original file is kept as it is.	تؤدي إزالة هذا التوقيع إلى تغيير المستند وإبطال هذا التوقيع في الإصدار الناتج. وقد يؤثر ذلك في التوقيعات والتصديقات الأخرى. يبقى الملف الأصلي كما هو.
+	Removing this signature changes the document and invalidates this signature in the version that results. The original file is kept as it is.	تؤدي إزالة هذا التوقيع إلى تغيير المستند وإبطال هذا التوقيع في الإصدار الناتج. يبقى الملف الأصلي كما هو.
+	This is a picture of a signature, not a digital signature: only the mark on the page goes. The original file is kept as it is.	هذه صورة توقيع وليست توقيعًا رقميًا: تُزال العلامة الموجودة على الصفحة فقط. يبقى الملف الأصلي كما هو.
+	Unsaved changes to this document are saved in the new file too.	تُحفظ التغييرات غير المحفوظة في هذا المستند في الملف الجديد أيضًا.
+	You choose where the new version is saved. Continue?	أنت تختار مكان حفظ الإصدار الجديد. هل تريد المتابعة؟
+	Remove and Save As…	إزالة وحفظ باسم…
+	The other signatures ({names}) will report that the document changed after they signed. Check them again: nothing says they stay valid.	ستُبلغ التوقيعات الأخرى ({names}) بأن المستند تغيّر بعد توقيعها. تحقق منها من جديد: لا شيء يضمن بقاءها صالحة.
+	Signed after this signature, so what they signed includes it: {names}.	توقيعات أُضيفت بعد هذا التوقيع ويشمله محتواها الموقّع: {names}.
+	The document will no longer be certified.	لن يعود المستند مصدّقًا.
+	The fields this signature locked ({names}) can be changed again.	ستصبح الحقول التي كان هذا التوقيع يقفلها ({names}) قابلة للتغيير من جديد.
+	Other signatures remain, so the copy is saved as an update of the signed file: the removed signature stays in its earlier revision, where it can be recovered.	لا تزال هناك توقيعات أخرى، لذا تُحفظ النسخة كتحديث للملف الموقّع: يبقى التوقيع المُزال في المراجعة السابقة ويمكن استعادته منها.
+	{names} certifies this document without allowing comments, and will report this change.	{names} يصدّق هذا المستند دون السماح بالتعليقات، وسيُبلغ بهذا التغيير.
+	A document timestamp covers the whole file and is no one's signature, so it can't be removed on its own.	يشمل الختم الزمني للمستند الملف كله وليس توقيعًا لأحد، لذا لا يمكن إزالته وحده.
+	{names} certifies this document, and removing a signature is not a change its certification permits.	{names} يصدّق هذا المستند، وإزالة توقيع ليست تغييرًا يسمح به هذا التصديق.
+	The signature {names} locks this field.	التوقيع {names} يقفل هذا الحقل.
+	This document can't be changed: {names}	لا يمكن تغيير هذا المستند: {names}
+	Choose a signature that can be removed.	اختر توقيعًا يمكن إزالته.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	فتح ملف PDF التالي في المجلد
+	Open previous PDF in folder	فتح ملف PDF السابق في المجلد
+	This document isn't in a folder yet: save it first	هذا المستند ليس في مجلد بعد: احفظه أولاً
+	This is the last PDF in its folder	هذا آخر ملف PDF في مجلده
+	This is the first PDF in its folder	هذا أول ملف PDF في مجلده
+
+# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
+	Language and spelling	اللغة والتدقيق الإملائي
+	Interface and appearance	الواجهة والمظهر
+	Check spelling while typing	التدقيق الإملائي أثناء الكتابة
+	Spelling language	لغة التدقيق الإملائي
+	Same as interface	مثل الواجهة
+	Spelling dictionary unavailable	قاموس التدقيق الإملائي غير متاح
+	Spelling checks stay on this device.	يتم التدقيق الإملائي على هذا الجهاز.
+	Spelling marks do not change the document. Right-click an underlined word for suggestions.	علامات التدقيق لا تغير المستند. انقر بزر الفأرة الأيمن على كلمة مسطرة لعرض الاقتراحات.
+	Clear personal dictionary	مسح القاموس الشخصي
+	Spelling suggestions	اقتراحات إملائية
+	No suggestions	لا توجد اقتراحات
+	Add to dictionary	إضافة إلى القاموس
+
+	Suggest edits	اقتراح تعديلات
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	تكرار الصفحات بأسماء حقول جديدة
+	Duplicate pages — 1 field renamed	تكرار الصفحات — تمت إعادة تسمية حقل واحد
+	Duplicate pages — fields renamed	تكرار الصفحات — تمت إعادة تسمية حقول
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	المستندات
+	AI Assistant	مساعد الذكاء الاصطناعي
+	Latin (accented)	اللاتينية (بعلامات تشكيل)
+	Opening documents	فتح المستندات
+	Files	الملفات
+	Navigation	التنقل
+	Save as template	حفظ كقالب
+	From template	من قالب
+	Reset	إعادة تعيين
+	Swap width and height	تبديل العرض والارتفاع
+	Custom page…	صفحة مخصصة…
+	Glass	زجاجي

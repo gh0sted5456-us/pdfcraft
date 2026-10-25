@@ -6,6 +6,60 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
 use pdfcraft_ui_egui::PdfCraftApp;
 
+#[test]
+fn category_rail_switches_the_right_pane_without_losing_changes_or_moving_ok() {
+    let mut h = harness(800.0);
+    let ok = h.get_by_label("OK").rect();
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Documents").click();
+    h.run_steps(4);
+    assert!(h.query_by_label("Interface language").is_none(), "only the chosen category is drawn");
+    let gaps = h.get_by_label("Show gaps between pages").rect();
+    let category = h.get_by_role_and_label(egui::accesskit::Role::Button, "Documents").rect();
+    assert!(category.right() < gaps.left(), "categories belong on the left, settings on the right");
+    h.get_by_label("Show gaps between pages").click();
+    h.run_steps(3);
+    let chosen = h.state().view_defaults.show_page_gaps;
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Language").click();
+    h.run_steps(4);
+    h.get_by_label("Interface language");
+    assert!(h.query_by_label("Show gaps between pages").is_none());
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Documents").click();
+    h.run_steps(4);
+    assert_eq!(h.state().view_defaults.show_page_gaps, chosen);
+    assert!(h.state_mut().set_option("preferences-category", "missing").is_err());
+    assert_eq!(h.state().preferences_category, pdfcraft_ui_egui::PreferencesCategory::Documents);
+    assert_eq!(h.get_by_label("OK").rect(), ok, "the footer stays put when changing categories");
+}
+
+#[test]
+fn all_categories_stay_centered_and_bounded_in_both_themes() {
+    for theme in ["light", "dark"] {
+        for (width, height) in [(1200.0, 800.0), (640.0, 480.0)] {
+            let mut h = Harness::builder().with_size(egui::vec2(width, height)).build_eframe(|_cc| {
+                let mut app = PdfCraftApp::new();
+                app.set_option("language", "en").unwrap();
+                app.set_option("dialog", "preferences").unwrap();
+                app
+            });
+            h.state_mut().set_option("theme", theme).unwrap();
+            for category in pdfcraft_ui_egui::PreferencesCategory::ALL {
+                h.state_mut().set_option("preferences-category", category.key()).unwrap();
+                h.run_steps(6);
+                let card = h.ctx.data(|data| data.get_temp::<Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+                let screen = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
+                assert!(card.width() <= 810.0 && card.height() <= 520.0, "compact Settings: {card:?}");
+                assert!(screen.contains_rect(card), "{theme} {category:?}: {card:?} exceeds {screen:?}");
+                assert!((card.center() - screen.center()).length() < 2.0, "{theme} {category:?}: off center {card:?}");
+                assert!(card.contains_rect(h.get_by_label("OK").rect()), "{theme} {category:?}: card {card:?}, OK {:?}", h.get_by_label("OK").rect());
+                if let Ok(dir) = std::env::var("PDFCRAFT_SETTINGS_SHOTS") {
+                    let _gpu = crate::gpu();
+                    h.render().unwrap().save(format!("{dir}/settings-{theme}-{}-{width:.0}.png", category.key())).unwrap();
+                }
+            }
+        }
+    }
+}
+
 fn harness(height: f32) -> Harness<'static, PdfCraftApp> {
     let mut h = Harness::builder().with_size(egui::vec2(1000.0, height)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
@@ -44,12 +98,12 @@ fn ok_closes_the_dialog_in_a_short_window_and_the_settings_still_scroll() {
     // between the title and the OK row, and OK did not move.
     let ok_before = h.get_by_label("OK").rect();
     let title = h.get_by_label("Preferences").rect();
-    let far = h.get_by_label_contains("Reading colours").rect();
-    assert!(far.min.y >= ok_before.min.y, "Reading colours starts out of sight: {far:?} vs OK {ok_before:?}");
-    h.get_by_label_contains("Reading colours").scroll_to_me();
+    let far = h.get_by_label("Highlight fields").rect();
+    assert!(far.min.y >= ok_before.min.y, "Highlight fields starts out of sight: {far:?} vs OK {ok_before:?}");
+    h.get_by_label("Highlight fields").scroll_to_me();
     h.run_steps(4);
-    let far = h.get_by_label_contains("Reading colours").rect();
-    assert!(far.min.y >= title.max.y && far.max.y <= ok_before.min.y, "Reading colours scrolled in between the title and OK: {far:?}");
+    let far = h.get_by_label("Highlight fields").rect();
+    assert!(far.min.y >= title.max.y && far.max.y <= ok_before.min.y, "Highlight fields scrolled in between the title and OK: {far:?}");
     assert_eq!(h.get_by_label("OK").rect(), ok_before, "OK stays put while the settings scroll");
     assert!(h.state().dialog.is_some());
     h.get_by_label("OK").click();
@@ -86,13 +140,61 @@ fn the_dialog_opens_at_its_full_size_and_does_not_grow_afterwards() {
 }
 
 #[test]
-fn a_very_tall_window_does_not_leave_a_blank_gap_above_ok() {
-    // The settings are some 1 400 pt tall; in a taller window the scroll area is not stretched
-    // past them.
+fn a_tall_window_keeps_a_bounded_centered_settings_card() {
     let mut h = harness(2600.0);
+    h.state_mut().set_option("preferences-category", "javascript").unwrap();
     h.run_steps(6);
+    let card = h.ctx.data(|data| data.get_temp::<Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+    assert!(card.height() < 750.0, "settings should not stretch across a tall monitor: {card:?}");
+    assert!((card.center() - egui::pos2(500.0, 1300.0)).length() < 2.0, "settings stay centered: {card:?}");
+    assert!(on_screen(h.get_by_label("OK").rect(), 2600.0));
+    h.get_by_label("Enable Acrobat JavaScript");
+}
+
+#[test]
+fn additional_categories_adjust_existing_settings_without_starting_work() {
+    let mut h = harness(800.0);
+    h.state_mut().set_option("preferences-category", "ocr").unwrap();
+    h.run_steps(4);
+    let before = h.state().auto_ocr;
+    h.get_by_label("Recognize scanned text automatically").click();
+    h.run_steps(3);
+    assert_eq!(h.state().auto_ocr, !before);
+    assert!(h.state().ocr_run.is_none());
+    h.state_mut().set_option("preferences-category", "editing").unwrap();
+    h.run_steps(4);
+    h.get_by_label("Bold").click();
+    h.run_steps(3);
+    assert!(h.state().text_style.bold);
+    h.state_mut().set_option("preferences-category", "security").unwrap();
+    h.run_steps(4);
+    h.get_by_label("Timestamp service");
+    h.state_mut().set_option("preferences-category", "assistant").unwrap();
+    h.run_steps(4);
+    h.get_by_label("Enable Assistant requests (off by default)").click();
+    h.run_steps(3);
+    let saved = h.state().persist();
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&saved);
+    assert_eq!(restored.auto_ocr, !before);
+    assert!(serde_json::from_str::<serde_json::Value>(&saved).unwrap()["assistant"]["enabled"].as_bool().unwrap());
+    h.get_by_label("Manage AI connections").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, Some(pdfcraft_ui_egui::Dialog::Assistant));
+    h.get_by_label("Continue with ChatGPT");
+}
+
+#[test]
+fn the_left_rail_scrolls_to_categories_without_moving_the_dialog() {
+    let mut h = harness(480.0);
     let ok = h.get_by_label("OK").rect();
-    let last = h.get_by_label_contains("Enable Acrobat JavaScript").rect();
-    assert!(on_screen(ok, 2600.0) && on_screen(last, 2600.0), "{last:?} {ok:?}");
-    assert!(ok.min.y - last.max.y < 120.0, "a gap of {} pt between the last setting and OK", ok.min.y - last.max.y);
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "AI Assistant").scroll_to_me();
+    h.run_steps(8);
+    let last = h.get_by_role_and_label(egui::accesskit::Role::Button, "AI Assistant");
+    assert!(last.rect().bottom() < ok.top(), "last category scrolls into the rail, above the footer");
+    last.click();
+    h.run_steps(4);
+    h.get_by_label("Manage AI connections");
+    assert_eq!(h.get_by_label("OK").rect(), ok);
+    assert_eq!(h.state().preferences_category, pdfcraft_ui_egui::PreferencesCategory::Assistant);
 }

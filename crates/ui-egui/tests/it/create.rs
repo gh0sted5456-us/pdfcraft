@@ -2,6 +2,131 @@
 
 use pdfcraft_ui_egui::PdfCraftApp;
 
+#[test]
+fn physical_paper_defaults_roundtrip_and_create_print_sized_cards() {
+    let mut app = PdfCraftApp::new();
+    app.set_option("default-paper", "European business card").unwrap();
+    app.set_option("actual-size-zoom", "1.25").unwrap();
+    let saved = app.persist();
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&saved);
+    assert!(restored.execute("create.blank"));
+    let p = &restored.session.docs()[0].info.pages[0];
+    assert!((p.width - 85.0 * 72.0 / 25.4).abs() < 0.001);
+    assert!((p.height - 55.0 * 72.0 / 25.4).abs() < 0.001);
+    assert_eq!(serde_json::from_str::<serde_json::Value>(&restored.persist()).unwrap()["actual_size_zoom"], 1.25);
+    assert!(restored.set_option("default-page-width", "NaN").is_err());
+    assert!(restored.set_option("default-page-height", "0").is_err());
+    assert!(restored.set_option("actual-size-zoom", "100").is_err());
+    restored.set_option("default-page-width", "144").unwrap();
+    restored.set_option("default-page-height", "252").unwrap();
+    assert!(restored.execute("create.blank"));
+    let p = &restored.session.docs()[1].info.pages[0];
+    assert_eq!((p.width, p.height), (144.0, 252.0));
+}
+
+#[test]
+fn paper_settings_calibrate_view_without_resizing_the_pdf() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let mut h = Harness::builder().with_size(egui::vec2(1100.0, 800.0)).build_eframe(|_| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.execute("create.blank");
+        app.set_option("preferences-category", "paper").unwrap();
+        app.set_option("dialog", "preferences").unwrap();
+        app.measured_ruler_mm = 40.0;
+        app
+    });
+    h.run_steps(3);
+    let original = h.state().session.docs()[0].bytes.clone();
+    h.get_by_label("Calibrate").scroll_to_me();
+    h.run_steps(24);
+    h.get_by_label("Calibrate").click();
+    h.run_steps(2);
+    h.get_by_label("Show actual size").scroll_to_me();
+    h.run_steps(24);
+    h.get_by_label("Show actual size").click();
+    h.run_steps(3);
+    assert!(h.state().dialog.is_none());
+    assert_eq!(h.state().views[0].zoom, 1.25);
+    h.state_mut().views[0].set_zoom(0.8);
+    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Num1);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].zoom, 1.25, "the normal Actual size shortcut uses calibration too");
+    assert_eq!(h.state().session.docs()[0].bytes, original);
+}
+
+#[test]
+fn custom_page_dialog_creates_the_requested_dimensions() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let mut h = Harness::builder().with_size(egui::vec2(900.0, 700.0)).build_eframe(|_| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.set_option("default-paper", "US business card").unwrap();
+        assert!(app.execute("create.custom"));
+        app
+    });
+    h.run_steps(3);
+    if let Ok(dir) = std::env::var("PDFCRAFT_PAPER_SHOTS") {
+        let _gpu = crate::gpu();
+        h.render().unwrap().save(format!("{dir}/custom-page.png")).unwrap();
+    }
+    h.get_by_label("Swap width and height").click();
+    h.run_steps(2);
+    h.get_by_label("Create").click();
+    h.run_steps(3);
+    assert!(h.state().dialog.is_none());
+    let p = &h.state().session.docs()[0].info.pages[0];
+    assert_eq!((p.width, p.height), (144.0, 252.0));
+}
+
+#[test]
+fn export_to_opens_a_format_picker() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let mut h = Harness::builder().with_size(egui::vec2(900.0, 700.0)).build_eframe(|_| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.execute("create.blank");
+        assert!(app.execute("export.choose"));
+        app
+    });
+    h.run_steps(3);
+    if let Ok(dir) = std::env::var("PDFCRAFT_PAPER_SHOTS") {
+        let _gpu = crate::gpu();
+        h.render().unwrap().save(format!("{dir}/export-to.png")).unwrap();
+    }
+    h.get_by_label("WordCraft / Microsoft Word (.docx)");
+    h.get_by_label("PowerPoint (.pptx)");
+    h.get_by_label("Cancel").click();
+    h.run_steps(2);
+    assert!(h.state().dialog.is_none());
+    assert_eq!(h.state().session.docs().len(), 1);
+}
+
+#[test]
+fn office_export_preserves_open_original_and_exports_docx_and_pptx() {
+    let dir = std::env::temp_dir().join(format!("pdfcraft-export-picker-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("source.pdf");
+    let mut app = PdfCraftApp::new();
+    let bytes = app.session.create_from_text("Example", "Editable export example").unwrap();
+    std::fs::write(&source, bytes.as_ref()).unwrap();
+    app.open_bytes("source.pdf", Some(source.to_string_lossy().into_owned()), bytes.as_ref().clone()).unwrap();
+    app.save_override = Some(source.to_string_lossy().into_owned());
+    app.execute("export.docx");
+    assert_eq!(std::fs::read(&source).unwrap(), bytes.as_ref().clone(), "an export cannot replace an open PDF");
+    for ext in ["docx", "pptx"] {
+        let out = dir.join(format!("output.{ext}"));
+        app.save_override = Some(out.to_string_lossy().into_owned());
+        assert!(app.execute(&format!("export.{ext}")));
+        let exported = std::fs::read(&out).unwrap();
+        assert!(exported.starts_with(b"PK"));
+        let entry = if ext == "docx" { b"word/document.xml".as_slice() } else { b"ppt/presentation.xml".as_slice() };
+        assert!(exported.windows(entry.len()).any(|w| w == entry));
+    }
+    std::fs::remove_dir_all(dir).unwrap();
+}
+
 fn png() -> Vec<u8> {
     let mut out = Vec::new();
     {
@@ -360,4 +485,133 @@ fn multiple_files_past_a_thousand_are_all_used() {
     assert_eq!(app.views.len(), 1);
     let doc = app.session.get(app.views[0].id).unwrap();
     assert_eq!(doc.info.pages.len(), 1001, "every picked file is used, in order");
+}
+
+#[test]
+fn new_pdf_opens_a_template_gallery_without_creating_a_document() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_eframe(|_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        assert!(app.execute("create.new"));
+        app
+    });
+    h.run_steps(4);
+    assert!(h.state().session.docs().is_empty());
+    h.get_by_label("New PDF");
+    assert!(h.query_by_label("Close").is_none(), "the gallery has one action footer");
+    h.get_by_label("Cancel").click();
+    h.run_steps(3);
+    assert!(h.state().session.docs().is_empty());
+}
+
+fn wait_for_template(h: &mut egui_kittest::Harness<'static, PdfCraftApp>) {
+    use egui_kittest::kittest::{NodeT, Queryable};
+    for _ in 0..200 {
+        h.run_steps(2);
+        if !h.get_by_label("Create").accesskit_node().is_disabled() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    panic!("template preview did not finish");
+}
+
+#[test]
+fn gallery_creates_fillable_starters_and_template_open_is_always_a_copy() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let dir = std::env::temp_dir().join(format!("pdfcraft-gallery-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let template = dir.join("intake.pdfcraft-template");
+    let save = template.to_string_lossy().into_owned();
+    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_eframe(move |_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.save_override = Some(save);
+        assert!(app.execute("create.new"));
+        app
+    });
+    h.run_steps(4);
+    h.get_by_label("Client intake").scroll_to_me();
+    h.run_steps(4);
+    h.get_by_label("Client intake").click();
+    wait_for_template(&mut h);
+    h.get_by_label("Export template...").click();
+    h.run_steps(4);
+    let original = std::fs::read(&template).unwrap();
+    h.get_by_label("Create").click();
+    h.run_steps(4);
+    assert!(h.state().dialog.is_none());
+    let app = h.state();
+    let doc = &app.session.docs()[0];
+    assert_eq!(doc.form.len(), 5);
+    assert!(doc.dirty && doc.path.is_none());
+    h.state_mut().open_bytes("intake.pdfcraft-template", Some(template.to_string_lossy().into_owned()), original.clone()).unwrap();
+    h.run_steps(4);
+    assert_eq!(h.state().session.docs().len(), 2);
+    assert!(h.state().session.docs().iter().all(|d| d.path.is_none() && d.dirty));
+    assert_eq!(std::fs::read(template).unwrap(), original);
+}
+
+#[test]
+fn template_gallery_fits_small_windows_and_both_themes() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    for size in [egui::vec2(1200.0, 800.0), egui::vec2(640.0, 480.0)] {
+        for theme in ["light", "dark"] {
+            let mut builder = Harness::builder().with_size(size);
+            if std::env::var_os("PDFCRAFT_TEMPLATE_SHOTS").is_some() {
+                builder = builder.wgpu();
+            }
+            let mut h = builder.build_eframe(move |_cc| {
+                let mut app = PdfCraftApp::new();
+                app.set_option("language", "en").unwrap();
+                app.set_option("theme", theme).unwrap();
+                assert!(app.execute("create.new"));
+                app
+            });
+            h.run_steps(4);
+            h.get_by_label("Flyer").scroll_to_me();
+            h.run_steps(3);
+            h.get_by_label("Flyer").click();
+            wait_for_template(&mut h);
+            h.run_steps(6);
+            for label in ["Cancel", "Create", "Import template...", "Export template..."] {
+                let rect = h.get_by_label(label).rect();
+                assert!(
+                    rect.top() >= 0.0 && rect.bottom() <= size.y && rect.left() >= 0.0 && rect.right() <= size.x,
+                    "{label}: {rect:?} outside {size:?}"
+                );
+            }
+            if let Ok(dir) = std::env::var("PDFCRAFT_TEMPLATE_SHOTS") {
+                let _gpu = crate::gpu();
+                h.render().unwrap().save(format!("{dir}/template-gallery-{theme}-{}.png", size.x as u32)).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn template_gallery_shows_a_wide_grid_instead_of_a_narrow_list() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_eframe(|_| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        assert!(app.execute("create.new"));
+        app
+    });
+    h.run_steps(6);
+    let starters = pdfcraft_engine::templates::STARTERS;
+    let first = h.get_by_label(starters[0].title).rect();
+    let second = h.get_by_label(starters[1].title).rect();
+    assert!((first.top() - second.top()).abs() < 1.0, "templates should share a grid row: {first:?}, {second:?}");
+    assert!(first.width() >= 150.0, "a useful preview tile: {first:?}");
+    let footer = h.get_by_label("Cancel").rect();
+    let visible = starters
+        .iter()
+        .filter(|item| {
+            let r = h.get_by_label(item.title).rect();
+            r.top() >= first.top() && r.bottom() < footer.top() - 55.0
+        })
+        .count();
+    assert!(visible >= 9, "only {visible} templates visible");
 }

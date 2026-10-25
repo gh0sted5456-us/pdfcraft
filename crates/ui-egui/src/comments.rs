@@ -623,7 +623,7 @@ impl PageCx<'_> {
     }
 
     /// Top-level comments on this page, in paint order.
-    fn comments(&self) -> impl Iterator<Item = &Annotation> {
+    pub(crate) fn comments(&self) -> impl Iterator<Item = &Annotation> {
         self.info.annotations.iter().filter(move |a| !self.hidden && a.page == self.page && a.in_reply_to.is_none() && a.subtype != "Popup")
     }
 
@@ -1591,8 +1591,10 @@ pub(crate) fn composer(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, 
                 ComposerKind::Replace => tl!("Replacement text"),
                 _ => tl!("Add a comment"),
             };
-            let edit =
-                ui.add(egui::TextEdit::multiline(&mut c.text).hint_text(hint).desired_rows(3).desired_width(f32::INFINITY).id_salt("composer-text"));
+            let mut out =
+                egui::TextEdit::multiline(&mut c.text).hint_text(hint).desired_rows(3).desired_width(f32::INFINITY).id_salt("composer-text").show(ui);
+            crate::spelling_ui::annotate(ui, &mut out, &mut c.text, None);
+            let edit = out.response;
             if c.focus {
                 edit.request_focus();
                 c.focus = false;
@@ -1603,19 +1605,17 @@ pub(crate) fn composer(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, 
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                crate::widgets::dialog_footer(ui, |ui| {
                     let can_post = !c.text.trim().is_empty() || matches!(c.kind, ComposerKind::Edit(_));
                     if ui
-                        .add_enabled(
-                            can_post,
-                            egui::Button::new(egui::RichText::new(tl!("Post")).color(Color32::WHITE)).fill(t.accent).corner_radius(14),
-                        )
+                        .add_enabled_ui(can_post, |ui| crate::widgets::dialog_button(ui, tl!("Post"), crate::widgets::DialogAction::Confirm))
+                        .inner
                         .clicked()
                         || (enter && can_post)
                     {
                         post = true;
                     }
-                    if ui.add(egui::Button::new(tl!("Cancel")).corner_radius(14)).clicked() {
+                    if crate::widgets::dialog_button(ui, tl!("Cancel"), crate::widgets::DialogAction::Cancel).clicked() {
                         cancel = true;
                     }
                 });

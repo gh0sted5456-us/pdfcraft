@@ -15,8 +15,10 @@ pub mod graphic;
 #[cfg(target_os = "macos")]
 pub mod keychain;
 pub mod keys;
+pub mod ownership;
 pub mod pdf;
 pub mod pkcs12;
+pub mod protection;
 pub mod revocation;
 mod rsa_pad;
 pub mod timestamp;

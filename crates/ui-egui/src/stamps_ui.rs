@@ -3,10 +3,9 @@
 
 use std::sync::Arc;
 
-use egui::{Align, Layout};
 use serde::{Deserialize, Serialize};
 
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{Dialog, PdfCraftApp, QuickTool, widgets};
 
 /// Stamp files larger than this aren't kept in the library (it lives in the app's settings).
@@ -58,7 +57,7 @@ pub(crate) fn create_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) 
         c
     };
     let d = &mut app.stamp_draft;
-    ui.label(egui::RichText::new(tl!("Create Custom Stamp")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Create Custom Stamp"));
     ui.add_space(8.0);
     ui.label(egui::RichText::new(crate::i18n::fmt(tl!("From {file}"), &[("file", &d.file)])).color(t.text_muted));
     ui.add_space(8.0);
@@ -84,11 +83,11 @@ pub(crate) fn create_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) 
     ui.add_space(12.0);
     let ok = !d.category.trim().is_empty() && !d.name.trim().is_empty();
     let (mut save, mut cancel) = (false, false);
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        if ui.add_enabled_ui(ok, |ui| widgets::pill_button(ui, tl!("OK"), true)).inner.clicked() {
+    crate::widgets::dialog_footer(ui, |ui| {
+        if ui.add_enabled_ui(ok, |ui| widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm)).inner.clicked() {
             save = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             cancel = true;
         }
     });
@@ -111,7 +110,7 @@ pub(crate) fn palette_section(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Toke
                 app.quick_tool = QuickTool::CustomStamp(i);
             }
             resp.context_menu(|ui| {
-                if ui.button(tl!("Delete stamp")).clicked() {
+                if widgets::dialog_button(ui, tl!("Delete stamp"), widgets::DialogAction::Destructive).clicked() {
                     remove = Some(i);
                     ui.close();
                 }

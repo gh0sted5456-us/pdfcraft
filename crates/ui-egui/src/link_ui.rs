@@ -7,7 +7,7 @@ use pdfcraft_engine::{Edit, LinkAction, LinkHighlight, LinkItem, LinkStyle};
 use pdfcraft_render::DocInfo;
 
 use crate::canvas::{DocView, PageXform};
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{PdfCraftApp, widgets};
 
 const LINK_BLUE: Color32 = Color32::from_rgb(0x14, 0x73, 0xE6);
@@ -221,7 +221,7 @@ impl PdfCraftApp {
 /// Link Properties. Returns (apply, cancel).
 pub(crate) fn body(ui: &mut egui::Ui, d: &mut LinkDraft, pages: usize, t: &Tokens) -> (bool, bool) {
     ui.set_width(460.0);
-    ui.label(egui::RichText::new(if d.index.is_some() { tl!("Link Properties") } else { tl!("Create Link") }).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, if d.index.is_some() { tl!("Link Properties") } else { tl!("Create Link") });
     ui.add_space(8.0);
     widgets::section_title(ui, tl!("Link Appearance"));
     egui::Grid::new("link-appearance").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
@@ -302,16 +302,15 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut LinkDraft, pages: usize, t: &Token
         });
     }
     let ok = d.preserve_action || !d.web || (d.url.trim().len() > 3 && d.url.trim() != "https://");
-    if !ok {
-        ui.label(egui::RichText::new(tl!("Type the web address.")).small().color(t.text_faint));
-    }
+    // Keep the action row still while the URL becomes valid.
+    ui.label(egui::RichText::new(if ok { " " } else { tl!("Type the web address.") }).small().color(t.text_faint));
     ui.add_space(12.0);
     let (mut a, mut c) = (false, false);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if ui.add_enabled_ui(ok, |ui| widgets::pill_button(ui, tl!("OK"), true)).inner.clicked() {
+    crate::widgets::dialog_footer(ui, |ui| {
+        if ui.add_enabled_ui(ok, |ui| widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm)).inner.clicked() {
             a = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             c = true;
         }
     });

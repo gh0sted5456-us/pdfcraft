@@ -1186,7 +1186,7 @@ fn the_panel_reveals_edits_and_reopens_a_late_thread_without_changing_its_replie
     let late = before.iter().find(|a| a.name.as_deref() == Some("late")).unwrap();
     assert_eq!(late.contents.as_deref(), Some("Late root edited exactly"));
     let id = h.state().views[0].id;
-    let saved = h.state().session.save_bytes(id).unwrap().as_ref().clone();
+    let saved = h.state_mut().session.save_bytes(id).unwrap().as_ref().clone();
     let mut reopened = harness_with_bytes(saved, |app| {
         app.set_option("panel", "comments").unwrap();
         app.views[0].comments.search = Some("late thread reply".into());
@@ -2033,7 +2033,7 @@ fn multiline_markup_hover_stays_on_marked_lines() {
                     "{subtype}, page/view rotation {page_rotation}/{view_rotation}, user point ({x}, {y})"
                 );
             }
-            let app = h.state();
+            let app = h.state_mut();
             let id = app.views[0].id;
             let doc = app.session.get(id).unwrap();
             assert!(!doc.dirty, "hovering never edits the document");
@@ -2303,4 +2303,251 @@ fn text_comments_can_save_a_zero_width_default() {
     restored.restore(&h.state().persist());
     assert_eq!(restored.comment_prefs.style(CommentTool::TextBox).width, 0.0);
     assert_eq!(restored.comment_prefs.style(CommentTool::Callout).width, 0.0);
+}
+
+fn group_harness() -> Harness<'static, PdfCraftApp> {
+    use pdfcraft_engine::{AddedText, Edit, Markup, NewAnnotation, NoteIcon, Shape, Style};
+    harness(|app| {
+        for shape in [
+            Shape::Note { at: [40.0, 180.0], icon: NoteIcon::Note },
+            Shape::TextMarkup { kind: Markup::StrikeOut, quads: vec![[75.0, 165.0, 150.0, 165.0, 75.0, 150.0, 150.0, 150.0]] },
+            Shape::TextBox { rect: [70.0, 110.0, 160.0, 135.0], font_size: 10.0 },
+            Shape::Rectangle { rect: [240.0, 15.0, 280.0, 40.0] },
+        ] {
+            app.apply_edit(Edit::AddAnnotation(NewAnnotation {
+                page: 0,
+                shape,
+                style: Style::default(),
+                contents: "Selection demo".into(),
+                author: "Tester".into(),
+            }));
+        }
+        app.apply_edit(Edit::AddText {
+            page: 0,
+            text: AddedText { rect: [40.0, 60.0, 150.0, 85.0], text: "Added words".into(), ..Default::default() },
+        });
+        let mut png = Vec::new();
+        {
+            let mut encoder = png::Encoder::new(&mut png, 2, 2);
+            encoder.set_color(png::ColorType::Rgb);
+            encoder.write_header().unwrap().write_image_data(&[80; 12]).unwrap();
+        }
+        app.apply_edit(Edit::AddImage {
+            page: 0,
+            rect: Some([150.0, 90.0, 170.0, 110.0]),
+            name: "synthetic.png".into(),
+            bytes: std::sync::Arc::new(png),
+        });
+        app.set_option("quick", "group-select").unwrap();
+    })
+}
+
+#[test]
+fn group_select_moves_the_whole_selection_and_retains_it_for_another_drag() {
+    let _gpu = crate::gpu();
+    let mut h = group_harness();
+    drag_pt(&mut h, (25.0, 190.0), (175.0, 50.0));
+    assert_eq!(h.state().views[0].group_selection_count(), 5);
+    let before = comments(&h);
+    let added = h.state().session.get(h.state().views[0].id).unwrap().added().to_vec();
+    // Grab the note, then the empty space inside the group's frame.
+    for (from, to, total) in [((50.0, 170.0), (60.0, 160.0), 10.0), ((70.0, 100.0), (80.0, 90.0), 20.0)] {
+        let (a, b) = (at(&h, from.0, from.1), at(&h, to.0, to.1));
+        h.hover_at(a);
+        h.run_steps(1);
+        h.drag_at(a);
+        h.hover_at(b);
+        h.run_steps(3);
+        if let Ok(dir) = std::env::var("PDFCRAFT_DIALOG_PREVIEW_DIR") {
+            h.render().unwrap().save(std::path::Path::new(&dir).join("group-select-move.png")).unwrap();
+        }
+        h.drop_at(b);
+        h.run_steps(3);
+        let app = h.state();
+        let doc = app.session.get(app.views[0].id).unwrap();
+        assert_eq!(doc.can_undo(), Some("Move additions"));
+        assert_eq!(app.views[0].group_selection_count(), 5);
+        for old in &before {
+            let new = doc.info.annotations.iter().find(|a| a.page == old.page && a.index == old.index).unwrap();
+            if old.subtype == "Popup" {
+                continue;
+            }
+            let delta = if old.subtype == "Square" { 0.0 } else { total };
+            for (actual, expected) in new.rect.iter().zip([old.rect[0] + delta, old.rect[1] - delta, old.rect[2] + delta, old.rect[3] - delta]) {
+                assert!((*actual - expected).abs() < 0.1, "{} moved incorrectly", old.subtype);
+            }
+        }
+        for (old, new) in added.iter().zip(doc.added()) {
+            let r = old.content.rect();
+            for (actual, expected) in
+                new.content.rect().iter().zip([r[0] + total as f64, r[1] - total as f64, r[2] + total as f64, r[3] - total as f64])
+            {
+                assert!((*actual - expected).abs() < 0.1);
+            }
+        }
+    }
+    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    h.run_steps(4);
+    assert_eq!(h.state().views[0].group_selection_count(), 0);
+    let moved = comments(&h).into_iter().find(|a| a.subtype == "Text").unwrap();
+    let old = before.iter().find(|a| a.subtype == "Text").unwrap();
+    assert!((moved.rect[0] - old.rect[0] - 10.0).abs() < 0.1, "one undo restores the previous group position");
+}
+
+#[test]
+fn group_select_moves_one_item_and_refuses_a_locked_group_without_partial_changes() {
+    let mut h = group_harness();
+    let before = comments(&h);
+    click_pt(&mut h, (50.0, 170.0));
+    drag_pt(&mut h, (50.0, 170.0), (60.0, 160.0));
+    assert_eq!(h.state().views[0].group_selection_count(), 1);
+    for old in &before {
+        let all = comments(&h);
+        let new = all.iter().find(|a| a.page == old.page && a.index == old.index).unwrap();
+        if old.subtype == "Popup" {
+            continue;
+        }
+        assert!((new.rect[0] - old.rect[0] - if old.subtype == "Text" { 10.0 } else { 0.0 }).abs() < 0.1);
+    }
+    let index = before.iter().find(|a| a.subtype == "Text").unwrap().index;
+    h.state_mut().apply_edit(pdfcraft_engine::Edit::LockAnnotation { page: 0, index, locked: true });
+    h.run_steps(3);
+    drag_pt(&mut h, (25.0, 190.0), (190.0, 40.0));
+    let doc = h.state().session.get(h.state().views[0].id).unwrap();
+    let generation = doc.edit_generation();
+    let added = doc.added().to_vec();
+    let rects: Vec<_> = doc.info.annotations.iter().map(|a| a.rect).collect();
+    drag_pt(&mut h, (60.0, 160.0), (70.0, 150.0));
+    let doc = h.state().session.get(h.state().views[0].id).unwrap();
+    assert_eq!(doc.edit_generation(), generation);
+    assert_eq!(doc.added(), added);
+    assert_eq!(doc.info.annotations.iter().map(|a| a.rect).collect::<Vec<_>>(), rects);
+    assert_eq!(h.state().views[0].group_selection_count(), 5);
+}
+
+#[test]
+fn group_select_move_follows_view_rotation_and_escape_cancels_the_drag() {
+    let mut h = group_harness();
+    let original = comments(&h).into_iter().find(|a| a.subtype == "Text").unwrap();
+    drag_pt(&mut h, (25.0, 190.0), (175.0, 50.0));
+    h.state_mut().views[0].rotation = 90;
+    h.run_steps(4);
+    settle(&mut h);
+    let screen = |h: &Harness<'static, PdfCraftApp>, x: f32, y: f32| {
+        let r = h.state().views[0].page_screen_rect(0).unwrap();
+        pos2(r.left() + y / 200.0 * r.width(), r.top() + x / 300.0 * r.height())
+    };
+    let (from, to) = (screen(&h, 50.0, 170.0), screen(&h, 60.0, 160.0));
+    drag(&mut h, from, to);
+    assert_eq!(h.state().views[0].group_selection_count(), 5);
+    let moved = comments(&h).into_iter().find(|a| a.subtype == "Text").unwrap();
+    assert!((moved.rect[0] - original.rect[0] - 10.0).abs() < 0.1 && (moved.rect[1] - original.rect[1] + 10.0).abs() < 0.1);
+    let generation = h.state().session.get(h.state().views[0].id).unwrap().edit_generation();
+    h.hover_at(to);
+    h.run_steps(1);
+    h.drag_at(to);
+    h.hover_at(to + egui::vec2(20.0, 20.0));
+    h.run_steps(2);
+    h.key_press(egui::Key::Escape);
+    h.run_steps(2);
+    h.drop_at(to + egui::vec2(20.0, 20.0));
+    h.run_steps(3);
+    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().edit_generation(), generation);
+    assert_eq!(h.state().views[0].group_selection_count(), 0);
+}
+
+#[test]
+fn group_select_deletes_notes_markup_text_and_added_content_in_one_undo() {
+    let _gpu = crate::gpu();
+    let mut h = group_harness();
+    h.get_by_label("Group select");
+    let (a, b) = (at(&h, 25.0, 190.0), at(&h, 175.0, 50.0));
+    h.hover_at(a);
+    h.run_steps(1);
+    h.drag_at(a);
+    h.hover_at(b);
+    h.run_steps(3);
+    if let Ok(dir) = std::env::var("PDFCRAFT_DIALOG_PREVIEW_DIR") {
+        h.render().unwrap().save(std::path::Path::new(&dir).join("group-select-drag.png")).unwrap();
+    }
+    h.drop_at(b);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].group_selection_count(), 5);
+    h.key_press(egui::Key::Delete);
+    h.run_steps(4);
+    let app = h.state();
+    let doc = app.session.get(app.views[0].id).unwrap();
+    assert!(doc.added().is_empty());
+    assert!(doc.text_blocks(0).iter().any(|b| b.text.contains("The quick brown fox")), "original page text survives");
+    assert_eq!(doc.info.annotations.iter().filter(|a| a.subtype != "Popup").count(), 1);
+    assert_eq!(doc.can_undo(), Some("Delete additions"));
+    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Z);
+    h.run_steps(4);
+    let app = h.state();
+    let doc = app.session.get(app.views[0].id).unwrap();
+    assert_eq!(doc.added().len(), 2);
+    assert_eq!(doc.info.annotations.iter().filter(|a| a.subtype != "Popup").count(), 4);
+    assert_eq!(app.views[0].group_selection_count(), 0, "undo invalidates old indices");
+}
+
+#[test]
+fn group_select_escape_modal_and_generation_changes_do_not_delete_stale_targets() {
+    let mut h = group_harness();
+    let (a, b) = (at(&h, 25.0, 190.0), at(&h, 175.0, 50.0));
+    drag(&mut h, a, b);
+    assert_eq!(h.state().views[0].group_selection_count(), 5);
+    h.key_press(egui::Key::Escape);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].group_selection_count(), 0);
+    h.hover_at(a);
+    h.run_steps(1);
+    h.drag_at(a);
+    h.hover_at(b);
+    h.run_steps(1);
+    h.state_mut().execute("app.preferences");
+    h.run_steps(2);
+    h.drop_at(b);
+    h.key_press(egui::Key::Delete);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].group_selection_count(), 0);
+    h.key_press(egui::Key::Escape);
+    h.run_steps(3);
+    drag(&mut h, a, b);
+    h.state_mut().apply_edit(pdfcraft_engine::Edit::SetInfo { key: "Title".into(), value: "New generation".into() });
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].group_selection_count(), 0);
+    h.key_press(egui::Key::Delete);
+    h.run_steps(3);
+    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().added().len(), 2);
+}
+
+#[test]
+fn group_select_shift_click_adds_and_toggles_and_locked_edits_are_atomic() {
+    let mut h = group_harness();
+    let note = at(&h, 50.0, 170.0);
+    let other = at(&h, 250.0, 25.0);
+    for (point, modifiers, expected) in [(note, egui::Modifiers::NONE, 1), (other, egui::Modifiers::SHIFT, 2), (other, egui::Modifiers::SHIFT, 1)] {
+        h.hover_at(point);
+        h.run_steps(1);
+        for pressed in [true, false] {
+            h.event_modifiers(egui::Event::PointerButton { pos: point, button: egui::PointerButton::Primary, pressed, modifiers }, modifiers);
+            h.run_steps(1);
+        }
+        h.run_steps(2);
+        assert_eq!(h.state().views[0].group_selection_count(), expected);
+    }
+    let index = h.state().session.get(h.state().views[0].id).unwrap().info.annotations.iter().find(|a| a.subtype == "Text").unwrap().index;
+    h.state_mut().apply_edit(pdfcraft_engine::Edit::LockAnnotation { page: 0, index, locked: true });
+    h.run_steps(3);
+    let (a, b) = (at(&h, 25.0, 190.0), at(&h, 175.0, 50.0));
+    drag(&mut h, a, b);
+    assert_eq!(h.state().views[0].group_selection_count(), 5);
+    let generation = h.state().session.get(h.state().views[0].id).unwrap().edit_generation();
+    h.key_press(egui::Key::Delete);
+    h.run_steps(4);
+    let app = h.state();
+    let doc = app.session.get(app.views[0].id).unwrap();
+    assert_eq!(doc.edit_generation(), generation, "locked comment refuses the entire edit");
+    assert_eq!(doc.added().len(), 2);
+    assert_eq!(app.views[0].group_selection_count(), 5, "refused edits keep selection");
 }

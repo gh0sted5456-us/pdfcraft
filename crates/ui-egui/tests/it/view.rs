@@ -957,6 +957,7 @@ fn always_use_my_default_zoom_and_page_layout_survives_a_restart() {
 fn preferences_turn_on_always_use_my_default_zoom_and_page_layout() {
     use egui_kittest::kittest::Queryable;
     let mut h = harness(&[]);
+    h.state_mut().set_option("preferences-category", "documents").unwrap();
     assert!(h.state_mut().execute("app.preferences"));
     h.run_steps(3);
     h.get_by_label("Always use my default zoom and page layout").scroll_to_me();
@@ -970,6 +971,7 @@ fn preferences_turn_on_always_use_my_default_zoom_and_page_layout() {
 fn preferences_set_the_default_zoom() {
     use egui_kittest::kittest::Queryable;
     let mut h = harness(&[]);
+    h.state_mut().set_option("preferences-category", "documents").unwrap();
     assert!(h.state_mut().execute("app.preferences"));
     h.run_steps(3);
     h.get_by_label("Zoom to page level").scroll_to_me();

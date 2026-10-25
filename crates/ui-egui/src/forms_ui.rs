@@ -45,6 +45,9 @@ pub struct Focus {
 
 #[derive(Clone, Debug, Default)]
 pub struct FormView {
+    pub(crate) hovered: Option<String>,
+    pub(crate) event_focus: Option<String>,
+    pub(crate) event_pressed: Option<String>,
     pub focus: Option<Focus>,
     /// The draft whose edit is queued (`DocView::pending_edit`): if the field refuses the value,
     /// the editor reopens with it rather than losing the typing.
@@ -566,26 +569,29 @@ pub(crate) fn overlay(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, f
                     let font = (field_text_size(ui.painter(), f, w, &fx.text) * zoom).clamp(3.0, 64.0);
                     // The field is pale yellow in every theme, so the caret must not follow the theme (pale in dark mode) (#655).
                     ui.visuals_mut().text_cursor.stroke.color = crate::edit_text_ui::caret_color_on(FIELD_FILL);
-                    let mut te = if multiline { egui::TextEdit::multiline(&mut fx.text) } else { egui::TextEdit::singleline(&mut fx.text) };
-                    te = te
-                        // Wraps (inside the 3 px side margins) at the width the size was fitted to:
-                        // the box less 3 pt each side, scaled.
-                        .desired_width((rect.width() - 6.0 * zoom + 6.0).max(1.0))
-                        .font(egui::FontId::proportional(font))
-                        .background_color(FIELD_FILL)
-                        .text_color(Color32::BLACK)
-                        .margin(egui::Margin::symmetric(3, 1))
-                        .password(f.has(field_flags::PASSWORD))
-                        .id(egui::Id::new(("form-field", view.id.0, &f.name, focus.widget)));
-                    if let Some(max) = f.max_len {
-                        te = te.char_limit(max);
-                    }
-                    if multiline {
-                        te = te.desired_rows(((rect.height() / (font * 1.3)).floor() as usize).max(1));
-                    }
                     let mut laid_out = None;
                     let r = ui.add_sized(rect.size(), |ui: &mut egui::Ui| {
-                        let out = te.show(ui);
+                        let mut te = if multiline { egui::TextEdit::multiline(&mut fx.text) } else { egui::TextEdit::singleline(&mut fx.text) };
+                        te = te
+                            // Wraps (inside the 3 px side margins) at the width the size was fitted to:
+                            // the box less 3 pt each side, scaled.
+                            .desired_width((rect.width() - 6.0 * zoom + 6.0).max(1.0))
+                            .font(egui::FontId::proportional(font))
+                            .background_color(FIELD_FILL)
+                            .text_color(Color32::BLACK)
+                            .margin(egui::Margin::symmetric(3, 1))
+                            .password(f.has(field_flags::PASSWORD))
+                            .id(egui::Id::new(("form-field", view.id.0, &f.name, focus.widget)));
+                        if let Some(max) = f.max_len {
+                            te = te.char_limit(max);
+                        }
+                        if multiline {
+                            te = te.desired_rows(((rect.height() / (font * 1.3)).floor() as usize).max(1));
+                        }
+                        let mut out = te.show(ui);
+                        if !f.has(field_flags::DO_NOT_SPELL_CHECK | field_flags::PASSWORD | field_flags::FILE_SELECT) {
+                            crate::spelling_ui::annotate(ui, &mut out, &mut fx.text, f.max_len);
+                        }
                         laid_out = Some((out.galley, out.galley_pos));
                         out.response.response
                     });
@@ -620,6 +626,7 @@ pub(crate) fn overlay(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, f
                     } else if tab {
                         next = Some(!shift);
                     } else if r.lost_focus()
+                        && !r.context_menu_opened()
                         && (!multiline || !enter)
                         && !fx.calendar_rect.is_some_and(|c| ui.input(|i| i.pointer.interact_pos().is_some_and(|p| c.contains(p))))
                     {

@@ -117,3 +117,5 @@ needs a prompt to open is listed and asks at signing (issue #179).
 
 Oracles: poppler's `pdfsig` reports our signatures valid; OpenSSL reads our `.p12` files and
 verifies our CMS; `tests/data/openssl-signed.pdf` is a signature OpenSSL made, which we validate.
+
+Personal-build signature ownership checks and page protection are described in [signature protection](../../docs/signature-protection.md).

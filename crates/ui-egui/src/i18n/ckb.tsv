@@ -2303,6 +2303,7 @@ key	Space	بۆشایی
 	Printer paper and scaling may differ. Check driver settings.	ڕەنگە کاغەز و پێوەری چاپکەر جیاواز بن. ڕێکخستنەکانی درایڤەر بپشکنە.
 	Drawing scale changes. Use Actual size for full-scale plans.	پێوەری وێنەکێشان دەگۆڕێت. «قەبارەی ڕاستەقینە» بەکاربهێنە بۆ پلانەکان بە پێوەری تەواو.
 	Reload documents when their files change on disk	دووبارە بارکردنی بەڵگەنامەکان کاتێک فایلەکانیان لەسەر دیسک دەگۆڕێن
+	Show validation marks over signed signatures	پیشاندانی نیشانەکانی پشتڕاستکردنەوە لەسەر واژۆ واژۆکراوەکان
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	ئەم فایلە لەسەر دیسک گۆڕاوە. «دووبارە بارکردن» وەشانی نوێ پیشان دەدات و گۆڕانکارییە پاشەکەوتنەکراوەکانت فڕێدەدات؛ «پاشەکەوتکردن» بەم وەشانە جێگەی دەگرێتەوە.
 	Reload	دووبارە بارکردن
 	Couldn't reload {name}: {e}	دووبارە بارکردنی {name} نەکرا: {e}
@@ -2713,3 +2714,53 @@ certificate	Version	وەشان
 	Make properties default	کردنی تایبەتمەندییەکان بە بنەڕەتی
 	Pages selected	پەڕە هەڵبژێردراوەکان
 	Page properties	تایبەتمەندییەکانی پەڕە
+
+# Group selection and document save status.
+	Exit	دەرچوون
+	Group select	هەڵبژاردنی کۆمەڵە
+	Return to document	گەڕانەوە بۆ بەڵگەنامە
+	Saved	پاشەکەوت کراوە
+	Saves document	بەڵگەنامەکە پاشەکەوت دەکات
+	Unsaved changes	گۆڕانکارییە پاشەکەوت نەکراوەکان
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	کردنەوەی PDFی داهاتوو لە فۆڵدەرەکەدا
+	Open previous PDF in folder	کردنەوەی PDFی پێشوو لە فۆڵدەرەکەدا
+	This document isn't in a folder yet: save it first	ئەم بەڵگەنامەیە هێشتا لە هیچ فۆڵدەرێکدا نییە: سەرەتا پاشەکەوتی بکە
+	This is the last PDF in its folder	ئەمە دوایین PDFی فۆڵدەرەکەیەتی
+	This is the first PDF in its folder	ئەمە یەکەمین PDFی فۆڵدەرەکەیەتی
+
+# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
+	Language and spelling	زمان و ڕێنووس
+	Interface and appearance	ڕووکار و دەرکەوتن
+	Check spelling while typing	پشکنینی ڕێنووس لە کاتی نووسین
+	Spelling language	زمانی پشکنینی ڕێنووس
+	Same as interface	وەک ڕووکار
+	Spelling dictionary unavailable	فەرهەنگی ڕێنووس بەردەست نییە
+	Spelling checks stay on this device.	پشکنینی ڕێنووس لەسەر ئەم ئامێرە ئەنجام دەدرێت.
+	Spelling marks do not change the document. Right-click an underlined word for suggestions.	نیشانەکانی ڕێنووس بەڵگەنامە ناگۆڕن. بۆ پێشنیارەکان کرتەی ڕاست لەسەر وشەی هێڵبۆکێشراو بکە.
+	Clear personal dictionary	پاککردنەوەی فەرهەنگی کەسی
+	Spelling suggestions	پێشنیارەکانی ڕێنووس
+	No suggestions	هیچ پێشنیارێک نییە
+	Add to dictionary	زیادکردن بۆ فەرهەنگ
+
+	Suggest edits	پێشنیاری دەستکاری
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	دووبارەکردنەوەی لاپەڕەکان بە ناوی نوێی خانەکان
+	Duplicate pages — 1 field renamed	دووبارەکردنەوەی پەڕەکان — 1 خانە ناونرایەوە
+	Duplicate pages — fields renamed	دووبارەکردنەوەی پەڕەکان — خانەکان ناونرانەوە
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	بەڵگەنامەکان
+	AI Assistant	یاریدەدەری زیرەکی دەستکرد
+	Latin (accented)	لاتینی (بە نیشانەکانەوە)
+	Opening documents	کردنەوەی بەڵگەنامەکان
+	Files	پەڕگەکان
+	Navigation	گەڕان
+	Save as template	پاشەکەوتکردن وەک داڕێژە
+	From template	لە داڕێژەوە
+	Reset	ڕێکخستنەوە
+	Swap width and height	گۆڕینەوەی پانی و بەرزی
+	Custom page…	پەڕەی تایبەت…
+	Glass	شووشە

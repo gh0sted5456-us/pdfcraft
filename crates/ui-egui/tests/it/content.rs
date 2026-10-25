@@ -58,6 +58,78 @@ fn added(h: &Harness<'static, PdfCraftApp>) -> Vec<pdfcraft_engine::Added> {
     s.session.get(s.views[0].id).unwrap().added().to_vec()
 }
 
+#[test]
+fn alignment_shortcuts_keep_the_added_text_draft_open_and_save_its_style() {
+    use egui::{Key, Modifiers};
+    use pdfcraft_engine::{AddedContent, TextAlign};
+    let mut h = harness();
+    assert!(h.state_mut().execute("edit.text"));
+    h.run_steps(3);
+    let p = at(&h, 40.0, 100.0);
+    click(&mut h, p);
+    h.event(egui::Event::Text("Keep these words".into()));
+    h.run_steps(4);
+    for (key, align) in [(Key::E, TextAlign::Center), (Key::R, TextAlign::Right), (Key::L, TextAlign::Left), (Key::E, TextAlign::Center)] {
+        h.key_press_modifiers(Modifiers::COMMAND, key);
+        h.run_steps(4);
+        let draft = h.state().views[0].content.draft.as_ref().unwrap();
+        assert_eq!(draft.style.align, align);
+        assert_eq!(draft.text, "Keep these words");
+        assert!(!h.state().full_screen);
+    }
+    h.get_by_label("Done adding text").click();
+    h.run_steps(4);
+    let items = added(&h);
+    let AddedContent::Text(text) = &items[0].content else { panic!("text") };
+    assert_eq!(text.align, TextAlign::Center);
+    assert_eq!(text.text, "Keep these words");
+}
+
+#[test]
+fn alignment_shortcuts_change_selected_added_text_and_keep_full_screen_outside_text() {
+    use egui::{Key, Modifiers};
+    use pdfcraft_engine::{AddedContent, AddedText, Edit, TextAlign};
+    let mut h = harness();
+    h.state_mut()
+        .apply_edit(Edit::AddText { page: 0, text: AddedText { text: "Align me".into(), rect: [40.0, 250.0, 230.0, 280.0], ..Default::default() } });
+    assert!(h.state_mut().execute("edit.edit_text"));
+    h.state_mut().views[0].content.selected = Some((0, 0));
+    h.run_steps(4);
+    for (key, align) in [(Key::E, TextAlign::Center), (Key::R, TextAlign::Right), (Key::L, TextAlign::Left)] {
+        h.key_press_modifiers(Modifiers::COMMAND, key);
+        h.run_steps(4);
+        let items = added(&h);
+        let AddedContent::Text(text) = &items[0].content else { panic!("text") };
+        assert_eq!(text.align, align);
+        assert!(!h.state().full_screen, "Ctrl+L belongs to the selected text");
+        assert_eq!(text.text, "Align me");
+    }
+    let id = h.state().views[0].id;
+    let generation = h.state().session.get(id).unwrap().edit_generation();
+    assert!(h.state_mut().execute("edit.find"));
+    h.run_steps(3);
+    assert!(h.state().views[0].find.is_some());
+    assert!(h.state().views[0].content.selected.is_some());
+    // Ctrl+L keeps its existing global full-screen action in Find.
+    for key in [Key::E, Key::R] {
+        h.key_press_modifiers(Modifiers::COMMAND, key);
+        h.run_steps(2);
+    }
+    assert_eq!(h.state().session.get(id).unwrap().edit_generation(), generation, "search owns its shortcuts");
+    assert!(!h.state().full_screen);
+    h.key_press(Key::Escape);
+    h.run_steps(3);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+    let items = added(&h);
+    let AddedContent::Text(text) = &items[0].content else { panic!("text") };
+    assert_eq!(text.align, TextAlign::Right, "one Undo restores the previous alignment");
+    h.state_mut().views[0].content.selected = None;
+    h.key_press_modifiers(Modifiers::COMMAND, Key::L);
+    h.run_steps(4);
+    assert!(h.state().full_screen, "outside text, the existing shortcut stays available");
+}
+
 /// A click whose press and release arrive in the same frame, as a quick real mouse click does.
 fn quick_click(h: &mut Harness<'static, PdfCraftApp>, p: Pos2) {
     h.hover_at(p);
@@ -135,7 +207,7 @@ fn text_tool_single_click_retypes_added_text_without_another_item() {
             h.get_by_label("Done adding text").click();
             h.run_steps(3);
             assert_eq!(texts(&h), [replacement]);
-            let state = h.state();
+            let state = h.state_mut();
             let bytes = state.session.save_bytes(state.views[0].id).unwrap();
             let mut reopened = pdfcraft_engine::Session::new();
             let id = reopened.open("again.pdf", None, bytes, None).unwrap();
@@ -621,6 +693,39 @@ fn dragged_text_follows_the_pointer_before_release() {
     assert_ne!(added(&h)[0].content.rect(), rect, "releasing moves it");
 }
 
+/// #4464: what a dragged text box covered in its first place stays there; only the text follows
+/// the pointer. The page has a red square under the text's first place and nothing elsewhere.
+#[test]
+fn dragged_text_leaves_what_it_covered_behind() {
+    let _gpu = gpu();
+    let content = "1 0 0 rg 20 60 240 70 re f";
+    let pdf = format!(
+        "%PDF-1.7\n1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 300 400] >> endobj\n3 0 obj << /Type /Page /Parent 2 0 R /Contents 4 0 R >> endobj\n4 0 obj << /Length {} >> stream\n{content}\nendstream endobj\ntrailer << /Root 1 0 R >>\n%%EOF",
+        content.len()
+    );
+    let mut h = harness_bytes(pdf.into_bytes());
+    let (rect, from, to, end) = drag_added_text(&mut h);
+    assert!(rect[0] > 20.0 && rect[2] < 260.0 && rect[1] > 60.0 && rect[3] < 130.0, "the text starts on the red square: {rect:?}");
+    if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+        h.render().unwrap().save(format!("{dir}/added-text-drag-over-red.png")).unwrap();
+    }
+    let pixels = h.render().unwrap();
+    let red = |r: egui::Rect| {
+        let (x0, y0, x1, y1) = (r.left().max(0.0) as u32, r.top().max(0.0) as u32, r.right() as u32, r.bottom() as u32);
+        (y0..y1.min(pixels.height()))
+            .flat_map(|y| (x0..x1.min(pixels.width())).map(move |x| (x, y)))
+            .filter(|(x, y)| matches!(pixels.get_pixel(*x, *y).0, [r, g, b, _] if r > 200 && g < 80 && b < 80))
+            .count()
+    };
+    let (old, new) = ink_at(&mut h, from, to);
+    assert!(new > 20 && old == 0, "the text follows the pointer ({old} old, {new} new)");
+    assert!(red(from) > 100, "the red square stays where the text was ({} red pixels)", red(from));
+    assert_eq!(red(to), 0, "and doesn't come along with the text");
+    h.drop_at(end);
+    h.run_steps(3);
+    assert_ne!(added(&h)[0].content.rect(), rect, "releasing moves it");
+}
+
 /// After release the text stays in its new place while the page is re-rendered with the move,
 /// instead of jumping back to where it was for those frames.
 #[test]
@@ -712,6 +817,84 @@ fn format_text_panel_sets_alignment_and_lists_planned_controls_disabled() {
     h.get_by_label("Bold").click();
     h.run_steps(2);
     assert!(h.state().text_style.bold);
+}
+
+/// Opening right-aligned added text to edit it shows it right-aligned, as the page does, not at
+/// the box's left edge, where it never was.
+#[test]
+fn the_text_editor_keeps_the_boxs_alignment() {
+    let _gpu = gpu();
+    let mut h = harness();
+    let rect = [40.0, 195.0, 240.0, 210.0];
+    let text = pdfcraft_engine::AddedText { rect, text: "Hi".into(), align: pdfcraft_engine::TextAlign::Right, ..Default::default() };
+    assert!(h.state_mut().apply_edit(pdfcraft_engine::Edit::AddText { page: 0, text }));
+    assert!(h.state_mut().execute("edit.text"));
+    h.run_steps(3);
+    let point = at(&h, 200.0, 195.0);
+    click(&mut h, point);
+    assert_eq!(h.state().views[0].content.draft.as_ref().and_then(|d| d.index), Some(0), "the editor opened on the text");
+    h.run_steps(3);
+    let r = item_on_screen(&h, rect);
+    let pixels = h.render().unwrap();
+    let left = ink(&pixels, egui::Rect::from_min_max(r.min, pos2(r.center().x, r.max.y)));
+    let right = ink(&pixels, egui::Rect::from_min_max(pos2(r.center().x, r.min.y), r.max));
+    assert!(left == 0 && right > 20, "the text is drawn at the right ({left} dark pixels left, {right} right)");
+}
+
+/// A box narrower than the editor's least width (60 points on screen): right-aligned text stays
+/// at the box's right edge, not the wider editor's, which lies past it.
+#[test]
+fn the_text_editor_aligns_a_narrow_box_to_its_own_edge() {
+    let _gpu = gpu();
+    let mut h = harness();
+    let rect = [40.0, 195.0, 60.0, 210.0];
+    let text = pdfcraft_engine::AddedText { rect, text: "Hi".into(), align: pdfcraft_engine::TextAlign::Right, ..Default::default() };
+    assert!(h.state_mut().apply_edit(pdfcraft_engine::Edit::AddText { page: 0, text }));
+    assert!(h.state_mut().execute("edit.text"));
+    h.run_steps(3);
+    let point = at(&h, 50.0, 195.0);
+    click(&mut h, point);
+    assert_eq!(h.state().views[0].content.draft.as_ref().and_then(|d| d.index), Some(0), "the editor opened on the text");
+    h.run_steps(3);
+    let r = item_on_screen(&h, rect);
+    assert!(r.width() < 60.0, "the box is narrower than the editor: {}", r.width());
+    let pixels = h.render().unwrap();
+    let inside = ink(&pixels, r);
+    let edge = ink(&pixels, egui::Rect::from_min_max(pos2(r.right() - r.width() * 0.25, r.min.y), r.max));
+    let past = ink(&pixels, egui::Rect::from_min_max(pos2(r.right() + 2.0, r.min.y), pos2(r.right() + 40.0, r.max.y)));
+    assert!(
+        inside > 20 && edge > 0 && past == 0,
+        "the text is drawn in its box, up to its right edge ({inside} dark pixels in it, {edge} in its last quarter, {past} past it)"
+    );
+}
+
+#[test]
+fn group_tool_finishes_added_text_and_keeps_a_refused_draft() {
+    let mut h = harness();
+    let rect = [40.0, 195.0, 240.0, 210.0];
+    h.state_mut().apply_edit(pdfcraft_engine::Edit::AddText {
+        page: 0,
+        text: pdfcraft_engine::AddedText { rect, text: "Original added text".into(), ..Default::default() },
+    });
+    h.state_mut().execute("edit.text");
+    h.run_steps(3);
+    let point = at(&h, 100.0, 195.0);
+    click(&mut h, point);
+    h.state_mut().views[0].content.draft.as_mut().unwrap().text = "Keep these edits".into();
+    h.state_mut().set_option("quick", "group-select").unwrap();
+    h.run_steps(4);
+    assert!(h.state().views[0].content.draft.is_none());
+    assert!(texts(&h).iter().any(|s| s == "Keep these edits"));
+    h.state_mut().execute("edit.text");
+    h.run_steps(3);
+    click(&mut h, point);
+    h.state_mut().views[0].content.draft.as_mut().unwrap().text = "Keep unsupported \u{10FFFF}".into();
+    let generation = h.state().session.get(h.state().views[0].id).unwrap().edit_generation();
+    assert!(h.state_mut().set_option("quick", "group-select").is_err());
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].content.draft.as_ref().unwrap().text, "Keep unsupported \u{10FFFF}");
+    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().edit_generation(), generation);
+    assert_ne!(h.state().quick_tool, QuickTool::GroupSelect);
 }
 
 /// Where a mode bar tab is, by its label.
@@ -860,4 +1043,46 @@ fn a_resized_added_picture_shows_only_at_its_new_size() {
     h.run_steps(2);
     let pixels = h.render().unwrap();
     assert!(red(&pixels, kept) > 100 && red(&pixels, gone) == 0, "the page raster has the picture at its new size");
+}
+
+#[test]
+fn added_image_handles_keep_working_after_release_and_accept_their_outer_edge() {
+    let mut h = harness();
+    assert!(h.state_mut().execute("edit.edit_text"));
+    h.run_steps(2);
+    let mut png = Vec::new();
+    image::RgbImage::from_pixel(60, 40, image::Rgb([200, 30, 30])).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+    h.state_mut().add_image("resize.png".into(), png);
+    h.run_steps(4);
+    let id = h.state().views[0].id;
+    for offset in [egui::vec2(1.0, 1.0), egui::vec2(4.0, 0.0)] {
+        let before = added(&h)[0].content.rect();
+        let r = item_on_screen(&h, before);
+        let grip = r.right_bottom() + offset;
+        let to = grip + egui::vec2(20.0, 20.0);
+        let generation = h.state().session.get(id).unwrap().edit_generation();
+        h.hover_at(grip);
+        h.run_steps(1);
+        h.drag_at(grip);
+        h.run_steps(1);
+        for k in 1..=4 {
+            h.hover_at(grip + (to - grip) * (k as f32 / 4.0));
+            h.run_steps(1);
+        }
+        assert_eq!(h.state().session.get(id).unwrap().edit_generation(), generation, "preview only while held");
+        h.drop_at(to);
+        h.run_steps(4);
+        let after = added(&h)[0].content.rect();
+        assert!(
+            after[2] - after[0] > before[2] - before[0] + 1.0,
+            "the next resize must respond, including the outer handle: {before:?} -> {after:?}"
+        );
+        assert_eq!(h.state().views[0].content.selected, Some((0, 0)));
+        let (w, h) = (after[2] - after[0], after[3] - after[1]);
+        assert!((w / h - 1.5).abs() < 0.001, "keep the image's aspect ratio");
+    }
+    let saved = h.state_mut().session.save_bytes(id).unwrap();
+    let mut s = pdfcraft_engine::Session::new();
+    let reopened = s.open("resized.pdf", None, saved, None).unwrap();
+    assert_eq!(s.get(reopened).unwrap().added()[0].content.rect(), added(&h)[0].content.rect());
 }

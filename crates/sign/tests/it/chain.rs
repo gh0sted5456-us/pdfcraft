@@ -189,7 +189,7 @@ fn verdict(leaf: Party, embedded: Vec<Certificate>, anchor: &Certificate) -> (St
     let doc = Document::open(Arc::new(fixture())).unwrap();
     let opts = SignOptions { page: 0, rect: None, date: "D:20260601120000Z".into(), ..SignOptions::default() };
     let signed = pdfcraft_sign::sign(&doc, &id, &opts).unwrap();
-    let trust = TrustStore { certs: vec![anchor.clone()] };
+    let trust = TrustStore { certs: vec![anchor.clone()], ..TrustStore::default() };
     let s = signatures(&Document::open(Arc::new(signed.clone())).unwrap(), &signed, &trust).into_iter().rfind(|s| s.signed).unwrap();
     // The details as they read in English; what an interface says in another language is checked in
     // `tests/it/pdf.rs`.

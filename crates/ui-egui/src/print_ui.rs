@@ -635,6 +635,8 @@ impl PdfCraftApp {
         match self.print_draft.printer.clone() {
             #[cfg(target_arch = "wasm32")]
             Some(printer) if printer == crate::web_print::BROWSER_PRINTER => {
+                // Printing runs Will Print scripts; read page geometry after those edits.
+                let Some(doc) = self.session.get(id) else { return false };
                 let sizes: Vec<(f64, f64)> = doc.info.pages.iter().map(|p| (f64::from(p.width), f64::from(p.height))).collect();
                 match print::layout(&sizes, &settings) {
                     Ok(sheets) => self.print_in_browser(name, bytes, sheets.iter().map(|s| s.size).collect()),
@@ -862,8 +864,8 @@ fn driver_options_panel(ui: &mut egui::Ui, d: &mut PrintDraft, t: &Tokens) {
         ui.set_width(ui.available_width());
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(tl!("Printer properties")).font(theme::semibold(13.0)));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(tl!("Done")).clicked() {
+            crate::widgets::dialog_footer(ui, |ui| {
+                if widgets::dialog_button(ui, tl!("Done"), widgets::DialogAction::Confirm).clicked() {
                     *show = false;
                 }
                 if ui.add_enabled(!choices.is_empty(), egui::Button::new(tl!("Reset to printer defaults"))).clicked() {
@@ -928,16 +930,19 @@ pub(crate) fn body(
     labels: &[String],
     thumb: &mut dyn FnMut(usize) -> Option<egui::TextureId>,
 ) -> (bool, bool) {
-    ui.set_width(820.0);
-    ui.label(egui::RichText::new(tl!("Print")).font(theme::semibold(18.0)));
+    let width = ui.available_width().min(820.0);
+    ui.set_width(width);
+    crate::widgets::dialog_heading(ui, tl!("Print"));
     ui.add_space(8.0);
     let settings = d.settings(sizes.len(), labels);
     let sheets = settings.as_ref().ok().and_then(|s| print::layout(sizes, s).ok()).unwrap_or_default();
     d.sheet = d.sheet.min(sheets.len().saturating_sub(1));
-    ui.horizontal_top(|ui| {
+    widgets::dialog_scroll(ui, "print-body", |ui| {
+        let layout = if width >= 800.0 { egui::Layout::left_to_right(egui::Align::Min) } else { egui::Layout::top_down(egui::Align::Min) };
+        ui.with_layout(layout, |ui| {
         // Settings.
         ui.vertical(|ui| {
-            ui.set_width(470.0);
+            ui.set_width(width.min(470.0));
             egui::Grid::new("print-top").num_columns(2).spacing([10.0, 8.0]).show(ui, |ui| {
                 ui.label(tl!("Printer:"));
                 let before = d.printer.clone();
@@ -1357,15 +1362,22 @@ pub(crate) fn body(
             }
         });
     });
+    });
     ui.add_space(12.0);
     let (mut go, mut cancel) = (false, false);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    crate::widgets::dialog_footer(ui, |ui| {
         let looking = still_looking(d);
         let label = if d.printer.is_some() || looking { tl!("Print") } else { tl!("Save as PDF") };
-        if ui.add_enabled_ui(settings.is_ok() && !sheets.is_empty() && !looking, |ui| widgets::pill_button(ui, label, true)).inner.clicked() {
+        if ui
+            .add_enabled_ui(settings.is_ok() && !sheets.is_empty() && !looking, |ui| {
+                widgets::dialog_button(ui, label, widgets::DialogAction::Confirm)
+            })
+            .inner
+            .clicked()
+        {
             go = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             cancel = true;
         }
     });

@@ -156,7 +156,7 @@ fn discard_box(ui: &mut egui::Ui, list: &mut Vec<Hidden>, h: Hidden, label: &str
 
 /// Draw the dialog; returns (ok, cancel).
 pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (bool, bool) {
-    ui.label(egui::RichText::new(tl!("PDF Optimizer")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("PDF Optimizer"));
     ui.add_space(6.0);
     ui.horizontal(|ui| {
         ui.label(tl!("Settings"));
@@ -188,58 +188,59 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (boo
     });
     ui.separator();
     ui.add_space(6.0);
-    let s = &mut d.settings;
-    match d.tab {
-        OptimizeTab::Images => {
-            ui.add(widgets::checkbox(&mut s.merge_fragments, tl!("Merge image fragments")));
-            image_row(ui, "color", "Color Images", &mut s.color);
-            image_row(ui, "gray", "Grayscale Images", &mut s.gray);
-            ui.label(
-                egui::RichText::new(tl!("Each image is measured where pages draw it; an image is replaced only if the result is smaller."))
-                    .small()
-                    .color(t.text_muted),
-            );
+    widgets::dialog_scroll(ui, "optimizer-body", |ui| {
+        let s = &mut d.settings;
+        match d.tab {
+            OptimizeTab::Images => {
+                ui.add(widgets::checkbox(&mut s.merge_fragments, tl!("Merge image fragments")));
+                image_row(ui, "color", "Color Images", &mut s.color);
+                image_row(ui, "gray", "Grayscale Images", &mut s.gray);
+                ui.label(
+                    egui::RichText::new(tl!("Each image is measured where pages draw it; an image is replaced only if the result is smaller."))
+                        .small()
+                        .color(t.text_muted),
+                );
+            }
+            OptimizeTab::DiscardObjects => {
+                discard_box(ui, &mut d.discard, Hidden::LinksActionsScripts, "Discard all links, actions and JavaScript");
+                ui.add(widgets::checkbox(&mut s.discard_alternate_images, tl!("Discard alternate images")));
+                ui.add(widgets::checkbox(&mut s.discard_thumbnails, tl!("Discard embedded page thumbnails")));
+                ui.add(widgets::checkbox(&mut s.discard_tags, tl!("Discard document tags")));
+                ui.add(widgets::checkbox(&mut s.discard_print_settings, tl!("Discard embedded print settings")));
+                discard_box(ui, &mut d.discard, Hidden::Bookmarks, "Discard bookmarks");
+                discard_box(ui, &mut d.discard, Hidden::FormFields, "Flatten form fields");
+                discard_box(ui, &mut d.discard, Hidden::HiddenLayers, "Discard hidden layer content");
+            }
+            OptimizeTab::DiscardUserData => {
+                discard_box(ui, &mut d.discard, Hidden::Comments, "Discard all comments, forms and multimedia");
+                discard_box(ui, &mut d.discard, Hidden::Metadata, "Discard document information and metadata");
+                discard_box(ui, &mut d.discard, Hidden::Attachments, "Discard all object data (file attachments)");
+                discard_box(ui, &mut d.discard, Hidden::PrivateData, "Discard private data of other applications");
+                discard_box(ui, &mut d.discard, Hidden::HiddenText, "Discard hidden text");
+            }
+            OptimizeTab::CleanUp => {
+                ui.add(widgets::checkbox(&mut s.flate_unencoded, tl!("Use Flate to encode streams that are not encoded")));
+                ui.add(widgets::checkbox(&mut s.remove_invalid_links, tl!("Remove invalid links and bookmarks")));
+                ui.add(widgets::checkbox(&mut s.remove_unreferenced_dests, tl!("Remove unreferenced named destinations")));
+                ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Compress document structure (object streams)")));
+                ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Remove unused objects and merge identical ones")));
+            }
         }
-        OptimizeTab::DiscardObjects => {
-            discard_box(ui, &mut d.discard, Hidden::LinksActionsScripts, "Discard all links, actions and JavaScript");
-            ui.add(widgets::checkbox(&mut s.discard_alternate_images, tl!("Discard alternate images")));
-            ui.add(widgets::checkbox(&mut s.discard_thumbnails, tl!("Discard embedded page thumbnails")));
-            ui.add(widgets::checkbox(&mut s.discard_tags, tl!("Discard document tags")));
-            ui.add(widgets::checkbox(&mut s.discard_print_settings, tl!("Discard embedded print settings")));
-            discard_box(ui, &mut d.discard, Hidden::Bookmarks, "Discard bookmarks");
-            discard_box(ui, &mut d.discard, Hidden::FormFields, "Flatten form fields");
-            discard_box(ui, &mut d.discard, Hidden::HiddenLayers, "Discard hidden layer content");
-        }
-        OptimizeTab::DiscardUserData => {
-            discard_box(ui, &mut d.discard, Hidden::Comments, "Discard all comments, forms and multimedia");
-            discard_box(ui, &mut d.discard, Hidden::Metadata, "Discard document information and metadata");
-            discard_box(ui, &mut d.discard, Hidden::Attachments, "Discard all object data (file attachments)");
-            discard_box(ui, &mut d.discard, Hidden::PrivateData, "Discard private data of other applications");
-            discard_box(ui, &mut d.discard, Hidden::HiddenText, "Discard hidden text");
-        }
-        OptimizeTab::CleanUp => {
-            ui.add(widgets::checkbox(&mut s.flate_unencoded, tl!("Use Flate to encode streams that are not encoded")));
-            ui.add(widgets::checkbox(&mut s.remove_invalid_links, tl!("Remove invalid links and bookmarks")));
-            ui.add(widgets::checkbox(&mut s.remove_unreferenced_dests, tl!("Remove unreferenced named destinations")));
-            ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Compress document structure (object streams)")));
-            ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Remove unused objects and merge identical ones")));
-        }
-    }
+    });
     ui.add_space(12.0);
     let (mut ok, mut cancel) = (false, false);
-    ui.horizontal(|ui| {
-        if widgets::pill_button(ui, tl!("Audit space usage…"), false).clicked() {
-            d.audit = true;
+    if widgets::pill_button(ui, tl!("Audit space usage…"), false).clicked() {
+        d.audit = true;
+    }
+    crate::widgets::dialog_footer(ui, |ui| {
+        if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
+            ok = true;
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("OK"), true).clicked() {
-                ok = true;
-            }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
-                cancel = true;
-            }
-        });
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+            cancel = true;
+        }
     });
+
     (ok, cancel)
 }
 
@@ -247,7 +248,7 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (boo
 /// optimizing would save).
 pub(crate) fn audit_body(ui: &mut egui::Ui, rows: &[pdfcraft_engine::optimize::SpaceUse], t: &Tokens) -> bool {
     use egui::{RichText, TextWrapMode, WidgetText};
-    ui.label(RichText::new(tl!("Space Audit")).font(crate::theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Space Audit"));
     ui.add_space(4.0);
     ui.label(RichText::new(tl!("What takes up the space in this file, by kind of content.")).color(t.text_muted));
     ui.add_space(8.0);
@@ -292,7 +293,7 @@ pub(crate) fn audit_body(ui: &mut egui::Ui, rows: &[pdfcraft_engine::optimize::S
     });
     ui.add_space(12.0);
     let mut ok = false;
-    ui.horizontal(|ui| ui.with_layout(Layout::right_to_left(Align::Center), |ui| ok = widgets::pill_button(ui, tl!("OK"), true).clicked()));
+    ui.horizontal(|ui| crate::widgets::dialog_footer(ui, |ui| ok = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked()));
     ok
 }
 

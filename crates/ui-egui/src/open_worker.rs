@@ -161,10 +161,26 @@ fn run(queue: Arc<(Mutex<Queue>, Condvar)>) {
 
 fn prepare(job: Job) -> ResultKind {
     let bytes = match &job.input {
-        Input::Path(path) => match std::fs::read(path) {
-            Ok(bytes) => Arc::new(bytes),
-            Err(error) => return ResultKind::ReadFailed(error.to_string()),
-        },
+        Input::Path(path) => {
+            let template = job.name.to_ascii_lowercase().ends_with(".pdfcraft-template");
+            let read = if template {
+                use std::io::Read as _;
+                std::fs::File::open(path).and_then(|file| {
+                    let mut bytes = Vec::new();
+                    file.take(pdfcraft_engine::templates::MAX_BYTES as u64 + 1).read_to_end(&mut bytes)?;
+                    Ok(bytes)
+                })
+            } else {
+                std::fs::read(path)
+            };
+            match read {
+                Ok(bytes) if template && bytes.len() > pdfcraft_engine::templates::MAX_BYTES => {
+                    return ResultKind::ReadFailed("A template must not exceed 64 MiB".into());
+                }
+                Ok(bytes) => Arc::new(bytes),
+                Err(error) => return ResultKind::ReadFailed(error.to_string()),
+            }
+        }
         Input::RemotePath(path) => match pdfcraft_engine::read_remote_document(path) {
             Ok(bytes) => Arc::new(bytes),
             Err(error) => return ResultKind::RemoteFailed(error.to_string()),
@@ -175,7 +191,7 @@ fn prepare(job: Job) -> ResultKind {
         },
         Input::Bytes(bytes) => bytes.clone(),
     };
-    if matches!(pdfcraft_engine::source_kind(&job.name, &bytes), Some(SourceKind::Image | SourceKind::Text)) {
+    if matches!(pdfcraft_engine::source_kind(&job.name, &bytes), Some(SourceKind::Image | SourceKind::Text | SourceKind::Template)) {
         return ResultKind::Conversion(bytes);
     }
     let result = job.context.prepare_open(job.name, job.path, bytes.clone(), job.password.as_deref());

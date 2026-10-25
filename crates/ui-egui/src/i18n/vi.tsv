@@ -969,6 +969,7 @@ theme	Appearance	Giao diện
 	Redaction code:	Mã xóa nội dung nhạy cảm:
 	Reload	Tải lại
 	Reload documents when their files change on disk	Tải lại tài liệu khi tệp của chúng thay đổi trên đĩa
+	Show validation marks over signed signatures	Hiển thị dấu xác thực trên các chữ ký đã ký
 	Always use my default zoom and page layout	Luôn dùng thu phóng và bố cục trang mặc định của tôi
 	Remove checkmark	Bỏ dấu kiểm
 	Remove invalid links and bookmarks	Gỡ các liên kết và dấu trang không hợp lệ
@@ -2780,3 +2781,115 @@ key	Space	Space
 	a table has 1 to {max} columns	một bảng có từ 1 đến {max} cột
 	the first row number can be at most {max}	số hàng đầu tiên tối đa là {max}
 	the area, the spacing and the column widths must be numbers, the spacing 0 or more and each width more than 0	vùng, khoảng cách và độ rộng cột phải là số, khoảng cách từ 0 trở lên và mỗi độ rộng lớn hơn 0
+	Lines	Các đường
+	Line colour	Màu đường
+	Drag a point to reshape the line. Delete removes it.	Kéo một điểm để đổi hình dạng đường. Nhấn Delete để xóa.
+	This point could not be moved. Try a smaller move.	Không thể di chuyển điểm này. Hãy thử dịch chuyển nhỏ hơn.
+	Delete line	Xóa đường
+	Delete lines	Xóa các đường
+	Format line	Định dạng đường
+	Format lines	Định dạng các đường
+	Move line point	Di chuyển điểm của đường
+	Recognize scanned text automatically	Tự động nhận dạng văn bản đã quét
+	Ask whether to recognize the current page or all pages when editing a scan.	Khi chỉnh sửa tài liệu đã quét, hỏi có nhận dạng trang hiện tại hay tất cả các trang.
+	Scanned text detected	Phát hiện văn bản đã quét
+	Recognize text on this page or throughout the document?	Nhận dạng văn bản trên trang này hay trong toàn bộ tài liệu?
+
+# Group selection and document save status.
+	Exit	Thoát
+	Group select	Chọn nhóm
+	Return to document	Quay lại tài liệu
+	Saved	Đã lưu
+	Saves document	Lưu tài liệu
+	Unsaved changes	Thay đổi chưa lưu
+
+# Remove Signature (sign.remove)
+	Remove signature…	Gỡ chữ ký…
+	Remove signature	Gỡ chữ ký
+	Remove Signature	Gỡ chữ ký
+	Remove the signature {name}	Gỡ chữ ký {name}
+	Certification signature (level {p})	Chữ ký chứng nhận (mức {p})
+	Document timestamp	Dấu thời gian của tài liệu
+	Visual signature (Fill & Sign, not digital)	Chữ ký hình ảnh (Điền & Ký, không phải chữ ký số)
+	Visual initials (Fill & Sign, not digital)	Chữ viết tắt hình ảnh (Điền & Ký, không phải chữ ký số)
+	{name}_unsigned.pdf	{name}_khong_chu_ky.pdf
+	this signature can't be removed on its own	không thể gỡ riêng chữ ký này
+	it was still in the document afterwards, so the change was undone	sau khi gỡ, chữ ký vẫn còn trong tài liệu nên thay đổi đã được hoàn tác
+	Choose another file: the original is kept as it is, and the version without the signature is saved next to it.	Hãy chọn tệp khác: bản gốc được giữ nguyên, còn phiên bản không có chữ ký được lưu bên cạnh.
+	The signature was not removed: {e}	Chưa gỡ được chữ ký: {e}
+	Removed the visual signature on page {p}	Đã gỡ chữ ký hình ảnh trên trang {p}
+	Removed the signature {field} and kept its empty field	Đã gỡ chữ ký {field} và giữ lại trường trống
+	Removed the signature {field} with its field	Đã gỡ chữ ký {field} cùng với trường của nó
+	Other signatures remain, so the removed one is still in the file's earlier revision; check the remaining signatures again.	Vẫn còn chữ ký khác nên chữ ký đã gỡ vẫn nằm trong bản sửa đổi trước của tệp; hãy xác thực lại các chữ ký còn lại.
+	The new file has no signature left and no earlier revision holding it.	Tệp mới không còn chữ ký nào và cũng không có bản sửa đổi trước nào chứa nó.
+	{what}. Saved {file}, checked to reopen with every page. {history}	{what}. Đã lưu {file} và kiểm tra rằng tệp mở lại được với đầy đủ các trang. {history}
+	This document has no signature that can be removed.	Tài liệu này không có chữ ký nào có thể gỡ.
+	A signature that is part of a page's content, like a scanned page, is not a field or an annotation, so it can't be removed on its own, and PdfCraft doesn't erase parts of a page to hide it. To take it out, redact that area (Redact), or delete the picture with Edit PDF when the signature is an image of its own.	Chữ ký là một phần nội dung của trang, ví dụ trên trang được quét, không phải là trường hay chú thích nên không thể gỡ riêng, và PdfCraft không xóa một phần trang để che nó. Để bỏ nó đi, hãy xóa nội dung nhạy cảm ở vùng đó (Xóa nội dung nhạy cảm), hoặc nếu chữ ký là một hình ảnh riêng thì xóa hình ảnh bằng Chỉnh sửa một PDF.
+	Choose the signature to remove:	Chọn chữ ký cần gỡ:
+	unknown signer	người ký không rõ
+	Field: {field}	Trường: {field}
+	Page {p}	Trang {p}
+	validated: valid	xác thực: hợp lệ
+	validated: validity unknown	xác thực: không rõ hiệu lực
+	validated: invalid	xác thực: không hợp lệ
+	None of these signatures can be removed.	Không thể gỡ chữ ký nào trong số này.
+	Keep an empty signature field to sign again	Giữ một trường chữ ký trống để ký lại
+	Removing this signature changes the document and invalidates this signature in the version that results. It can affect the other signatures and certifications. The original file is kept as it is.	Gỡ chữ ký này sẽ thay đổi tài liệu và làm chữ ký này mất hiệu lực trong phiên bản tạo ra. Việc này có thể ảnh hưởng đến các chữ ký và chứng nhận khác. Tệp gốc được giữ nguyên.
+	Removing this signature changes the document and invalidates this signature in the version that results. The original file is kept as it is.	Gỡ chữ ký này sẽ thay đổi tài liệu và làm chữ ký này mất hiệu lực trong phiên bản tạo ra. Tệp gốc được giữ nguyên.
+	This is a picture of a signature, not a digital signature: only the mark on the page goes. The original file is kept as it is.	Đây là hình ảnh của chữ ký, không phải chữ ký số: chỉ dấu trên trang bị gỡ. Tệp gốc được giữ nguyên.
+	Unsaved changes to this document are saved in the new file too.	Các thay đổi chưa lưu của tài liệu này cũng được lưu vào tệp mới.
+	You choose where the new version is saved. Continue?	Bạn chọn nơi lưu phiên bản mới. Tiếp tục?
+	Remove and Save As…	Gỡ và lưu thành…
+	The other signatures ({names}) will report that the document changed after they signed. Check them again: nothing says they stay valid.	Các chữ ký khác ({names}) sẽ báo rằng tài liệu đã thay đổi sau khi ký. Hãy xác thực lại: không có gì bảo đảm chúng vẫn hợp lệ.
+	Signed after this signature, so what they signed includes it: {names}.	Các chữ ký được thêm sau chữ ký này và có nội dung đã ký bao gồm nó: {names}.
+	The document will no longer be certified.	Tài liệu sẽ không còn được chứng nhận.
+	The fields this signature locked ({names}) can be changed again.	Các trường mà chữ ký này khóa ({names}) sẽ có thể thay đổi lại.
+	Other signatures remain, so the copy is saved as an update of the signed file: the removed signature stays in its earlier revision, where it can be recovered.	Vẫn còn chữ ký khác nên bản sao được lưu như một bản cập nhật của tệp đã ký: chữ ký đã gỡ vẫn nằm trong bản sửa đổi trước và có thể khôi phục từ đó.
+	{names} certifies this document without allowing comments, and will report this change.	{names} chứng nhận tài liệu này mà không cho phép chú thích và sẽ báo thay đổi này.
+	A document timestamp covers the whole file and is no one's signature, so it can't be removed on its own.	Dấu thời gian của tài liệu bao trùm toàn bộ tệp và không phải chữ ký của ai, nên không thể gỡ riêng.
+	{names} certifies this document, and removing a signature is not a change its certification permits.	{names} chứng nhận tài liệu này, và việc gỡ chữ ký không phải là thay đổi mà chứng nhận đó cho phép.
+	The signature {names} locks this field.	Chữ ký {names} khóa trường này.
+	This document can't be changed: {names}	Không thể thay đổi tài liệu này: {names}
+	Choose a signature that can be removed.	Hãy chọn một chữ ký có thể gỡ.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	Mở PDF tiếp theo trong thư mục
+	Open previous PDF in folder	Mở PDF trước đó trong thư mục
+	This document isn't in a folder yet: save it first	Tài liệu này chưa nằm trong thư mục nào: hãy lưu trước
+	This is the last PDF in its folder	Đây là PDF cuối cùng trong thư mục
+	This is the first PDF in its folder	Đây là PDF đầu tiên trong thư mục
+
+# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
+	Language and spelling	Ngôn ngữ và chính tả
+	Interface and appearance	Giao diện và hình thức
+	Check spelling while typing	Kiểm tra chính tả khi nhập
+	Spelling language	Ngôn ngữ kiểm tra chính tả
+	Same as interface	Giống giao diện
+	Spelling dictionary unavailable	Không có từ điển chính tả
+	Spelling checks stay on this device.	Việc kiểm tra chính tả diễn ra trên thiết bị này.
+	Spelling marks do not change the document. Right-click an underlined word for suggestions.	Dấu chính tả không thay đổi tài liệu. Nhấp chuột phải vào từ được gạch chân để xem gợi ý.
+	Clear personal dictionary	Xóa từ điển cá nhân
+	Spelling suggestions	Gợi ý chính tả
+	No suggestions	Không có gợi ý
+	Add to dictionary	Thêm vào từ điển
+
+	Suggest edits	Đề xuất chỉnh sửa
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	Nhân bản trang với tên trường mới
+	Duplicate pages — 1 field renamed	Nhân bản trang — 1 trường được đổi tên
+	Duplicate pages — fields renamed	Nhân bản trang — các trường được đổi tên
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Tài liệu
+	AI Assistant	Trợ lý AI
+	Latin (accented)	Chữ Latinh (có dấu)
+	Opening documents	Mở tài liệu
+	Files	Tệp
+	Navigation	Điều hướng
+	Save as template	Lưu dưới dạng mẫu
+	From template	Từ mẫu
+	Reset	Đặt lại
+	Swap width and height	Hoán đổi chiều rộng và chiều cao
+	Custom page…	Trang tùy chỉnh…
+	Glass	Kính

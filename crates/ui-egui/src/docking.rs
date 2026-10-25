@@ -382,7 +382,7 @@ pub fn show(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
     style.panels_label = crate::i18n::t("Panels").into();
     style.resize_label = crate::i18n::t("Resize panels").into();
     style.resize_window_label = crate::i18n::t("Resize panel window").into();
-    style.background = t.panel;
+    style.background = if app.theme_preference == crate::theme::ThemePreference::Glass { egui::Color32::TRANSPARENT } else { t.panel };
     style.tab_background = t.chrome;
     style.active_background = t.selected;
     style.text = t.text;

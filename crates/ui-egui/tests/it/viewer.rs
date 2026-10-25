@@ -2,8 +2,40 @@
 //! cover page, a scroll position per tab.
 
 use egui_kittest::Harness;
-use egui_kittest::kittest::{By, Queryable};
+use egui_kittest::kittest::{By, NodeT, Queryable};
 use pdfcraft_ui_egui::{Dialog, PdfCraftApp};
+
+fn refocusing_search_replaces_the_query(command: &str, input_id: &str) {
+    let mut h = harness();
+    let index = h.state().active.unwrap();
+    assert!(h.state_mut().execute(command));
+    h.run_steps(4);
+    h.state_mut().views[index].find.as_mut().unwrap().query = "café 文".into();
+    h.run_steps(2);
+    let id = egui::Id::new(input_id);
+    let mut state = egui::TextEdit::load_state(&h.ctx, id).unwrap();
+    state.cursor.set_char_range(Some(egui::text::CCursorRange::one(egui::text::CCursor::new(2))));
+    state.store(&h.ctx, id);
+    h.ctx.memory_mut(|m| m.surrender_focus(id));
+    assert!(h.state_mut().execute(command));
+    h.run_steps(4);
+    h.event(egui::Event::Text("replacement".into()));
+    h.run_steps(2);
+    assert_eq!(h.state().views[index].find.as_ref().unwrap().query, "replacement");
+    h.event(egui::Event::Text("-continued".into()));
+    h.run_steps(2);
+    assert_eq!(h.state().views[index].find.as_ref().unwrap().query, "replacement-continued", "ordinary typing must not select the query again");
+}
+
+#[test]
+fn refocusing_find_selects_the_complete_unicode_query() {
+    refocusing_search_replaces_the_query("edit.find", "find-input");
+}
+
+#[test]
+fn refocusing_advanced_search_selects_the_complete_unicode_query() {
+    refocusing_search_replaces_the_query("edit.advanced_search", "search-panel-input");
+}
 
 /// `n` pages of 200×300; page i says "Page i+1" plus "page" and "Pages" for find tests.
 fn fixture(n: usize) -> Vec<u8> {
@@ -324,7 +356,7 @@ fn layouts_fit_height_labels_and_system_theme() {
     });
     h.run_steps(2);
     let labels: Vec<String> = {
-        let s = h.state();
+        let s = h.state_mut();
         s.session.get(s.views[0].id).unwrap().info.pages.iter().map(|p| p.label.clone()).collect()
     };
     assert_eq!(labels[1], "ii");
@@ -391,7 +423,7 @@ fn page_label_input_keeps_current_page_when_submitted_unchanged() {
     let before = h.state().session.get(id).unwrap();
     let undo = before.can_undo().map(str::to_owned);
     let dirty = before.dirty;
-    let before_bytes = h.state().session.save_bytes(id).unwrap();
+    let before_bytes = h.state_mut().session.save_bytes(id).unwrap();
     for (page, label) in ["i", "ii", "1", "2", "3"].into_iter().enumerate() {
         h.state_mut().views[0].go_to_page(page);
         h.run_steps(3);
@@ -405,7 +437,7 @@ fn page_label_input_keeps_current_page_when_submitted_unchanged() {
     let after = h.state().session.get(id).unwrap();
     assert_eq!(after.can_undo().map(str::to_owned), undo);
     assert_eq!(after.dirty, dirty, "navigation does not edit the PDF");
-    assert_eq!(h.state().session.save_bytes(id).unwrap(), before_bytes, "navigation preserves saved PDF bytes");
+    assert_eq!(h.state_mut().session.save_bytes(id).unwrap(), before_bytes, "navigation preserves saved PDF bytes");
     let mut empty = pdfcraft_ui_egui::canvas::DocView::new(pdfcraft_engine::DocId(0), &Default::default(), Default::default());
     assert!(!empty.go_to_typed("1", &[]), "an empty view has no current page to retain");
 }
@@ -511,7 +543,7 @@ fn page_label_input_new_document_does_not_inherit_or_commit_the_previous_draft()
     h.run_steps(3);
     type_page_input(&mut h, "ii");
     let original_id = h.state().views[0].id;
-    let original_bytes = h.state().session.save_bytes(original_id).unwrap();
+    let original_bytes = h.state_mut().session.save_bytes(original_id).unwrap();
 
     let mut source = Session::new().with_clock(|| 1_700_000_000);
     let source_id = source.open("new-labels.pdf", None, std::sync::Arc::new(fixture(5)), None).unwrap();
@@ -536,7 +568,7 @@ fn page_label_input_new_document_does_not_inherit_or_commit_the_previous_draft()
     h.run_steps(3);
     assert_eq!(h.state().active, Some(0));
     assert_eq!((h.state().views[0].current, h.state().views[0].page_input.as_str()), (3, "2"));
-    assert_eq!(h.state().session.save_bytes(original_id).unwrap(), original_bytes, "tab switching never edits the original PDF");
+    assert_eq!(h.state_mut().session.save_bytes(original_id).unwrap(), original_bytes, "tab switching never edits the original PDF");
 }
 
 #[test]
@@ -623,7 +655,7 @@ fn page_label_input_same_document_replacement_refreshes_the_focused_label() {
         let after = h.state().session.get(id).unwrap();
         assert!(!after.dirty, "navigation does not edit the replacement");
         assert_eq!((after.can_undo(), after.can_redo()), (None, None));
-        assert_eq!(h.state().session.save_bytes(id).unwrap(), replacement, "navigation preserves replacement PDF bytes");
+        assert_eq!(h.state_mut().session.save_bytes(id).unwrap(), replacement, "navigation preserves replacement PDF bytes");
     }
 }
 
@@ -688,7 +720,7 @@ fn page_label_input_same_document_replacement_keeps_full_label_selected_for_typi
         let after = h.state().session.get(id).unwrap();
         assert!(!after.dirty, "navigation does not edit the replacement PDF");
         assert_eq!((after.can_undo(), after.can_redo()), (None, None));
-        assert_eq!(h.state().session.save_bytes(id).unwrap(), replacement, "typing and navigation preserve replacement PDF bytes");
+        assert_eq!(h.state_mut().session.save_bytes(id).unwrap(), replacement, "typing and navigation preserve replacement PDF bytes");
     }
 }
 
@@ -760,7 +792,7 @@ fn initial_view_is_edited_and_honoured_on_open() {
     h.run_steps(2);
     h.get_by_label("OK").click();
     h.run_steps(3);
-    let s = h.state();
+    let s = h.state_mut();
     let id = s.views[s.active.unwrap()].id;
     let v = s.session.get(id).unwrap().initial_view();
     assert_eq!((v.navigation, v.layout, v.page, v.language.as_deref()), (Navigation::Bookmarks, InitialLayout::TwoUpCoverPage, 1, Some("de-DE")));
@@ -833,7 +865,7 @@ fn tab_and_window_show_the_document_title_when_asked() {
     use pdfcraft_engine::Edit;
     let mut h = harness();
     h.run_steps(2);
-    assert_eq!(h.state().window_title, "b.pdf — PdfCraft");
+    assert_eq!(h.state().window_title, "b.pdf");
     {
         let s = h.state_mut();
         let id = s.views[s.active.unwrap()].id;
@@ -843,7 +875,7 @@ fn tab_and_window_show_the_document_title_when_asked() {
         s.session.apply(id, Edit::SetInitialView(Box::new(v))).unwrap();
     }
     h.run_steps(2);
-    assert_eq!(h.state().window_title, "Quarterly report — PdfCraft");
+    assert_eq!(h.state().window_title, "Quarterly report");
     h.get_by_label_contains("Quarterly report");
 }
 
@@ -862,7 +894,7 @@ fn a_placeholder_title_leaves_the_file_name_on_the_tab_and_window() {
         s.session.apply(id, Edit::SetInitialView(Box::new(v))).unwrap();
     }
     h.run_steps(2);
-    assert_eq!(h.state().window_title, "b.pdf — PdfCraft");
+    assert_eq!(h.state().window_title, "b.pdf");
     assert!(h.query_by_label_contains("about:blank").is_none());
 }
 
@@ -1030,6 +1062,33 @@ fn advanced_search_lists_results_with_context() {
 }
 
 #[test]
+fn advanced_search_copies_unique_page_numbers_and_extracts_its_matching_pages() {
+    let _gpu = std::env::var_os("PDFCRAFT_SHOTS").map(|_| crate::gpu());
+    let mut h = harness();
+    h.state_mut().execute("edit.advanced_search");
+    let i = h.state().active.unwrap();
+    h.state_mut().views[i].find.as_mut().unwrap().query = "Page".into();
+    for _ in 0..3000 {
+        h.run_steps(2);
+        if h.query_by_label("Copy page numbers").is_some_and(|n| !n.accesskit_node().is_disabled()) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    h.get_by_label("Copy page numbers").click();
+    h.run_steps(1);
+    assert!(h.output().platform_output.commands.iter().any(|c| matches!(c, egui::OutputCommand::CopyText(s) if s == "1, 2")));
+    if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+        h.render().unwrap().save(format!("{dir}/search-page-actions.png")).unwrap();
+    }
+    h.get_by_label("Extract matching pages…").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, Some(Dialog::Extract));
+    assert_eq!(h.state().views[i].target_pages(), [0, 1]);
+    assert_eq!(h.state().session.get(h.state().views[i].id).unwrap().info.pages.len(), 2);
+}
+
+#[test]
 fn optimizer_audits_space_usage() {
     let mut h = harness();
     assert!(h.state_mut().execute("optimize.advanced"));
@@ -1057,7 +1116,8 @@ fn space_audit_numbers_line_up_under_their_headers() {
     let right = |label: &str| h.get_by_label(label).rect().right();
     assert!((right("Percentage") - right("100.00%")).abs() < 1.0, "{} vs {}", right("Percentage"), right("100.00%"));
     assert!((right("Bytes") - right(&total)).abs() < 1.0, "{} vs {}", right("Bytes"), right(&total));
-    assert!(right("100.00%") < right("OK") + 1.0, "the table stays inside the dialog");
+    let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+    assert!(right("100.00%") <= card.right() - 15.0, "the table stays inside the dialog");
 }
 
 #[test]
@@ -1596,6 +1656,7 @@ fn picture_harness_sized(size: egui::Vec2) -> (image::RgbaImage, Harness<'static
     let mut h = Harness::builder().with_size(size).build_eframe(move |_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
+        app.set_option("auto_ocr", "off").unwrap();
         app.open_bytes("pic.pdf", None, pdf.to_vec()).unwrap();
         app
     });

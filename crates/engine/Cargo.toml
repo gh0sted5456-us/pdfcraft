@@ -9,6 +9,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
+pdfcraft-content.workspace = true
 craft-docpath = { workspace = true }
 pdfcraft-measure = { workspace = true }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "tiff"] }
@@ -53,4 +54,17 @@ unicode-segmentation = "1.13"
 chrono = { workspace = true, features = ["clock"] }
 
 [dev-dependencies]
+ab_glyph = "0.2"
 pdfcraft-testkit = { workspace = true }
+# Exercise dictionary decoding on Windows too, without requiring a Linux toolchain.
+spellbook = "=0.4.2"
+encoding_rs = "0.8"
+
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
+# Safe native spelling APIs; dictionaries stay in the operating system.
+spellkit = "=0.4.0"
+
+[target.'cfg(all(unix, not(target_os = "macos"), not(target_arch = "wasm32")))'.dependencies]
+# Read installed Hunspell data in Rust, without linking a copyleft native engine.
+spellbook = "=0.4.2"
+encoding_rs = "0.8"

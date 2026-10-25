@@ -20,6 +20,7 @@ pub enum ThemePreference {
     #[default]
     Light,
     Dark,
+    Glass,
 }
 
 impl ThemePreference {
@@ -28,13 +29,53 @@ impl ThemePreference {
     pub fn resolve(self, system: Option<bool>, fallback: ThemeKind) -> ThemeKind {
         match self {
             Self::Light => ThemeKind::Light,
-            Self::Dark => ThemeKind::Dark,
+            Self::Dark | Self::Glass => ThemeKind::Dark,
             Self::System => match system {
                 Some(true) => ThemeKind::Dark,
                 Some(false) => ThemeKind::Light,
                 None => fallback,
             },
         }
+    }
+}
+
+/// All Glass UI surfaces share one tint and opacity; document pixels stay opaque.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct GlassSettings {
+    pub tint: [u8; 3],
+    pub opacity: u8,
+}
+
+impl Default for GlassSettings {
+    fn default() -> Self {
+        Self { tint: [48, 112, 156], opacity: 80 }
+    }
+}
+
+impl GlassSettings {
+    pub fn normalized(mut self) -> Self {
+        self.opacity = self.opacity.clamp(35, 100);
+        self
+    }
+
+    pub fn tokens(self) -> Tokens {
+        let mut t = Tokens::for_kind(ThemeKind::Dark);
+        let rgb = self.tint.map(|channel| 18 + channel / 5);
+        let alpha = (u16::from(self.normalized().opacity) * 255 / 100) as u8;
+        let surface = Color32::from_rgba_unmultiplied(rgb[0], rgb[1], rgb[2], alpha);
+        t.titlebar = surface;
+        t.chrome = surface;
+        t.panel = surface;
+        t.pasteboard = surface;
+        t.card = surface;
+        t.field = surface;
+        let raised = |amount| Color32::from_rgba_unmultiplied(rgb[0] + amount, rgb[1] + amount, rgb[2] + amount, alpha);
+        t.hover = raised(8);
+        t.pressed = raised(16);
+        t.selected = raised(12);
+        t.accent_soft = t.selected;
+        t
     }
 }
 
@@ -429,26 +470,33 @@ pub fn semibold(size: f32) -> FontId {
 }
 
 pub fn apply(ctx: &egui::Context, kind: ThemeKind) {
-    // Keep the native window inherited. A concrete egui theme pins macOS's
-    // NSWindow appearance and prevents winit from delivering ThemeChanged.
-    // Our saved choice owns the palette; both egui branches receive it below.
+    apply_tokens(ctx, Tokens::for_kind(kind));
+}
+
+pub fn apply_glass(ctx: &egui::Context, settings: GlassSettings) {
+    apply_tokens(ctx, settings.tokens());
+}
+
+fn apply_tokens(ctx: &egui::Context, t: Tokens) {
+    // macOS must inherit appearance to keep receiving ThemeChanged; Windows
+    // follows the saved preference in sync_theme. Both style branches share our palette.
+    #[cfg(not(target_os = "windows"))]
     ctx.set_theme(egui::ThemePreference::System);
-    let t = Tokens::for_kind(kind);
     ctx.data_mut(|d| d.insert_temp(egui::Id::new("pdfcraft-theme"), t));
     let mut v = if t.dark() { Visuals::dark() } else { Visuals::light() };
     v.panel_fill = t.panel;
     v.window_fill = t.card;
-    v.window_stroke = Stroke::new(1.0, t.border);
+    v.window_stroke = Stroke::new(0.5, t.border);
     v.extreme_bg_color = t.field;
     v.faint_bg_color = t.hover;
     v.selection.bg_fill = t.accent_soft;
     v.selection.stroke = Stroke::new(1.0, t.accent);
     v.hyperlink_color = t.accent_text;
     v.override_text_color = Some(t.text);
-    v.window_corner_radius = CornerRadius::same(10);
+    v.window_corner_radius = CornerRadius::same(8);
     v.menu_corner_radius = CornerRadius::same(8);
     v.window_shadow = egui::Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(if t.dark() { 110 } else { 38 }) };
-    v.popup_shadow = egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark() { 90 } else { 30 }) };
+    v.popup_shadow = egui::Shadow { offset: [0, 3], blur: 12, spread: 0, color: Color32::from_black_alpha(if t.dark() { 90 } else { 30 }) };
     for w in [&mut v.widgets.noninteractive, &mut v.widgets.inactive, &mut v.widgets.hovered, &mut v.widgets.active, &mut v.widgets.open] {
         w.corner_radius = CornerRadius::same(t.radius);
         w.fg_stroke.color = t.text;

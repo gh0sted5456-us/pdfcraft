@@ -30,6 +30,7 @@ set_review_state(&mut doc, page, index, ReviewState::Accepted, "Ada", &meta)?;
 move_annotation(&mut doc, page, index, dx, dy, &meta)?;
 set_style(&mut doc, page, index, Some(rgb), Some(0.5), Some(2.0), &meta)?;
 delete_annotation(&mut doc, page, index)?;
+delete_annotations(&mut doc, page, &[first, second])?; // original indices, one cascade/removal
 signature_image(&doc, page, index)?; // embedded image XObject of Fill & Sign signature/initials
 ```
 

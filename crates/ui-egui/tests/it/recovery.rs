@@ -88,7 +88,7 @@ fn a_crashed_session_is_offered_and_recovered_unsaved() {
     assert_eq!(app.views.len(), 1);
     let doc = app.session.get(app.views[0].id).unwrap();
     assert!(doc.dirty, "recovered changes are unsaved");
-    assert_eq!(doc.path.as_deref(), Some("/docs/work.pdf"), "Save goes back to the original file");
+    assert_eq!(doc.path.as_deref(), Some("/docs/work.pdf"), "the original path is kept as a Save As suggestion (#3923)");
     assert_eq!(doc.info.pages.len(), 2, "the edit survived the crash");
     assert_eq!(s.list().len(), 1, "the entry stays until the document is saved or closed");
 }
@@ -149,7 +149,7 @@ fn quitting_cleanly_leaves_nothing_behind() {
     // Quit → "Don't save" → the app closes and the autosave is removed.
     h.state_mut().close_request = Some(pdfcraft_ui_egui::CloseRequest::Quit);
     h.run_steps(2);
-    h.get_by_label("Don't save").click();
+    h.get_by_label("Exit").click();
     h.run_steps(4);
     assert!(h.state().views.is_empty());
     h.state_mut().shutdown_recovery();

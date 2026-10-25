@@ -91,6 +91,8 @@ impl PdfCraftApp {
             && match spec.id {
                 "view.previous_view" => self.active.and_then(|i| self.views.get(i)).is_some_and(|v| !v.back.is_empty()),
                 "view.next_view" => self.active.and_then(|i| self.views.get(i)).is_some_and(|v| !v.forward.is_empty()),
+                // A browser gives the page a file's bytes, never its folder.
+                "file.open_next_in_folder" | "file.open_previous_in_folder" => !cfg!(target_arch = "wasm32"),
                 _ => true,
             }
     }
@@ -164,6 +166,8 @@ impl PdfCraftApp {
                 Some(p) => self.open_recent(&p),
                 None => self.notify_tr("No recent files"),
             },
+            "file.open_next_in_folder" => self.open_pdf_beside(true),
+            "file.open_previous_in_folder" => self.open_pdf_beside(false),
             "file.clear_recent" if self.recent.is_empty() => self.notify_tr("No recent files"),
             "file.clear_recent" => self.recent.clear(),
             "file.pin_folder" => self.pin_folder_dialog(),
@@ -183,6 +187,7 @@ impl PdfCraftApp {
             "file.revert" => self.dialog = Some(Dialog::Revert),
             "file.properties" => self.dialog = Some(Dialog::Properties(PropsTab::Description)),
             "file.word_count" => self.dialog = Some(Dialog::WordCount),
+            "ai.setup" | "ai.summary" | "ai.ask" | "ai.suggest" | "ai.translate" => crate::assistant_ui::open(self, id),
             "protect.properties" => self.dialog = Some(Dialog::Properties(PropsTab::Security)),
             // A restricted document's security changes once its permissions password is entered.
             "protect.password" | "protect.remove" if self.active_ids().and_then(|(_, id)| self.session.get(id)).is_some_and(|d| d.can_unlock()) => {
@@ -295,6 +300,7 @@ impl PdfCraftApp {
             "view.theme.system" => self.set_theme_preference(ThemePreference::System),
             "view.theme.light" => self.set_theme_preference(ThemePreference::Light),
             "view.theme.dark" => self.set_theme_preference(ThemePreference::Dark),
+            "view.theme.glass" => self.set_theme_preference(ThemePreference::Glass),
             "comment.list" => self.choose_right_panel(Some(RightPanel::Comments)),
             tool if crate::comments::CommentTool::from_command(tool).is_some() => {
                 let Some(tool) = crate::comments::CommentTool::from_command(tool) else { return false };
@@ -413,11 +419,30 @@ impl PdfCraftApp {
             "a11y.find_untagged" => self.find_untagged_content(),
             "ocr.recognize" => self.dialog = Some(Dialog::RecognizeText),
             "tools.js_console" => self.dialog = Some(Dialog::JsConsole),
+            "tools.document_actions" => {
+                self.doc_js = crate::js_ui::DocJsDraft {
+                    name: "Open".into(),
+                    script: self
+                        .active_ids()
+                        .and_then(|(_, id)| self.session.get(id))
+                        .and_then(|d| d.document_actions().into_iter().find(|(e, _)| e == "Open"))
+                        .map(|(_, s)| s)
+                        .unwrap_or_default(),
+                };
+                self.dialog = Some(Dialog::DocumentActions);
+            }
+            "preflight.run" | "prepress.output_preview" => {
+                self.open_production(id == "prepress.output_preview");
+            }
             "tools.document_js" => {
                 self.doc_js = Default::default();
                 self.dialog = Some(Dialog::DocumentJs);
             }
             "app.preferences" => self.dialog = Some(Dialog::Preferences),
+            "app.language_spelling" => {
+                self.preferences_category = crate::PreferencesCategory::Language;
+                self.dialog = Some(Dialog::Preferences);
+            }
             "ocr.recognize_batch" => self.ocr_files_dialog(),
             "edit.edit_text" => {
                 self.quick_tool = crate::QuickTool::EditText;
@@ -531,6 +556,11 @@ impl PdfCraftApp {
                 self.apply_trusted_certificates(certs);
                 self.choose_right_panel(Some(RightPanel::Signatures));
             }
+            "sign.timestamp" => {
+                self.timestamp_error = None;
+                self.dialog = Some(Dialog::Timestamp);
+            }
+            "sign.remove" => self.start_remove_signature(None),
             "sign.panel" => self.choose_right_panel(Some(RightPanel::Signatures)),
             "optimize.advanced" => self.dialog = Some(Dialog::Optimize),
             "view.fit_visible" => {
@@ -634,7 +664,14 @@ impl PdfCraftApp {
                     self.dialog = Some(Dialog::Signature);
                 }
             }
+            "create.new" => self.begin_template_gallery(),
+            "create.save_template" => self.begin_template_export(),
             "create.blank" => self.create_blank(),
+            "create.custom" => {
+                self.new_paper = self.default_paper.clone();
+                self.dialog = Some(Dialog::NewPaper);
+            }
+            "export.choose" => self.dialog = Some(Dialog::ExportTo),
             "create.file" => self.open_dialog(),
             "create.multiple" => self.create_multiple_dialog(),
             "create.multiple_separate" => self.create_multiple_separate_dialog(),
@@ -642,7 +679,10 @@ impl PdfCraftApp {
             "create.clipboard" => self.create_from_clipboard(),
             "optimize.reduce" => self.reduce_file_size(),
             "page.duplicate" => {
-                self.apply_edit(Edit::DuplicatePages { pages: targets, at: None });
+                self.apply_edit(Edit::DuplicatePages { pages: targets, at: None, field_conflicts: pdfcraft_engine::FieldConflicts::Merge });
+            }
+            "page.duplicate_renaming_fields" => {
+                self.apply_edit(Edit::DuplicatePages { pages: targets, at: None, field_conflicts: pdfcraft_engine::FieldConflicts::Rename });
             }
             // Two or more selected pages reverse among themselves; otherwise the whole document.
             "page.reverse" => {
@@ -669,6 +709,9 @@ impl PdfCraftApp {
             }
             "page.crop" => {
                 self.quick_tool = crate::QuickTool::Crop;
+                if let Some(v) = active.and_then(|i| self.views.get_mut(i)) {
+                    v.organize = false;
+                }
                 self.notify_tr("Drag a rectangle on a page to crop it; double-click a page for Set Page Boxes");
             }
             "page.boxes" => {
@@ -729,7 +772,13 @@ impl PdfCraftApp {
             if typing && !spec.in_text {
                 continue;
             }
-            let Some(key) = Key::from_name(s.key) else { continue };
+            // egui names the arrows ⏴ / ⏵; menus write them ← / →.
+            let name = match s.key {
+                "←" => "ArrowLeft",
+                "→" => "ArrowRight",
+                key => key,
+            };
+            let Some(key) = Key::from_name(name) else { continue };
             let mut m = Modifiers::NONE;
             if s.command {
                 m |= Modifiers::COMMAND;
@@ -781,6 +830,30 @@ fn tab_after(current: Option<usize>, count: usize, forward: bool) -> Option<usiz
 /// Render a top-level menu's registered commands (with live labels, shortcuts and enablement).
 pub(crate) fn registry_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, menu: &str) {
     for spec in commands::menu(menu) {
+        if matches!(
+            spec.id,
+            "create.custom"
+                | "file.save"
+                | "export.choose"
+                | "optimize.reduce"
+                | "protect.password"
+                | "print.dialog"
+                | "file.properties"
+                | "file.revert"
+                | "edit.copy"
+                | "edit.find"
+                | "form.clear"
+                | "app.language_spelling"
+                | "page.insert_blank"
+                | "page.rotate"
+                | "page.extract"
+                | "bookmark.add"
+                | "page.delete"
+                | "help.check_updates"
+                | "help.about"
+        ) {
+            ui.separator();
+        }
         let label = commands::current_label(spec, &app.session, app.active_ids().map(|(_, id)| id));
         let label = crate::i18n::menu_label(spec.id, &label);
         // Open Recent is a submenu of the live recent list, not one action: disabled while the

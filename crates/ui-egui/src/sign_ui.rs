@@ -4,9 +4,10 @@
 
 use std::path::PathBuf;
 
-use egui::{Align, Color32, CornerRadius, Layout, Pos2, Rect, Stroke, vec2};
+use egui::{Color32, CornerRadius, Pos2, Rect, Stroke, vec2};
+use pdfcraft_engine::clear_signature::{Effect as RemoveEffect, Kind as RemoveKind, Removable, Target as RemoveTarget};
 use pdfcraft_engine::sign::{self, Appearance, AppearanceLabels, Certificate, DigitalId, Name, PrivateKey};
-use pdfcraft_engine::{SignOptions, SignatureImage, SignatureInfo, SignatureStatus};
+use pdfcraft_engine::{DocId, SignOptions, SignatureImage, SignatureInfo, SignatureStatus};
 
 use crate::canvas::{DocView, PageXform, Snapshot, SnapshotKind};
 use crate::fill_sign::SavedSig;
@@ -18,6 +19,8 @@ use crate::{PdfCraftApp, icons, widgets};
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct DigitalIdEntry {
     pub path: String,
+    #[serde(default)]
+    pub fingerprint: String,
     pub name: String,
     pub issuer: String,
     pub email: String,
@@ -90,7 +93,49 @@ pub enum SignGraphic {
     Image(#[serde(with = "crate::fill_sign::image_data")] SignatureImage),
 }
 
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum SignBackground {
+    #[default]
+    Lion,
+    None,
+    Image(#[serde(with = "crate::fill_sign::image_data")] SignatureImage),
+}
+
+impl SignBackground {
+    fn image(&self) -> Result<Option<SignatureImage>, String> {
+        match self {
+            Self::Lion => SignatureImage::read(std::io::Cursor::new(crate::app_icon::png(false))).map(Some).map_err(|e| e.to_string()),
+            Self::None => Ok(None),
+            Self::Image(image) => Ok(Some(image.clone())),
+        }
+    }
+}
+
 /// The signing dialogs' state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SignProtection {
+    None,
+    NoChanges,
+    Forms,
+    Comments,
+    ExistingPages,
+    SignedPage,
+    SelectedPages,
+}
+impl SignProtection {
+    fn label(self) -> &'static str {
+        match self {
+            Self::None => "No additional restrictions",
+            Self::NoChanges => "Lock the entire document (PDF certification)",
+            Self::Forms => "Allow forms and signatures (PDF certification)",
+            Self::Comments => "Allow comments, forms and signatures (PDF certification)",
+            Self::ExistingPages => "Protect existing pages; allow adding pages (PdfCraft)",
+            Self::SignedPage => "Protect this signature's page (PdfCraft)",
+            Self::SelectedPages => "Protect selected pages (PdfCraft)",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct SignDraft {
     pub page: usize,
@@ -100,13 +145,18 @@ pub struct SignDraft {
     pub field: Option<String>,
     /// Certify (DocMDP) with these permissions: 1 none, 2 form fill and signing, 3 also comments.
     pub certify: Option<u8>,
+    pub protection: SignProtection,
+    pub protected_pages: Vec<usize>,
+    pub choosing_pages: Option<pdfcraft_engine::DocId>,
     pub step: SignStep,
     pub selected: Option<usize>,
     pub password: String,
     pub reason: String,
     pub location: String,
     pub appearance: Appearance,
+    pub timestamp: bool,
     pub graphic: SignGraphic,
+    pub background: SignBackground,
     /// The image the dialog holds (remembered or chosen), so Image can be chosen again.
     pub image: Option<SignatureImage>,
     pub new_id: NewIdDraft,
@@ -124,13 +174,23 @@ impl SignDraft {
             rect,
             field,
             certify,
+            protection: match certify {
+                Some(1) => SignProtection::NoChanges,
+                Some(3) => SignProtection::Comments,
+                Some(_) => SignProtection::Forms,
+                None => SignProtection::None,
+            },
+            protected_pages: vec![page],
+            choosing_pages: None,
             step: if ids.is_empty() { SignStep::Configure } else { SignStep::Choose },
             selected: ids.iter().position(|e| e.unusable.is_none()),
             password: String::new(),
             reason: String::new(),
             location: String::new(),
             appearance: Appearance::default(),
+            timestamp: false,
             graphic: SignGraphic::Name,
+            background: SignBackground::Lion,
             image: None,
             new_id: NewIdDraft::default(),
             error: None,
@@ -148,6 +208,8 @@ pub struct SignView {
     pub drawn: Option<(usize, [f64; 4])>,
     /// An empty signature field was clicked (its name).
     pub field: Option<String>,
+    pub clear: Option<String>,
+    pub context: Option<String>,
 }
 
 /// Drag a signature rectangle on one page (Digitally sign, Certify (visible signature)).
@@ -244,6 +306,7 @@ fn windows_id(reference: &str) -> Result<DigitalId, String> {
 pub fn entry_for(path: &str, c: &Certificate) -> DigitalIdEntry {
     DigitalIdEntry {
         path: path.to_string(),
+        fingerprint: c.fingerprint(),
         name: c.display_name(),
         issuer: c.issuer.common_name().map(str::to_string).unwrap_or_else(|| c.issuer.display()),
         email: c.subject.email().unwrap_or("").to_string(),
@@ -257,6 +320,7 @@ pub fn entry_for(path: &str, c: &Certificate) -> DigitalIdEntry {
 fn entry_unusable(u: &sign::windows::Unusable) -> DigitalIdEntry {
     DigitalIdEntry {
         path: format!("windows:{}", u.fingerprint.split(' ').collect::<String>().to_ascii_lowercase()),
+        fingerprint: String::new(),
         name: u.subject.clone(),
         issuer: String::new(),
         email: String::new(),
@@ -276,6 +340,7 @@ impl PdfCraftApp {
     pub fn start_signing(&mut self, page: usize, rect: Option<[f64; 4]>, field: Option<String>, certify: Option<u8>) {
         self.refresh_os_key_store_ids();
         let mut draft = SignDraft::new(page, rect, field, certify, &self.digital_ids);
+        draft.background = self.sign_background.clone();
         draft.graphic = match &self.sign_graphic {
             SignGraphic::FillSign if self.signature.is_none() => SignGraphic::Name,
             g => g.clone(),
@@ -284,6 +349,36 @@ impl PdfCraftApp {
             draft.image = Some(image.clone());
         }
         self.sign_draft = Some(draft);
+        self.dialog = Some(crate::Dialog::Sign);
+    }
+
+    pub(crate) fn choose_sign_pages(&mut self) {
+        let Some((index, id)) = self.active_ids() else { return };
+        let Some(draft) = &mut self.sign_draft else { return };
+        draft.choosing_pages = Some(id);
+        if let Some(view) = self.views.get_mut(index) {
+            view.open_organize();
+            view.select_pages(&draft.protected_pages);
+            view.organize_pick = true;
+            view.org_drag = None;
+        }
+        self.left = crate::LeftPanel::Tool("organize");
+        self.left_open = true;
+    }
+
+    pub(crate) fn finish_sign_page_choice(&mut self, accept: bool) {
+        let Some((index, id)) = self.active_ids() else { return };
+        let Some(draft) = self.sign_draft.as_mut().filter(|d| d.choosing_pages == Some(id)) else { return };
+        if let Some(view) = self.views.get_mut(index) {
+            if accept {
+                draft.protected_pages = view.selected.iter().copied().collect();
+                draft.protected_pages.sort_unstable();
+            }
+            view.organize = false;
+            view.organize_pick = false;
+        }
+        draft.choosing_pages = None;
+        self.left = crate::organize_panel::workspace_panel(self.mode);
         self.dialog = Some(crate::Dialog::Sign);
     }
 
@@ -441,21 +536,38 @@ impl PdfCraftApp {
             reason: some(&d.reason),
             location: some(&d.location),
             certify: d.certify,
+            protected_pages: match d.protection {
+                SignProtection::ExistingPages => (0..self.session.get(doc_id).map_or(0, |doc| doc.info.pages.len())).collect(),
+                SignProtection::SignedPage => vec![d.page],
+                SignProtection::SelectedPages if d.protected_pages.is_empty() => return Err("Select at least one page to protect.".into()),
+                SignProtection::SelectedPages => d.protected_pages.clone(),
+                _ => Vec::new(),
+            },
+            allow_insert: true,
             appearance: d.appearance.clone(),
             // The labels the preview shows: in the interface language, or all in English.
             appearance_labels: appearance_labels(crate::i18n::current()).0,
             graphic,
+            background: d.background.image()?.map(|image| image.graphic()),
             ..SignOptions::default()
         };
         // Signing saves, as in Acrobat: choose where (a cancelled save cancels signing). The
         // document is signed once the user has chosen.
         let name = self.session.get(doc_id).map(|d| d.name.clone()).unwrap_or_default();
         let stem = name.trim_end_matches(".pdf").trim_end_matches(".PDF").to_string();
+        let background = d.background.clone();
+        let timestamp = d.timestamp.then(|| self.timestamp_server.clone());
+        if let Some(url) = &timestamp {
+            pdfcraft_platform::timestamp::TimestampServer::new(url).map_err(|e| e.to_string())?;
+        }
         let sign_and_save = move |app: &mut Self, path: PathBuf| -> Result<(), String> {
             // Sign what was typed while the save panel was open, too (#166); a refused value
             // has said why already.
             if !app.commit_typing_in(doc_id) {
                 return Err(String::new());
+            }
+            if let Some(url) = timestamp {
+                return app.start_timestamp(doc_id, path, Some((id, opts, choice, background)), &url);
             }
             let signed = app.session.sign(doc_id, &id, opts).map_err(|e| e.to_string())?;
             crate::editing::write_atomically(&path.to_string_lossy(), signed.as_slice()).map_err(|e| format!("Could not save: {e}"))?;
@@ -466,6 +578,7 @@ impl PdfCraftApp {
             #[cfg(target_os = "macos")]
             crate::macos_association::repair(&path);
             app.sign_graphic = choice;
+            app.sign_background = background;
             if let Some(view) = app.views.iter_mut().find(|v| v.id == doc_id) {
                 view.invalidate_content();
             }
@@ -506,7 +619,7 @@ impl PdfCraftApp {
 
     /// Sign as ▸ Choose image…: answered only into the signing dialog that asked.
     #[cfg(not(target_arch = "wasm32"))]
-    pub(crate) fn pick_sign_graphic_image(&mut self) {
+    pub(crate) fn pick_sign_graphic_image(&mut self, background: bool) {
         let epoch = self.dialog_epoch();
         let dialog = rfd::AsyncFileDialog::new().add_filter(tl!("Image"), &["png", "jpg", "jpeg"]);
         self.ask_one(crate::pickers::Ask::File(dialog), None, move |app, path| {
@@ -520,8 +633,12 @@ impl PdfCraftApp {
                 .and_then(|image| image.remove_white_background(245, 35));
             match (image, app.sign_draft.as_mut()) {
                 (Ok(image), Some(d)) => {
-                    d.graphic = SignGraphic::Image(image.clone());
-                    d.image = Some(image);
+                    if background {
+                        d.background = SignBackground::Image(image);
+                    } else {
+                        d.graphic = SignGraphic::Image(image.clone());
+                        d.image = Some(image);
+                    }
                     d.error = None;
                 }
                 (Ok(_), None) => {}
@@ -654,7 +771,7 @@ pub(crate) fn dialog(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bo
 }
 
 fn title(ui: &mut egui::Ui, text: &str) {
-    ui.label(egui::RichText::new(tl!(text)).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!(text));
     ui.add_space(4.0);
     ui.separator();
     ui.add_space(8.0);
@@ -743,10 +860,10 @@ fn choose(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     if let Some(e) = d.confirm_remove.and_then(|i| ids.get(i)) {
         ui.label(crate::i18n::fmt(tl!("Remove \"{name}\" from this list? The file itself is not deleted."), &[("name", &e.name)]));
         ui.horizontal(|ui| {
-            if widgets::pill_button(ui, tl!("Remove"), true).clicked() {
+            if widgets::dialog_button(ui, tl!("Remove"), widgets::DialogAction::Destructive).clicked() {
                 remove = d.confirm_remove;
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 d.confirm_remove = None;
             }
         });
@@ -754,22 +871,27 @@ fn choose(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     }
     let removable = d.selected.filter(|&i| ids.get(i).is_some_and(|e| !e.path.starts_with("keychain:") && !e.path.starts_with("windows:")));
     ui.horizontal(|ui| {
-        if widgets::pill_button(ui, tl!("Configure New Digital ID"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Configure New Digital ID"), widgets::DialogAction::Back).clicked() {
             d.step = SignStep::Configure;
             d.error = None;
         }
-        if d.confirm_remove.is_none() && ui.add_enabled_ui(removable.is_some(), |ui| widgets::pill_button(ui, tl!("Remove"), false)).inner.clicked() {
+        if d.confirm_remove.is_none()
+            && ui
+                .add_enabled_ui(removable.is_some(), |ui| widgets::dialog_button(ui, tl!("Remove"), widgets::DialogAction::Destructive))
+                .inner
+                .clicked()
+        {
             d.confirm_remove = removable;
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui.add_enabled_ui(d.selected.is_some(), |ui| widgets::pill_button(ui, tl!("Continue"), true)).inner.clicked() {
-                d.step = SignStep::SignAs;
-                d.error = None;
-            }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
-                close = true;
-            }
-        });
+    });
+    crate::widgets::dialog_footer(ui, |ui| {
+        if ui.add_enabled_ui(d.selected.is_some(), |ui| widgets::dialog_button(ui, tl!("Continue"), widgets::DialogAction::Confirm)).inner.clicked() {
+            d.step = SignStep::SignAs;
+            d.error = None;
+        }
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+            close = true;
+        }
     });
     if let Some(i) = remove {
         app.remove_digital_id(i);
@@ -785,75 +907,75 @@ fn configure(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     // Browse… is desktop-only.
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
     let mut browse = false;
-    widgets::radio_value(ui, &mut d.new_id.create, false, tl!("Use a Digital ID from a file"));
-    widgets::radio_value(ui, &mut d.new_id.create, true, tl!("Create a new Digital ID (self-signed, saved to a password-protected file)"));
-    ui.add_space(8.0);
-    let n = &mut d.new_id;
-    if n.create {
-        egui::Grid::new("new-id").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-            for (label, value) in [
-                (tl!("Name"), &mut n.name),
-                (tl!("Organizational Unit"), &mut n.unit),
-                (tl!("Organization Name"), &mut n.organization),
-                (tl!("Email Address"), &mut n.email),
-            ] {
-                let l = ui.label(label);
-                ui.add(crate::widgets::line(value).desired_width(260.0)).labelled_by(l.id);
+    widgets::dialog_scroll(ui, "configure-id-body", |ui| {
+        widgets::radio_value(ui, &mut d.new_id.create, false, tl!("Use a Digital ID from a file"));
+        widgets::radio_value(ui, &mut d.new_id.create, true, tl!("Create a new Digital ID (self-signed, saved to a password-protected file)"));
+        ui.add_space(8.0);
+        let n = &mut d.new_id;
+        if n.create {
+            egui::Grid::new("new-id").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+                for (label, value) in [
+                    (tl!("Name"), &mut n.name),
+                    (tl!("Organizational Unit"), &mut n.unit),
+                    (tl!("Organization Name"), &mut n.organization),
+                    (tl!("Email Address"), &mut n.email),
+                ] {
+                    let l = ui.label(label);
+                    ui.add(crate::widgets::line(value).desired_width(260.0)).labelled_by(l.id);
+                    ui.end_row();
+                }
+                let l = ui.label(tl!("Country/Region"));
+                ui.add(crate::widgets::line(&mut n.country).hint_text("US").char_limit(2).desired_width(60.0)).labelled_by(l.id);
                 ui.end_row();
-            }
-            let l = ui.label(tl!("Country/Region"));
-            ui.add(crate::widgets::line(&mut n.country).hint_text("US").char_limit(2).desired_width(60.0)).labelled_by(l.id);
-            ui.end_row();
-            ui.label(tl!("Key Algorithm"));
-            egui::ComboBox::from_id_salt("key-alg").selected_text(KEY_ALGORITHMS[n.key].0).show_ui(ui, |ui| {
-                for (i, (label, _)) in KEY_ALGORITHMS.iter().enumerate() {
-                    ui.selectable_value(&mut n.key, i, *label);
-                }
+                ui.label(tl!("Key Algorithm"));
+                egui::ComboBox::from_id_salt("key-alg").selected_text(KEY_ALGORITHMS[n.key].0).show_ui(ui, |ui| {
+                    for (i, (label, _)) in KEY_ALGORITHMS.iter().enumerate() {
+                        ui.selectable_value(&mut n.key, i, *label);
+                    }
+                });
+                ui.end_row();
+                let l = ui.label(tl!("Password"));
+                ui.add(crate::widgets::line(&mut n.password).password(true).desired_width(200.0)).labelled_by(l.id);
+                ui.end_row();
+                let l = ui.label(tl!("Confirm Password"));
+                ui.add(crate::widgets::line(&mut n.confirm).password(true).desired_width(200.0)).labelled_by(l.id);
+                ui.end_row();
             });
-            ui.end_row();
-            let l = ui.label(tl!("Password"));
-            ui.add(crate::widgets::line(&mut n.password).password(true).desired_width(200.0)).labelled_by(l.id);
-            ui.end_row();
-            let l = ui.label(tl!("Confirm Password"));
-            ui.add(crate::widgets::line(&mut n.confirm).password(true).desired_width(200.0)).labelled_by(l.id);
-            ui.end_row();
-        });
-        ui.label(
-            egui::RichText::new(tl!("Valid for 5 years, for digital signatures. Self-signed IDs are usually not trusted by others."))
-                .small()
-                .color(t.text_muted),
-        );
-    } else {
-        egui::Grid::new("id-file").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-            let l = ui.label(tl!("File (.p12, .pfx)"));
-            ui.horizontal(|ui| {
-                ui.add(crate::widgets::line(&mut n.file).desired_width(220.0)).labelled_by(l.id);
-                #[cfg(not(target_arch = "wasm32"))]
-                if ui.button(tl!("Browse…")).clicked() {
-                    browse = true;
-                }
+            ui.label(
+                egui::RichText::new(tl!("Valid for 5 years, for digital signatures. Self-signed IDs are usually not trusted by others."))
+                    .small()
+                    .color(t.text_muted),
+            );
+        } else {
+            egui::Grid::new("id-file").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+                let l = ui.label(tl!("File (.p12, .pfx)"));
+                ui.horizontal(|ui| {
+                    ui.add(crate::widgets::line(&mut n.file).desired_width(220.0)).labelled_by(l.id);
+                    #[cfg(not(target_arch = "wasm32"))]
+                    if widgets::dialog_button(ui, tl!("Browse…"), widgets::DialogAction::Back).clicked() {
+                        browse = true;
+                    }
+                });
+                ui.end_row();
+                let l = ui.label(tl!("Password"));
+                ui.add(crate::widgets::line(&mut n.file_password).password(true).desired_width(200.0)).labelled_by(l.id);
+                ui.end_row();
             });
-            ui.end_row();
-            let l = ui.label(tl!("Password"));
-            ui.add(crate::widgets::line(&mut n.file_password).password(true).desired_width(200.0)).labelled_by(l.id);
-            ui.end_row();
-        });
-    }
-    ui.add_space(6.0);
-    error(ui, &d.error);
-    ui.horizontal(|ui| {
-        if !app.digital_ids.is_empty() && widgets::pill_button(ui, tl!("Back"), false).clicked() {
+        }
+        ui.add_space(6.0);
+        error(ui, &d.error);
+    });
+    crate::widgets::dialog_footer(ui, |ui| {
+        if widgets::dialog_button(ui, if d.new_id.create { tl!("Save") } else { tl!("Continue") }, widgets::DialogAction::Confirm).clicked() {
+            go = true;
+        }
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+            close = true;
+        }
+        if !app.digital_ids.is_empty() && widgets::dialog_button(ui, tl!("Back"), widgets::DialogAction::Back).clicked() {
             d.step = SignStep::Choose;
             d.error = None;
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, if d.new_id.create { tl!("Save") } else { tl!("Continue") }, true).clicked() {
-                go = true;
-            }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
-                close = true;
-            }
-        });
     });
     if go {
         let create = app.sign_draft.as_ref().is_some_and(|d| d.new_id.create);
@@ -953,15 +1075,20 @@ fn detail_lines(a: &Appearance, labels: &AppearanceLabels, name: &str, reason: &
 
 /// The signature as it will look: the graphic (or the name) on the left, the details beside it
 /// (`lines`, from [`detail_lines`] with the labels signing will stamp).
+type GraphicPreview = Option<(SavedSig, egui::TextureHandle)>;
+
 fn preview(
     ui: &mut egui::Ui,
     t: &Tokens,
     name: &str,
-    a: &Appearance,
+    draft: &SignDraft,
     lines: &[String],
     graphic: Option<&SavedSig>,
-    cache: &mut Option<(SavedSig, egui::TextureHandle)>,
+    caches: (&mut GraphicPreview, &mut GraphicPreview),
 ) {
+    let a = &draft.appearance;
+    let background = &draft.background;
+    let (cache, background_cache) = caches;
     let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 96.0), egui::Sense::hover());
     let bg = if t.dark() { Color32::from_gray(0xF4) } else { Color32::WHITE };
     ui.painter().rect(rect, CornerRadius::same(4), bg, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
@@ -976,6 +1103,23 @@ fn preview(
         ui.painter().galley(half.left_center() - vec2(0.0, galley.size().y / 2.0), galley, Color32::BLACK);
     }
     let x = if (a.name || graphic.is_some()) && !alone { inner.center().x + 6.0 } else { inner.left() };
+    let area = Rect::from_min_max(egui::pos2(x, inner.top()), inner.max);
+    if !lines.is_empty() {
+        match background {
+            SignBackground::Lion => {
+                let size = vec2(area.width().min(area.height()), area.width().min(area.height()));
+                let image = egui::Image::from_bytes("bytes://signature-lion.png", crate::app_icon::png(false)).tint(Color32::from_white_alpha(31));
+                image.paint_at(ui, Rect::from_center_size(area.center(), size));
+            }
+            SignBackground::Image(image) => {
+                ui.scope(|ui| {
+                    ui.set_opacity(0.12);
+                    crate::fill_sign::paint_saved(ui, area, &SavedSig::Image(image.clone()), background_cache, "signature-background");
+                });
+            }
+            SignBackground::None => {}
+        }
+    }
     let galley = ui.painter().layout(lines.join("\n"), theme::regular(11.0), Color32::from_gray(0x20), inner.right() - x);
     ui.painter().galley(egui::pos2(x, inner.center().y - galley.size().y / 2.0), galley, Color32::BLACK);
 }
@@ -984,6 +1128,11 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     let ids = app.digital_ids.clone();
     // The time as the signature will show it (signing takes the session clock then).
     let date = sign::pdf::display_date(&app.session.signing_date());
+    let document = app.active_ids().and_then(|(_, id)| app.session.get(id));
+    let page_count = document.map_or(0, |doc| doc.info.pages.len());
+    let mut choose_pages = false;
+    let may_certify = document.is_some_and(|doc| !doc.is_signed());
+    let existing_locks = document.map_or(0, |doc| doc.protected_pages().len());
     let Some(d) = app.sign_draft.as_mut() else { return true };
     let Some(entry) = d.selected.and_then(|i| ids.get(i)).cloned() else {
         d.step = SignStep::Choose;
@@ -1001,115 +1150,185 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     let mut go = false;
     #[cfg(not(target_arch = "wasm32"))]
     let mut pick = false;
-    if d.rect.is_some() || d.field.is_some() {
-        ui.label(egui::RichText::new(tl!("Appearance")).font(theme::semibold(12.5)));
-        let graphic = graphic_of(app.signature.as_ref(), &d.graphic);
-        let (labels, in_english) = appearance_labels(crate::i18n::current());
-        let lines = detail_lines(&d.appearance, &labels, &entry.name, &d.reason, &d.location, &date);
-        preview(ui, t, &entry.name, &d.appearance, &lines, graphic.as_ref(), &mut app.sign_graphic_preview);
-        if in_english && d.appearance.labels {
-            ui.label(
-                egui::RichText::new(tl!("The labels are in English: the signature's font can't draw them in this language."))
-                    .small()
-                    .color(t.text_muted),
-            );
-        }
-        ui.horizontal_wrapped(|ui| {
-            let a = &mut d.appearance;
-            ui.add(widgets::checkbox(&mut a.name, tl!("Name")));
-            ui.add(widgets::checkbox(&mut a.date, tl!("Date")));
-            ui.add(widgets::checkbox(&mut a.reason, tl!("Reason")));
-            ui.add(widgets::checkbox(&mut a.location, tl!("Location")));
-            ui.add(widgets::checkbox(&mut a.distinguished_name, tl!("Distinguished name")));
-            ui.add(widgets::checkbox(&mut a.labels, tl!("Labels")));
-        });
-        // Acrobat: Configure Signature Appearance, Text, Draw or Image.
-        ui.horizontal_wrapped(|ui| {
-            ui.label(tl!("Graphic"));
-            widgets::radio_value(ui, &mut d.graphic, SignGraphic::Name, tl!("Signer's name"));
-            ui.add_enabled_ui(app.signature.is_some(), |ui| {
-                if ui.add(widgets::radio(d.graphic == SignGraphic::FillSign, tl!("Fill & Sign signature"))).clicked() {
-                    d.graphic = SignGraphic::FillSign;
+    #[cfg(not(target_arch = "wasm32"))]
+    let mut pick_background = false;
+    widgets::dialog_scroll(ui, "sign-as-body", |ui| {
+        if d.rect.is_some() || d.field.is_some() {
+            ui.label(egui::RichText::new(tl!("Appearance")).font(theme::semibold(12.5)));
+            let graphic = graphic_of(app.signature.as_ref(), &d.graphic);
+            let (labels, in_english) = appearance_labels(crate::i18n::current());
+            let lines = detail_lines(&d.appearance, &labels, &entry.name, &d.reason, &d.location, &date);
+            preview(ui, t, &entry.name, d, &lines, graphic.as_ref(), (&mut app.sign_graphic_preview, &mut app.sign_background_preview));
+            if in_english && d.appearance.labels {
+                ui.label(
+                    egui::RichText::new(tl!("The labels are in English: the signature's font can't draw them in this language."))
+                        .small()
+                        .color(t.text_muted),
+                );
+            }
+            egui::Grid::new("signature-details").num_columns(3).spacing([16.0, 6.0]).show(ui, |ui| {
+                let a = &mut d.appearance;
+                ui.add(widgets::checkbox(&mut a.name, tl!("Name")));
+                ui.add(widgets::checkbox(&mut a.date, tl!("Date")));
+                ui.add(widgets::checkbox(&mut a.reason, tl!("Reason")));
+                ui.end_row();
+                ui.add(widgets::checkbox(&mut a.location, tl!("Location")));
+                ui.add(widgets::checkbox(&mut a.distinguished_name, tl!("Distinguished name")));
+                ui.add(widgets::checkbox(&mut a.labels, tl!("Labels")));
+                ui.end_row();
+            });
+            // Acrobat: Configure Signature Appearance, Text, Draw or Image.
+            ui.horizontal_wrapped(|ui| {
+                ui.label(tl!("Graphic"));
+                widgets::radio_value(ui, &mut d.graphic, SignGraphic::Name, tl!("Signer's name"));
+                ui.add_enabled_ui(app.signature.is_some(), |ui| {
+                    if ui.add(widgets::radio(d.graphic == SignGraphic::FillSign, tl!("Fill & Sign signature"))).clicked() {
+                        d.graphic = SignGraphic::FillSign;
+                    }
+                });
+                ui.add_enabled_ui(d.image.is_some(), |ui| {
+                    if ui.add(widgets::radio(matches!(d.graphic, SignGraphic::Image(_)), tl!("Image"))).clicked()
+                        && let Some(image) = &d.image
+                    {
+                        d.graphic = SignGraphic::Image(image.clone());
+                    }
+                });
+                #[cfg(not(target_arch = "wasm32"))]
+                if widgets::dialog_button(ui, tl!("Choose image…"), widgets::DialogAction::Back).clicked() {
+                    pick = true;
                 }
             });
-            ui.add_enabled_ui(d.image.is_some(), |ui| {
-                if ui.add(widgets::radio(matches!(d.graphic, SignGraphic::Image(_)), tl!("Image"))).clicked()
-                    && let Some(image) = &d.image
-                {
-                    d.graphic = SignGraphic::Image(image.clone());
-                }
+            ui.separator();
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Background behind details");
+                widgets::radio_value(ui, &mut d.background, SignBackground::Lion, "PdfCraft lion");
+                widgets::radio_value(ui, &mut d.background, SignBackground::None, tl!("None"));
             });
             #[cfg(not(target_arch = "wasm32"))]
-            if widgets::pill_button(ui, tl!("Choose image…"), false).clicked() {
-                pick = true;
+            if widgets::dialog_button(ui, "Choose background image…", widgets::DialogAction::Back).clicked() {
+                pick_background = true;
             }
-        });
-        ui.add_space(6.0);
-    } else {
-        ui.label(egui::RichText::new(tl!("The signature will be invisible.")).color(t.text_muted));
-    }
-    egui::Grid::new("sign-as").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-        if d.certify.is_some() {
-            ui.label(tl!("Permitted actions after certifying"));
-            let mut p = d.certify.unwrap_or(2);
-            let label = |p: u8| match p {
-                1 => tl!("No changes allowed"),
-                3 => tl!("Annotations, form fill-in, and digital signatures"),
-                _ => tl!("Form fill-in and digital signatures"),
-            };
-            egui::ComboBox::from_id_salt("certify-p").selected_text(label(p)).width(300.0).show_ui(ui, |ui| {
-                for v in [1u8, 2, 3] {
-                    ui.selectable_value(&mut p, v, label(v));
-                }
-            });
-            d.certify = Some(p);
-            ui.end_row();
-        }
-        let l = ui.label(tl!("Reason"));
-        ui.add(crate::widgets::line(&mut d.reason).hint_text(tl!("Optional")).desired_width(260.0)).labelled_by(l.id);
-        ui.end_row();
-        let l = ui.label(tl!("Location"));
-        ui.add(crate::widgets::line(&mut d.location).hint_text(tl!("Optional")).desired_width(260.0)).labelled_by(l.id);
-        ui.end_row();
-        if in_os_key_store {
-            ui.label("");
-            ui.label(
-                egui::RichText::new(if entry.path.starts_with("windows:") {
-                    tl!("The key is in the Windows certificate store, which may ask to allow PdfCraft to use it.")
-                } else {
-                    tl!("The key is in the macOS Keychain, which may ask to allow PdfCraft to use it.")
-                })
-                .small()
-                .color(t.text_muted),
-            );
+            ui.add_space(6.0);
         } else {
-            let l = ui.label(tl!("Digital ID password"));
-            let r = ui.add(crate::widgets::line(&mut d.password).password(true).desired_width(200.0)).labelled_by(l.id);
-            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                go = true;
-            }
+            ui.label(egui::RichText::new(tl!("The signature will be invisible.")).color(t.text_muted));
         }
-        ui.end_row();
+        if existing_locks > 0 {
+            ui.label(egui::RichText::new(format!("{existing_locks} page(s) are already locked. Signing captures ordinary locks; remove the protecting signatures before unlocking them afterward.")).small().color(t.text_muted));
+            ui.add_space(6.0);
+        }
+        egui::Grid::new("sign-as").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+            let label = ui.label("After signing");
+            egui::ComboBox::from_id_salt("signature-protection")
+                .selected_text(d.protection.label())
+                .width(360.0)
+                .show_ui(ui, |ui| {
+                    for choice in [
+                        SignProtection::None,
+                        SignProtection::NoChanges,
+                        SignProtection::Forms,
+                        SignProtection::Comments,
+                        SignProtection::ExistingPages,
+                        SignProtection::SignedPage,
+                        SignProtection::SelectedPages,
+                    ] {
+                        let native = matches!(choice, SignProtection::NoChanges | SignProtection::Forms | SignProtection::Comments);
+                        ui.add_enabled_ui(!native || may_certify, |ui| {
+                            ui.selectable_value(&mut d.protection, choice, choice.label());
+                        });
+                    }
+                })
+                .response
+                .labelled_by(label.id);
+            d.certify = match d.protection {
+                SignProtection::NoChanges => Some(1),
+                SignProtection::Forms => Some(2),
+                SignProtection::Comments => Some(3),
+                _ => None,
+            };
+            ui.end_row();
+            if matches!(d.protection, SignProtection::ExistingPages | SignProtection::SignedPage | SignProtection::SelectedPages) {
+                ui.label("");
+                ui.add_sized(
+                [360.0, 44.0],
+                egui::Label::new(
+                    egui::RichText::new(
+                        "Page protection is enforced by PdfCraft. Other PDF readers may ignore it. Added pages are not covered by this signature.",
+                    )
+                    .small()
+                    .color(t.text_muted),
+                )
+                .wrap(),
+            );
+                ui.end_row();
+            }
+            if d.protection == SignProtection::SelectedPages {
+                ui.label("Protected pages");
+                ui.vertical(|ui| {
+                    ui.label(format!("{} of {page_count} pages selected", d.protected_pages.len()));
+                    if widgets::dialog_button(ui, "Choose pages in Organize Pages…", widgets::DialogAction::Back).clicked() {
+                        choose_pages = true;
+                    }
+                });
+                ui.end_row();
+            }
+            let l = ui.label(tl!("Reason"));
+            ui.add(crate::widgets::line(&mut d.reason).hint_text(tl!("Optional")).desired_width(260.0)).labelled_by(l.id);
+            ui.end_row();
+            let l = ui.label(tl!("Location"));
+            ui.add(crate::widgets::line(&mut d.location).hint_text(tl!("Optional")).desired_width(260.0)).labelled_by(l.id);
+            ui.end_row();
+            if in_os_key_store {
+                ui.label("");
+                ui.label(
+                    egui::RichText::new(if entry.path.starts_with("windows:") {
+                        tl!("The key is in the Windows certificate store, which may ask to allow PdfCraft to use it.")
+                    } else {
+                        tl!("The key is in the macOS Keychain, which may ask to allow PdfCraft to use it.")
+                    })
+                    .small()
+                    .color(t.text_muted),
+                );
+            } else {
+                let l = ui.label(tl!("Digital ID password"));
+                let r = ui.add(crate::widgets::line(&mut d.password).password(true).desired_width(200.0)).labelled_by(l.id);
+                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                    go = true;
+                }
+            }
+            ui.end_row();
+        });
+        ui.separator();
+        ui.label("Signing date uses this computer's clock.");
+        ui.add(widgets::checkbox(&mut d.timestamp, "Add trusted timestamp"))
+            .on_hover_text("Optional: also request an independently verified timestamp from the selected server.");
+        if d.timestamp {
+            crate::timestamp_ui::server_selector(ui, &mut app.timestamp_server);
+        }
+        ui.add_space(6.0);
+        error(ui, &d.error);
     });
-    ui.add_space(6.0);
-    error(ui, &d.error);
-    ui.horizontal(|ui| {
-        if widgets::pill_button(ui, tl!("Back"), false).clicked() {
+    crate::widgets::dialog_footer(ui, |ui| {
+        if widgets::dialog_button(ui, tl!("Sign"), widgets::DialogAction::Confirm).clicked() {
+            go = true;
+        }
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+            close = true;
+        }
+        if widgets::dialog_button(ui, tl!("Back"), widgets::DialogAction::Back).clicked() {
             d.step = SignStep::Choose;
             d.error = None;
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if widgets::pill_button(ui, tl!("Sign"), true).clicked() {
-                go = true;
-            }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
-                close = true;
-            }
-        });
     });
     #[cfg(not(target_arch = "wasm32"))]
     if pick {
-        app.pick_sign_graphic_image();
+        app.pick_sign_graphic_image(false);
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    if pick_background {
+        app.pick_sign_graphic_image(true);
+    }
+    if choose_pages {
+        app.choose_sign_pages();
     }
     if go {
         match app.finish_signing() {
@@ -1191,6 +1410,8 @@ pub enum PanelAction {
     ExportCertificate(Box<Certificate>),
     /// Certificate Viewer for the signer's chain (signer first).
     ViewCertificate(Vec<Certificate>),
+    /// Remove Signature, with this field chosen.
+    Remove(String),
 }
 
 /// The Signatures panel body.
@@ -1246,7 +1467,7 @@ pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, sigs: &[SignatureInfo], expan
         egui::Frame::NONE.inner_margin(egui::Margin { left: 44, right: 4, top: 2, bottom: 8 }).show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 3.0;
             if !s.signed {
-                if widgets::pill_button(ui, tl!("Sign this field…"), true).clicked() {
+                if widgets::dialog_button(ui, tl!("Sign this field…"), widgets::DialogAction::Confirm).clicked() {
                     action = Some(PanelAction::Sign(s.field.clone()));
                 }
                 return;
@@ -1333,10 +1554,429 @@ pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, sigs: &[SignatureInfo], expan
                 {
                     action = Some(PanelAction::ExportCertificate(Box::new(c.clone())));
                 }
+                if !s.doc_timestamp && ui.button(tl!("Remove signature…")).clicked() {
+                    action = Some(PanelAction::Remove(s.field.clone()));
+                }
             });
         });
     }
     action
+}
+
+/// Remove Signature (Acrobat: Clear Signature): the document's signatures that can be listed,
+/// the one chosen, and whether its field stays. Nothing changes until a new file is chosen.
+#[derive(Clone)]
+pub struct RemoveSigDraft {
+    pub doc: DocId,
+    pub items: Vec<Removable>,
+    pub selected: Option<usize>,
+    /// Keep an empty signature field to sign again, instead of removing the field.
+    pub keep_field: bool,
+    /// Only for a file-based ID. Card PINs are handled exclusively by the OS provider.
+    pub password: String,
+}
+
+impl std::fmt::Debug for RemoveSigDraft {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RemoveSigDraft")
+            .field("doc", &self.doc)
+            .field("items", &self.items)
+            .field("selected", &self.selected)
+            .field("keep_field", &self.keep_field)
+            .finish_non_exhaustive()
+    }
+}
+
+impl RemoveSigDraft {
+    fn chosen(&self) -> Option<&Removable> {
+        self.selected.and_then(|i| self.items.get(i)).filter(|r| r.blocked.is_none())
+    }
+}
+
+fn kind_label(r: &Removable) -> String {
+    match r.kind {
+        RemoveKind::Digital => tl!("Digital signature").to_string(),
+        RemoveKind::Certification(p) => crate::i18n::fmt(tl!("Certification signature (level {p})"), &[("p", &p.to_string())]),
+        RemoveKind::DocumentTimestamp => tl!("Document timestamp").to_string(),
+        RemoveKind::Visual { initials: false } => tl!("Visual signature (Fill & Sign, not digital)").to_string(),
+        RemoveKind::Visual { initials: true } => tl!("Visual initials (Fill & Sign, not digital)").to_string(),
+    }
+}
+
+fn said(wording: (&'static str, String)) -> String {
+    crate::i18n::fmt(tl!(wording.0), &[("names", &wording.1)])
+}
+
+impl PdfCraftApp {
+    /// The page menu clears only a signature matching an available signing identity.
+    pub(crate) fn start_remove_own_signature(&mut self, field: &str) {
+        let cert = self
+            .active_ids()
+            .and_then(|(_, id)| self.session.get(id))
+            .and_then(|d| d.signatures.iter().find(|s| s.field == field && s.signed && !s.doc_timestamp))
+            .and_then(|s| s.certificate.clone());
+        self.refresh_os_key_store_ids();
+        let owned = cert.is_some_and(|cert| self.digital_ids.iter().any(|id| id.unusable.is_none() && id.fingerprint == cert.fingerprint()));
+        if owned {
+            self.start_remove_signature(Some(field));
+        } else {
+            self.notify("The matching signing identity is unavailable. Insert your card or add the matching digital ID.");
+        }
+    }
+
+    /// Open Remove Signature for the active document, with `field` chosen when given.
+    pub fn start_remove_signature(&mut self, field: Option<&str>) {
+        let Some((_, id)) = self.active_ids() else { return };
+        self.refresh_os_key_store_ids();
+        match self.session.removable_signatures(id) {
+            Ok(items) => {
+                let selected = field
+                    .and_then(|f| items.iter().position(|r| r.field.as_deref() == Some(f)))
+                    .or_else(|| items.iter().position(|r| r.blocked.is_none()));
+                self.remove_sig = Some(RemoveSigDraft { doc: id, items, selected, keep_field: false, password: String::new() });
+                self.dialog = Some(crate::Dialog::RemoveSignature);
+            }
+            Err(e) => self.notify_error(e),
+        }
+    }
+
+    /// The dialog's Remove and Save As: ask where the new version goes (never over the
+    /// original), then remove and save there.
+    fn confirm_remove_signature(&mut self) {
+        let Some(draft) = self.remove_sig.take() else { return };
+        let Some(chosen) = draft.chosen().cloned() else { return };
+        let Some(doc) = self.session.get(draft.doc) else { return };
+        let stem = std::path::Path::new(&doc.name).file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_else(|| "document".into());
+        let keep_field = draft.keep_field;
+        let password = draft.password;
+        let id = draft.doc;
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            // Tests and scripts choose the destination ahead, as for Save As.
+            if let Some(dest) = self.save_override.clone() {
+                self.remove_signature_to(id, &chosen, keep_field, &dest, &password);
+                return;
+            }
+            let name = crate::i18n::fmt(tl!("{name}_unsigned.pdf"), &[("name", &stem)]);
+            let dialog = rfd::AsyncFileDialog::new().add_filter("PDF", &["pdf"]).set_file_name(name);
+            self.ask_one(crate::pickers::Ask::Save(dialog), Some(id), move |app, dest| {
+                app.remove_signature_to(id, &chosen, keep_field, &dest.to_string_lossy(), &password);
+            });
+        }
+        // The browser saves by downloading, with nowhere to choose first: remove, then download,
+        // and undo the removal if the download fails.
+        #[cfg(target_arch = "wasm32")]
+        {
+            let _ = stem;
+            if matches!(chosen.target, RemoveTarget::Field(_)) {
+                let _ = password;
+                self.notify("Digital signature removal needs the matching private key on a desktop build. The signed document was kept.");
+                return;
+            }
+            let mark = match self.apply_removal(id, &chosen, keep_field) {
+                Ok(mark) => mark,
+                Err(e) => {
+                    self.notify_fmt("The signature was not removed: {e}", &[("e", &e)]);
+                    return;
+                }
+            };
+            let saved = self.views.iter().position(|v| v.id == id).is_some_and(|index| self.save_view(index, crate::SaveTarget::As));
+            if !saved {
+                self.undo_back_to(id, mark);
+            }
+        }
+    }
+
+    /// Remove `chosen` from document `id` (undoable) and check that it is gone; if it isn't,
+    /// undo it again. Returns the edit position before the removal, for [`Self::undo_back_to`].
+    fn apply_removal(&mut self, id: DocId, chosen: &Removable, keep_field: bool) -> Result<u64, String> {
+        let visuals =
+            |app: &Self| app.session.removable_signatures(id).map(|l| l.iter().filter(|r| matches!(r.kind, RemoveKind::Visual { .. })).count());
+        let before = visuals(self).map_err(|e| e.to_string())?;
+        let edit = match &chosen.target {
+            RemoveTarget::Field(f) => pdfcraft_engine::Edit::ClearSignature { field: f.clone(), remove_field: !keep_field },
+            RemoveTarget::Annotation { page, index } => pdfcraft_engine::Edit::DeleteAnnotation { page: *page, index: *index },
+            RemoveTarget::None => return Err(tl!("this signature can't be removed on its own").to_string()),
+        };
+        let mark = self.session.get(id).and_then(|doc| doc.edit_position()).unwrap_or_default();
+        self.session.apply(id, edit).map_err(|e| e.to_string())?;
+        let gone = match &chosen.target {
+            RemoveTarget::Field(f) => {
+                self.session.get(id).is_some_and(|doc| !doc.signatures.iter().any(|s| &s.field == f && (s.signed || !keep_field)))
+            }
+            _ => visuals(self).is_ok_and(|n| n < before),
+        };
+        self.refresh_view_of(id);
+        if !gone {
+            let _ = self.session.undo(id);
+            self.refresh_view_of(id);
+            return Err(tl!("it was still in the document afterwards, so the change was undone").to_string());
+        }
+        Ok(mark)
+    }
+
+    /// Undo edits back to edit position `mark`, noted before the removal: the removal, and
+    /// whatever saving added after it (flattening Fill & Sign marks, when that preference is
+    /// on), and never an edit the user made before it.
+    fn undo_back_to(&mut self, id: DocId, mark: u64) {
+        while self.session.get(id).and_then(|doc| doc.edit_position()).is_some_and(|p| p > mark) {
+            if self.session.undo(id).is_err() {
+                break;
+            }
+        }
+        self.refresh_view_of(id);
+    }
+
+    fn refresh_view_of(&mut self, id: DocId) {
+        if let Some(doc) = self.session.get(id)
+            && let Some(view) = self.views.iter_mut().find(|v| v.id == id)
+        {
+            view.document_changed(&doc.info);
+        }
+    }
+
+    /// Remove `chosen` and save the document to `dest`, a file other than its own. When the
+    /// save fails the removal is undone, so the document is as it was and nothing is claimed.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn remove_signature_to(&mut self, id: DocId, chosen: &Removable, keep_field: bool, dest: &str, password: &str) {
+        let Some(doc) = self.session.get(id) else { return };
+        if doc.path.as_deref().is_some_and(|p| crate::same_file(p, dest)) {
+            self.notify_tr("Choose another file: the original is kept as it is, and the version without the signature is saved next to it.");
+            return;
+        }
+        if matches!(chosen.target, RemoveTarget::Field(_))
+            && let Err(error) = self.verify_removal_identity(id, chosen, password)
+        {
+            self.notify_fmt("The signature was not removed: {e}", &[("e", &error)]);
+            return;
+        }
+        let mark = match self.apply_removal(id, chosen, keep_field) {
+            Ok(mark) => mark,
+            Err(e) => {
+                self.notify_fmt("The signature was not removed: {e}", &[("e", &e)]);
+                return;
+            }
+        };
+        if !self.save_doc_to(id, dest, crate::SaveTarget::As) {
+            // The save said why; the document goes back to how it was.
+            self.undo_back_to(id, mark);
+            return;
+        }
+        let Some(doc) = self.session.get(id) else { return };
+        let file = std::path::Path::new(dest).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| dest.to_string());
+        let what = match (&chosen.target, keep_field) {
+            (RemoveTarget::Annotation { page, .. }, _) => {
+                crate::i18n::fmt(tl!("Removed the visual signature on page {p}"), &[("p", &(page + 1).to_string())])
+            }
+            (_, true) => {
+                crate::i18n::fmt(tl!("Removed the signature {field} and kept its empty field"), &[("field", chosen.field.as_deref().unwrap_or(""))])
+            }
+            (_, false) => crate::i18n::fmt(tl!("Removed the signature {field} with its field"), &[("field", chosen.field.as_deref().unwrap_or(""))]),
+        };
+        let history = if doc.is_signed() {
+            tl!("Other signatures remain, so the removed one is still in the file's earlier revision; check the remaining signatures again.")
+        } else {
+            tl!("The new file has no signature left and no earlier revision holding it.")
+        };
+        self.notify(crate::i18n::fmt(
+            tl!("{what}. Saved {file}, checked to reopen with every page. {history}"),
+            &[("what", &what), ("file", &file), ("history", history)],
+        ));
+        self.choose_right_panel(Some(crate::RightPanel::Signatures));
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn verify_removal_identity(&mut self, doc: DocId, chosen: &Removable, password: &str) -> Result<(), String> {
+        use std::io::Read;
+        let field = chosen.field.as_deref().ok_or("This signature has no field")?;
+        let (certificate, binding) = {
+            let doc = self.session.get(doc).ok_or("The document was closed")?;
+            let signature = doc.signatures.iter().find(|s| s.signed && s.field == field).ok_or("This signature is no longer in the document")?;
+            let certificate = signature.certificate.clone().ok_or("The signature has no certificate to verify ownership against")?;
+            let binding = sign::keys::DigestAlg::Sha256.digest(&[&doc.bytes, field.as_bytes()]);
+            (certificate, binding)
+        };
+        self.refresh_os_key_store_ids();
+        let reference = self
+            .digital_ids
+            .iter()
+            .find(|id| id.unusable.is_none() && id.fingerprint == certificate.fingerprint())
+            .map(|id| id.path.clone())
+            .ok_or("The matching signing identity is unavailable. Insert the same CAC/card or add the matching digital ID.")?;
+        let identity = if reference.starts_with("windows:") {
+            windows_id(&reference)?
+        } else if reference.starts_with("keychain:") {
+            keychain_id(&reference)?
+        } else {
+            let mut bytes = Vec::new();
+            std::fs::File::open(&reference).map_err(|e| e.to_string())?.take(16_777_217).read_to_end(&mut bytes).map_err(|e| e.to_string())?;
+            if bytes.len() > 16_777_216 {
+                return Err("The digital ID file exceeds 16 MiB".into());
+            }
+            sign::pkcs12::open(&bytes, password).map_err(|e| e.to_string())?
+        };
+        sign::ownership::prove(&identity, &certificate, &binding).map_err(|e| e.to_string())
+    }
+}
+
+/// The Remove Signature dialog. Returns `true` when it closes.
+pub(crate) fn remove_dialog(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
+    let dirty = app.remove_sig.as_ref().and_then(|d| app.session.get(d.doc)).is_some_and(|d| d.dirty);
+    let Some(d) = app.remove_sig.as_mut() else { return true };
+    title(ui, tl!("Remove Signature"));
+    if d.items.is_empty() {
+        ui.label(tl!("This document has no signature that can be removed."));
+        ui.add_space(6.0);
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(tl!(
+                    "A signature that is part of a page's content, like a scanned page, is not a field or an annotation, so it can't be removed on its own, and PdfCraft doesn't erase parts of a page to hide it. To take it out, redact that area (Redact), or delete the picture with Edit PDF when the signature is an image of its own."
+                ))
+                .color(t.text_muted),
+            )
+            .wrap(),
+        );
+        ui.add_space(12.0);
+        let mut close = false;
+        crate::widgets::dialog_footer(ui, |ui| close = widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked());
+        return close;
+    }
+    ui.label(tl!("Choose the signature to remove:"));
+    ui.add_space(4.0);
+    egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
+        for (i, r) in d.items.iter().enumerate() {
+            let mut head = kind_label(r);
+            match (r.signer.as_deref(), &r.kind) {
+                (Some(signer), _) => head.push_str(&format!(" — {signer}")),
+                (None, RemoveKind::Visual { .. }) => {}
+                (None, _) => head.push_str(&format!(" — {}", tl!("unknown signer"))),
+            }
+            let mut sub = Vec::new();
+            if let Some(f) = &r.field {
+                sub.push(crate::i18n::fmt(tl!("Field: {field}"), &[("field", f)]));
+            }
+            if let Some(p) = r.page {
+                sub.push(crate::i18n::fmt(tl!("Page {p}"), &[("p", &(p + 1).to_string())]));
+            }
+            if let Some(date) = &r.date {
+                sub.push(sign::pdf::display_date(date));
+            }
+            if let Some(status) = r.status {
+                sub.push(
+                    match status {
+                        SignatureStatus::Valid => tl!("validated: valid"),
+                        SignatureStatus::Unknown => tl!("validated: validity unknown"),
+                        SignatureStatus::Invalid => tl!("validated: invalid"),
+                    }
+                    .to_string(),
+                );
+            }
+            let enabled = r.blocked.is_none();
+            ui.add_enabled_ui(enabled, |ui| {
+                if ui.add(widgets::radio(d.selected == Some(i), egui::RichText::new(head).font(theme::semibold(12.5)))).clicked() {
+                    d.selected = Some(i);
+                }
+            });
+            ui.indent(("remove-sig-row", i), |ui| {
+                ui.add(egui::Label::new(egui::RichText::new(sub.join(" · ")).font(theme::regular(11.5)).color(t.text_muted)).wrap());
+                if let Some(b) = &r.blocked {
+                    ui.add(
+                        egui::Label::new(
+                            egui::RichText::new(said(b.wording()))
+                                .font(theme::regular(11.5))
+                                .color(signature_status_style(SignatureStatus::Invalid).1),
+                        )
+                        .wrap(),
+                    );
+                }
+            });
+            ui.add_space(4.0);
+        }
+    });
+    let Some(chosen) = d.chosen().cloned() else {
+        // Nothing chosen yet: a blocked one was asked for (from its row in the Signatures panel),
+        // or none can be removed at all.
+        let any = d.items.iter().any(|r| r.blocked.is_none());
+        ui.add_space(8.0);
+        let text = if any { tl!("Choose a signature that can be removed.") } else { tl!("None of these signatures can be removed.") };
+        ui.label(egui::RichText::new(text).color(t.text_muted));
+        ui.add_space(12.0);
+        let mut close = false;
+        crate::widgets::dialog_footer(ui, |ui| {
+            close = widgets::dialog_button(
+                ui,
+                if any { tl!("Cancel") } else { tl!("Close") },
+                if any { widgets::DialogAction::Cancel } else { widgets::DialogAction::Back },
+            )
+            .clicked();
+        });
+        if close {
+            app.remove_sig = None;
+        }
+        return close;
+    };
+    ui.add_space(8.0);
+    let digital = matches!(chosen.target, RemoveTarget::Field(_));
+    if digital {
+        ui.add(widgets::checkbox(&mut d.keep_field, tl!("Keep an empty signature field to sign again")));
+        let certificate = chosen.field.as_deref().and_then(|field| {
+            app.session.get(d.doc).and_then(|doc| doc.signatures.iter().find(|s| s.signed && s.field == field)).and_then(|s| s.certificate.as_ref())
+        });
+        let file_id = certificate.is_some_and(|cert| {
+            app.digital_ids
+                .iter()
+                .any(|id| id.fingerprint == cert.fingerprint() && !id.path.starts_with("windows:") && !id.path.starts_with("keychain:"))
+        });
+        if file_id {
+            let label = ui.label(tl!("Digital ID password"));
+            ui.add(widgets::line(&mut d.password).password(true).desired_width(260.0)).labelled_by(label.id);
+        } else {
+            ui.label("The matching CAC/card's private key must be available. Windows may ask for its PIN; a cached certificate is not enough.");
+        }
+        ui.add_space(6.0);
+    }
+    let others = chosen.effects.iter().any(|e| matches!(e, RemoveEffect::OtherSignatures(_)));
+    let warning = match (digital, others) {
+        (true, true) => tl!(
+            "Removing this signature changes the document and invalidates this signature in the version that results. It can affect the other signatures and certifications. The original file is kept as it is."
+        ),
+        (true, false) => tl!(
+            "Removing this signature changes the document and invalidates this signature in the version that results. The original file is kept as it is."
+        ),
+        (false, _) => {
+            tl!("This is a picture of a signature, not a digital signature: only the mark on the page goes. The original file is kept as it is.")
+        }
+    };
+    ui.add(egui::Label::new(egui::RichText::new(warning).font(theme::semibold(12.0))).wrap());
+    for e in &chosen.effects {
+        ui.add(egui::Label::new(egui::RichText::new(format!("• {}", said(e.wording()))).font(theme::regular(11.5)).color(t.text_muted)).wrap());
+    }
+    if dirty {
+        ui.add(
+            egui::Label::new(
+                egui::RichText::new(format!("• {}", tl!("Unsaved changes to this document are saved in the new file too.")))
+                    .font(theme::regular(11.5))
+                    .color(t.text_muted),
+            )
+            .wrap(),
+        );
+    }
+    ui.add_space(4.0);
+    ui.add(egui::Label::new(egui::RichText::new(tl!("You choose where the new version is saved. Continue?")).font(theme::regular(12.0))).wrap());
+    ui.add_space(12.0);
+    let (mut go, mut close) = (false, false);
+    crate::widgets::dialog_footer(ui, |ui| {
+        go = widgets::dialog_button(ui, tl!("Remove and Save As…"), widgets::DialogAction::Destructive).clicked();
+        close = widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked();
+    });
+    if go {
+        app.confirm_remove_signature();
+        return true;
+    }
+    if close {
+        app.remove_sig = None;
+    }
+    close
 }
 
 /// Certificate Viewer: a chain (the end certificate first) and the tab shown.
@@ -1461,20 +2101,22 @@ pub(crate) fn cert_viewer(ui: &mut egui::Ui, v: &mut CertViewer, trusted: &[Cert
                         tl!("This certificate is not trusted. Signatures made with it show an unknown identity.")
                     });
                     ui.add_space(8.0);
-                    if !is_trusted && widgets::pill_button(ui, tl!("Add to Trusted Certificates"), false).clicked() {
+                    if !is_trusted && widgets::dialog_button(ui, tl!("Add to Trusted Certificates"), widgets::DialogAction::Confirm).clicked() {
                         action = Some(CertAction::Trust(Box::new(c.clone())));
                     }
                 }
             }
             ui.add_space(8.0);
-            if widgets::pill_button(ui, tl!("Export…"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Export…"), widgets::DialogAction::Confirm).clicked() {
                 action = Some(CertAction::Export(Box::new(c.clone())));
             }
         });
     });
     ui.add_space(10.0);
     let mut close = false;
-    ui.horizontal(|ui| ui.with_layout(Layout::right_to_left(Align::Center), |ui| close = widgets::pill_button(ui, tl!("OK"), true).clicked()));
+    ui.horizontal(|ui| {
+        crate::widgets::dialog_footer(ui, |ui| close = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked())
+    });
     (close, action)
 }
 
@@ -1590,7 +2232,15 @@ mod tests {
     }
 
     fn listed(path: &str, name: &str) -> DigitalIdEntry {
-        DigitalIdEntry { path: path.into(), name: name.into(), issuer: String::new(), email: String::new(), expires: String::new(), unusable: None }
+        DigitalIdEntry {
+            fingerprint: String::new(),
+            path: path.into(),
+            name: name.into(),
+            issuer: String::new(),
+            email: String::new(),
+            expires: String::new(),
+            unusable: None,
+        }
     }
 
     /// Issue #1396: an imported ID can be taken off the list (its file stays), the dialog's
@@ -1685,6 +2335,8 @@ mod tests {
             sub_filter: None,
             doc_timestamp: false,
             certify,
+            protection: None,
+            integrity_valid: false,
             revision: 1,
             signed_len: 0,
             digest: None,

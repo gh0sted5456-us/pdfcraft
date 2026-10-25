@@ -46,6 +46,31 @@ fn harness() -> Harness<'static, PdfCraftApp> {
     h
 }
 
+#[test]
+fn language_and_spelling_are_separate_and_persist_regional_english() {
+    let mut h = harness();
+    assert!(h.state_mut().execute("app.language_spelling"));
+    h.run_steps(3);
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Language");
+    h.state_mut().set_option("language", "en-GB").unwrap();
+    h.state_mut().set_option("spelling-language", "es-MX").unwrap();
+    h.state_mut().set_option("spell-check", "false").unwrap();
+    h.run_steps(3);
+    h.get_by_label("Spelling language");
+    if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+        h.render().unwrap().save(format!("{dir}/language-spelling-preferences.png")).unwrap();
+    }
+    let saved = h.state().persist();
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&saved);
+    let settings: serde_json::Value = serde_json::from_str(&restored.persist()).unwrap();
+    assert_eq!(settings["language"], "en-gb");
+    assert_eq!(settings["spelling"]["language"], "es-MX");
+    assert_eq!(settings["spelling"]["enabled"], false);
+    assert!(restored.set_option("spelling-language", "../es").is_err());
+    assert_eq!(pdfcraft_ui_egui::i18n::lang_from_tag("en_GB.UTF-8").unwrap().code(), "en-gb");
+}
+
 /// Commands that open a native file picker can't run headless.
 /// (Create ▸ Clipboard reads the system clipboard: tests use `create_from_clip`.)
 const PICKERS: &[&str] = &[
@@ -300,6 +325,10 @@ fn the_pages_menu_comes_from_the_registry() {
     h.run_steps(2);
     h.get_by_label("Pages ⏵").hover();
     h.run_steps(3);
+    // Destructive actions follow the page workflow groups; scroll the last item into view.
+    h.get_by_label_contains("Delete pages").scroll_to_me();
+    h.run_steps(4);
+    assert!(h.ctx.content_rect().contains_rect(h.get_by_label_contains("Delete pages").rect()));
     h.get_by_label_contains("Delete pages").click();
     h.run_steps(3);
     let app = h.state();
@@ -697,5 +726,143 @@ fn ctrl_tab_steps_through_the_tabs_in_order_and_wraps_around() {
     assert!(h.state().combine_showing());
     for doc in h.state().session.docs() {
         assert!(!doc.dirty, "switching tabs changes no document");
+    }
+}
+
+/// ⇧⌘→ / ⇧⌘← (Ctrl+Shift+→ / ← elsewhere) open the next / previous PDF in the open document's
+/// folder, in natural order (#4267): only files ending in `.pdf` in any case, not folders, other
+/// files or hidden ones. A file already open comes to the front. At either end, and for a
+/// document with no folder, nothing opens and the user is told.
+#[test]
+fn ctrl_shift_arrows_open_the_next_and_previous_pdf_in_the_folder() {
+    let dir = std::env::temp_dir().join(format!("pdfcraft-folder-step-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("scan5.pdf")).unwrap();
+    // A plain sort puts scan10 right after scan1; the hidden file and the PDF bytes in a .txt
+    // file would be next to them in any order.
+    for name in ["scan1.pdf", "scan2.pdf", "scan3.txt", "scan10.PDF", ".scan0.pdf"] {
+        std::fs::write(dir.join(name), fixture(1)).unwrap();
+    }
+    let path = |name: &str| dir.join(name).to_string_lossy().into_owned();
+    let mut h = harness();
+    h.state_mut().run_inline = true;
+    h.state_mut().open_path(&path("scan1.pdf"));
+    h.run_steps(3);
+    let shown = |h: &Harness<'static, PdfCraftApp>| {
+        let app = h.state();
+        app.active_ids().and_then(|(_, id)| app.session.get(id)).and_then(|d| d.path.clone())
+    };
+    let press = |h: &mut Harness<'static, PdfCraftApp>, key: Key| {
+        h.state_mut().toast = None;
+        h.key_press_modifiers(Modifiers::COMMAND | Modifiers::SHIFT, key);
+        h.run_steps(3);
+    };
+    press(&mut h, Key::ArrowRight);
+    assert_eq!(shown(&h), Some(path("scan2.pdf")), "scan2 comes after scan1, before scan10");
+    press(&mut h, Key::ArrowRight);
+    assert_eq!(shown(&h), Some(path("scan10.PDF")), "the folder and the text file are skipped");
+    press(&mut h, Key::ArrowRight);
+    assert_eq!(shown(&h), Some(path("scan10.PDF")));
+    assert_eq!(h.state().toast.as_ref().map(|t| t.0.as_str()), Some("This is the last PDF in its folder"));
+    assert_eq!(h.state().views.len(), 4, "three files and the document the harness opened");
+    press(&mut h, Key::ArrowLeft);
+    assert_eq!(shown(&h), Some(path("scan2.pdf")));
+    press(&mut h, Key::ArrowLeft);
+    assert_eq!(shown(&h), Some(path("scan1.pdf")));
+    assert_eq!(h.state().views.len(), 4, "a file already open comes to the front, not into a new tab");
+    press(&mut h, Key::ArrowLeft);
+    assert_eq!(shown(&h), Some(path("scan1.pdf")), "the hidden file is not opened");
+    assert_eq!(h.state().toast.as_ref().map(|t| t.0.as_str()), Some("This is the first PDF in its folder"));
+    // The harness's document was never saved to a folder.
+    h.state_mut().active = Some(0);
+    h.run_steps(3);
+    press(&mut h, Key::ArrowRight);
+    assert_eq!(h.state().views.len(), 4);
+    assert_eq!(h.state().toast.as_ref().map(|t| t.0.as_str()), Some("This document isn't in a folder yet: save it first"));
+    // A text field keeps ⇧⌘→ for selecting.
+    h.state_mut().execute("edit.find");
+    h.run_steps(3);
+    assert!(h.ctx.text_edit_focused(), "the find field has the keyboard");
+    press(&mut h, Key::ArrowRight);
+    assert_eq!(h.state().toast, None, "typing in a text field runs no command");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The folder is read on a worker (a network drive can stall `read_dir`): the command returns
+/// without opening anything, and the file opens on a later frame.
+#[test]
+fn stepping_through_a_folder_reads_it_off_the_ui_thread() {
+    let dir = std::env::temp_dir().join(format!("pdfcraft-folder-step-worker-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    for name in ["a.pdf", "b.pdf"] {
+        std::fs::write(dir.join(name), fixture(1)).unwrap();
+    }
+    let path = |name: &str| dir.join(name).to_string_lossy().into_owned();
+    let mut h = harness();
+    h.state_mut().run_inline = true;
+    h.state_mut().open_path(&path("a.pdf"));
+    h.run_steps(3);
+    h.state_mut().run_inline = false;
+    let shown = |h: &Harness<'static, PdfCraftApp>| {
+        let app = h.state();
+        app.active_ids().and_then(|(_, id)| app.session.get(id)).and_then(|d| d.path.clone())
+    };
+    assert!(h.state_mut().execute("file.open_next_in_folder"));
+    assert!(h.state().folder_step_pending(), "the command only starts the scan; a frame takes its answer");
+    assert_eq!(shown(&h), Some(path("a.pdf")));
+    for _ in 0..200 {
+        h.run_steps(1);
+        if shown(&h) == Some(path("b.pdf")) {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert_eq!(shown(&h), Some(path("b.pdf")), "the worker's answer opens the next file");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn toolbar_undo_and_redo_follow_the_current_document_history() {
+    use egui_kittest::kittest::NodeT;
+    let mut h = harness();
+    assert!(h.get_by_label_contains("Undo (").accesskit_node().is_disabled());
+    assert!(h.get_by_label_contains("Redo (").accesskit_node().is_disabled());
+    h.state_mut().apply_edit(pdfcraft_engine::Edit::RotatePages { pages: vec![0], degrees: 90 });
+    h.run_steps(4);
+    h.get_by_label_contains("Undo (").click();
+    h.run_steps(4);
+    let id = h.state().views[0].id;
+    assert!(h.state().session.get(id).unwrap().can_undo().is_none());
+    assert!(h.state().session.get(id).unwrap().can_redo().is_some());
+    h.get_by_label_contains("Redo (").click();
+    h.run_steps(4);
+    assert!(h.state().session.get(id).unwrap().can_undo().is_some());
+    h.get_by_label("Home").click();
+    h.run_steps(4);
+    assert!(h.get_by_label_contains("Undo (").accesskit_node().is_disabled());
+}
+
+#[test]
+fn toolbar_search_and_actions_fit_narrow_english_and_german_windows() {
+    for width in [640.0, 820.0, 1200.0] {
+        for language in ["en", "de"] {
+            let mut h = Harness::builder().with_size(egui::vec2(width, 800.0)).build_eframe(move |_| {
+                let mut app = PdfCraftApp::new();
+                app.set_option("language", language).unwrap();
+                app.open_bytes("toolbar.pdf", None, fixture(1)).unwrap();
+                app
+            });
+            h.run_steps(5);
+            let undo = if language == "de" { "Rückgängig (" } else { "Undo (" };
+            let action = h.get_by_label_contains(undo).rect();
+            let end_tab = h.get_by_label(if language == "de" { "E-Signatur" } else { "E-Sign" }).rect();
+            assert!(action.left() > end_tab.right(), "{width} {language}: {action:?} overlaps {end_tab:?}");
+            assert!(action.right() <= width);
+            if let Some(search) = h.query_by_label(if language == "de" { "Werkzeuge und Befehle suchen" } else { "Find tools and commands" }) {
+                let rect = search.rect();
+                assert!(rect.left() >= end_tab.right() && rect.right() <= action.left(), "{width} {language}: {rect:?}");
+            }
+        }
     }
 }

@@ -362,7 +362,7 @@ impl PdfCraftApp {
 
 /// Redact pages ("Mark Page Range"). Returns (apply, cancel).
 pub(crate) fn pages_body(ui: &mut egui::Ui, d: &mut PagesDraft, pages: usize, _t: &Tokens) -> (bool, bool) {
-    ui.label(egui::RichText::new(tl!("Mark Page Range")).font(crate::theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Mark Page Range"));
     ui.add_space(8.0);
     widgets::radio_value(ui, &mut d.current, true, tl!("Current page"));
     ui.horizontal(|ui| {
@@ -380,7 +380,7 @@ pub(crate) fn pages_body(ui: &mut egui::Ui, d: &mut PagesDraft, pages: usize, _t
 /// Find text and redact. Returns (search, cancel, import a word list).
 pub(crate) fn search_body(ui: &mut egui::Ui, d: &mut SearchDraft, t: &Tokens) -> (bool, bool, bool) {
     ui.set_width(420.0);
-    ui.label(egui::RichText::new(tl!("Find text and redact")).font(crate::theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Find text and redact"));
     ui.add_space(8.0);
     widgets::radio_value(ui, &mut d.mode, SearchMode::Phrase, tl!("Single word or phrase"));
     let mut enter = false;
@@ -434,7 +434,7 @@ pub(crate) fn search_body(ui: &mut egui::Ui, d: &mut SearchDraft, t: &Tokens) ->
 /// Redaction Tool Properties. Returns (apply, cancel).
 pub(crate) fn props_body(ui: &mut egui::Ui, d: &mut RedactPrefs, _t: &Tokens) -> (bool, bool) {
     ui.set_width(780.0);
-    ui.label(egui::RichText::new(tl!("Redaction Tool Properties")).font(crate::theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Redaction Tool Properties"));
     ui.add_space(8.0);
     // Two columns, so three colour grids fit a short window: the redacted result and its
     // overlay text on the left, the mark's own look (Acrobat's third group) on
@@ -581,7 +581,7 @@ pub(crate) fn props_body(ui: &mut egui::Ui, d: &mut RedactPrefs, _t: &Tokens) ->
 /// Apply redactions confirmation. Returns (apply, cancel).
 pub(crate) fn apply_body(ui: &mut egui::Ui, marks: usize, t: &Tokens) -> (bool, bool) {
     ui.set_width(420.0);
-    ui.label(egui::RichText::new(tl!("Apply redactions")).font(crate::theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Apply redactions"));
     ui.add_space(8.0);
     ui.label(if marks == 1 {
         tl!("You are about to apply 1 redaction mark. Text, images and drawings under the marks, and comments and form fields that overlap them, are removed permanently.").to_string()
@@ -600,12 +600,12 @@ pub(crate) fn apply_body(ui: &mut egui::Ui, marks: usize, t: &Tokens) -> (bool, 
 
 fn buttons(ui: &mut egui::Ui, ok: &str, primary: bool) -> (bool, bool) {
     let (mut a, mut c) = (false, false);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+    crate::widgets::dialog_footer(ui, |ui| {
         // `ok` stays English internally; only the display is translated.
         if widgets::pill_button(ui, tl!(ok), primary).clicked() {
             a = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             c = true;
         }
     });
@@ -631,7 +631,7 @@ impl PdfCraftApp {
 /// Returns (remove, cancel).
 pub(crate) fn hidden_body(ui: &mut egui::Ui, d: &mut HiddenDraft, t: &Tokens) -> (bool, bool) {
     ui.set_width(440.0);
-    ui.label(egui::RichText::new(tl!("Remove hidden information")).font(crate::theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Remove hidden information"));
     ui.add_space(4.0);
     ui.label(egui::RichText::new(tl!("Select the items to remove from this document.")).color(t.text_muted));
     ui.add_space(8.0);
@@ -653,11 +653,11 @@ pub(crate) fn hidden_body(ui: &mut egui::Ui, d: &mut HiddenDraft, t: &Tokens) ->
     ui.add_space(12.0);
     let any = d.found.iter().any(|f| f.2 && f.1 > 0);
     let (mut a, mut c) = (false, false);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if ui.add_enabled_ui(any && total > 0, |ui| widgets::pill_button(ui, tl!("Remove"), true)).inner.clicked() {
+    crate::widgets::dialog_footer(ui, |ui| {
+        if ui.add_enabled_ui(any && total > 0, |ui| widgets::dialog_button(ui, tl!("Remove"), widgets::DialogAction::Destructive)).inner.clicked() {
             a = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             c = true;
         }
     });
@@ -667,7 +667,7 @@ pub(crate) fn hidden_body(ui: &mut egui::Ui, d: &mut HiddenDraft, t: &Tokens) ->
 /// Sanitize Document confirmation. Returns (sanitize, cancel).
 pub(crate) fn sanitize_body(ui: &mut egui::Ui, t: &Tokens) -> (bool, bool) {
     ui.set_width(440.0);
-    ui.label(egui::RichText::new(tl!("Sanitize document")).font(crate::theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Sanitize document"));
     ui.add_space(8.0);
     ui.label(tl!("Sanitizing removes hidden information from the document: metadata, file attachments, comments, form fields (flattened), hidden text and layers, bookmarks, links, actions and scripts, and private application data."));
     ui.add_space(4.0);

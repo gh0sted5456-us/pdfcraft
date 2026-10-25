@@ -1027,7 +1027,7 @@ fn alignment(ui: &mut egui::Ui, quadding: &mut i64) {
 pub(crate) fn body(ui: &mut egui::Ui, d: &mut FieldDraft, t: &crate::theme::Tokens) -> (bool, bool) {
     use crate::widgets;
     ui.set_width(600.0);
-    ui.label(egui::RichText::new(tl!(d.title())).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!(d.title()));
     ui.add_space(6.0);
     ui.horizontal_wrapped(|ui| {
         for (tab, label) in d.tabs() {
@@ -1040,9 +1040,15 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut FieldDraft, t: &crate::theme::Toke
     ui.add_space(6.0);
     let mut enter = false;
     // A locked field keeps its properties until it is unlocked (Acrobat greys them out).
-    let was_locked = d.original.as_ref().as_ref().is_some_and(|o| o.locked) && d.locked;
-    if was_locked {
-        ui.label(egui::RichText::new(tl!("This field is locked. Unlock it to change its properties.")).small().color(t.text_muted));
+    let originally_locked = d.original.as_ref().as_ref().is_some_and(|o| o.locked);
+    let was_locked = originally_locked && d.locked;
+    if originally_locked {
+        // Unlocking must not move the confirmation button under the pointer.
+        ui.label(
+            egui::RichText::new(if was_locked { tl!("This field is locked. Unlock it to change its properties.") } else { " " })
+                .small()
+                .color(t.text_muted),
+        );
     }
     ui.scope(|ui| {
         if was_locked {
@@ -1313,11 +1319,11 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut FieldDraft, t: &crate::theme::Toke
     ui.add(widgets::checkbox(&mut d.locked, tl!("Locked")));
     ui.add_space(6.0);
     let (mut apply, mut cancel) = (enter, false);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if widgets::pill_button(ui, tl!("OK"), true).clicked() {
+    crate::widgets::dialog_footer(ui, |ui| {
+        if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
             apply = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             cancel = true;
         }
     });

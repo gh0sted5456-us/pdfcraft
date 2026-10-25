@@ -1,15 +1,14 @@
-<p align="center">
-  <a href="https://getartcraft.com/">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="docs/brand/artcraft-logo-white.svg">
-      <img alt="ArtCraft" src="docs/brand/artcraft-logo.svg" width="200">
-    </picture>
-  </a>
-</p>
+# PdfCraft personal build
+
+Personal daily-use fork by @gh0sted5456-us, based on [PdfCraft by the ArtCraft team and community](https://github.com/storytold/pdfcraft).
+Version 0.13.1 uses the original engraved lion on a black background, Windows PDF thumbnails with a lion badge, Delete-key object removal,
+automatic OCR page choices, and Windows title-bar colors matching the app. This is an unsigned personal build;
+upstream download and community links below refer to the original project.
 
 
+
 <p align="center">
-  <img src="assets/app-icon/hicolor/256x256/apps/ai.storyteller.pdfcraft.png" width="128" height="128" alt="PdfCraft icon: an engraved lion on a teal tile">
+  <img src="assets/app-icon/hicolor/256x256/apps/ai.storyteller.pdfcraft.png" width="128" height="128" alt="PdfCraft 0.13.1 icon: original engraved lion on black">
 </p>
 
 <h1 align="center">PdfCraft</h1>
@@ -79,7 +78,7 @@ PdfCraft is part of [ArtCraft](https://getartcraft.com). Come say hello, get hel
 - **Web page:** [getartcraft.com/apps/pdfcraft](https://getartcraft.com/apps/pdfcraft)
 - **Source:** [github.com/storytold/pdfcraft](https://github.com/storytold/pdfcraft)
 
-The ArtCraft name and logos in `docs/brand/` are trademarks of the ArtCraft Team and are not open source. They may be used only unmodified, and only as part of PdfCraft (see `docs/brand/LICENSE-brand.txt`). Forks and modified versions must remove them.
+The upstream ArtCraft logos and the Home screenshot containing them have been removed from this personal fork. Original project credits and license notices are retained; see `docs/brand/LICENSE-brand.txt` for the upstream trademark terms.
 
 ## Highlights
 
@@ -258,7 +257,7 @@ Press <kbd>⌘K</kbd> to search every tool and command, or browse the **All tool
 <table>
 <tr>
 <td width="50%"><img src="docs/images/pdfcraft-palette.png" alt="The command palette searching for 'page', listing Page grid, Page labels, Rotate pages, Insert pages, Delete pages, Extract pages and more, each with the tool it belongs to"></td>
-<td width="50%"><img src="docs/images/pdfcraft-tools.png" alt="The Welcome to PdfCraft home screen with recommended tools, a recent file, a privacy note, and the full tool catalogue in the side panel"></td>
+<td width="50%">Personal build: lion branding on Home and About.</td>
 </tr>
 <tr>
 <td align="center"><sub>The <kbd>⌘K</kbd> command palette</sub></td>
@@ -585,15 +584,11 @@ with its author, source and license in [ATTRIBUTION.md](ATTRIBUTION.md). Release
 the Japanese fonts of [craft-fonts](https://github.com/storytold/craft-fonts/blob/main/ATTRIBUTION.md)
 (SIL Open Font License 1.1).
 
-The ArtCraft name, wordmark and logos in [`docs/brand/`](docs/brand/) are trademarks of the
-ArtCraft Team and are not covered by this license. They may be used only unmodified, and only as
-part of this repository and PdfCraft, under [`docs/brand/LICENSE-brand.txt`](docs/brand/LICENSE-brand.txt).
-Forks and modified versions must remove them.
+The ArtCraft name and upstream logos remain trademarks of the ArtCraft Team. This personal
+fork uses the original lion in a black palette and preserves the original project's credits. The upstream trademark
+terms are retained in [`docs/brand/LICENSE-brand.txt`](docs/brand/LICENSE-brand.txt).
 
-<p align="center">
-  <a href="https://getartcraft.com/"><img alt="ArtCraft" src="docs/brand/artcraft-mark.svg" width="28"></a><br>
-  <sub>Made by the <a href="https://getartcraft.com/">ArtCraft</a> team and community.</sub>
-</p>
+
 
 Tools and Inspector panels can be dragged into tab groups, split beside the PDF, or floated within the app window. Read and full-screen modes keep their existing focused document view. Drag a panel header to a target edge or another header. Its context menu offers Float panel, Move to group, and Close panel. Existing panel toggles reopen panels at their saved location; Reset Panel Layout restores the app layout. Floating panels remain inside the current app window.
 
@@ -605,3 +600,10 @@ A center `move` can include `before` (panel ID or null to append) for tab order.
 The equivalent `{"action": ...}` form accepts a serialized shared docking action;
 this is also the form emitted by the renderer. Protected-canvas and app-specific panel
 rules apply equally to both forms.
+
+Personal 0.13.1 also adds [alignment menus and drag guides](docs/editing-multiple-objects.md).
+CraftPDF Printer is excluded from 0.13.1 while a separate conversion engine is developed.
+
+Personal build: [AI Assistant setup](docs/assistant.md) and [page locks/signature protection](docs/signature-protection.md).
+
+Personal build interface rules: [centered dialogs and semantic action colors](docs/ui-conventions.md).

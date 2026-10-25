@@ -2,7 +2,7 @@
 //! Password Security settings behind "Advanced Options" (compatibility, what to encrypt,
 //! printing, changes, copying, screen readers). Execution plan M8.1.
 
-use egui::{Align, Color32, Layout};
+use egui::Color32;
 use pdfcraft_engine::{Changes, Edit, Printing, Protection};
 
 use crate::theme::{self, Tokens};
@@ -94,7 +94,7 @@ fn radio(ui: &mut egui::Ui, t: &Tokens, on: bool, label: &str) -> egui::Response
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (bool, bool) {
     use pdfcraft_engine::Algorithm as A;
     let d = &mut app.protect_draft;
-    ui.label(egui::RichText::new(tl!("Protect Using Password")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Protect Using Password"));
     ui.add_space(4.0);
     ui.separator();
     ui.add_space(6.0);
@@ -213,12 +213,12 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     );
     ui.add_space(12.0);
     let (mut apply, mut cancel) = (false, false);
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+    crate::widgets::dialog_footer(ui, |ui| {
         let ok = d.problem().is_none();
-        if ui.add_enabled_ui(ok, |ui| widgets::pill_button(ui, tl!("Apply"), true)).inner.clicked() {
+        if ui.add_enabled_ui(ok, |ui| widgets::dialog_button(ui, tl!("Apply"), widgets::DialogAction::Confirm)).inner.clicked() {
             apply = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             cancel = true;
         }
     });

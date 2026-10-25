@@ -476,7 +476,7 @@ mod tests {
                 } else {
                     crate::i18n::tr_ctx(lang, "animation effects", english)
                 };
-                assert!(lang.code() == "en" || shown != english, "{}: {english} is not translated", lang.code());
+                assert!(matches!(lang.code(), "en" | "en-gb") || shown != english, "{}: {english} is not translated", lang.code());
             }
         }
     }

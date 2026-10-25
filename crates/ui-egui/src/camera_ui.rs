@@ -198,16 +198,20 @@ pub(crate) fn bar(ctx: &egui::Context, view: &mut DocView, area: Rect, t: &Token
                             if crate::widgets::pill_button(ui, tl!("Organize pages"), false).clicked() {
                                 view.pending_action = Some(ViewAction::CameraNext("page.organize"));
                             }
-                            if crate::widgets::pill_button(ui, tl!("Done"), true).clicked() {
+                            if crate::widgets::dialog_button(ui, tl!("Done"), crate::widgets::DialogAction::Confirm).clicked() {
                                 view.pending_action = Some(ViewAction::CancelCamera);
                             }
                             return;
                         }
                         let ready = allowed && view.camera.is_some();
-                        if ui.add_enabled_ui(ready, |ui| crate::widgets::pill_button(ui, tl!("Enhance page"), true)).inner.clicked() {
+                        if ui
+                            .add_enabled_ui(ready, |ui| crate::widgets::dialog_button(ui, tl!("Enhance page"), crate::widgets::DialogAction::Confirm))
+                            .inner
+                            .clicked()
+                        {
                             view.pending_action = Some(ViewAction::EnhanceCamera);
                         }
-                        if crate::widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+                        if crate::widgets::dialog_button(ui, tl!("Cancel"), crate::widgets::DialogAction::Cancel).clicked() {
                             view.pending_action = Some(ViewAction::CancelCamera);
                         }
                     });

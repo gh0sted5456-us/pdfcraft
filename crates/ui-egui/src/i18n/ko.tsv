@@ -2250,6 +2250,7 @@ key	Space	스페이스
 	Printer paper and scaling may differ. Check driver settings.	프린터 용지와 배율이 다를 수 있습니다. 드라이버 설정을 확인하세요.
 	Drawing scale changes. Use Actual size for full-scale plans.	도면 축척이 변경됩니다. 실제 크기 도면에는 '실제 크기'를 사용하세요.
 	Reload documents when their files change on disk	파일이 디스크에서 변경되면 문서 다시 불러오기
+	Show validation marks over signed signatures	서명된 서명 위에 유효성 검사 표시 보기
 	This file changed on disk. Reload it to see the new version; your unsaved changes will be lost.	이 파일이 디스크에서 변경되었습니다. 새 버전을 보려면 다시 불러오세요. 저장하지 않은 변경 내용은 손실됩니다.
 	Reload	다시 불러오기
 	Couldn't reload {name}: {e}	{name}을(를) 다시 불러올 수 없습니다: {e}
@@ -2750,3 +2751,113 @@ theme	Appearance	모양
 	field names can't contain a period: {name}	필드 이름에는 마침표를 쓸 수 없습니다: {name}
 	two cells would both be named {name}	두 셀의 이름이 모두 {name}이(가) 됩니다
 	a field named {name} already exists	{name}(이)라는 필드가 이미 있습니다
+
+# Group selection and document save status.
+	Exit	종료
+	Group select	그룹 선택
+	Return to document	문서로 돌아가기
+	Saved	저장됨
+	Saves document	문서를 저장합니다
+	Unsaved changes	저장하지 않은 변경 사항
+
+# Existing scan-recognition and line-editing controls.
+	Ask whether to recognize the current page or all pages when editing a scan.	스캔을 편집할 때 현재 페이지 또는 모든 페이지의 텍스트를 인식할지 묻습니다.
+	Drag a point to reshape the line. Delete removes it.	점을 끌어 선의 모양을 바꿉니다. Delete 키로 점을 삭제합니다.
+	Line colour	선 색상
+	Lines	선
+	Recognize scanned text automatically	스캔한 텍스트 자동 인식
+	Recognize text on this page or throughout the document?	이 페이지의 텍스트를 인식할까요, 문서 전체의 텍스트를 인식할까요?
+	Scanned text detected	스캔한 텍스트 감지됨
+	This point could not be moved. Try a smaller move.	이 점을 이동할 수 없습니다. 더 짧은 거리로 이동해 보세요.
+
+
+# Remove Signature (sign.remove) (AI-assisted, not separately native-reviewed)
+	Remove signature…	서명 제거…
+	Remove signature	서명 제거
+	Remove Signature	서명 제거
+	Remove the signature {name}	서명 {name} 제거
+	Certification signature (level {p})	인증 서명(수준 {p})
+	Document timestamp	문서 타임스탬프
+	Visual signature (Fill & Sign, not digital)	시각적 서명(채우기 및 서명, 디지털 아님)
+	Visual initials (Fill & Sign, not digital)	시각적 이니셜(채우기 및 서명, 디지털 아님)
+	{name}_unsigned.pdf	{name}_서명없음.pdf
+	this signature can't be removed on its own	이 서명은 단독으로 제거할 수 없습니다
+	it was still in the document afterwards, so the change was undone	제거 후에도 문서에 남아 있어 변경을 취소했습니다
+	Choose another file: the original is kept as it is, and the version without the signature is saved next to it.	다른 파일을 선택하세요. 원본은 그대로 유지되고, 서명이 없는 버전은 그 옆에 저장됩니다.
+	The signature was not removed: {e}	서명을 제거하지 못했습니다: {e}
+	Removed the visual signature on page {p}	{p}페이지의 시각적 서명을 제거했습니다
+	Removed the signature {field} and kept its empty field	서명 {field}을(를) 제거하고 빈 필드는 유지했습니다
+	Removed the signature {field} with its field	서명 {field}을(를) 필드와 함께 제거했습니다
+	Other signatures remain, so the removed one is still in the file's earlier revision; check the remaining signatures again.	다른 서명이 남아 있으므로 제거한 서명은 파일의 이전 개정판에 여전히 있습니다. 남은 서명을 다시 확인하세요.
+	The new file has no signature left and no earlier revision holding it.	새 파일에는 남은 서명도, 서명을 담은 이전 개정판도 없습니다.
+	{what}. Saved {file}, checked to reopen with every page. {history}	{what}. {file}을(를) 저장했고 모든 페이지와 함께 다시 열리는지 확인했습니다. {history}
+	This document has no signature that can be removed.	이 문서에는 제거할 수 있는 서명이 없습니다.
+	A signature that is part of a page's content, like a scanned page, is not a field or an annotation, so it can't be removed on its own, and PdfCraft doesn't erase parts of a page to hide it. To take it out, redact that area (Redact), or delete the picture with Edit PDF when the signature is an image of its own.	스캔한 페이지처럼 페이지 내용의 일부인 서명은 필드나 주석이 아니므로 단독으로 제거할 수 없으며, PdfCraft는 이를 숨기려고 페이지의 일부를 지우지 않습니다. 제거하려면 해당 영역의 민감 정보를 제거하거나(민감 정보 제거), 서명이 별도의 이미지인 경우 PDF 편집으로 이미지를 삭제하세요.
+	Choose the signature to remove:	제거할 서명을 선택하세요:
+	unknown signer	알 수 없는 서명자
+	Field: {field}	필드: {field}
+	Page {p}	{p}페이지
+	validated: valid	검증 결과: 유효함
+	validated: validity unknown	검증 결과: 유효성 알 수 없음
+	validated: invalid	검증 결과: 유효하지 않음
+	None of these signatures can be removed.	이 서명 중 제거할 수 있는 것이 없습니다.
+	Keep an empty signature field to sign again	다시 서명할 수 있도록 빈 서명 필드 유지
+	Removing this signature changes the document and invalidates this signature in the version that results. It can affect the other signatures and certifications. The original file is kept as it is.	이 서명을 제거하면 문서가 변경되고, 결과 버전에서 이 서명은 무효가 됩니다. 다른 서명과 인증에 영향을 줄 수 있습니다. 원본 파일은 그대로 유지됩니다.
+	Removing this signature changes the document and invalidates this signature in the version that results. The original file is kept as it is.	이 서명을 제거하면 문서가 변경되고, 결과 버전에서 이 서명은 무효가 됩니다. 원본 파일은 그대로 유지됩니다.
+	This is a picture of a signature, not a digital signature: only the mark on the page goes. The original file is kept as it is.	이것은 디지털 서명이 아니라 서명 이미지입니다. 페이지의 표시만 제거됩니다. 원본 파일은 그대로 유지됩니다.
+	Unsaved changes to this document are saved in the new file too.	이 문서의 저장되지 않은 변경 사항도 새 파일에 저장됩니다.
+	You choose where the new version is saved. Continue?	새 버전을 저장할 위치를 직접 선택합니다. 계속하시겠습니까?
+	Remove and Save As…	제거 후 다른 이름으로 저장…
+	The other signatures ({names}) will report that the document changed after they signed. Check them again: nothing says they stay valid.	다른 서명({names})은 서명 후 문서가 변경되었다고 보고합니다. 다시 확인하세요. 계속 유효하다는 보장은 없습니다.
+	Signed after this signature, so what they signed includes it: {names}.	이 서명 이후에 서명되어, 서명한 내용에 이 서명이 포함됩니다: {names}.
+	The document will no longer be certified.	문서가 더 이상 인증되지 않습니다.
+	The fields this signature locked ({names}) can be changed again.	이 서명이 잠근 필드({names})를 다시 변경할 수 있게 됩니다.
+	Other signatures remain, so the copy is saved as an update of the signed file: the removed signature stays in its earlier revision, where it can be recovered.	다른 서명이 남아 있으므로 사본은 서명된 파일의 업데이트로 저장됩니다. 제거한 서명은 이전 개정판에 남아 있어 복구할 수 있습니다.
+	{names} certifies this document without allowing comments, and will report this change.	{names}이(가) 주석을 허용하지 않고 이 문서를 인증하므로 이 변경을 보고합니다.
+	A document timestamp covers the whole file and is no one's signature, so it can't be removed on its own.	문서 타임스탬프는 파일 전체에 적용되며 누구의 서명도 아니므로 단독으로 제거할 수 없습니다.
+	{names} certifies this document, and removing a signature is not a change its certification permits.	{names}이(가) 이 문서를 인증하며, 서명 제거는 해당 인증이 허용하는 변경이 아닙니다.
+	The signature {names} locks this field.	서명 {names}이(가) 이 필드를 잠급니다.
+	This document can't be changed: {names}	이 문서는 변경할 수 없습니다: {names}
+	Choose a signature that can be removed.	제거할 수 있는 서명을 선택하세요.
+
+# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
+	Open next PDF in folder	폴더의 다음 PDF 열기
+	Open previous PDF in folder	폴더의 이전 PDF 열기
+	This document isn't in a folder yet: save it first	이 문서는 아직 폴더에 없습니다: 먼저 저장하세요
+	This is the last PDF in its folder	폴더의 마지막 PDF입니다
+	This is the first PDF in its folder	폴더의 첫 번째 PDF입니다
+
+# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
+	Language and spelling	언어 및 맞춤법
+	Interface and appearance	인터페이스 및 모양
+	Check spelling while typing	입력 중 맞춤법 검사
+	Spelling language	맞춤법 검사 언어
+	Same as interface	인터페이스와 동일
+	Spelling dictionary unavailable	맞춤법 사전을 사용할 수 없음
+	Spelling checks stay on this device.	맞춤법 검사는 이 기기에서 수행됩니다.
+	Spelling marks do not change the document. Right-click an underlined word for suggestions.	맞춤법 표시는 문서를 변경하지 않습니다. 밑줄 친 단어를 마우스 오른쪽 버튼으로 클릭하면 제안을 볼 수 있습니다.
+	Clear personal dictionary	개인 사전 지우기
+	Spelling suggestions	맞춤법 제안
+	No suggestions	제안 없음
+	Add to dictionary	사전에 추가
+
+	Suggest edits	수정 제안
+
+# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
+	Duplicate pages with new field names	새 필드 이름으로 페이지 복제
+	Duplicate pages — 1 field renamed	페이지 복제 — 필드 1개 이름 변경됨
+	Duplicate pages — fields renamed	페이지 복제 — 필드 이름 변경됨
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	문서
+	AI Assistant	AI 도우미
+	Latin (accented)	라틴 문자(발음 구별 부호 포함)
+	Opening documents	문서 열기
+	Files	파일
+	Navigation	탐색
+	Save as template	서식 파일로 저장
+	From template	서식 파일에서
+	Reset	초기화
+	Swap width and height	너비와 높이 바꾸기
+	Custom page…	사용자 지정 페이지…
+	Glass	유리

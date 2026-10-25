@@ -1021,11 +1021,15 @@ pub fn marks_present(doc: &Document) -> Vec<MarkKind> {
 
 mod background;
 pub use background::page_background;
+mod align;
+pub use align::{ObjectAlign, align_objects, object_alignment_offsets};
 pub mod objects;
-pub use objects::{EditableObject, MAX_MOVE_OBJECTS, ObjectKind, ObjectTarget, editable_objects, move_objects};
+pub use objects::{EditableObject, MAX_MOVE_OBJECTS, ObjectKind, ObjectTarget, delete_objects, editable_objects, move_objects, move_objects_each};
 
 mod flatten;
 pub use flatten::{flatten, flatten_fill_sign};
+pub mod paths;
+pub use paths::{PathOutline, PathStyle, delete_paths, move_path_point, style_paths};
 pub mod images;
 pub use images::{ImageChange, PageImage, change_image, page_images, reading_images, rect_to_rect, turn_about_centre, turn_by_degrees};
 pub mod bidi;
@@ -1038,8 +1042,8 @@ pub use text::{
 };
 pub mod added;
 pub use added::{
-    Added, AddedImage, AddedText, Align, Content, Family, MarkerScan, add_content, delete_content, first_undrawable, list_added, scan_markers,
-    update_content,
+    Added, AddedImage, AddedText, Align, Content, Family, MarkerScan, add_content, delete_content, first_undrawable, isolate_content, list_added,
+    scan_markers, update_content,
 };
 
 #[cfg(test)]

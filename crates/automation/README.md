@@ -7,6 +7,14 @@ Agent control for PdfCraft: a headless tool table over the engine, and an opt-in
 
 ## API
 
+`template_list` lists starter IDs. `doc_create` accepts `from: "starter"` with `template` and optional `paper` (letter/a4), or `from: "template"` with a bounded file path. `template_export` writes the current contents and form values to a version-1 `.pdfcraft-template`; opening one creates an unsaved copy. Reads/writes honor roots and export cannot overwrite an open source document. See [templates](../../docs/pdf-templates.md).
+
+Experimental `doc_create` with `from: "xps"` and `path` converts supported XPS print
+intermediates through PdfCraft's writer. `doc_save` writes the returned document; normal
+root confinement and atomic-save rules apply. Unsupported content is refused. This is a
+separate converter foundation, with no Windows printer queue or GUI import filter yet.
+See [scope and example](../../docs/xps-print-converter.md).
+
 ```rust
 let mut a = Automation::new().with_root("/work")?;      // optional: confine all paths
 let doc = a.call("doc_open", &json!({ "path": "in.pdf" }))?;   // Vec<Content>
@@ -23,6 +31,24 @@ its undo/redo history.
 
 `Content` is `Json(Value)` or `Png { data, width, height }`. Errors are `UnknownTool`, `InvalidArgs` (the call didn't match the schema) or `Failed` (a readable message for the agent).
 
+`comment_delete` also accepts `page` with `indices` (original 1-based annotation positions
+from `comment_list`) and/or `content_indices` (page-local positions from `content_list`).
+Up to 1,000 additions are deleted together as one undo step. Popups and replies cascade once;
+missing or locked targets refuse the whole edit. Single-comment `id`/`index` calls still work.
+This is ordinary editing; use redaction when the content must be securely removed.
+
+`additions_move` accepts the same page-local `indices` and/or `content_indices`, plus
+`offset: [right, down]` in displayed-page points. Comments and added content keep their
+relative spacing across crop, document rotation and UserUnit. The entire move is one Undo;
+locked or restricted targets refuse it atomically. Re-list positions after unrelated edits.
+
+For a mixed Edit-mode selection, both `additions_move` and `comment_delete` also accept
+`objects: [{"kind": "text", "index": 1}]` from `object_list`; kind may also be `image` or `path`.
+Use `content_indices` for added items, avoiding duplicate selection through two inventories.
+Re-list original object references after every edit; `generation` from `object_list` refuses
+stale references. A missing or unsupported original
+refuses the entire transaction, including its comment and added-content changes.
+
 ## Conventions
 
 - Tool names are `snake_case` (`page_rotate`): MCP clients reject dots. `ToolDef::command` links a tool to the registry id it automates (`page.rotate`), and `command_list` reports the link.
@@ -35,7 +61,23 @@ its undo/redo history.
 - With a root set, every read and write path must resolve inside it (symlinks and `..` included). Relative paths resolve inside the root, and `..` is resolved by name before the check. Every path outside the root gets the same refusal (`<path> is outside the allowed directory <root>`), whether or not it exists, so a confined agent can't probe the rest of the disk; on Windows another network share or device path (`\\host\share`, `\\?\UNC\…`, `\\.\…`) is refused without being contacted. "Not found" and other filesystem errors are reported only for paths inside the root. Tools that write several files into a folder name them after the document or input file, with separators, colons and control characters replaced by `_`, so a name can't lead them out of the folder. The root itself must be a folder.
 - `Automation::with_automation_roots` holds a read folder and a write folder (`pdfcraft-cli mcp --automation-read-root DIR --automation-write-root DIR`, see [docs/mcp.md](../../docs/mcp.md)). Reads must lie inside the read root and writes inside the write root, links followed. A root left out grants none of its access. Refusals read `automation path rejected: outside the read root <root>: <path>`. It applies on top of `with_root`.
 
+## Deleting selected page objects
+
+`object_list` returns generation-bound references to native paragraphs, Image/Form artwork,
+vector paths and added content. `object_delete` takes `doc`, `page`, `objects` (1–1000
+`{kind, index}` references) and optionally the returned `generation`. It validates the complete
+selection and deletes it in one undo step. Invalid or stale references leave the document
+unchanged. This is ordinary editing; use redaction to sanitize sensitive information.
+See [selection, movement and deletion](../../docs/editing-multiple-objects.md).
+
 ## Text search and cache limits
+
+`text_search_pages` returns unique matching physical pages and comma-separated `page_numbers`;
+`extract: true` creates a PDF using the normal `out`/`open` delivery options. Case and whole-word
+options match the viewer. An unreadable page refuses the full search. `page_transfer` copies
+selected pages from an open `source` into `doc` at `at`; `move: true` removes source pages only
+after insertion succeeds, returning a warning and `moved: false` if removal fails. Each document
+has its own Undo, and neither is saved automatically. See [examples and limits](../../docs/page-search-and-transfers.md).
 
 `text_word_count` counts the current snapshot without filling the text cache. It returns totals
 and per-page Unicode word/character counts, with optional tagged-table, tagged-code and
@@ -229,3 +271,33 @@ behavior. Back/Forward
 returns to page tops, does not restore zoom, does not switch documents, and is not saved across
 restarts. Standalone engine/MCP sessions have no viewport, so they do not have a separate
 navigation-history tool; use the opt-in UI control channel to navigate the displayed document.
+
+`object_align` aligns selection edges/centres or distributes equal gaps with one undo step.
+See the selection guide above. The personal build includes the experimental PdfCraft Printer plugin for Windows and Linux CUPS 2.x.
+
+## Signature appearance, timestamps and removal
+
+`sign_document.background` chooses an independent 12% watermark behind the details:
+`"pdfcraft"` for the lion or a graphic object such as `{"image":"watermark.png"}`.
+`doc_timestamp {doc, out, timestamp_server}` appends an RFC 3161 document timestamp;
+`sign_document.timestamp_server` adds a signature timestamp. Both require host opt-in
+(`Automation::with_network(true)`, CLI `run --network` / `mcp --network`). Remote URLs
+require HTTPS, redirects are refused, and failures never produce an unstamped fallback.
+OS trust anchors validate timestamp authorities only; ordinary signer trust remains
+explicit. See [appearance and timestamps](../../docs/signature-appearance-and-timestamps.md).
+
+`sign_removable` lists removal targets and their effects/restrictions. `sign_clear`
+applies one undoable removal; `doc_save` writes it. A saved document with remaining
+signatures defaults to an incremental update even at a new path; an explicit full
+rewrite is still refused. See [removing signatures](../../docs/removing-signatures.md).
+
+`spelling_languages` lists installed local dictionaries. `text_spellcheck` checks supplied text with optional suggestions and UTF-8 byte ranges; no document is changed and no text is uploaded. See [language and spelling](../../docs/language-and-spelling.md) for limits and options.
+
+Personal-build signature ownership checks and page protection are described in [signature protection](../../docs/signature-protection.md).
+
+Personal tools: `ai_prepare` and explicit network-gated AI connection/request tools are documented in [Assistant setup](../../docs/assistant.md); `page_lock`/`page_locks` expose ordinary and signed page protection.
+
+`page_duplicate` accepts optional `field_conflicts: "rename"` to give copied form fields independent names (`Text1-1`, `Text1-2`, …). The default `"merge"` keeps ordinary duplication behavior. The repair log lists renames and warns that scripts referencing old names are not rewritten; filling a renamed copy does not change the original. The GUI exposes **Duplicate pages with new field names** in Pages and Organize Pages ▸ Insert. Adapted from [upstream #4557](https://github.com/storytold/pdfcraft/pull/4557) by @Lcoding15.
+
+
+Personal 0.13.1 additions: `js_document_actions` lists Open/WillSave/WillPrint actions; `js_set_document_action` edits one with standard PDF storage. `js_run` retains globals within each open document. `output_inspection` takes a 1-based `page` and returns bounded source-colour/spot/overprint findings; `print_readiness` returns existing print checks. Both reports are read-only and available in Print Production. Source CMYK sums are not composited ink coverage or a soft proof.

@@ -5,7 +5,6 @@
 
 use std::sync::{Arc, Mutex};
 
-use egui::{Align, Layout};
 use pdfcraft_engine::export::{ExportSource, Exporter, ImageFormat};
 
 use crate::marks_ui::PageRange;
@@ -41,13 +40,13 @@ pub type ExportStatus = Arc<Mutex<Option<(usize, usize, Option<String>)>>>;
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: ExportKind) -> (bool, bool) {
     let count = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.info.pages.len()).unwrap_or(0);
     let d = &mut app.export_draft;
-    ui.label(
-        egui::RichText::new(match kind {
+    crate::widgets::dialog_heading(
+        ui,
+        match kind {
             ExportKind::Image => tl!("Export to Image"),
             ExportKind::Text => tl!("Export to Text"),
             ExportKind::AllImages => tl!("Export All Images"),
-        })
-        .font(theme::semibold(18.0)),
+        },
     );
     ui.add_space(8.0);
     if kind == ExportKind::Image {
@@ -112,12 +111,12 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: E
     d.range.ui(ui, count);
     ui.add_space(12.0);
     let (mut apply, mut cancel) = (false, false);
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+    crate::widgets::dialog_footer(ui, |ui| {
         let ok = !d.range.pages(count).is_empty();
-        if ui.add_enabled_ui(ok, |ui| widgets::pill_button(ui, tl!("Export"), true)).inner.clicked() {
+        if ui.add_enabled_ui(ok, |ui| widgets::dialog_button(ui, tl!("Export"), widgets::DialogAction::Confirm)).inner.clicked() {
             apply = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             cancel = true;
         }
     });
