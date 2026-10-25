@@ -648,7 +648,14 @@ impl PdfCraftApp {
                     self.dialog = Some(Dialog::Signature);
                 }
             }
+            "create.new" => self.begin_template_gallery(),
+            "create.save_template" => self.begin_template_export(),
             "create.blank" => self.create_blank(),
+            "create.custom" => {
+                self.new_paper = self.default_paper.clone();
+                self.dialog = Some(Dialog::NewPaper);
+            }
+            "export.choose" => self.dialog = Some(Dialog::ExportTo),
             "create.file" => self.open_dialog(),
             "create.multiple" => self.create_multiple_dialog(),
             "create.multiple_separate" => self.create_multiple_separate_dialog(),

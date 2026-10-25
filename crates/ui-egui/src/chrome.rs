@@ -568,7 +568,7 @@ fn main_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         use crate::commands::{ACTUAL_SIZE, FIT_WIDTH, NEXT_VIEW, PAGE_LEVEL, PREV_VIEW, ROTATE_CCW, ROTATE_CW, ZOOM_IN, ZOOM_OUT};
                         ui.label(egui::RichText::new(tl!("Zoom")).color(t.text_faint).small());
                         if widgets::menu_item(ui, tl!("Actual size"), &key(ACTUAL_SIZE)).clicked() {
-                            v.set_zoom(1.0);
+                            v.set_actual_size();
                         }
                         if widgets::menu_item(ui, tl!("Zoom to page level"), &key(PAGE_LEVEL)).clicked() {
                             v.fit = Fit::Page;
@@ -867,7 +867,7 @@ fn rail_view_menu(ui: &mut egui::Ui, view: &mut DocView) -> Option<&'static str>
     }
     ui.separator();
     if ui.button(tl!("Actual size")).clicked() {
-        view.set_zoom(1.0);
+        view.set_actual_size();
         ui.close();
     }
     if ui.button(tl!("Zoom to page level")).clicked() {

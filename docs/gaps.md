@@ -1,5 +1,7 @@
 # Where PdfCraft falls short of Acrobat Pro
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 adds a centered starter gallery with 34 editable layouts, live form fields and versioned .pdfcraft-template import/export. Opening templates creates unsaved copies and preserves unsigned page locks; signed/protected sources are refused. Headless listing/creation/export and root-confinement coverage accompany the UI. Starter wording is English; booklet imposition and native Linux/macOS/browser runtime verification remain separate. Readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Locked pages now refuse Edit-mode interaction immediately: original text/images, added content, group selection, forms, crop and modifying context actions. Locked scans defer automatic OCR until unlocked. Engine write guards still apply; other readers may ignore these PdfCraft-only locks. Readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Organize Pages padlocks now toggle individual unsigned page locks without changing the page selection, reuse Undo and persist after save/reopen. Signed locks, certification, restricted documents and the signing chooser keep their existing guards. Other readers may ignore PdfCraft page locks; readiness estimates unchanged.
@@ -429,6 +431,7 @@ update the numbers.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-24 | minor | Personal 0.13.1 adds a centered starter gallery with 34 editable layouts, live form fields and versioned .pdfcraft-template import/export. Opening templates creates unsaved copies and preserves unsigned page locks; signed/protected sources are refused. Headless listing/creation/export and root-confinement coverage accompany the UI. Starter wording is English; booklet imposition and native Linux/macOS/browser runtime verification remain separate. Readiness estimates unchanged. |
 | 2026-10-24 | minor | Organize Pages padlocks now toggle individual unsigned page locks without changing the page selection, reuse Undo and persist after save/reopen. Signed locks, certification, restricted documents and the signing chooser keep their existing guards. Other readers may ignore PdfCraft page locks; readiness estimates unchanged. |
 | 2026-10-19 | minor | Gap 2: a Type 0 font whose `/ToUnicode` is the name `/Identity-H` or `/Identity-V` (WSCAD) reads its codes as Unicode, so such pages have text to select, find and edit (hayro-interpret patch 44, `view.render-cid-fonts`). Estimates unchanged. |
 | 2026-10-15 | minor | Gap 21: the side-by-side view had already shipped; the Compare panel filters text changes and visual differences. Estimate 10–20 h → 8–16 h |
@@ -450,3 +453,5 @@ update the numbers.
 | 2026-10-10 | minor | Removed the alpha markers: with the cross-app gate rule, gaps 1 and 8 are partial sub-cases, not blockers; stage alpha |
 | 2026-10-10 | minor | Marked the alpha blockers (gap 1 and the Office part of gap 8) after the core-workflow gate put the stage at pre-alpha |
 | 2026-10-10 | major | Created. Ranked 24 gaps from the 2026-10-10 re-measure, the open GitHub issues and the former ROADMAP.md §Where we're lacking and where we're going (renderer, hardening, fidelity, editing, Pro workflows, 1.0 polish), which this file replaces |
+
+- **2026-10-24:** Personal paper defaults, business-card starter, calibrated actual-size viewing and unified export picker; physical printing and native non-Windows runtime remain unverified.

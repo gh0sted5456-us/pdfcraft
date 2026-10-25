@@ -399,6 +399,7 @@ pub(crate) fn snapshot_tab_name(title: &str, file_name: &str, snapshot: &Snapsho
 
 pub struct DocView {
     pub id: DocId,
+    pub actual_size_zoom: f32,
     pub zoom: f32,
     pub fit: Fit,
     pub layout: PageLayout,
@@ -756,6 +757,7 @@ impl DocView {
     pub fn new(id: DocId, info: &DocInfo, defaults: ViewDefaults) -> Self {
         Self {
             id,
+            actual_size_zoom: 1.0,
             zoom: defaults.zoom,
             fit: defaults.fit,
             layout: defaults.layout,
@@ -1725,6 +1727,10 @@ impl DocView {
     }
 
     /// Zoom keeping the centre of the view still.
+    pub fn set_actual_size(&mut self) {
+        self.set_zoom(self.actual_size_zoom);
+    }
+
     pub fn set_zoom(&mut self, zoom: f32) {
         // CLI/view options can set zoom before the first layout. Rect::NOTHING has no
         // finite centre yet, but an initial zoom still needs to leave the default fit mode.
@@ -2532,7 +2538,7 @@ pub fn shortcuts(view: &mut DocView, ctx: &egui::Context, speed: crate::scroll_s
         }
     }
     if pressed(cmd(Key::Num1)) {
-        view.set_zoom(1.0);
+        view.set_actual_size();
     }
     if pressed(cmd(Key::Num2)) {
         view.fit = Fit::Width;

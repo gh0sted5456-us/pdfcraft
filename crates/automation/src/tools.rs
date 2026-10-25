@@ -1297,14 +1297,16 @@ pub fn tools() -> Vec<ToolDef> {
         )),
         t("fill_sign_date_format", "Date format for Fill & Sign", "Preferences ▸ Date format: the pattern Fill & Sign dates use (default m/d/yyyy). Set it with `format` (Acrobat date codes yyyy yy mmmm mmm mm m dddd ddd dd d, other runs of y, m or d are refused; H h M s t are time letters and need \\ before them; \\ shows the next character as is), or read it. `language` sets the language of month and weekday names (a code from `languages`, or `auto` to follow the app's interface language; English headless). Returns the format, the language, today in them, `unwritable` (characters of today's date that Fill & Sign can't write into a PDF yet, Western European only; fill_sign_add refuses such a date), the ready-made presets and the languages.")
             .with(schema(json!({ "format": { "type": "string", "minLength": 1, "maxLength": 64 }, "language": { "type": "string" } }), &[])),
+        t("template_list","Starter templates","List built-in editable PDF starters, their categories, descriptions and page counts. Booklet pages are in reading order, not imposed for printing.").ro().with(schema(json!({}),&[])),
+        t("template_export","Export reusable template","Write a version-1 .pdfcraft-template snapshot of current contents and form values without saving or changing the original. Signed and password-protected documents must be unsigned/unprotected first. At most 64 MiB.").cmd("create.save_template").with(schema(json!({"doc":doc(),"path":{"type":"string"},"title":{"type":"string","maxLength":120},"description":{"type":"string","maxLength":1000},"category":{"type":"string","maxLength":64}}),&["doc","path"])),
         t(
             "doc_create",
             "Create a PDF",
-            "Create a new, unsaved document and return it like doc_open: `blank` (pages, width, height in points; default 1 US Letter page), `images` (paths of PNG, JPEG, TIFF (every page), GIF or BMP files, one page each at the image's resolution), `text` (a .txt path, or `text` directly; Western European (WinAnsi) characters only, others are refused), or experimental `xps` (a package path, at most 256 MiB; preserves supported text, solid paths and PNG/JPEG pictures, refuses unsupported drawing without raster fallback). Save it with doc_save and a path.",
+            "Create a new, unsaved document and return it like doc_open: `blank` (pages, width, height in points; default 1 US Letter page), `images` (paths of PNG, JPEG, TIFF (every page), GIF or BMP files, one page each at the image's resolution), `text` (a .txt path, or `text` directly; Western European (WinAnsi) characters only, others are refused), or experimental `xps` (a package path, at most 256 MiB; preserves supported text, solid paths and PNG/JPEG pictures, refuses unsupported drawing without raster fallback). Use `starter` with a `template` id from template_list and optional `paper` (letter/a4), or `template` with a .pdfcraft-template `path` to create a new working copy (at most 64 MiB). Save it with doc_save and a path.",
         )
         .with(schema(
             json!({
-                "from": { "type": "string", "enum": ["blank", "images", "text", "xps"] },
+                "from": { "type": "string", "enum": ["blank", "images", "text", "xps", "starter", "template"] },
                 "paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
                 "dpi": { "type": "number", "minimum": 1, "maximum": 1200, "description": "For images: override the embedded resolution without resampling. 72 gives one point per pixel; omit to use each image's resolution (72 when absent)." },
                 "text": { "type": "string" },
@@ -1312,6 +1314,8 @@ pub fn tools() -> Vec<ToolDef> {
                 "pages": { "type": "integer", "minimum": 1, "maximum": 10000 },
                 "width": { "type": "number", "minimum": 3 },
                 "height": { "type": "number", "minimum": 3 },
+                "template": {"type":"string","description":"Built-in starter id from template_list, for from=starter."},
+                "paper": {"type":"string","enum":["letter","a4"],"default":"letter"},
                 "name": { "type": "string", "description": "Name for the new document (default derived from the source)." },
             }),
             &["from"],

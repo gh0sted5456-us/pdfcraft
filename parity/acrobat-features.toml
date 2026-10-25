@@ -10231,3 +10231,27 @@ commands = []
 tools = ["page_lock", "page_locks"]
 evidence = ["crates/ui-egui/tests/it/object_selection.rs::locked_pages_are_read_only_in_edit_mode_until_unlocked", "crates/ui-egui/tests/it/ocr.rs::locked_scans_do_not_offer_edit_mode_ocr_until_unlocked", "crates/ui-egui/tests/it/editing.rs::organize_padlocks_toggle_one_page_preserve_selection_and_undo", "crates/ui-egui/tests/it/editing.rs::organize_dragging_a_padlock_keeps_pages_and_selection", "crates/automation/tests/it/clear_signature.rs::unsigned_page_locks_become_signed_and_need_unsigning_before_unlock", "crates/ui-egui/tests/it/signing.rs::signing_confirmation_selects_page_protection_and_preserves_it_after_signing"]
 notes = "Personal PdfCraft-only workflow: unsigned locks persist and can be explicitly unlocked; signing captures them and requires verified removal of every protecting signature before unlock. Clickable per-page open/closed padlocks preserve selection, undo and persist; signed locks, certification, permissions and the signing chooser disable toggling. Edit-mode page gates suppress original/addition/group/form/crop interactions and modifying context actions; locked scans defer automatic OCR. Delete guards and a read-only organizer chooser returning to the signing draft. Other readers may ignore locks. Labels English; physical CAC unverified."
+
+[[feature]]
+id = "personal.starter-templates"
+title = "Starter PDF gallery and portable reusable templates"
+area = "J"
+tier = "P2"
+milestone = "M10"
+status = "partial"
+commands = ["create.new", "create.save_template"]
+tools = ["template_list", "template_export", "doc_create", "doc_open"]
+evidence = ["crates/automation/tests/it/templates.rs::reusable_templates_keep_text_fields_and_enforce_file_roots", "crates/ui-egui/tests/it/create.rs::new_pdf_opens_a_template_gallery_without_creating_a_document", "crates/ui-egui/tests/it/create.rs::gallery_creates_fillable_starters_and_template_open_is_always_a_copy", "crates/ui-egui/tests/it/create.rs::template_gallery_fits_small_windows_and_both_themes", "crates/engine/src/templates.rs::template_versions_metadata_and_signed_sources_are_checked", "crates/engine/src/templates.rs::template_labels_do_not_overlap_fillable_fields"]
+notes = "Personal build: 35 contributor-original fixed layouts, local previews, Letter/A4, real form fields, PDF-based version-1 files, bounded validated imports and source-preserving exports. Preserves unsigned locks. English starter content; one imported gallery entry at a time. Native Linux/macOS and browser runtime unverified. No named page templates/JavaScript spawning (#755), booklet imposition or automatic document reflow."
+
+[[feature]]
+id = "personal.paper-and-export"
+title = "Physical paper defaults, calibrated actual-size view and export picker"
+area = "J"
+tier = "P2"
+milestone = "M10"
+status = "partial"
+commands = ["create.custom", "export.choose"]
+tools = ["doc_create", "doc_export_office", "doc_export_text", "doc_export_images"]
+evidence = ["crates/ui-egui/tests/it/create.rs::physical_paper_defaults_roundtrip_and_create_print_sized_cards", "crates/ui-egui/tests/it/create.rs::paper_settings_calibrate_view_without_resizing_the_pdf", "crates/ui-egui/tests/it/create.rs::custom_page_dialog_creates_the_requested_dimensions", "crates/ui-egui/tests/it/create.rs::export_to_opens_a_format_picker", "crates/ui-egui/tests/it/create.rs::office_export_preserves_open_original_and_exports_docx_and_pptx"]
+notes = "Personal build: persisted blank-page size presets and validated custom dimensions; manual physical-ruler calibration of existing Actual size actions; unified picker reuses DOCX/PPTX/RTF/HTML/text/image exports. WordCraft uses DOCX. Designed starters retain Letter/A4; existing PDFs retain their own dimensions. No physical printer/monitor calibration, WordCraft reader, native Linux/macOS or browser runtime test. Conversion fidelity remains limited."

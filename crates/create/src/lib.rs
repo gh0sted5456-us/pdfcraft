@@ -5,6 +5,7 @@
 use pdfcraft_cos::{Dict, Document, ObjRef, Object, PdfString, Stream};
 
 mod extract;
+pub mod templates;
 mod upright_image;
 mod xps;
 pub use extract::{ExtractedImage, ImageExport, extract_images, image_file};
@@ -509,13 +510,14 @@ fn tiff_pages_within(name: &str, bytes: &[u8], wanted: usize, budget: usize) -> 
 /// What a file picked for Create is, by its bytes (and, for text, its name).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SourceKind {
+    Template,
     Pdf,
     Image,
     Text,
 }
 
-/// File extensions Create converts to PDF (images and plain text).
-pub const CONVERTIBLE: [&str; 12] = ["png", "jpg", "jpeg", "tif", "tiff", "gif", "bmp", "jp2", "j2k", "jpx", "txt", "text"];
+/// File extensions Create converts to working PDFs (images, text and reusable templates).
+pub const CONVERTIBLE: [&str; 13] = ["png", "jpg", "jpeg", "tif", "tiff", "gif", "bmp", "jp2", "j2k", "jpx", "txt", "text", "pdfcraft-template"];
 
 /// A classic TIFF or a BigTIFF (version 43), in either byte order.
 fn is_tiff(bytes: &[u8]) -> bool {
@@ -543,6 +545,9 @@ fn is_image(bytes: &[u8]) -> bool {
 /// Whether `bytes` named `name` is a PDF, an image Create can embed, or plain text (a `.txt` or
 /// `.text` file). `None` for anything else.
 pub fn source_kind(name: &str, bytes: &[u8]) -> Option<SourceKind> {
+    if name.to_ascii_lowercase().ends_with(".pdfcraft-template") {
+        return Some(SourceKind::Template);
+    }
     let head = bytes.get(..bytes.len().min(1024)).unwrap_or_default();
     if head.windows(5).any(|w| w == b"%PDF-") {
         return Some(SourceKind::Pdf);

@@ -875,12 +875,27 @@ impl PdfCraftApp {
         let Some(doc) = self.session.get(id) else { return };
         let stem = doc.name.trim_end_matches(".pdf").trim_end_matches(".PDF").to_string();
         let ext = format.extension();
-        let bytes = doc.export_office(format);
+        let export = doc.export_office_checked(format);
+        if !export.truncated_pages.is_empty() {
+            self.notify("Export stopped: some page contents exceed export limits. The original PDF is unchanged.");
+            return;
+        }
+        let bytes = export.bytes;
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let write = move |app: &mut Self, path: std::path::PathBuf| match crate::editing::write_atomically(&path.to_string_lossy(), &bytes) {
-                Ok(()) => app.notify_fmt("Exported to {path}", &[("path", &path.display().to_string())]),
-                Err(e) => app.notify_fmt("Couldn't write {name}: {e}", &[("name", &path.display().to_string()), ("e", &e.to_string())]),
+            let originals: Vec<_> = self.session.docs().iter().filter_map(|d| d.path.clone()).collect();
+            let write = move |app: &mut Self, path: std::path::PathBuf| {
+                let dest = path.to_string_lossy();
+                if originals.iter().any(|p| crate::same_file(p, &dest))
+                    || app.session.docs().iter().filter_map(|d| d.path.as_deref()).any(|p| crate::same_file(p, &dest))
+                {
+                    app.notify("Choose a separate export file; the original document is open.");
+                    return;
+                }
+                match crate::editing::write_atomically(&dest, &bytes) {
+                    Ok(()) => app.notify_fmt("Exported to {path}", &[("path", &path.display().to_string())]),
+                    Err(e) => app.notify_fmt("Couldn't write {name}: {e}", &[("name", &path.display().to_string()), ("e", &e.to_string())]),
+                }
             };
             match self.save_override.clone() {
                 Some(p) => write(self, p.into()),

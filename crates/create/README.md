@@ -34,3 +34,5 @@ Indexed Decode values select palette entries after rounding and clipping. Color-
 Missing, null or malformed Decode arrays keep the default mapping.
 The existing 16-bit path still uses each sample's high byte. JPEG and mask Decode handling remain limited.
 ICC transforms and calibrated color conversion remain outside this export path.
+
+`templates` contains 35 contributor-original starter layouts and bounded field specifications. The engine installs real AcroForm widgets and writes checked output. Templates are editable text/vector PDFs with no bundled raster artwork; see [starter templates](../../docs/pdf-templates.md).

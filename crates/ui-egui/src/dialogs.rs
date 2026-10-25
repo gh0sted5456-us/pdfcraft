@@ -85,6 +85,10 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut scan_ocr_now = None;
     let mut compare_now = false;
     let mut images_now = false;
+    let mut template_action = crate::templates_ui::Action::None;
+    let mut save_template = false;
+    let mut new_paper = false;
+    let mut export_command = None;
     let mut stamp_now = false;
     let mut alt_now = false;
     let t = Tokens::get(ctx);
@@ -97,10 +101,51 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
             Dialog::FieldProps | Dialog::BulkFieldProps => 600.0,
             Dialog::About => 780.0,
             Dialog::Assistant => 720.0,
+            Dialog::Templates => (ctx.content_rect().width() - 104.0).clamp(1.0, 880.0),
             Dialog::Preferences => (ctx.content_rect().width() - 104.0).clamp(1.0, 760.0),
             _ => 520.0,
         });
         match dialog {
+            Dialog::NewPaper => {
+                let (go, cancel) = crate::paper_ui::new_body(ui, app);
+                new_paper = go;
+                close = go || cancel;
+                return;
+            }
+            Dialog::ExportTo => {
+                ui.heading(tl!("Export to"));
+                ui.label("Choose an editable document, a presentation or an image. Scans need OCR before editable text export.");
+                ui.add_space(10.0);
+                for (label, command) in [
+                    ("WordCraft / Microsoft Word (.docx)", "export.docx"),
+                    ("PowerPoint (.pptx)", "export.pptx"),
+                    ("Rich Text (.rtf)", "export.rtf"),
+                    ("Web page (.html)", "export.html"),
+                    ("Plain text (.txt)", "export.text"),
+                    ("Images (.png / .jpg / .tiff)", "export.image"),
+                    ("Reusable PdfCraft template", "create.save_template"),
+                ] {
+                    if ui.add_sized([ui.available_width(), 34.0], egui::Button::new(label)).clicked() {
+                        export_command = Some(command);
+                        close = true;
+                    }
+                }
+                ui.label(egui::RichText::new("WordCraft uses DOCX. Complex layouts and fonts may change during conversion.").small());
+                widgets::dialog_footer(ui, |ui| {
+                    close |= widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked();
+                });
+                return;
+            }
+            Dialog::Templates => {
+                template_action = crate::templates_ui::body(ui, app);
+                return;
+            }
+            Dialog::SaveTemplate => {
+                let (go, cancel) = crate::templates_ui::export_body(ui, app);
+                save_template = go;
+                close = cancel;
+                return;
+            }
             Dialog::WordCount => {
                 close = crate::word_count_ui::body(ui, app);
             }
@@ -1464,6 +1509,25 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     }
     if stamp_now {
         app.save_custom_stamp();
+    }
+    if new_paper {
+        let created = app.session.create_blank(app.new_paper.width, app.new_paper.height, 1).map_err(|e| e.to_string());
+        if let Err(error) = app.open_created_bytes("Untitled.pdf", created) {
+            app.notify_error(error);
+        }
+    }
+    if let Some(command) = export_command {
+        app.execute(command);
+    }
+    app.template_action(template_action);
+    if save_template {
+        app.finish_template_export();
+    }
+    if dialog == Dialog::Templates && app.dialog != Some(Dialog::Templates) {
+        app.template_gallery = None;
+    }
+    if dialog == Dialog::SaveTemplate && app.dialog != Some(Dialog::SaveTemplate) {
+        app.template_export = None;
     }
     if images_now {
         app.finish_image_import();

@@ -7,6 +7,8 @@ Agent control for PdfCraft: a headless tool table over the engine, and an opt-in
 
 ## API
 
+`template_list` lists starter IDs. `doc_create` accepts `from: "starter"` with `template` and optional `paper` (letter/a4), or `from: "template"` with a bounded file path. `template_export` writes the current contents and form values to a version-1 `.pdfcraft-template`; opening one creates an unsaved copy. Reads/writes honor roots and export cannot overwrite an open source document. See [templates](../../docs/pdf-templates.md).
+
 Experimental `doc_create` with `from: "xps"` and `path` converts supported XPS print
 intermediates through PdfCraft's writer. `doc_save` writes the returned document; normal
 root confinement and atomic-save rules apply. Unsupported content is refused. This is a

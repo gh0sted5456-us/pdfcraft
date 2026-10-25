@@ -90,14 +90,17 @@ impl PdfCraftApp {
     /// something Create understands (the caller then tries to open it as a PDF).
     pub(crate) fn open_converted(&mut self, name: &str, bytes: &[u8]) -> Option<Result<(), String>> {
         use pdfcraft_engine::SourceKind;
-        if !matches!(pdfcraft_engine::source_kind(name, bytes), Some(SourceKind::Image | SourceKind::Text)) {
+        if !matches!(pdfcraft_engine::source_kind(name, bytes), Some(SourceKind::Image | SourceKind::Text | SourceKind::Template)) {
             return None;
+        }
+        if name.to_ascii_lowercase().ends_with(".pdfcraft-template") && bytes.len() > pdfcraft_engine::templates::MAX_BYTES {
+            return Some(Err("A template must not exceed 64 MiB".into()));
         }
         let created = self.session.convert_to_pdf(name, &Arc::new(bytes.to_vec())).map(|(_, pdf)| pdf);
         Some(self.open_created_bytes(&format!("{}.pdf", stem(name)), created.map_err(|e| e.to_string())))
     }
 
-    fn open_created_bytes(&mut self, name: &str, created: Result<Arc<Vec<u8>>, String>) -> Result<(), String> {
+    pub(crate) fn open_created_bytes(&mut self, name: &str, created: Result<Arc<Vec<u8>>, String>) -> Result<(), String> {
         let bytes = created?;
         let id = self.session.open_new(name, bytes).map_err(|e| e.to_string())?;
         // The reading-colours preference is app-wide: the newly created document starts with it.
@@ -141,9 +144,9 @@ impl PdfCraftApp {
         self.open_created_bytes("Clipboard.pdf", created.map_err(|e| e.to_string()))
     }
 
-    /// Create ▸ Blank page: a new untitled US Letter document.
+    /// Create a blank PDF at the user's physical paper defaults.
     pub(crate) fn create_blank(&mut self) {
-        let created = self.session.create_blank(612.0, 792.0, 1).map_err(|e| e.to_string());
+        let created = self.session.create_blank(self.default_paper.width, self.default_paper.height, 1).map_err(|e| e.to_string());
         if let Err(e) = self.open_created_bytes("Untitled.pdf", created) {
             self.notify_fmt("Couldn't create a PDF: {e}", &[("e", &e.to_string())]);
         }

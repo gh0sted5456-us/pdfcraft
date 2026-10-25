@@ -1,5 +1,7 @@
 # PdfCraft parity with Adobe Acrobat Pro
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 adds a centered starter gallery with 34 editable layouts, live form fields and versioned .pdfcraft-template import/export. Opening templates creates unsaved copies and preserves unsigned page locks; signed/protected sources are refused. Headless listing/creation/export and root-confinement coverage accompany the UI. Starter wording is English; booklet imposition and native Linux/macOS/browser runtime verification remain separate. Readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Locked pages now refuse Edit-mode interaction immediately: original text/images, added content, group selection, forms, crop and modifying context actions. Locked scans defer automatic OCR until unlocked. Engine write guards still apply; other readers may ignore these PdfCraft-only locks. Readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Organize Pages padlocks now toggle individual unsigned page locks without changing the page selection, reuse Undo and persist after save/reopen. Signed locks, certification, restricted documents and the signing chooser keep their existing guards. Other readers may ignore PdfCraft page locks; readiness estimates unchanged.
@@ -326,6 +328,7 @@ licensed OCR or AI model.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-24 | minor | Personal 0.13.1 adds a centered starter gallery with 34 editable layouts, live form fields and versioned .pdfcraft-template import/export. Opening templates creates unsaved copies and preserves unsigned page locks; signed/protected sources are refused. Headless listing/creation/export and root-confinement coverage accompany the UI. Starter wording is English; booklet imposition and native Linux/macOS/browser runtime verification remain separate. Readiness estimates unchanged. |
 | 2026-10-24 | minor | Organize Pages padlocks now toggle individual unsigned page locks without changing the page selection, reuse Undo and persist after save/reopen. Signed locks, certification, restricted documents and the signing chooser keep their existing guards. Other readers may ignore PdfCraft page locks; readiness estimates unchanged. |
 | 2026-10-20 | minor | M12 #3673: the Character encoding rule accepts Identity-H/V fonts with Adobe CJK collections, or a predefined non-Identity CMap, while rejecting unknown names and foreign registries. Synthetic checker and read-only automation regressions passed after failing before the fix; per-glyph mapping validation and embedded-font extraction remain separate. Breadth, readiness and hours unchanged. |
 | 2026-10-12 | minor | Exclusive image crops resize with their pixels across nested states, intervening operators and content streams; shared clips remain fixed. Synthetic engine/tool regressions and private image save/reopen checks; estimates unchanged. |
@@ -339,3 +342,5 @@ licensed OCR or AI model.
 | 2026-10-10 | major | Created from ROADMAP.md §Estimate summary and §Honest assessment (2026-10-05/07). Full re-measure against Acrobat Pro 26.002.21931: checklist recomputed (56.9% unweighted, ≈ 67% tier-weighted), ready for real work ≈ 40%, stage alpha, hours re-calibrated (780–1,400 h to parity, 400–700 h to beta), dimension and area tables |
 | 2026-10-07 | minor | (in ROADMAP.md) 806 tracked features, 51.0% shipped, effort-weighted ≈ 30–35%, 600–1,100 h |
 | 2026-10-05 | major | (in ROADMAP.md) First honest assessment by dimension and area |
+
+- **2026-10-24:** Personal paper defaults, business-card starter, calibrated actual-size viewing and unified export picker; physical printing and native non-Windows runtime remain unverified.

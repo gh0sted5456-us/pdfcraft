@@ -1,5 +1,7 @@
 # PdfCraft roadmap
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 adds a centered starter gallery with 34 editable layouts, live form fields and versioned .pdfcraft-template import/export. Opening templates creates unsaved copies and preserves unsigned page locks; signed/protected sources are refused. Headless listing/creation/export and root-confinement coverage accompany the UI. Starter wording is English; booklet imposition and native Linux/macOS/browser runtime verification remain separate. Readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Locked pages now refuse Edit-mode interaction immediately: original text/images, added content, group selection, forms, crop and modifying context actions. Locked scans defer automatic OCR until unlocked. Engine write guards still apply; other readers may ignore these PdfCraft-only locks. Readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Organize Pages padlocks now toggle individual unsigned page locks without changing the page selection, reuse Undo and persist after save/reopen. Signed locks, certification, restricted documents and the signing chooser keep their existing guards. Other readers may ignore PdfCraft page locks; readiness estimates unchanged.
@@ -232,6 +234,7 @@ Ranked; detail and the full milestone table in [docs/roadmap.md](docs/roadmap.md
 | 8 | 1.0 polish: performance, right-to-left, missing languages, keyboard-only (M14) | 55–95 |
 
 ## Progress log
+- 2026-10-24 — M10 personal starters: 34 vector/text layouts and real form fields; centered New PDF gallery with asynchronous previews, portable PDF-based template metadata, copy-on-open and atomic exports that refuse open source paths. Tests reproduced the missing gallery, overflowing modal and attendance-label overlap before fixes. See [templates](docs/pdf-templates.md).
 - 2026-10-24 — M9 lock follow-up: per-page editing permissions prevent opening original-text editors, image handles, added text and movable groups on locked pages; automatic OCR waits for unlock. Original-editor and OCR-prompt regressions failed before the fix and pass after it. Engine guards remain authoritative.
 - 2026-10-24 — M9 personal organizer: clickable open/closed padlocks use the existing page-lock edit, preserve selection and support Undo/save/reopen. Signed-page, certification and permission guards stay enforced; the signing chooser remains selection-only. Both missing-toggle and accidental-padlock-reorder regressions were observed failing before their fixes.
 - 2026-10-24 — M3/M9 personal dialogs: shared Back/Cancel/confirm/destructive action widgets and aligned timestamp/OCR/create footers; provider selector defaults to Sectigo, with a verified FreeTSA HTTPS alternative explicitly labeled manual trust and a custom URL. M4: adapt #4327 (@Lcoding15), make the first recovery save ask where, bound sidecars to 64 KiB and preserve a clean unsigned copy. Layout and recovery regressions were observed failing before fixes. See [dialog actions](docs/dialog-actions.md), [timestamp scope](docs/signature-appearance-and-timestamps.md) and [recovery safety](docs/recovery-saves.md).
@@ -750,3 +753,5 @@ Newest first: the date, what moved, and the new overall estimate.
 - **2026-10-21 (M4, #3865):** A new bookmark records where the reader is: the top-left of the selected text, or the top of the window, as `/XYZ left top null` (zoom kept), instead of the page top (`Edit::AddBookmark` takes `left` and `top`; `bookmark_add` takes `top` and `left`; `PageInfo::xyz_for_view`).
 
 - **2026-10-18 (renderer, hayro patches 19/35):** A mesh shading (types 4–7) is sampled over its own triangles instead of the whole path: a BricsCAD plan with 310 one-triangle `sh` fills took 2 s per 1024 px tile at every zoom (and hit the 20 s watchdog on a busy machine); now about 70 ms, so zooming into dense topology drawings stays fluid. Estimates unchanged.
+
+- **2026-10-24 (personal M10):** Paper and print preferences with persistent physical dimensions, business-card sizes and manual actual-size calibration; Custom page creation and a unified Export to picker reuse engine creation and Office/text/image writers. See `docs/pdf-templates.md` for format and fidelity limits.

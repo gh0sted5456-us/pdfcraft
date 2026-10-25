@@ -171,6 +171,9 @@ pub const COMMANDS: &[CommandSpec] = &[
     // Shown at the foot of File ▸ Open Recent and on Home, not as its own File menu item.
     c("file.clear_recent", "Clear Recent Files", None, None, Nothing, "trash-2"),
     c("file.pin_folder", "Pin folder to Home…", FILE, None, Nothing, "folder-plus"),
+    c("create.new", "Create a PDF", FILE, Some(Shortcut::cmd("N")), Nothing, "file-plus-2"),
+    c("create.save_template", "Save as template", FILE, None, Document, "file-output"),
+    c("create.custom", "Custom page…", FILE, None, Nothing, "file-plus-2"),
     c("create.blank", "New blank PDF", FILE, None, Nothing, "file-plus-2"),
     c("measure.distance", "Measure distance", None, None, Annotate, "ruler"),
     c("measure.perimeter", "Measure perimeter", None, None, Annotate, "ruler"),
@@ -334,6 +337,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("sign.fill.signature.remove", "Fill & Sign: remove saved signature", None, None, Nothing, "x"),
     c("sign.fill.initials.remove", "Fill & Sign: remove saved initials", None, None, Nothing, "x"),
     c("sign.fill.initials.change", "Fill & Sign: change initials", None, None, Nothing, "signature"),
+    c("export.choose", "Export to", FILE, None, Copying, "file-output"),
     c("export.image", "Export to image…", FILE, None, Copying, "image"),
     c("optimize.reduce", "Reduce file size…", FILE, None, Document, "file-down"),
     c("optimize.advanced", "Optimize PDF…", FILE, None, Document, "settings-2"),

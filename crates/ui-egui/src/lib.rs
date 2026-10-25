@@ -59,7 +59,9 @@ mod crop;
 mod drag_pointer;
 mod export_ui;
 mod js_ui;
+mod paper_ui;
 mod preferences_ui;
+mod templates_ui;
 pub use preferences_ui::PreferencesCategory;
 #[cfg(target_os = "macos")]
 mod macos_association;
@@ -295,6 +297,8 @@ struct GridDrop {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Dialog {
+    Templates,
+    SaveTemplate,
     WordCount,
     CreateImages,
     Properties(PropsTab),
@@ -370,6 +374,8 @@ pub enum Dialog {
     DocumentJs,
     /// Preferences.
     Preferences,
+    NewPaper,
+    ExportTo,
     /// Compare files: choose the older version.
     CompareFiles,
     /// Action Wizard.
@@ -531,6 +537,10 @@ pub struct PdfCraftApp {
     pub view_defaults: canvas::ViewDefaults,
     /// The unit page sizes and margins are shown in (Preferences ▸ Documents and view).
     pub units: units::Unit,
+    pub default_paper: paper_ui::Paper,
+    pub new_paper: paper_ui::Paper,
+    pub actual_size_zoom: f32,
+    pub measured_ruler_mm: f32,
     /// The Preferences ▸ Date format box while it's being edited, or while it holds an invalid
     /// pattern (the session keeps the last valid one).
     pub date_format_draft: Option<String>,
@@ -764,6 +774,8 @@ pub struct PdfCraftApp {
     pub(crate) combine_thumbs: combine_grid::Thumbs,
     /// Images waiting for the resolution choice (released on cancel).
     pub image_import: Option<create_ui::ImageImport>,
+    pub template_gallery: Option<templates_ui::TemplateGallery>,
+    pub template_export: Option<templates_ui::TemplateExport>,
     /// The custom stamp library, and the stamp being created.
     pub custom_stamps: Vec<stamps_ui::CustomStamp>,
     pub stamp_draft: stamps_ui::StampDraft,
@@ -993,6 +1005,10 @@ impl PdfCraftApp {
             default_mode: Mode::AllTools,
             preferences_category: PreferencesCategory::default(),
             view_defaults: Default::default(),
+            default_paper: Default::default(),
+            new_paper: Default::default(),
+            actual_size_zoom: 1.0,
+            measured_ruler_mm: 50.0,
             units: Default::default(),
             date_format_draft: None,
             mode_override: None,
@@ -1129,6 +1145,8 @@ impl PdfCraftApp {
             organize_zoom: 1.0,
             combine_thumbs: Default::default(),
             image_import: None,
+            template_gallery: None,
+            template_export: None,
             custom_stamps: Vec::new(),
             stamp_draft: Default::default(),
             optimize_draft: OptimizeDraft::default(),
@@ -1247,7 +1265,7 @@ impl PdfCraftApp {
             match v.magnification {
                 // The view opened at the default zoom already.
                 M::Default => {}
-                M::ActualSize => view.set_zoom(1.0),
+                M::ActualSize => view.set_zoom(self.actual_size_zoom),
                 M::Percent(p) => view.set_zoom((p / 100.0) as f32),
                 M::FitPage | M::FitVisible => view.fit = canvas::Fit::Page,
                 M::FitWidth => view.fit = canvas::Fit::Width,
@@ -2467,6 +2485,8 @@ impl PdfCraftApp {
             "always_default_view": self.always_default_view,
             "highlight_fields": self.view_defaults.highlight_fields,
             "units": self.units,
+            "default_paper": self.default_paper,
+            "actual_size_zoom": self.actual_size_zoom,
             "language": self.language,
             "spelling": { "enabled": self.spelling.enabled, "language": self.spelling.language, "words": self.spelling.words },
             "assistant": self.assistant.settings,
@@ -2601,6 +2621,15 @@ impl PdfCraftApp {
         }
         if let Ok(units) = serde_json::from_value::<units::Unit>(v["units"].clone()) {
             self.units = units;
+        }
+        if let Ok(paper) = serde_json::from_value::<paper_ui::Paper>(v["default_paper"].clone())
+            && paper.valid()
+        {
+            self.default_paper = paper;
+        }
+        if let Some(zoom) = v["actual_size_zoom"].as_f64().filter(|v| v.is_finite() && (0.25..=4.0).contains(v)) {
+            self.actual_size_zoom = zoom as f32;
+            self.measured_ruler_mm = 50.0 / self.actual_size_zoom;
         }
         if let Some(on) = v["always_default_view"].as_bool() {
             self.always_default_view = on;
@@ -2812,6 +2841,25 @@ impl PdfCraftApp {
             ("default-mode", _) => {
                 self.default_mode = Mode::parse(value).ok_or("default-mode must be all, read, edit, convert or sign")?;
             }
+            ("default-paper", _) => self.default_paper = paper_ui::Paper::preset(value).ok_or("Unknown paper preset")?,
+            ("default-page-width" | "default-page-height", _) => {
+                let side: f64 = value.parse().map_err(|_| "Paper dimension must be a number in PDF points")?;
+                if !side.is_finite() || !(3.0..=14_400.0).contains(&side) {
+                    return Err("Paper dimension must be 3 to 14400 PDF points".into());
+                }
+                if key == "default-page-width" {
+                    self.default_paper.width = side;
+                } else {
+                    self.default_paper.height = side;
+                }
+            }
+            ("actual-size-zoom", _) => {
+                let zoom: f32 = value.parse().map_err(|_| "Actual-size zoom must be a number")?;
+                if !zoom.is_finite() || !(0.25..=4.0).contains(&zoom) {
+                    return Err("Actual-size zoom must be 0.25 to 4".into());
+                }
+                self.actual_size_zoom = zoom;
+            }
             ("preferences-category", _) => self.preferences_category = PreferencesCategory::parse(value)?,
             ("date-format", _) => self.session.set_date_format(value)?,
             ("date-language", _) => self.session.set_date_language(Some(value).filter(|v| *v != "auto"))?,
@@ -2853,6 +2901,7 @@ impl PdfCraftApp {
                     "js-console" => Some(Dialog::JsConsole),
                     "document-js" => Some(Dialog::DocumentJs),
                     "preferences" => Some(Dialog::Preferences),
+                    "templates" => Some(Dialog::Templates),
                     "compare-files" => Some(Dialog::CompareFiles),
                     "action-wizard" => Some(Dialog::ActionWizard),
                     "pdfa" => Some(Dialog::PdfA),
@@ -3142,6 +3191,9 @@ impl PdfCraftApp {
     }
 
     fn shortcuts(&mut self, ctx: &egui::Context) {
+        for view in &mut self.views {
+            view.actual_size_zoom = self.actual_size_zoom;
+        }
         use egui::Key;
         let pasted = self.paste_key_released(ctx);
         // "Save changes?" is modal: its keys are its own (⌘D is Don't save there, not Document

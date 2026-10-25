@@ -12,6 +12,7 @@ pub enum PreferencesCategory {
     #[default]
     Appearance,
     Documents,
+    Paper,
     Language,
     Reading,
     Identity,
@@ -25,9 +26,10 @@ pub enum PreferencesCategory {
 }
 
 impl PreferencesCategory {
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Appearance,
         Self::Documents,
+        Self::Paper,
         Self::Editing,
         Self::Pages,
         Self::Ocr,
@@ -44,6 +46,7 @@ impl PreferencesCategory {
         match self {
             Self::Appearance => "appearance",
             Self::Documents => "documents",
+            Self::Paper => "paper",
             Self::Language => "language",
             Self::Reading => "reading",
             Self::Identity => "identity",
@@ -61,13 +64,14 @@ impl PreferencesCategory {
         Self::ALL
             .into_iter()
             .find(|category| category.key() == value)
-            .ok_or_else(|| "preferences-category must be appearance, documents, editing, pages, ocr, language, reading, identity, signing, security, javascript or assistant".into())
+            .ok_or_else(|| "preferences-category must be appearance, documents, paper, editing, pages, ocr, language, reading, identity, signing, security, javascript or assistant".into())
     }
 
     fn label(self) -> &'static str {
         match self {
             Self::Appearance => "Interface and appearance",
             Self::Documents => "Documents and view",
+            Self::Paper => "Paper and print",
             Self::Language => "Language and spelling",
             Self::Reading => "Reading colours",
             Self::Identity => "Identity",
@@ -98,6 +102,7 @@ impl PreferencesCategory {
         match self {
             Self::Appearance => "settings",
             Self::Documents => "files",
+            Self::Paper => "file",
             Self::Language => "languages",
             Self::Reading => "eye",
             Self::Identity => "user-round",
@@ -114,6 +119,7 @@ impl PreferencesCategory {
 
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (bool, bool) {
     let mut connections = false;
+    let mut close_requested = false;
     ui.label(RichText::new(tl!("Preferences")).font(theme::semibold(22.0)));
     ui.add_space(10.0);
     let height = (ui.ctx().content_rect().height() - 176.0).clamp(16.0, 380.0);
@@ -177,6 +183,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
                             match app.preferences_category {
                                 PreferencesCategory::Appearance => appearance(ui, app, t),
                                 PreferencesCategory::Documents => documents(ui, app, t),
+                                PreferencesCategory::Paper => close_requested = crate::paper_ui::preferences(ui, app),
                                 PreferencesCategory::Language => language(ui, app, t),
                                 PreferencesCategory::Reading => reading(ui, app, t),
                                 PreferencesCategory::Identity => identity(ui, app, t),
@@ -196,7 +203,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     ui.add_space(8.0);
     ui.separator();
     let close = widgets::dialog_footer(ui, |ui| widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked()).inner;
-    (close, connections)
+    (close || close_requested, connections)
 }
 
 /// The label for a [`pdfcraft_render::ReadingColors`] mode name (`mode_name`).

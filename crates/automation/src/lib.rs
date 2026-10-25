@@ -497,6 +497,10 @@ impl Automation {
             }
             "page_set_box" => self.page_set_box(&a)?,
             "page_transition_set" => self.page_transition_set(&a)?,
+            "template_list" => {
+                json!({"templates":pdfcraft_engine::templates::STARTERS.iter().map(|t|json!({"id":t.id,"title":t.title,"category":t.category,"description":t.description,"pages":t.pages})).collect::<Vec<_>>(),"papers":["letter","a4"],"format":"pdfcraft-template","version":1})
+            }
+            "template_export" => self.template_export(&a)?,
             "doc_create" => self.doc_create(&a)?,
             "xfa_to_static" => self.apply(&a, Edit::XfaToStatic)?,
             "doc_flatten" => {
@@ -1101,8 +1105,20 @@ impl Automation {
 
     fn doc_open(&mut self, a: &Args) -> Result<Value> {
         let path = self.resolve(a.str("path")?, false)?;
-        let bytes = std::fs::read(&path).map_err(|e| failed(format!("{}: {e}", path.display())))?;
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if name.to_ascii_lowercase().ends_with(".pdfcraft-template") {
+            use std::io::Read as _;
+            let mut bytes = Vec::new();
+            std::fs::File::open(&path)
+                .map_err(failed)?
+                .take(pdfcraft_engine::templates::MAX_BYTES as u64 + 1)
+                .read_to_end(&mut bytes)
+                .map_err(failed)?;
+            let (info, bytes) = self.session.import_template(Arc::new(bytes)).map_err(failed)?;
+            let id = self.session.open_new(format!("{}.pdf", info.title), bytes).map_err(failed)?;
+            return Ok(summary(self.session.get(id).ok_or_else(|| failed("the document vanished"))?));
+        }
+        let bytes = std::fs::read(&path).map_err(|e| failed(format!("{}: {e}", path.display())))?;
         let id = self.session.open(name, Some(path.to_string_lossy().into_owned()), Arc::new(bytes), a.opt_str("password")?).map_err(failed)?;
         let doc = self.session.get(id).ok_or_else(|| failed("the document vanished"))?;
         Ok(summary(doc))
@@ -1534,8 +1550,41 @@ impl Automation {
         }
     }
 
+    fn template_export(&self, a: &Args) -> Result<Value> {
+        let doc = self.doc(a)?;
+        let info = pdfcraft_engine::templates::TemplateInfo {
+            title: a.opt_str("title")?.unwrap_or(doc.name.trim_end_matches(".pdf")).into(),
+            description: a.opt_str("description")?.unwrap_or("").into(),
+            category: a.opt_str("category")?.unwrap_or("Custom").into(),
+        };
+        let target = self.resolve(a.str("path")?, true)?;
+        if self.session.docs().iter().filter_map(|d| d.path.as_deref()).any(|p| Path::new(p) == target) {
+            return Err(failed("Choose a different path for the template; the original document is open"));
+        }
+        let bytes = self.session.export_template(doc.id, &info).map_err(failed)?;
+        let path = self.write_output(a.str("path")?, &bytes)?;
+        Ok(json!({"path":path.to_string_lossy(),"format":"pdfcraft-template","version":1}))
+    }
+
     fn doc_create(&mut self, a: &Args) -> Result<Value> {
         let (name, bytes) = match a.str("from")? {
+            "starter" => {
+                let id = a.str("template")?;
+                let bytes = self.session.create_starter(id, a.opt_str("paper")?.unwrap_or("letter")).map_err(failed)?;
+                (format!("{}.pdf", pdfcraft_engine::templates::find(id).map_err(failed)?.title), bytes)
+            }
+            "template" => {
+                use std::io::Read as _;
+                let path = self.resolve(a.str("path")?, false)?;
+                let mut bytes = Vec::new();
+                std::fs::File::open(path)
+                    .map_err(failed)?
+                    .take(pdfcraft_engine::templates::MAX_BYTES as u64 + 1)
+                    .read_to_end(&mut bytes)
+                    .map_err(failed)?;
+                let (info, bytes) = self.session.import_template(std::sync::Arc::new(bytes)).map_err(failed)?;
+                (format!("{}.pdf", info.title), bytes)
+            }
             "xps" => {
                 use std::io::Read as _;
                 let path = self.resolve(a.str("path")?, false)?;
