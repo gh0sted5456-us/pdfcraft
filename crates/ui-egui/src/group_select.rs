@@ -5,7 +5,11 @@ use std::collections::BTreeSet;
 use egui::{Color32, Key, Modifiers, Pos2, Rect, Stroke};
 use pdfcraft_engine::{Document, Edit, EditableObject, ObjectKind, ObjectTarget};
 
-use crate::{canvas::DocView, comments::PageCx};
+use crate::{
+    canvas::DocView,
+    comments::PageCx,
+    page_pointer::{Edge, PagePointer},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Target {
@@ -46,7 +50,7 @@ impl GroupSelection {
         }
     }
 
-    pub fn prepare(&mut self, doc: &Document, enabled: bool, include_original: bool, edit_queued: bool, ctx: &egui::Context) {
+    pub fn prepare(&mut self, doc: &Document, enabled: bool, include_original: bool, edit_queued: bool, ptr: &PagePointer) {
         // Keyboard moves are queued before the canvas; keep their remapping until commit.
         if !edit_queued {
             self.pending_move = false;
@@ -59,7 +63,7 @@ impl GroupSelection {
         }
         self.include_original = include_original;
         self.generation = Some(doc.edit_generation());
-        if !ctx.input(|i| i.pointer.primary_down() || i.pointer.primary_released()) {
+        if !ptr.primary_down && !ptr.edges.iter().any(|e| matches!(e, Edge::Release(_))) {
             self.gesture = None;
         }
     }
@@ -185,12 +189,12 @@ pub(crate) fn page_input(ui: &egui::Ui, pcx: &PageCx<'_>, doc: &Document, view: 
     if view.group.blocked {
         return true;
     }
-    let Some(pointer) = ui.input(|i| i.pointer.interact_pos()) else { return true };
+    let Some(pointer) = pcx.ptr.pos else { return true };
     let originals = if view.group.include_original {
         match view.objects.inventory(doc, pcx.page) {
             Ok(objects) => objects,
             Err(why) => {
-                if ui.input(|i| i.pointer.primary_pressed()) {
+                if pcx.ptr.pressed().is_some() {
                     view.group.notice = Some(why);
                 }
                 Vec::new()
@@ -200,7 +204,7 @@ pub(crate) fn page_input(ui: &egui::Ui, pcx: &PageCx<'_>, doc: &Document, view: 
         Vec::new()
     };
     let items = items(pcx, doc, &originals);
-    if ui.input(|i| i.pointer.primary_pressed()) && pcx.xf.rect.contains(pointer) && ui.clip_rect().contains(pointer) {
+    if pcx.ptr.pressed().is_some() && pcx.xf.rect.contains(pointer) && ui.clip_rect().contains(pointer) {
         if view.group.page != Some(pcx.page) {
             view.group.selected.clear();
         }
@@ -219,7 +223,7 @@ pub(crate) fn page_input(ui: &egui::Ui, pcx: &PageCx<'_>, doc: &Document, view: 
         && let Some(g) = &mut view.group.gesture
     {
         g.now = pointer.clamp(pcx.xf.rect.min, pcx.xf.rect.max);
-        if ui.input(|i| i.pointer.primary_released()) {
+        if pcx.ptr.edges.iter().any(|e| matches!(e, Edge::Release(_))) {
             if g.moving && g.start.distance(g.now) >= 3.0 {
                 let (a, b) = (pcx.xf.screen_to_view(g.start), pcx.xf.screen_to_view(g.now));
                 let offset = [f64::from(b.0 - a.0), f64::from(b.1 - a.1)];

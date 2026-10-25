@@ -272,7 +272,7 @@ fn jpeg(name: &str, bytes: &[u8], default_dpi: f64) -> Result<Embedded, CreateEr
             0xEE if seg.starts_with(b"Adobe") => adobe = true,
             // APP2 ICC profile, possibly split over several chunks.
             0xE2 => {
-                if let Some(([seq, count], data)) = seg.strip_prefix(b"ICC_PROFILE\0").and_then(|r| r.split_first_chunk::<2>()) {
+                if let Some(([seq, count], data)) = seg.strip_prefix(b"ICC_PROFILE\0").and_then(<[u8]>::split_first_chunk::<2>) {
                     icc_chunks.push((*seq, *count, data));
                 }
             }

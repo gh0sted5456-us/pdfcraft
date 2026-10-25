@@ -584,6 +584,7 @@
 	Discard private data of other applications	Private Daten anderer Anwendungen verwerfen
 	Discard hidden text	Ausgeblendeten Text verwerfen
 	Use Flate to encode streams that are not encoded	Nicht codierte Streams mit Flate codieren
+	In streams that use LZW encoding, use Flate instead	In LZW-codierten Streams stattdessen Flate verwenden
 	Remove invalid links and bookmarks	Ungültige Links und Lesezeichen entfernen
 	Remove unreferenced named destinations	Nicht referenzierte benannte Ziele entfernen
 	Compress document structure (object streams)	Dokumentstruktur komprimieren (Objekt-Streams)
@@ -1976,6 +1977,10 @@
 	Perimeter	Umfang
 	Area	Fläche
 	Drawing scale	Zeichnungsmaßstab
+	Scale	Maßstab
+	Common scales	Gängige Maßstäbe
+	Enter a scale such as 1:50.	Geben Sie einen Maßstab wie 1:50 ein.
+	Applying a scale switches units to m / mm.	Beim Anwenden eines Maßstabs werden die Einheiten auf m / mm umgestellt.
 	Snapping	Einrasten
 	Export measurements	Messungen exportieren
 	Open a PDF to measure it.	Öffne ein PDF, um es zu messen.
@@ -2186,6 +2191,7 @@ signature pad	Type	Tippen
 certificate	Subject	Zertifikatsinhaber
 action wizard	Start	Starten
 	Reopen the files that were open when PdfCraft last closed	Beim Start die Dateien wieder öffnen, die beim letzten Beenden von PdfCraft geöffnet waren
+	Restore the last view (page, zoom and page display) when a document is opened again	Beim erneuten Öffnen eines Dokuments die letzte Ansicht (Seite, Zoom und Seitenanzeige) wiederherstellen
 
 # Labels that reach tl!() through a variable (Fill & Sign buttons, link prompts, notices, history labels, checker and certificate rows)
 	Add {what}	{what} hinzufügen
@@ -2324,7 +2330,8 @@ key	Space	Leertaste
 	Printer paper and scaling may differ. Check driver settings.	Druckerpapier und Skalierung können abweichen. Treibereinstellungen prüfen.
 	Drawing scale changes. Use Actual size for full-scale plans.	Der Zeichnungsmaßstab ändert sich. Für maßstabsgetreue Pläne Tatsächliche Größe verwenden.
 	Reload documents when their files change on disk	Dokumente neu laden, wenn sich ihre Dateien auf dem Datenträger ändern
-	Show validation marks over signed signatures	Validierungszeichen über signierten Signaturen anzeigen
+	Don't show again	Nicht mehr anzeigen
+	Show a notice when a document is secured	Hinweis anzeigen, wenn ein Dokument geschützt ist
 	Always use my default zoom and page layout	Immer meinen Standardzoom und mein Standard-Seitenlayout verwenden
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Diese Datei wurde auf dem Datenträger geändert. „Neu laden“ zeigt die neue Version und verwirft Ihre ungespeicherten Änderungen; „Speichern“ ersetzt sie durch diese Version.
 	Reload	Neu laden
@@ -2483,6 +2490,19 @@ animation effects	Off	Aus
 	Make properties default	Eigenschaften als Standard festlegen
 	Pages selected	Ausgewählte Seiten
 	Page properties	Seiteneigenschaften
+	Create & Edit	Erstellen & Bearbeiten
+	Review & Compare	Prüfen & Vergleichen
+	Forms & Signatures	Formulare & Signaturen
+	Protect & Standardize	Schützen & Standardisieren
+	Customize & Automate	Anpassen & Automatisieren
+	No tools match your search.	Keine Werkzeuge entsprechen Ihrer Suche.
+	Expand all tools	Alle Werkzeuge ausklappen
+	Collapse all tools	Alle Werkzeuge einklappen
+	Attach a file…	Datei anhängen…
+	Delete attachment	Anhang löschen
+	Attaching files is not available on the web yet	Dateien anhängen ist im Web noch nicht verfügbar
+	Attach {name}	{name} anhängen
+	Delete attachment {key}	Anhang {key} löschen
 	Font	Schrift
 	Bulleted list	Aufzählung
 	Numbered list	Nummerierte Liste
@@ -2517,6 +2537,21 @@ animation effects	Off	Aus
 	field names can't contain a period: {name}	Feldnamen dürfen keinen Punkt enthalten: {name}
 	two cells would both be named {name}	zwei Zellen hätten beide den Namen {name}
 	a field named {name} already exists	ein Feld namens {name} ist bereits vorhanden
+
+# Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
+	Today	Heute
+@plural	{n} reply|{n} replies	{n} Antwort|{n} Antworten
+
+# Pages panel: the Page tools menu (#4415) (AI-assisted, not separately native-reviewed)
+	Page tools	Seitenwerkzeuge
+	Insert pages from a file after the selection…	Seiten aus einer Datei nach der Auswahl einfügen…
+	Rotate the selected pages counterclockwise	Ausgewählte Seiten gegen den Uhrzeigersinn drehen
+	Rotate the selected pages clockwise	Ausgewählte Seiten im Uhrzeigersinn drehen
+	Extract the selected pages…	Ausgewählte Seiten extrahieren…
+	Delete the selected pages	Ausgewählte Seiten löschen
+
+# Personal-fork additions; contributor-original, AI-assisted.
+	Show validation marks over signed signatures	Validierungszeichen über signierten Signaturen anzeigen
 	Lines	Linien
 	Line colour	Linienfarbe
 	Drag a point to reshape the line. Delete removes it.	Ziehe einen Punkt, um die Linie umzuformen. Mit Entf wird sie gelöscht.
@@ -2525,17 +2560,12 @@ animation effects	Off	Aus
 	Ask whether to recognize the current page or all pages when editing a scan.	Beim Bearbeiten eines Scans fragen, ob die aktuelle Seite oder alle Seiten erkannt werden sollen.
 	Scanned text detected	Gescannter Text erkannt
 	Recognize text on this page or throughout the document?	Text auf dieser Seite oder im gesamten Dokument erkennen?
-
-# Group selection and document save status.
 	Exit	Beenden
 	Group select	Gruppenauswahl
 	Return to document	Zum Dokument zurückkehren
 	Saved	Gespeichert
 	Saves document	Speichert das Dokument
 	Unsaved changes	Ungespeicherte Änderungen
-
-
-# Remove Signature (sign.remove)
 	Remove signature…	Signatur entfernen…
 	Remove signature	Signatur entfernen
 	Remove Signature	Signatur entfernen
@@ -2583,15 +2613,11 @@ animation effects	Off	Aus
 	The signature {names} locks this field.	Die Signatur {names} sperrt dieses Feld.
 	This document can't be changed: {names}	Dieses Dokument kann nicht geändert werden: {names}
 	Choose a signature that can be removed.	Wählen Sie eine Signatur, die entfernt werden kann.
-
-# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
 	Open next PDF in folder	Nächste PDF im Ordner öffnen
 	Open previous PDF in folder	Vorherige PDF im Ordner öffnen
 	This document isn't in a folder yet: save it first	Dieses Dokument liegt noch in keinem Ordner: Speichern Sie es zuerst
 	This is the last PDF in its folder	Dies ist die letzte PDF in ihrem Ordner
 	This is the first PDF in its folder	Dies ist die erste PDF in ihrem Ordner
-
-# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
 	Language and spelling	Sprache und Rechtschreibung
 	Interface and appearance	Oberfläche und Darstellung
 	Check spelling while typing	Rechtschreibung während der Eingabe prüfen
@@ -2604,15 +2630,10 @@ animation effects	Off	Aus
 	Spelling suggestions	Rechtschreibvorschläge
 	No suggestions	Keine Vorschläge
 	Add to dictionary	Zum Wörterbuch hinzufügen
-
 	Suggest edits	Änderungen vorschlagen
-
-# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
 	Duplicate pages with new field names	Seiten mit neuen Feldnamen duplizieren
 	Duplicate pages — 1 field renamed	Seiten duplizieren — 1 Feld umbenannt
 	Duplicate pages — fields renamed	Seiten duplizieren — Felder umbenannt
-
-# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
 	Documents	Dokumente
 	AI Assistant	KI-Assistent
 	Latin (accented)	Lateinisch (mit Akzenten)

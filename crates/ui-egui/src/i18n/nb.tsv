@@ -933,7 +933,8 @@
 	Redaction code:	Sladdekode:
 	Reload	Last inn på nytt
 	Reload documents when their files change on disk	Last inn dokumenter på nytt når filene endres på disk
-	Show validation marks over signed signatures	Vis valideringsmerker over signerte signaturer
+	Don't show again	Ikke vis igjen
+	Show a notice when a document is secured	Vis et varsel når et dokument er sikret
 	Remove checkmark	Fjern hake
 	Remove invalid links and bookmarks	Fjern ugyldige lenker og bokmerker
 	Remove page	Fjern side
@@ -1229,6 +1230,7 @@
 	Update	Oppdater
 	Use 72 DPI (one point per pixel)	Bruk 72 DPI (ett punkt per piksel)
 	Use Flate to encode streams that are not encoded	Bruk Flate til å kode strømmer som ikke er kodet
+	In streams that use LZW encoding, use Flate instead	Bruk Flate i stedet for LZW i strømmer som er LZW-kodet
 	Use a Digital ID from a file	Bruk en digital ID fra en fil
 	Use custom DPI	Bruk egendefinert DPI
 	Use each image's embedded DPI; use 72 DPI when it is absent.	Bruk hvert bildes innebygde DPI; bruk 72 DPI når den mangler.
@@ -1402,6 +1404,10 @@
 	Draw freehand	Tegn på frihånd
 	Drawing	Tegning
 	Drawing scale	Tegneskala
+	Scale	Målestokk
+	Common scales	Vanlige målestokker
+	Enter a scale such as 1:50.	Skriv inn en målestokk, for eksempel 1:50.
+	Applying a scale switches units to m / mm.	Når du bruker en målestokk, byttes enhetene til m / mm.
 	Drop-down list	Nedtrekksliste
 	Duplicate pages	Dupliser sider
 	Edit a PDF	Rediger en PDF
@@ -2608,6 +2614,14 @@
 	Make properties default	Bruk egenskapene som standard
 	Pages selected	Valgte sider
 	Page properties	Sideegenskaper
+	Create & Edit	Opprett og rediger
+	Review & Compare	Gjennomgå og sammenlign
+	Forms & Signatures	Skjemaer og signaturer
+	Protect & Standardize	Beskytt og standardiser
+	Customize & Automate	Tilpass og automatiser
+	No tools match your search.	Ingen verktøy samsvarer med søket.
+	Expand all tools	Utvid alle verktøy
+	Collapse all tools	Fold sammen alle verktøy
 	Cut Image	Klipp ut bilde
 	Redact Image	Sladd bilde
 	Create Link…	Opprett lenke…
@@ -2696,15 +2710,29 @@ key	Space	Mellomrom
 	Show gaps between pages	Vis mellomrom mellom sidene
 	Hide gaps to join page edges. Margins inside the PDF remain unchanged.	Skjul mellomrommene slik at sidekantene møtes. Margene inne i PDF-en endres ikke.
 
-# Group selection and document save status.
+# Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
+	Today	I dag
+
+# AI-assisted additions for restoring the last view (#1767) (2026-10-22); not reviewed by a native speaker.
+	Restore the last view (page, zoom and page display) when a document is opened again	Gjenopprett den siste visningen (side, zoom og sidevisning) når et dokument åpnes igjen
+@plural	{n} reply|{n} replies	{n} svar|{n} svar
+
+# Pages panel: the Page tools menu (#4415) (AI-assisted, not separately native-reviewed)
+	Page tools	Sideverktøy
+	Insert pages from a file after the selection…	Sett inn sider fra en fil etter utvalget…
+	Rotate the selected pages counterclockwise	Roter de valgte sidene mot klokken
+	Rotate the selected pages clockwise	Roter de valgte sidene med klokken
+	Extract the selected pages…	Trekk ut de valgte sidene…
+	Delete the selected pages	Slett de valgte sidene
+
+# Personal-fork additions; contributor-original, AI-assisted.
+	Show validation marks over signed signatures	Vis valideringsmerker over signerte signaturer
 	Exit	Avslutt
 	Group select	Gruppevalg
 	Return to document	Tilbake til dokumentet
 	Saved	Lagret
 	Saves document	Lagrer dokumentet
 	Unsaved changes	Ulagrede endringer
-
-# Remove Signature (sign.remove)
 	Remove signature…	Fjern signatur…
 	Remove signature	Fjern signatur
 	Remove Signature	Fjern signatur
@@ -2752,15 +2780,11 @@ key	Space	Mellomrom
 	The signature {names} locks this field.	Signaturen {names} låser dette feltet.
 	This document can't be changed: {names}	Dette dokumentet kan ikke endres: {names}
 	Choose a signature that can be removed.	Velg en signatur som kan fjernes.
-
-# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
 	Open next PDF in folder	Åpne neste PDF i mappen
 	Open previous PDF in folder	Åpne forrige PDF i mappen
 	This document isn't in a folder yet: save it first	Dette dokumentet ligger ikke i en mappe ennå: lagre det først
 	This is the last PDF in its folder	Dette er den siste PDF-en i mappen
 	This is the first PDF in its folder	Dette er den første PDF-en i mappen
-
-# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
 	Language and spelling	Språk og staving
 	Interface and appearance	Grensesnitt og utseende
 	Check spelling while typing	Kontroller staving mens du skriver
@@ -2773,15 +2797,10 @@ key	Space	Mellomrom
 	Spelling suggestions	Staveforslag
 	No suggestions	Ingen forslag
 	Add to dictionary	Legg til i ordbok
-
 	Suggest edits	Foreslå endringer
-
-# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
 	Duplicate pages with new field names	Dupliser sider med nye feltnavn
 	Duplicate pages — 1 field renamed	Dupliser sider — 1 felt fikk nytt navn
 	Duplicate pages — fields renamed	Dupliser sider — felt fikk nytt navn
-
-# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
 	Documents	Dokumenter
 	AI Assistant	KI-assistent
 	Latin (accented)	Latin (med aksenter)

@@ -975,7 +975,8 @@
 	Redaction code:	Šalinimo kodas:
 	Reload	Įkelti iš naujo
 	Reload documents when their files change on disk	Iš naujo įkelti dokumentus, kai pasikeičia jų failai diske
-	Show validation marks over signed signatures	Rodyti patvirtinimo žymes ant pasirašytų parašų
+	Don't show again	Daugiau nerodyti
+	Show a notice when a document is secured	Rodyti pranešimą, kai dokumentas apsaugotas
 	Always use my default zoom and page layout	Visada naudoti mano numatytąjį mastelį ir puslapio išdėstymą
 	Remove checkmark	Pašalinti varnelę
 	Remove invalid links and bookmarks	Pašalinti netinkamus saitus ir žymeles
@@ -988,6 +989,7 @@
 	Remove {n} pages	Pašalinti puslapių: {n}
 	Reopen Closed Tab	Vėl atverti užvertą kortelę
 	Reopen the files that were open when PdfCraft last closed	Vėl atverti failus, kurie buvo atverti paskutinį kartą užveriant „PdfCraft“
+	Restore the last view (page, zoom and page display) when a document is opened again	Iš naujo atidarant dokumentą atkurti paskutinį rodinį (puslapį, mastelį ir puslapių rodymą)
 	Repair log	Taisymo žurnalas
 	Repeat overlay text	Kartoti perdangos tekstą
 	Replace Image…	Pakeisti paveikslėlį…
@@ -1279,6 +1281,7 @@
 	Update	Atnaujinti
 	Use 72 DPI (one point per pixel)	Naudoti 72 DPI (vienas taškas vienam pikseliui)
 	Use Flate to encode streams that are not encoded	Nekoduotiems srautams koduoti naudoti „Flate“
+	In streams that use LZW encoding, use Flate instead	LZW koduotiems srautams naudoti „Flate“
 	Use a Digital ID from a file	Naudoti faile esantį skaitmeninį ID
 	Use custom DPI	Naudoti pasirinktinį DPI
 	Use each image's embedded DPI; use 72 DPI when it is absent.	Naudoti paveikslėlyje įrašytą DPI; jei jo nėra, naudoti 72 DPI.
@@ -1450,6 +1453,10 @@
 	Draw freehand	Brėžti laisva ranka
 	Drawing	Brėžinys
 	Drawing scale	Brėžinio mastelis
+	Scale	Mastelis
+	Common scales	Dažni masteliai
+	Enter a scale such as 1:50.	Įveskite mastelį, pavyzdžiui, 1:50.
+	Applying a scale switches units to m / mm.	Pritaikius mastelį, vienetai pakeičiami į m / mm.
 	Drop-down list	Išskleidžiamasis sąrašas
 	Duplicate pages	Dubliuoti puslapius
 	Edit a PDF	Redaguoti PDF
@@ -2732,6 +2739,14 @@ key	Space	Tarpas
 	Make properties default	Nustatyti ypatybes kaip numatytąsias
 	Pages selected	Pasirinkti puslapiai
 	Page properties	Puslapio ypatybės
+	Create & Edit	Kūrimas ir redagavimas
+	Review & Compare	Peržiūra ir palyginimas
+	Forms & Signatures	Formos ir parašai
+	Protect & Standardize	Apsauga ir standartizavimas
+	Customize & Automate	Pritaikymas ir automatizavimas
+	No tools match your search.	Paieškos neatitinka joks įrankis.
+	Expand all tools	Išskleisti visus įrankius
+	Collapse all tools	Suskleisti visus įrankius
 
 # AI-assisted additions for concurrently merged UI features (2026-10-15).
 # These additions have not had separate native-speaker review.
@@ -2740,6 +2755,11 @@ key	Space	Tarpas
 	The password must have at least 6 characters.	Slaptažodį turi sudaryti bent 6 simboliai.
 	This file changed on disk. Reload it to see the new version; your unsaved changes will be lost.	Šis failas diske pasikeitė. Įkelkite jį iš naujo, kad pamatytumėte naują versiją; neįrašyti pakeitimai bus prarasti.
 theme	Appearance	Išvaizda
+	Attach a file…	Pridėti failą…
+	Delete attachment	Ištrinti priedą
+	Attaching files is not available on the web yet	Failų pridėjimas žiniatinklyje dar negalimas
+	Attach {name}	Pridėti {name}
+	Delete attachment {key}	Ištrinti priedą {key}
 	Bulleted list	Sąrašas su ženkleliais
 	Numbered list	Numeruotas sąrašas
 	Alignment	Lygiuotė
@@ -2777,6 +2797,21 @@ theme	Appearance	Išvaizda
 	a table has 1 to {max} columns	lentelėje gali būti nuo 1 iki {max} stulpelių
 	the first row number can be at most {max}	pirmosios eilutės numeris gali būti ne didesnis nei {max}
 	the area, the spacing and the column widths must be numbers, the spacing 0 or more and each width more than 0	sritis, tarpai ir stulpelių pločiai turi būti skaičiai, tarpai – 0 arba daugiau, o kiekvienas plotis – daugiau nei 0
+
+# Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
+	Today	Šiandien
+@plural	{n} reply|{n} replies	{n} atsakymas|{n} atsakymai|{n} atsakymų
+
+# Pages panel: the Page tools menu (#4415) (AI-assisted, not separately native-reviewed)
+	Page tools	Puslapių įrankiai
+	Insert pages from a file after the selection…	Įterpti puslapius iš failo po pasirinkimo…
+	Rotate the selected pages counterclockwise	Pasukti pasirinktus puslapius prieš laikrodžio rodyklę
+	Rotate the selected pages clockwise	Pasukti pasirinktus puslapius pagal laikrodžio rodyklę
+	Extract the selected pages…	Išskleisti pasirinktus puslapius…
+	Delete the selected pages	Ištrinti pasirinktus puslapius
+
+# Personal-fork additions; contributor-original, AI-assisted.
+	Show validation marks over signed signatures	Rodyti patvirtinimo žymes ant pasirašytų parašų
 	Lines	Linijos
 	Line colour	Linijos spalva
 	Drag a point to reshape the line. Delete removes it.	Vilkite tašką, kad pakeistumėte linijos formą. Klavišas Delete ją pašalina.
@@ -2790,17 +2825,12 @@ theme	Appearance	Išvaizda
 	Ask whether to recognize the current page or all pages when editing a scan.	Redaguojant nuskaitytą dokumentą paklausti, ar atpažinti dabartinį puslapį, ar visus puslapius.
 	Scanned text detected	Aptiktas nuskaitytas tekstas
 	Recognize text on this page or throughout the document?	Atpažinti tekstą šiame puslapyje ar visame dokumente?
-
-# Group selection and document save status.
 	Exit	Išeiti
 	Group select	Grupės pasirinkimas
 	Return to document	Grįžti į dokumentą
 	Saved	Įrašyta
 	Saves document	Įrašo dokumentą
 	Unsaved changes	Neįrašyti pakeitimai
-
-
-# Remove Signature (sign.remove)
 	Remove signature…	Pašalinti parašą…
 	Remove signature	Pašalinti parašą
 	Remove Signature	Parašo šalinimas
@@ -2848,15 +2878,11 @@ theme	Appearance	Išvaizda
 	The signature {names} locks this field.	Parašas {names} užrakina šį lauką.
 	This document can't be changed: {names}	Šio dokumento keisti negalima: {names}
 	Choose a signature that can be removed.	Pasirinkite parašą, kurį galima pašalinti.
-
-# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
 	Open next PDF in folder	Atverti kitą aplanko PDF
 	Open previous PDF in folder	Atverti ankstesnį aplanko PDF
 	This document isn't in a folder yet: save it first	Šis dokumentas dar nėra jokiame aplanke: pirmiausia jį įrašykite
 	This is the last PDF in its folder	Tai paskutinis jo aplanko PDF
 	This is the first PDF in its folder	Tai pirmasis jo aplanko PDF
-
-# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
 	Language and spelling	Kalba ir rašyba
 	Interface and appearance	Sąsaja ir išvaizda
 	Check spelling while typing	Tikrinti rašybą įvedant tekstą
@@ -2869,15 +2895,10 @@ theme	Appearance	Išvaizda
 	Spelling suggestions	Rašybos pasiūlymai
 	No suggestions	Pasiūlymų nėra
 	Add to dictionary	Įtraukti į žodyną
-
 	Suggest edits	Siūlyti pakeitimus
-
-# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
 	Duplicate pages with new field names	Dubliuoti puslapius su naujais laukų pavadinimais
 	Duplicate pages — 1 field renamed	Dubliuoti puslapius — pervadintas 1 laukas
 	Duplicate pages — fields renamed	Dubliuoti puslapius — laukai pervadinti
-
-# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
 	Documents	Dokumentai
 	AI Assistant	DI asistentas
 	Latin (accented)	Lotynų (su diakritiniais ženklais)

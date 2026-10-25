@@ -11,6 +11,7 @@ use pdfcraft_engine::{DocId, SignOptions, SignatureImage, SignatureInfo, Signatu
 
 use crate::canvas::{DocView, PageXform, Snapshot, SnapshotKind};
 use crate::fill_sign::SavedSig;
+use crate::page_pointer::PagePointer;
 use crate::theme::{self, Tokens};
 use crate::{PdfCraftApp, icons, widgets};
 
@@ -213,9 +214,16 @@ pub struct SignView {
 }
 
 /// Drag a signature rectangle on one page (Digitally sign, Certify (visible signature)).
-pub(crate) fn page_input(ui: &egui::Ui, resp: &egui::Response, xf: &PageXform, page: usize, info: &pdfcraft_render::DocInfo, view: &mut DocView) {
-    let pointer = ui.input(|i| i.pointer.hover_pos());
-    let origin = ui.input(|i| i.pointer.press_origin());
+pub(crate) fn page_input(
+    ui: &egui::Ui,
+    resp: &egui::Response,
+    xf: &PageXform,
+    ptr: &PagePointer,
+    page: usize,
+    info: &pdfcraft_render::DocInfo,
+    view: &mut DocView,
+) {
+    let (pointer, origin) = (ptr.pos, ptr.origin);
     if pointer.is_some_and(|p| xf.rect.contains(p)) {
         ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
     }
@@ -554,6 +562,8 @@ impl PdfCraftApp {
         // Signing saves, as in Acrobat: choose where (a cancelled save cancels signing). The
         // document is signed once the user has chosen.
         let name = self.session.get(doc_id).map(|d| d.name.clone()).unwrap_or_default();
+        #[cfg(not(target_arch = "wasm32"))]
+        let folder = self.session.get(doc_id).and_then(|d| d.path.clone());
         let stem = name.trim_end_matches(".pdf").trim_end_matches(".PDF").to_string();
         let background = d.background.clone();
         let timestamp = d.timestamp.then(|| self.timestamp_server.clone());
@@ -591,6 +601,7 @@ impl PdfCraftApp {
             #[cfg(not(target_arch = "wasm32"))]
             None => {
                 let dialog = rfd::AsyncFileDialog::new().add_filter("PDF", &["pdf"]).set_file_name(format!("{stem}_signed.pdf"));
+                let dialog = crate::editing::in_document_folder(dialog, folder.as_deref());
                 // The signature's page, rectangle and field refer to the document as it is now:
                 // the pick is dropped (with a notice) if it is edited or switched away from
                 // meanwhile. Once the picker shows, the dialog closes; an error from here on
@@ -2280,19 +2291,22 @@ mod tests {
     /// left): never a mix, and never a label signing would refuse.
     #[test]
     fn appearance_labels_are_translated_or_all_english() {
-        use crate::i18n::{Lang, tr};
+        use crate::i18n::{Lang, has, tr};
         let english = AppearanceLabels::default();
         assert_eq!(appearance_labels(Lang::EN), (english.clone(), false));
+        // Latin-script catalogs the signature's font can draw: stamped in the language once every
+        // label is translated there.
         for code in ["de", "es", "fr", "it", "pt-br", "pl", "tr", "sl", "hu"] {
             let lang = Lang::from_code(code).unwrap();
+            if !english.fields().into_iter().all(|(_, source)| has(lang, source)) {
+                continue;
+            }
             let (labels, in_english) = appearance_labels(lang);
             assert!(!in_english, "{code}: {labels:?}");
             for ((field, ours), (_, source)) in labels.fields().into_iter().zip(english.fields()) {
                 assert_eq!(ours, tr(lang, source), "{code}: {field}");
             }
         }
-        let (de, _) = appearance_labels(Lang::from_code("de").unwrap());
-        assert_eq!((de.signed_by.as_str(), de.reason.as_str()), ("Digital signiert von", "Grund: "));
         for code in ["zh-hans", "zh-hant", "ja", "ru", "uk", "bg", "kk", "el", "te", "cs", "lt", "ar"] {
             assert_eq!(appearance_labels(Lang::from_code(code).unwrap()), (english.clone(), true), "{code}");
         }

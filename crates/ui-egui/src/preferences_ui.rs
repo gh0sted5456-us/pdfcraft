@@ -276,12 +276,12 @@ fn appearance(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
         ui.label(tl!("Tools panel side"));
         let right = app.docking.tools_on_right();
         if ui.selectable_label(!right, tl!("Left")).clicked()
-            && let Err(error) = app.docking.set_tools_on_right(false)
+            && let Err(error) = app.set_option("tools-side", "left")
         {
             app.notify(error);
         }
         if ui.selectable_label(right, tl!("Right")).clicked()
-            && let Err(error) = app.docking.set_tools_on_right(true)
+            && let Err(error) = app.set_option("tools-side", "right")
         {
             app.notify(error);
         }
@@ -607,6 +607,7 @@ fn security(ui: &mut egui::Ui, app: &mut PdfCraftApp) {
     crate::timestamp_ui::server_selector(ui, &mut app.timestamp_server);
     ui.add_space(12.0);
     ui.add(widgets::checkbox(&mut app.show_signature_badges, tl!("Show validation marks over signed signatures")));
+    ui.add(widgets::checkbox(&mut app.show_secured_notice, tl!("Show a notice when a document is secured")));
 }
 
 fn assistant(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {

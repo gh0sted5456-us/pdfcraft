@@ -18,59 +18,131 @@ fn gpu() -> std::sync::MutexGuard<'static, ()> {
 }
 
 mod accessibility;
+
 mod actions;
+
 mod animate;
+
+mod attach_picker_target;
+
+mod attachment_row;
+
 mod bookmark_position;
+
 mod bookmarks;
+
 mod bulk_fields;
+
 mod buttons;
+
 mod camera;
+
 mod checkbox_drag;
+
 mod column_select;
+
 mod combine_grid;
+
 mod commands;
+
+mod comment_pin;
+
 mod comments;
+
 mod compare;
+
 mod content;
+
 mod control;
+
 mod create;
+
 mod date_format;
+
 mod dialog_chrome;
+
 mod document_links;
+
 mod editing;
+
+mod editor_taps;
+
 mod export;
+
 mod fill_sign;
+
 mod folders;
+
 mod fonts;
+
 mod forms;
+
 mod identity;
+
 mod javascript;
+
 mod layer_actions;
+
 mod links;
+
 mod marks;
+
 mod object_selection;
+
 mod ocr;
+
+mod open_action;
+
+mod organize_drag;
+
 mod pageboxes;
+
 mod panel_snapshots;
+
 mod pdf_links;
+
 mod pickers;
+
+mod pointer;
+
 mod preferences_layout;
+
 mod prepare;
+
 mod print;
+
 mod protect;
+
 mod reading_colors;
+
 mod recovery;
+
 mod redact;
+
 mod reload;
+
 mod remove_signature;
+
 mod signing;
+
 mod stamps;
+
 mod text_select;
+
 mod theme;
+
 mod theme_button;
+
 mod trust_signer;
+
 mod ui;
+
 mod updates;
+
 mod view;
+
 mod viewer;
+
 mod xfa;
+
+mod side_panels;

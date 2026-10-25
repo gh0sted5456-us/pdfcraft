@@ -72,13 +72,7 @@ fn harness() -> Harness<'static, PdfCraftApp> {
         app
     });
     // Background rendering and text extraction can take seconds on a loaded CI runner (FreeBSD VM).
-    for _ in 0..3000 {
-        h.run_steps(2);
-        if !h.state().render_pending() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
+    crate::support::settle(&mut h);
     h
 }
 
@@ -123,7 +117,9 @@ fn view_history_select_all_and_find_options() {
     assert_eq!(h.state().views[0].current, 0);
     assert!(h.state_mut().views[0].view_history(true));
     assert_eq!(h.state().views[0].current, 3, "next view");
-    // Select all on the current page (once its text is known).
+    // Select all on the current page (once its text is known), one page at a time: scrolling
+    // continuously it takes the whole document's text (#2639).
+    h.state_mut().views[0].set_continuous(false);
     // Background rendering and text extraction can take seconds on a loaded CI runner (FreeBSD VM).
     for _ in 0..3000 {
         h.run_steps(2);
@@ -1453,7 +1449,7 @@ fn pages_panel_thumbnails_have_a_context_menu() {
     h.run_steps(2);
     // The page right-clicked becomes the selection the menu acts on.
     assert_eq!(h.state().views[0].target_pages(), vec![2]);
-    for item in ["Extract pages", "Cut", "Paste after"] {
+    for item in ["Extract pages", "Split document…", "Cut", "Paste after"] {
         h.get_by_label(item);
     }
     h.get_by_label("Copy").click();
@@ -1793,13 +1789,7 @@ fn a_picture_inside_form_artwork_under_text_is_selected_and_copied() {
         app.open_bytes("scan.pdf", None, pdf).unwrap();
         app
     });
-    for _ in 0..40 {
-        h.run_steps(2);
-        if !h.state().render_pending() {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(5));
-    }
+    crate::support::settle(&mut h);
     h.state_mut().system_clipboard = false;
     let i = h.state().active.unwrap();
     let r = h.state().views[i].page_screen_rect(0).expect("on screen");
@@ -2157,4 +2147,27 @@ fn go_to_page_brings_the_page_into_view_horizontally() {
     assert_eq!(v.current, 2);
     let (r, vp) = (v.page_screen_rect(2).expect("page 3 on screen"), v.viewport_rect());
     assert!(r.left() >= vp.left() && r.right() <= vp.right(), "page 3 at {r:?}, viewport {vp:?}");
+}
+
+/// #4614: the accessible window is named like the native one, and follows it when the active
+/// document changes, so a screen reader can find the window by its title.
+#[test]
+fn the_accessible_window_has_the_window_title_as_its_name() {
+    use egui_kittest::kittest::NodeT as _;
+    let mut h = harness();
+    h.run_steps(2);
+    let name = |h: &Harness<'static, PdfCraftApp>| h.root().accesskit_node().label().map(|l| l.to_string());
+    assert_eq!(name(&h).as_deref(), Some("b.pdf"));
+    {
+        use pdfcraft_engine::Edit;
+        let s = h.state_mut();
+        let id = s.views[s.active.unwrap()].id;
+        s.session.apply(id, Edit::SetInfo { key: "Title".into(), value: "Quarterly report".into() }).unwrap();
+        let mut v = s.session.get(id).unwrap().initial_view();
+        v.display_title = true;
+        s.session.apply(id, Edit::SetInitialView(Box::new(v))).unwrap();
+    }
+    h.run_steps(2);
+    assert_eq!(name(&h).as_deref(), Some("Quarterly report"));
+    assert_eq!(name(&h), Some(h.state().window_title.clone()));
 }

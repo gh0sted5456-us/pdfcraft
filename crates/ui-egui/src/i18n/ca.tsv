@@ -574,6 +574,7 @@
 	Discard private data of other applications	Descarta les dades privades d'altres aplicacions
 	Discard hidden text	Descarta el text ocult
 	Use Flate to encode streams that are not encoded	Utilitza Flate per codificar els fluxos que no estan codificats
+	In streams that use LZW encoding, use Flate instead	Als fluxos que utilitzen codificació LZW, utilitza Flate
 	Remove invalid links and bookmarks	Elimina els enllaços i marcadors no vàlids
 	Remove unreferenced named destinations	Elimina les destinacions amb nom sense referència
 	Compress document structure (object streams)	Comprimeix l'estructura del document (fluxos d'objectes)
@@ -2000,6 +2001,10 @@ action wizard	Start	Inicia
 	Perimeter	Perímetre
 	Area	Àrea
 	Drawing scale	Escala del dibuix
+	Scale	Escala
+	Common scales	Escales habituals
+	Enter a scale such as 1:50.	Introduïu una escala com 1:50.
+	Applying a scale switches units to m / mm.	En aplicar una escala, les unitats canvien a m / mm.
 	Snapping	Ajust
 	Export measurements	Exporta les mesures
 	Open a PDF to measure it.	Obre un PDF per mesurar-lo.
@@ -2137,7 +2142,8 @@ action wizard	Start	Inicia
 	Home / End	Inici / Fi
 	H / Space (hold)	H / Espai (mantén premut)
 	Reload documents when their files change on disk	Torna a carregar els documents quan els seus fitxers canviïn al disc
-	Show validation marks over signed signatures	Mostra marques de validació sobre les signatures signades
+	Don't show again	No ho tornis a mostrar
+	Show a notice when a document is secured	Mostra un avís quan un document està protegit
 	This file changed on disk. Reload it to see the new version; your unsaved changes will be lost.	Aquest fitxer ha canviat al disc. Torna'l a carregar per veure'n la versió nova; es perdran els canvis sense desar.
 	Reload	Torna a carregar
 	Couldn't reload {name}: {e}	No s'ha pogut tornar a carregar {name}: {e}
@@ -2648,6 +2654,14 @@ certificate	SHA-256 digest	Resum SHA-256
 	Optimizing… merging image fragments	S'està optimitzant… fusionant fragments d'imatge
 	Outline colour:	Color del contorn:
 	Page properties	Propietats de la pàgina
+	Create & Edit	Crea i edita
+	Review & Compare	Revisa i compara
+	Forms & Signatures	Formularis i signatures
+	Protect & Standardize	Protegeix i estandarditza
+	Customize & Automate	Personalitza i automatitza
+	No tools match your search.	Cap eina coincideix amb la cerca.
+	Expand all tools	Desplega totes les eines
+	Collapse all tools	Replega totes les eines
 	Pages counted	Pàgines comptades
 	Pages selected	Pàgines seleccionades
 	Print as image	Imprimeix com a imatge
@@ -2775,6 +2789,29 @@ theme	Appearance	Aspecte
 	field names can't contain a period: {name}	els noms dels camps no poden contenir cap punt: {name}
 	two cells would both be named {name}	dues cel·les es dirien {name}
 	a field named {name} already exists	ja existeix un camp anomenat {name}
+
+# Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
+	Today	Avui
+
+# AI-assisted additions for restoring the last view (#1767) (2026-10-22); not reviewed by a native speaker.
+	Restore the last view (page, zoom and page display) when a document is opened again	Restaura l'última vista (pàgina, zoom i visualització de pàgina) quan es torna a obrir un document
+	Attach a file…	Adjunta un fitxer…
+	Attach {name}	Adjunta {name}
+	Attaching files is not available on the web yet	Encara no es poden adjuntar fitxers al web
+	Delete attachment	Elimina l'adjunt
+	Delete attachment {key}	Elimina l'adjunt {key}
+@plural	{n} reply|{n} replies	{n} resposta|{n} respostes
+
+# Pages panel: the Page tools menu (#4415) (AI-assisted, not separately native-reviewed)
+	Page tools	Eines de pàgina
+	Insert pages from a file after the selection…	Insereix pàgines d'un fitxer després de la selecció…
+	Rotate the selected pages counterclockwise	Gira les pàgines seleccionades en sentit antihorari
+	Rotate the selected pages clockwise	Gira les pàgines seleccionades en sentit horari
+	Extract the selected pages…	Extreu les pàgines seleccionades…
+	Delete the selected pages	Suprimeix les pàgines seleccionades
+
+# Personal-fork additions; contributor-original, AI-assisted.
+	Show validation marks over signed signatures	Mostra marques de validació sobre les signatures signades
 	Recognize scanned text automatically	Reconeix automàticament el text escanejat
 	Ask whether to recognize the current page or all pages when editing a scan.	Pregunta si cal reconèixer la pàgina actual o totes les pàgines en editar un document escanejat.
 	Scanned text detected	S'ha detectat text escanejat
@@ -2783,8 +2820,6 @@ theme	Appearance	Aspecte
 	Line colour	Color de la línia
 	Lines	Línies
 	This point could not be moved. Try a smaller move.	No s'ha pogut moure aquest punt. Proveu un desplaçament més petit.
-
-# Group selection and document save status.
 	Exit	Surt
 	Group select	Selecció de grup
 	Return to document	Torna al document
@@ -2796,9 +2831,6 @@ theme	Appearance	Aspecte
 	Format line	Formata la línia
 	Format lines	Formata les línies
 	Move line point	Mou un punt de la línia
-
-
-# Remove Signature (sign.remove) (AI-assisted, not separately native-reviewed)
 	Remove signature…	Elimina la signatura…
 	Remove signature	Elimina la signatura
 	Remove Signature	Elimina la signatura
@@ -2846,15 +2878,11 @@ theme	Appearance	Aspecte
 	The signature {names} locks this field.	La signatura {names} bloqueja aquest camp.
 	This document can't be changed: {names}	Aquest document no es pot modificar: {names}
 	Choose a signature that can be removed.	Trieu una signatura que es pugui eliminar.
-
-# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
 	Open next PDF in folder	Obre el PDF següent de la carpeta
 	Open previous PDF in folder	Obre el PDF anterior de la carpeta
 	This document isn't in a folder yet: save it first	Aquest document encara no és en cap carpeta: deseu-lo primer
 	This is the last PDF in its folder	Aquest és l'últim PDF de la carpeta
 	This is the first PDF in its folder	Aquest és el primer PDF de la carpeta
-
-# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
 	Language and spelling	Llengua i ortografia
 	Interface and appearance	Interfície i aparença
 	Check spelling while typing	Comprova l’ortografia mentre escric
@@ -2867,15 +2895,10 @@ theme	Appearance	Aspecte
 	Spelling suggestions	Suggeriments ortogràfics
 	No suggestions	Sense suggeriments
 	Add to dictionary	Afegeix al diccionari
-
 	Suggest edits	Suggereix canvis
-
-# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
 	Duplicate pages with new field names	Duplica les pàgines amb noms de camp nous
 	Duplicate pages — 1 field renamed	Duplica pàgines — 1 camp s'ha reanomenat
 	Duplicate pages — fields renamed	Duplica pàgines — camps reanomenats
-
-# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
 	Documents	Documents
 	AI Assistant	Assistent d’IA
 	Latin (accented)	Llatí (amb accents)

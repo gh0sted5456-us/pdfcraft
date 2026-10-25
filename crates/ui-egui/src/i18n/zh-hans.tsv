@@ -288,6 +288,7 @@
 	Discard private data of other applications	丢弃其他应用程序的私有数据
 	Discard hidden text	丢弃隐藏文本
 	Use Flate to encode streams that are not encoded	使用 Flate 编码未编码的流
+	In streams that use LZW encoding, use Flate instead	在使用 LZW 编码的流中改用 Flate
 	Remove invalid links and bookmarks	删除无效链接和书签
 	Remove unreferenced named destinations	删除未引用的命名目标
 	Compress document structure (object streams)	压缩文档结构（对象流）
@@ -1910,6 +1911,10 @@
 	Perimeter	周长
 	Area	面积
 	Drawing scale	图面比例
+	Scale	比例
+	Common scales	常用比例
+	Enter a scale such as 1:50.	请输入比例，例如 1:50。
+	Applying a scale switches units to m / mm.	应用比例会将单位切换为 m / mm。
 	Snapping	吸附
 	Export measurements	导出测量结果
 	Open a PDF to measure it.	打开 PDF 以进行测量。
@@ -2142,8 +2147,10 @@
 	Used when opening PDFs. An explicit launch or control mode takes precedence for the session.	用于打开 PDF 时。如果启动参数或控制通道明确指定了模式，则本次会话优先使用该模式。
 	Used when a PDF doesn't ask for a layout or zoom. Continuous scrolling never snaps between pages.	PDF 未指定布局或缩放时使用。连续滚动时页面不会逐页吸附。
 	Reopen the files that were open when PdfCraft last closed	重新打开上次关闭 PdfCraft 时打开的文件
+	Restore the last view (page, zoom and page display) when a document is opened again	再次打开文档时恢复上次的视图（页面、缩放和页面显示）
 	Reload documents when their files change on disk	文件在磁盘上更改时重新加载对应的文档
-	Show validation marks over signed signatures	在已签名的签名上显示验证标记
+	Don't show again	不再显示
+	Show a notice when a document is secured	文档已加密时显示通知
 	Always use my default zoom and page layout	始终使用我的默认缩放和页面布局
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	此文件已在磁盘上更改。“重新加载”显示新版本并放弃未保存的更改；“保存”则用此版本替换它。
 	Reload	重新加载
@@ -2446,6 +2453,19 @@ animation effects	Off	关
 	Make properties default	将属性设为默认
 	Pages selected	选定的页面
 	Page properties	页面属性
+	Create & Edit	创建和编辑
+	Review & Compare	审阅和比较
+	Forms & Signatures	表单和签名
+	Protect & Standardize	保护和标准化
+	Customize & Automate	自定义和自动化
+	No tools match your search.	没有与搜索匹配的工具。
+	Expand all tools	展开所有工具
+	Collapse all tools	折叠所有工具
+	Attach a file…	附加文件…
+	Delete attachment	删除附件
+	Attaching files is not available on the web yet	网页版尚不支持附加文件
+	Attach {name}	附加 {name}
+	Delete attachment {key}	删除附件 {key}
 	Font	字体
 	Bulleted list	项目符号列表
 	Numbered list	编号列表
@@ -2480,6 +2500,21 @@ animation effects	Off	关
 	field names can't contain a period: {name}	字段名称不能包含句点：{name}
 	two cells would both be named {name}	两个单元格的名称都会是 {name}
 	a field named {name} already exists	已存在名为 {name} 的字段
+
+# Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
+	Today	今天
+@plural	{n} reply|{n} replies	{n} 条回复
+
+# Pages panel: the Page tools menu (#4415) (AI-assisted, not separately native-reviewed)
+	Page tools	页面工具
+	Insert pages from a file after the selection…	在所选内容后插入文件中的页面…
+	Rotate the selected pages counterclockwise	逆时针旋转所选页面
+	Rotate the selected pages clockwise	顺时针旋转所选页面
+	Extract the selected pages…	提取所选页面…
+	Delete the selected pages	删除所选页面
+
+# Personal-fork additions; contributor-original, AI-assisted.
+	Show validation marks over signed signatures	在已签名的签名上显示验证标记
 	Lines	线条
 	Line colour	线条颜色
 	Drag a point to reshape the line. Delete removes it.	拖动点可改变线条形状。按 Delete 键删除。
@@ -2488,17 +2523,12 @@ animation effects	Off	关
 	Ask whether to recognize the current page or all pages when editing a scan.	编辑扫描文档时，询问是识别当前页还是所有页面。
 	Scanned text detected	检测到扫描文本
 	Recognize text on this page or throughout the document?	识别此页还是整个文档中的文本？
-
-# Group selection and document save status.
 	Exit	退出
 	Group select	框选组
 	Return to document	返回文档
 	Saved	已保存
 	Saves document	保存文档
 	Unsaved changes	未保存的更改
-
-
-# Remove Signature (sign.remove)
 	Remove signature…	移除签名…
 	Remove signature	移除签名
 	Remove Signature	移除签名
@@ -2546,15 +2576,11 @@ animation effects	Off	关
 	The signature {names} locks this field.	签名 {names} 锁定了此字段。
 	This document can't be changed: {names}	无法更改此文档：{names}
 	Choose a signature that can be removed.	请选择一个可以移除的签名。
-
-# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
 	Open next PDF in folder	打开文件夹中的下一个 PDF
 	Open previous PDF in folder	打开文件夹中的上一个 PDF
 	This document isn't in a folder yet: save it first	此文档尚未保存在文件夹中：请先保存
 	This is the last PDF in its folder	这是所在文件夹中的最后一个 PDF
 	This is the first PDF in its folder	这是所在文件夹中的第一个 PDF
-
-# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
 	Language and spelling	语言和拼写
 	Interface and appearance	界面和外观
 	Check spelling while typing	输入时检查拼写
@@ -2567,15 +2593,10 @@ animation effects	Off	关
 	Spelling suggestions	拼写建议
 	No suggestions	无建议
 	Add to dictionary	添加到词典
-
 	Suggest edits	建议修改
-
-# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
 	Duplicate pages with new field names	使用新字段名复制页面
 	Duplicate pages — 1 field renamed	重复页面 — 已重命名 1 个字段
 	Duplicate pages — fields renamed	重复页面 — 已重命名字段
-
-# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
 	Documents	文档
 	AI Assistant	AI 助手
 	Latin (accented)	拉丁字母（带重音）

@@ -8,6 +8,7 @@ use pdfcraft_engine::{Document, Edit, EditableObject, MAX_MOVE_OBJECTS, ObjectAl
 use pdfcraft_render::DocInfo;
 
 use crate::canvas::{DocView, PageXform};
+use crate::page_pointer::PagePointer;
 
 const BLUE: Color32 = Color32::from_rgb(0x14, 0x73, 0xE6);
 
@@ -159,13 +160,8 @@ impl ObjectSelection {
         self.cache.get(&page).and_then(|result| result.as_ref().ok()).map(Vec::as_slice).unwrap_or_default()
     }
 
-    pub(crate) fn prepare_drag(&mut self, ui: &egui::Ui, xf: &PageXform, page: usize, doc: &Document) {
-        if !self.input_blocked
-            && ui.input(|i| i.pointer.primary_pressed())
-            && ui
-                .input(|i| i.pointer.interact_pos())
-                .is_some_and(|p| xf.rect.contains(p) && ui.clip_rect().contains(p) && ui.ctx().layer_id_at(p) == Some(ui.layer_id()))
-        {
+    pub(crate) fn prepare_drag(&mut self, xf: &PageXform, ptr: &PagePointer, page: usize, doc: &Document) {
+        if !self.input_blocked && ptr.pressed().is_some_and(|p| xf.rect.contains(p)) {
             let _ = self.inventory(doc, page);
         }
     }
@@ -320,18 +316,24 @@ fn hit_object<'a>(objects: &'a [EditableObject], xf: &PageXform, info: &DocInfo,
 
 /// Returns true while group selection owns the interaction. Ordinary clicks still reach the
 /// single-object text/resize tools. A text draft is finished or discarded through its editor.
-pub(crate) fn page_input(ui: &egui::Ui, resp: &egui::Response, xf: &PageXform, page: usize, doc: &Document, view: &mut DocView) -> bool {
+pub(crate) fn page_input(
+    ui: &egui::Ui,
+    resp: &egui::Response,
+    xf: &PageXform,
+    ptr: &PagePointer,
+    page: usize,
+    doc: &Document,
+    view: &mut DocView,
+) -> bool {
     if view.objects.input_blocked {
         return true;
     }
     if view.content.draft.is_some() || view.line_editor.as_ref().is_some_and(|e| e.has_changes()) {
         let blocked = view.objects.blocked_page == Some(page);
-        let modifier_press = ui.input(|i| i.pointer.primary_pressed())
-            && modified(ui)
-            && ui.input(|i| i.pointer.interact_pos()).is_some_and(|p| xf.rect.contains(p) && ui.clip_rect().contains(p));
+        let modifier_press = ptr.pressed().is_some() && modified(ui) && ptr.pos.is_some_and(|p| xf.rect.contains(p) && ui.clip_rect().contains(p));
         if blocked || modifier_press {
             view.objects.hold_editor = true;
-            view.objects.blocked_page = ui.input(|i| i.pointer.primary_down()).then_some(page);
+            view.objects.blocked_page = ptr.primary_down.then_some(page);
             if modifier_press {
                 view.objects.notice = Some(tl!("Finish or discard the text being edited before selecting several objects.").into());
             }
@@ -340,14 +342,24 @@ pub(crate) fn page_input(ui: &egui::Ui, resp: &egui::Response, xf: &PageXform, p
         return false;
     }
     let mut selection = std::mem::take(&mut view.objects);
-    let result = input(&mut selection, ui, resp, xf, page, doc, view);
+    let result = input(&mut selection, ui, resp, xf, ptr, page, doc, view);
     view.objects = selection;
     result
 }
 
 #[allow(clippy::too_many_arguments)]
-fn input(s: &mut ObjectSelection, ui: &egui::Ui, resp: &egui::Response, xf: &PageXform, page: usize, doc: &Document, view: &mut DocView) -> bool {
-    let (pointer, pressed, down) = ui.input(|i| (i.pointer.interact_pos(), i.pointer.primary_pressed(), i.pointer.primary_down()));
+fn input(
+    s: &mut ObjectSelection,
+    ui: &egui::Ui,
+    resp: &egui::Response,
+    xf: &PageXform,
+    ptr: &PagePointer,
+    page: usize,
+    doc: &Document,
+    view: &mut DocView,
+) -> bool {
+    let pointer = ptr.pos;
+    let (pressed, down) = (ptr.pressed().is_some(), ptr.primary_down);
     let info = &doc.info;
     // A point of the selected path being dragged: previewed, then one undoable edit on release.
     if s.page == Some(page)
@@ -558,7 +570,7 @@ fn input(s: &mut ObjectSelection, ui: &egui::Ui, resp: &egui::Response, xf: &Pag
     // paragraph (as in `edit_text_ui`) instead of starting an area selection (#2276).
     let on_edge = view.line_editor.as_ref().is_none_or(|e| e.page != page)
         && crate::edit_text_ui::grabs_edge(xf, info, page, objects.iter().filter(|o| o.target.kind == ObjectKind::Text).map(|o| o.rect), p);
-    if hit.is_some() || on_edge || crate::content_ui::select_grabs(ui, xf, page, info, doc.added(), view) {
+    if hit.is_some() || on_edge || crate::content_ui::select_grabs(xf, ptr, page, info, doc.added(), view) {
         return false;
     }
     leave_single(view);

@@ -611,6 +611,7 @@
 	Discard private data of other applications	تجاهل البيانات الخاصة بالتطبيقات الأخرى
 	Discard hidden text	تجاهل النص المخفي
 	Use Flate to encode streams that are not encoded	استخدام Flate لترميز التدفقات غير المرمَّزة
+	In streams that use LZW encoding, use Flate instead	في التدفقات التي تستخدم ترميز LZW، استخدام Flate بدلاً منه
 	Remove invalid links and bookmarks	إزالة الروابط والإشارات المرجعية غير الصالحة
 	Remove unreferenced named destinations	إزالة الوجهات المسماة غير المشار إليها
 	Compress document structure (object streams)	ضغط بنية المستند (تدفقات الكائنات)
@@ -2040,6 +2041,10 @@
 	Perimeter	المحيط
 	Area	المساحة
 	Drawing scale	مقياس الرسم
+	Scale	المقياس
+	Common scales	مقاييس شائعة
+	Enter a scale such as 1:50.	أدخل مقياسًا مثل 1:50.
+	Applying a scale switches units to m / mm.	يؤدي تطبيق المقياس إلى تحويل الوحدات إلى م / مم.
 	Snapping	الانجذاب
 	Export measurements	تصدير القياسات
 	Open a PDF to measure it.	افتح ملف PDF لقياسه.
@@ -2193,6 +2198,7 @@ calendar date	October	أكتوبر
 calendar date	November	نوفمبر
 calendar date	December	ديسمبر
 	Reopen the files that were open when PdfCraft last closed	إعادة فتح الملفات التي كانت مفتوحة عند آخر إغلاق لـ PdfCraft
+	Restore the last view (page, zoom and page display) when a document is opened again	استعادة آخر عرض (الصفحة والتكبير وعرض الصفحات) عند فتح المستند مرة أخرى
 	Clear Recent Files	مسح الملفات الأخيرة
 	Remove from Recent	إزالة من الأخيرة
 	Remove {name} from Recent	إزالة {name} من الأخيرة
@@ -2340,7 +2346,8 @@ key	Space	مسافة
 	Printer paper and scaling may differ. Check driver settings.	قد يختلف ورق الطابعة ومقياس الطباعة. تحقق من إعدادات برنامج التشغيل.
 	Drawing scale changes. Use Actual size for full-scale plans.	يتغير مقياس الرسم. استخدم الحجم الفعلي لطباعة المخططات بمقياسها الأصلي.
 	Reload documents when their files change on disk	إعادة تحميل المستندات عند تغيّر ملفاتها على القرص
-	Show validation marks over signed signatures	إظهار علامات التحقق فوق التوقيعات الموقَّعة
+	Don't show again	عدم الإظهار مرة أخرى
+	Show a notice when a document is secured	إظهار إشعار عندما يكون المستند مؤمَّنًا
 	Always use my default zoom and page layout	استخدام التكبير وتخطيط الصفحة الافتراضيين دائمًا
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	تغيّر هذا الملف على القرص. «إعادة التحميل» تعرض النسخة الجديدة وتُسقط تغييراتك غير المحفوظة؛ و«حفظ» يستبدلها بهذه النسخة.
 	Reload	إعادة تحميل
@@ -2759,6 +2766,19 @@ certificate	Version	الإصدار
 	Make properties default	جعل الخصائص افتراضية
 	Pages selected	الصفحات المحددة
 	Page properties	خصائص الصفحة
+	Create & Edit	الإنشاء والتحرير
+	Review & Compare	المراجعة والمقارنة
+	Forms & Signatures	النماذج والتوقيعات
+	Protect & Standardize	الحماية والتوحيد القياسي
+	Customize & Automate	التخصيص والأتمتة
+	No tools match your search.	لا توجد أدوات تطابق بحثك.
+	Expand all tools	توسيع كل الأدوات
+	Collapse all tools	طي كل الأدوات
+	Attach a file…	إرفاق ملف…
+	Delete attachment	حذف المرفق
+	Attaching files is not available on the web yet	إرفاق الملفات غير متاح على الويب بعد
+	Attach {name}	إرفاق {name}
+	Delete attachment {key}	حذف المرفق {key}
 	Bulleted list	قائمة نقطية
 	Numbered list	قائمة مرقمة
 	Alignment	المحاذاة
@@ -2792,6 +2812,21 @@ certificate	Version	الإصدار
 	field names can't contain a period: {name}	لا يمكن أن تحتوي أسماء الحقول على نقطة: {name}
 	two cells would both be named {name}	ستحمل خليتان الاسم نفسه {name}
 	a field named {name} already exists	يوجد حقل باسم {name} بالفعل
+
+# Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
+	Today	اليوم
+@plural	{n} reply|{n} replies	{n} رد|{n} رد|{n} ردّان|{n} ردود|{n} ردًا|{n} رد
+
+# Pages panel: the Page tools menu (#4415) (AI-assisted, not separately native-reviewed)
+	Page tools	أدوات الصفحات
+	Insert pages from a file after the selection…	إدراج صفحات من ملف بعد التحديد…
+	Rotate the selected pages counterclockwise	تدوير الصفحات المحددة عكس اتجاه عقارب الساعة
+	Rotate the selected pages clockwise	تدوير الصفحات المحددة باتجاه عقارب الساعة
+	Extract the selected pages…	استخراج الصفحات المحددة…
+	Delete the selected pages	حذف الصفحات المحددة
+
+# Personal-fork additions; contributor-original, AI-assisted.
+	Show validation marks over signed signatures	إظهار علامات التحقق فوق التوقيعات الموقَّعة
 	Lines	خطوط
 	Line colour	لون الخط
 	Drag a point to reshape the line. Delete removes it.	اسحب نقطة لتغيير شكل الخط. يحذفه مفتاح Delete.
@@ -2800,17 +2835,12 @@ certificate	Version	الإصدار
 	Ask whether to recognize the current page or all pages when editing a scan.	السؤال عمّا إذا كان ينبغي التعرّف على الصفحة الحالية أو جميع الصفحات عند تحرير مستند ممسوح ضوئيًا.
 	Scanned text detected	تم اكتشاف نص ممسوح ضوئيًا
 	Recognize text on this page or throughout the document?	هل تريد التعرّف على النص في هذه الصفحة أم في المستند بأكمله؟
-
-# Group selection and document save status.
 	Exit	خروج
 	Group select	تحديد مجموعة
 	Return to document	العودة إلى المستند
 	Saved	محفوظ
 	Saves document	يحفظ المستند
 	Unsaved changes	تغييرات غير محفوظة
-
-
-# Remove Signature (sign.remove)
 	Remove signature…	إزالة التوقيع…
 	Remove signature	إزالة التوقيع
 	Remove Signature	إزالة التوقيع
@@ -2858,15 +2888,11 @@ certificate	Version	الإصدار
 	The signature {names} locks this field.	التوقيع {names} يقفل هذا الحقل.
 	This document can't be changed: {names}	لا يمكن تغيير هذا المستند: {names}
 	Choose a signature that can be removed.	اختر توقيعًا يمكن إزالته.
-
-# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
 	Open next PDF in folder	فتح ملف PDF التالي في المجلد
 	Open previous PDF in folder	فتح ملف PDF السابق في المجلد
 	This document isn't in a folder yet: save it first	هذا المستند ليس في مجلد بعد: احفظه أولاً
 	This is the last PDF in its folder	هذا آخر ملف PDF في مجلده
 	This is the first PDF in its folder	هذا أول ملف PDF في مجلده
-
-# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
 	Language and spelling	اللغة والتدقيق الإملائي
 	Interface and appearance	الواجهة والمظهر
 	Check spelling while typing	التدقيق الإملائي أثناء الكتابة
@@ -2879,15 +2905,10 @@ certificate	Version	الإصدار
 	Spelling suggestions	اقتراحات إملائية
 	No suggestions	لا توجد اقتراحات
 	Add to dictionary	إضافة إلى القاموس
-
 	Suggest edits	اقتراح تعديلات
-
-# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
 	Duplicate pages with new field names	تكرار الصفحات بأسماء حقول جديدة
 	Duplicate pages — 1 field renamed	تكرار الصفحات — تمت إعادة تسمية حقل واحد
 	Duplicate pages — fields renamed	تكرار الصفحات — تمت إعادة تسمية حقول
-
-# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
 	Documents	المستندات
 	AI Assistant	مساعد الذكاء الاصطناعي
 	Latin (accented)	اللاتينية (بعلامات تشكيل)

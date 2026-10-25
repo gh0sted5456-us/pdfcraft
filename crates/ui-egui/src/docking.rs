@@ -43,7 +43,7 @@ impl Panel {
 }
 
 fn permissions(panel: &Panel) -> Permissions {
-    if *panel == Panel::Canvas { Permissions::PROTECTED } else { Permissions::default() }
+    if *panel == Panel::Canvas { Permissions { accepts_splits: true, ..Permissions::PROTECTED } } else { Permissions::default() }
 }
 
 fn tabs(panel: Panel) -> Node<Panel> {
@@ -108,7 +108,7 @@ impl Workspace {
             return Err("The panel layout must contain its document view and bounded hidden panels".into());
         }
         // Saved settings cannot turn the protected document view into a floating or closable tab.
-        if self.layout.floating.iter().any(|group| group.panels.contains(&Panel::Canvas)) {
+        if self.layout.floating.iter().any(|group| group.panels().any(|p| *p == Panel::Canvas)) {
             return Err("The document view cannot float".into());
         }
         let mut nodes: Vec<_> = self.layout.root.iter().collect();
@@ -123,6 +123,9 @@ impl Workspace {
                 }
                 Node::Stack { entries } if entries.iter().any(|entry| entry.panel == Panel::Canvas) => {
                     return Err("The document view cannot be collapsed".into());
+                }
+                Node::Dock { columns, .. } if columns.iter().flat_map(|c| &c.groups).any(|g| g.panels.contains(&Panel::Canvas)) => {
+                    return Err("The document view cannot be collapsed into a dock".into());
                 }
                 _ => {}
             }
@@ -163,22 +166,64 @@ impl Workspace {
 
     /// Whether a panel's body is exposed by its selected tab or open stack entry.
     pub(crate) fn exposed(&self, panel: Panel) -> bool {
-        if self.layout.floating.iter().any(|group| group.panels.get(group.active) == Some(&panel)) {
-            return true;
+        self.layout.panel_state(&panel) == craft_ui::docking::PanelState::Front
+    }
+
+    /// The simple pane-width API also resizes the personal floating workspace.
+    pub(crate) fn set_width(&mut self, panel: Panel, width: f32) -> Result<(), String> {
+        self.validate()?;
+        if !width.is_finite() {
+            return Err("Panel width must be finite".into());
         }
-        let mut pending: Vec<_> = self.layout.root.iter().collect();
-        while let Some(node) = pending.pop() {
-            match node {
-                Node::Split { first, second, .. } => {
+        let limits = panel_limits(&panel);
+        let width = width.clamp(limits.min.x, limits.max.x);
+        let mut next = self.clone();
+        let mut resized = false;
+        if let Some((_, place)) = next.hidden.iter_mut().find(|(p, _)| *p == panel) {
+            resized = true;
+            if let Some(rect) = &mut place.floating {
+                rect[2] = width;
+            } else {
+                place.size = Some(match place.size {
+                    Some(SplitSize::FixedFirst(_)) => SplitSize::FixedFirst(width),
+                    _ => SplitSize::FixedSecond(width),
+                });
+            }
+        } else if let Some(group) = next.layout.floating.iter_mut().find(|g| g.panels().any(|p| *p == panel)) {
+            group.rect[2] = width;
+            resized = true;
+        } else {
+            let contains = |node: &Node<Panel>| match node {
+                Node::Tabs { panels, .. } => panels.contains(&panel) && !panels.contains(&Panel::Canvas),
+                Node::Stack { entries } => entries.iter().any(|e| e.panel == panel) && entries.iter().all(|e| e.panel != Panel::Canvas),
+                _ => false,
+            };
+            let mut pending: Vec<_> = next.layout.root.iter_mut().collect();
+            while let Some(node) = pending.pop() {
+                if let Node::Split { axis, size, first, second } = node {
+                    if *axis == SplitAxis::Horizontal && (contains(first) || contains(second)) {
+                        *size = if contains(first) { SplitSize::FixedFirst(width) } else { SplitSize::FixedSecond(width) };
+                        resized = true;
+                        break;
+                    }
                     pending.push(first);
                     pending.push(second);
+                } else if let Node::Dock { columns, .. } = node {
+                    for column in columns {
+                        if column.groups.iter().any(|g| g.panels.contains(&panel)) {
+                            column.width = width;
+                            resized = true;
+                        }
+                    }
                 }
-                Node::Tabs { panels, active } if panels.get(*active) == Some(&panel) => return true,
-                Node::Stack { entries } if entries.iter().any(|entry| entry.panel == panel && entry.open) => return true,
-                _ => {}
             }
         }
-        false
+        if !resized {
+            return Err("Resize this panel's shared group with its divider".into());
+        }
+        next.validate()?;
+        *self = next;
+        Ok(())
     }
 
     pub fn set_visible(&mut self, panel: Panel, visible: bool) -> Result<(), String> {
@@ -194,7 +239,7 @@ impl Workspace {
         next.hidden.retain(|(id, _)| *id != panel);
         if let Some(saved) = &mut location
             && saved.floating.is_some()
-            && saved.anchor.as_ref().is_some_and(|anchor| !next.layout.floating.iter().any(|group| group.panels.contains(anchor)))
+            && saved.anchor.as_ref().is_some_and(|anchor| !next.layout.floating.iter().any(|group| group.panels().any(|p| p == anchor)))
         {
             // The other members of a floating group may have been closed too.
             saved.anchor = None;
@@ -329,6 +374,7 @@ pub fn command(app: &mut crate::PdfCraftApp, reset: bool, params: &Value) -> Res
     }
     publish_visibility(app, &workspace);
     app.docking = workspace;
+    app.side_panels = crate::side_panels::restore(&json!({"docking": app.docking})).panels;
     Ok(json!({"docking": app.docking}))
 }
 
@@ -378,12 +424,13 @@ pub fn show(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
     style.min_pane = 96.0;
     style.float_label = crate::i18n::t("Float panel").into();
     style.close_label = crate::i18n::t("Close panel").into();
-    style.move_label = crate::i18n::t("Move to group").into();
+    style.move_group_label = crate::i18n::t("Move to group").into();
     style.panels_label = crate::i18n::t("Panels").into();
     style.resize_label = crate::i18n::t("Resize panels").into();
     style.resize_window_label = crate::i18n::t("Resize panel window").into();
     style.background = if app.theme_preference == crate::theme::ThemePreference::Glass { egui::Color32::TRANSPARENT } else { t.panel };
     style.tab_background = t.chrome;
+    style.floating_background = t.glass_surface.unwrap_or(t.panel);
     style.active_background = t.selected;
     style.text = t.text;
     style.inactive_text = t.text_muted;
@@ -458,6 +505,23 @@ fn panel_limits(panel: &Panel) -> PanelLimits {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pane_widths_resize_docked_hidden_and_floating_panels() {
+        let mut w = Workspace::default();
+        w.set_width(Panel::Tools, 310.0).unwrap();
+        assert!(matches!(w.layout.root, Some(Node::Split { size: SplitSize::FixedFirst(310.0), .. })));
+        w.set_visible(Panel::Tools, false).unwrap();
+        w.set_width(Panel::Tools, 280.0).unwrap();
+        w.set_visible(Panel::Tools, true).unwrap();
+        assert_eq!(w.layout.location(&Panel::Tools).unwrap().size, Some(SplitSize::FixedFirst(280.0)));
+        w.apply(Action::Float { panel: Panel::Inspector, rect: [20.0, 20.0, 300.0, 400.0] }).unwrap();
+        w.set_width(Panel::Inspector, 350.0).unwrap();
+        assert_eq!(w.layout.floating[0].rect[2], 350.0);
+        let before = w.layout.clone();
+        assert!(w.set_width(Panel::Tools, f32::NAN).is_err());
+        assert_eq!(w.layout, before);
+    }
 
     #[test]
     fn lithuanian_translates_every_dynamic_panel_title() {

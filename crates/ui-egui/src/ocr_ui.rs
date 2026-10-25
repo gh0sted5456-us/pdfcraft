@@ -47,7 +47,7 @@ impl Default for OcrDraft {
 impl OcrDraft {
     /// The recognition settings these choices make.
     pub fn settings(&self) -> OcrSettings {
-        OcrSettings { dpi: self.dpi as f32, language: self.language.clone(), skip_text_pages: !self.text_pages }
+        OcrSettings { dpi: self.dpi as f32, language: self.language.clone(), skip_text_pages: !self.text_pages, native_text_only: false }
     }
 }
 
@@ -213,7 +213,7 @@ impl PdfCraftApp {
 
     /// The scan-detection approach from #1609, with a page-choice prompt before any edit.
     pub(crate) fn prompt_scan_ocr(&mut self) {
-        let editing = (self.left_open && self.left == crate::LeftPanel::Tool("edit"))
+        let editing = (self.left_open && self.docking.exposed(crate::docking::Panel::Tools) && self.left == crate::LeftPanel::Tool("edit"))
             || matches!(self.quick_tool, crate::QuickTool::EditText | crate::QuickTool::AddText);
         if !self.auto_ocr
             || !editing
@@ -267,6 +267,7 @@ impl PdfCraftApp {
         }
         let mut settings = self.ocr_draft.settings();
         settings.skip_text_pages = true;
+        settings.native_text_only = true;
         if all {
             if let Some((view, _)) = self.active_ids()
                 && let Some(document) = self.session.get(doc)
@@ -376,51 +377,25 @@ impl PdfCraftApp {
         let lang = crate::i18n::current();
         let work = move || {
             crate::i18n::set_current(lang);
-            let (mut ok, mut words, mut failed) = (0, 0, Vec::new());
-            match pdfcraft_engine::ocr::engine_for(&settings.language) {
-                Err(e) => failed.push(e),
-                Ok(ocr) => {
-                    for (i, (name, bytes)) in files.into_iter().enumerate() {
-                        if let Ok(mut s) = p.lock() {
-                            s.done = i;
-                        }
-                        let r = pdfcraft_engine::ocr::recognize_file(&name, Arc::new(bytes), None, settings.clone(), &ocr, |_, _| true);
-                        let saved = r.and_then(|r| {
-                            #[cfg(not(target_arch = "wasm32"))]
-                            crate::editing::write_atomically(&dir.join(&name).to_string_lossy(), &r.bytes).map_err(|e| e.to_string())?;
-                            #[cfg(target_arch = "wasm32")]
-                            crate::editing::download(&name, &r.bytes)?;
-                            Ok(r.words())
-                        });
-                        match saved {
-                            Ok(n) => {
-                                ok += 1;
-                                words += n;
-                            }
-                            Err(e) => failed.push(format!("{name}: {}", e)),
-                        }
-                    }
-                }
-            }
-            let done = if ok == 1 {
-                crate::i18n::fmt(tl!("Recognized {w} words in 1 file"), &[("w", &words.to_string())])
-            } else {
-                crate::i18n::fmt(tl!("Recognized {w} words in {n} files"), &[("w", &words.to_string()), ("n", &ok.to_string())])
-            };
-            let mut msg = done;
-            if !failed.is_empty() {
-                msg.push_str(&crate::i18n::fmt(tl!("; failed: {list}"), &[("list", &failed.join("; "))]));
-            }
+            // A panic in the recognizer still ends the batch with a summary (#3919).
+            #[cfg(not(target_arch = "wasm32"))]
+            let summary = pdfcraft_engine::guard(|| recognize_files(files, &settings, &p, &dir));
+            #[cfg(target_arch = "wasm32")]
+            let summary = pdfcraft_engine::guard(|| recognize_files(files, &settings, &p));
+            let summary = summary.unwrap_or_else(|panic| failed(&panic));
             if let Ok(mut s) = p.lock() {
                 s.done = s.total;
-                s.message = Some(msg);
+                s.message = Some(summary);
             }
         };
         #[cfg(not(target_arch = "wasm32"))]
         if self.run_inline {
             work();
         } else {
-            std::thread::Builder::new().name("pdfcraft-ocr-files".into()).spawn(work).ok();
+            if let Err(error) = std::thread::Builder::new().name("pdfcraft-ocr-files".into()).spawn(work) {
+                self.notify(failed(&error.to_string()));
+                return;
+            }
         }
         #[cfg(target_arch = "wasm32")]
         work();
@@ -458,12 +433,22 @@ impl PdfCraftApp {
                         ctx.request_repaint_after(std::time::Duration::from_millis(200));
                     }
                 }
-                None => self.ocr_batch = None,
+                None => {
+                    self.ocr_batch = None;
+                    self.notify(failed("The recognition worker could not report its result"));
+                }
             }
         }
         let Some(run) = self.ocr_run.as_ref() else { return };
         let (doc, generation, progress) = (run.doc, run.generation, run.progress.clone());
-        let Ok(mut s) = progress.lock() else { return };
+        let mut s = match progress.lock() {
+            Ok(s) => s,
+            Err(error) => {
+                self.ocr_run = None;
+                self.notify(failed(&error.to_string()));
+                return;
+            }
+        };
         let Some(result) = s.result.take() else {
             let msg = crate::i18n::fmt(
                 tl!("Recognizing text… page {d} of {t}"),
@@ -522,6 +507,58 @@ impl PdfCraftApp {
             Err(e) => self.notify_error(e),
         }
     }
+}
+
+fn recognize_files(
+    files: Vec<(String, Vec<u8>)>,
+    settings: &OcrSettings,
+    p: &Mutex<BatchProgress>,
+    #[cfg(not(target_arch = "wasm32"))] dir: &std::path::Path,
+) -> String {
+    let (mut ok, mut words, mut failed) = (0, 0, Vec::new());
+    match pdfcraft_engine::ocr::engine_for(&settings.language) {
+        Err(e) => failed.push(e),
+        Ok(ocr) => {
+            for (i, (name, bytes)) in files.into_iter().enumerate() {
+                if let Ok(mut s) = p.lock() {
+                    s.done = i;
+                }
+                let r = recognize_guarded(|| pdfcraft_engine::ocr::recognize_file(&name, Arc::new(bytes), None, settings.clone(), &ocr, |_, _| true));
+                let saved = r.and_then(|r| {
+                    #[cfg(not(target_arch = "wasm32"))]
+                    crate::editing::write_atomically(&dir.join(&name).to_string_lossy(), &r.bytes).map_err(|e| e.to_string())?;
+                    #[cfg(target_arch = "wasm32")]
+                    crate::editing::download(&name, &r.bytes)?;
+                    Ok(r.words())
+                });
+                match saved {
+                    Ok(n) => {
+                        ok += 1;
+                        words += n;
+                    }
+                    Err(e) => failed.push(format!("{name}: {}", e)),
+                }
+            }
+        }
+    }
+    let done = if ok == 1 {
+        crate::i18n::fmt(tl!("Recognized {w} words in 1 file"), &[("w", &words.to_string())])
+    } else {
+        crate::i18n::fmt(tl!("Recognized {w} words in {n} files"), &[("w", &words.to_string()), ("n", &ok.to_string())])
+    };
+    let mut msg = done;
+    if !failed.is_empty() {
+        msg.push_str(&crate::i18n::fmt(tl!("; failed: {list}"), &[("list", &failed.join("; "))]));
+    }
+    msg
+}
+
+fn failed(e: &str) -> String {
+    crate::i18n::fmt(tl!("{label} failed: {e}"), &[("label", tl!("Recognize text")), ("e", e)])
+}
+
+fn recognize_guarded<T>(recognize: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
+    pdfcraft_engine::guard(recognize).unwrap_or_else(|panic| Err(failed(&panic)))
 }
 
 #[cfg(test)]

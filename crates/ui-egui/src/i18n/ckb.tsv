@@ -581,6 +581,7 @@
 	Discard private data of other applications	فڕێدانی داتا تایبەتەکانی بەرنامەکانی تر
 	Discard hidden text	فڕێدانی دەقی شاراوە
 	Use Flate to encode streams that are not encoded	بەکارهێنانی Flate بۆ کۆدکردنی ئەو لێشاوانەی کۆد نەکراون
+	In streams that use LZW encoding, use Flate instead	بەکارهێنانی Flate لە جیاتی LZW بۆ ئەو لێشاوانەی بە LZW کۆد کراون
 	Remove invalid links and bookmarks	لابردنی بەستەر و دڵخوازە نادروستەکان
 	Remove unreferenced named destinations	لابردنی مەبەستە ناونراوەکانی ئاماژەپێنەکراو
 	Compress document structure (object streams)	پەستاندنی پێکهاتەی بەڵگەنامە (لێشاوەکانی تەن)
@@ -2003,6 +2004,10 @@
 	Perimeter	چێوە
 	Area	ڕووبەر
 	Drawing scale	پێوەری وێنەکێشان
+	Scale	پێوەر
+	Common scales	پێوەرە باوەکان
+	Enter a scale such as 1:50.	پێوەرێک بنووسە وەک 1:50.
+	Applying a scale switches units to m / mm.	جێبەجێکردنی پێوەر یەکەکان دەگۆڕێت بۆ م / ملم.
 	Snapping	لکاندن
 	Export measurements	هەناردەکردنی پێوانەکان
 	Open a PDF to measure it.	PDFێک بکەرەوە بۆ پێوانەکردنی.
@@ -2303,7 +2308,8 @@ key	Space	بۆشایی
 	Printer paper and scaling may differ. Check driver settings.	ڕەنگە کاغەز و پێوەری چاپکەر جیاواز بن. ڕێکخستنەکانی درایڤەر بپشکنە.
 	Drawing scale changes. Use Actual size for full-scale plans.	پێوەری وێنەکێشان دەگۆڕێت. «قەبارەی ڕاستەقینە» بەکاربهێنە بۆ پلانەکان بە پێوەری تەواو.
 	Reload documents when their files change on disk	دووبارە بارکردنی بەڵگەنامەکان کاتێک فایلەکانیان لەسەر دیسک دەگۆڕێن
-	Show validation marks over signed signatures	پیشاندانی نیشانەکانی پشتڕاستکردنەوە لەسەر واژۆ واژۆکراوەکان
+	Don't show again	جارێکی تر پیشان مەدە
+	Show a notice when a document is secured	پیشاندانی ئاگادارکردنەوە کاتێک بەڵگەنامەیەک پارێزراوە
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	ئەم فایلە لەسەر دیسک گۆڕاوە. «دووبارە بارکردن» وەشانی نوێ پیشان دەدات و گۆڕانکارییە پاشەکەوتنەکراوەکانت فڕێدەدات؛ «پاشەکەوتکردن» بەم وەشانە جێگەی دەگرێتەوە.
 	Reload	دووبارە بارکردن
 	Couldn't reload {name}: {e}	دووبارە بارکردنی {name} نەکرا: {e}
@@ -2714,23 +2720,40 @@ certificate	Version	وەشان
 	Make properties default	کردنی تایبەتمەندییەکان بە بنەڕەتی
 	Pages selected	پەڕە هەڵبژێردراوەکان
 	Page properties	تایبەتمەندییەکانی پەڕە
+	Create & Edit	دروستکردن و دەستکاریکردن
+	Review & Compare	پێداچوونەوە و بەراوردکردن
+	Forms & Signatures	فۆڕمەکان و واژووەکان
+	Protect & Standardize	پاراستن و ستانداردکردن
+	Customize & Automate	تایبەتکردن و خۆکارکردن
+	No tools match your search.	هیچ ئامرازێک لەگەڵ گەڕانەکەت ناگونجێت.
+	Expand all tools	فراوانکردنی هەموو ئامرازەکان
+	Collapse all tools	کۆکردنەوەی هەموو ئامرازەکان
 
-# Group selection and document save status.
+# Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
+	Today	ئەمڕۆ
+@plural	{n} reply|{n} replies	{n} وەڵام|{n} وەڵام
+
+# Pages panel: the Page tools menu (#4415) (AI-assisted, not separately native-reviewed)
+	Page tools	ئامرازەکانی پەڕە
+	Insert pages from a file after the selection…	پەڕەکان لە فایلێکەوە لە دوای هەڵبژاردەکە دابنێ…
+	Rotate the selected pages counterclockwise	پەڕە هەڵبژێردراوەکان پێچەوانەی میلی کاتژمێر بسوڕێنە
+	Rotate the selected pages clockwise	پەڕە هەڵبژێردراوەکان بە ئاڕاستەی میلی کاتژمێر بسوڕێنە
+	Extract the selected pages…	پەڕە هەڵبژێردراوەکان دەربهێنە…
+	Delete the selected pages	پەڕە هەڵبژێردراوەکان بسڕەوە
+
+# Personal-fork additions; contributor-original, AI-assisted.
+	Show validation marks over signed signatures	پیشاندانی نیشانەکانی پشتڕاستکردنەوە لەسەر واژۆ واژۆکراوەکان
 	Exit	دەرچوون
 	Group select	هەڵبژاردنی کۆمەڵە
 	Return to document	گەڕانەوە بۆ بەڵگەنامە
 	Saved	پاشەکەوت کراوە
 	Saves document	بەڵگەنامەکە پاشەکەوت دەکات
 	Unsaved changes	گۆڕانکارییە پاشەکەوت نەکراوەکان
-
-# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
 	Open next PDF in folder	کردنەوەی PDFی داهاتوو لە فۆڵدەرەکەدا
 	Open previous PDF in folder	کردنەوەی PDFی پێشوو لە فۆڵدەرەکەدا
 	This document isn't in a folder yet: save it first	ئەم بەڵگەنامەیە هێشتا لە هیچ فۆڵدەرێکدا نییە: سەرەتا پاشەکەوتی بکە
 	This is the last PDF in its folder	ئەمە دوایین PDFی فۆڵدەرەکەیەتی
 	This is the first PDF in its folder	ئەمە یەکەمین PDFی فۆڵدەرەکەیەتی
-
-# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
 	Language and spelling	زمان و ڕێنووس
 	Interface and appearance	ڕووکار و دەرکەوتن
 	Check spelling while typing	پشکنینی ڕێنووس لە کاتی نووسین
@@ -2743,15 +2766,10 @@ certificate	Version	وەشان
 	Spelling suggestions	پێشنیارەکانی ڕێنووس
 	No suggestions	هیچ پێشنیارێک نییە
 	Add to dictionary	زیادکردن بۆ فەرهەنگ
-
 	Suggest edits	پێشنیاری دەستکاری
-
-# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
 	Duplicate pages with new field names	دووبارەکردنەوەی لاپەڕەکان بە ناوی نوێی خانەکان
 	Duplicate pages — 1 field renamed	دووبارەکردنەوەی پەڕەکان — 1 خانە ناونرایەوە
 	Duplicate pages — fields renamed	دووبارەکردنەوەی پەڕەکان — خانەکان ناونرانەوە
-
-# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
 	Documents	بەڵگەنامەکان
 	AI Assistant	یاریدەدەری زیرەکی دەستکرد
 	Latin (accented)	لاتینی (بە نیشانەکانەوە)

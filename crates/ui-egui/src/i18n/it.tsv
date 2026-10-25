@@ -608,6 +608,7 @@
 	Discard private data of other applications	Elimina dati privati di altre applicazioni
 	Discard hidden text	Elimina testo nascosto
 	Use Flate to encode streams that are not encoded	Usa Flate per codificare i flussi non codificati
+	In streams that use LZW encoding, use Flate instead	Nei flussi con codifica LZW, usa Flate
 	Remove invalid links and bookmarks	Rimuovi collegamenti e segnalibri non validi
 	Remove unreferenced named destinations	Rimuovi destinazioni con nome non referenziate
 	Compress document structure (object streams)	Comprimi struttura del documento (flussi di oggetti)
@@ -2047,6 +2048,10 @@
 	Perimeter	Perimetro
 	Area	Area
 	Drawing scale	Scala del disegno
+	Scale	Scala
+	Common scales	Scale comuni
+	Enter a scale such as 1:50.	Inserisci una scala come 1:50.
+	Applying a scale switches units to m / mm.	Applicando una scala le unità passano a m / mm.
 	Snapping	Aggancio
 	Export measurements	Esporta misure
 	Open a PDF to measure it.	Apri un PDF per misurarlo.
@@ -2208,6 +2213,7 @@
 	Remove saved {what}	Rimuovi l'elemento salvato: {what}
 	Remove {name} from Recent	Rimuovi {name} dai recenti
 	Reopen the files that were open when PdfCraft last closed	Riapri i file aperti alla chiusura precedente di PdfCraft
+	Restore the last view (page, zoom and page display) when a document is opened again	Ripristina l’ultima vista (pagina, zoom e visualizzazione delle pagine) quando un documento viene riaperto
 	Reset page size	Ripristina dimensione pagine
 	Reset to printer defaults	Ripristina le impostazioni predefinite della stampante
 	Reverse closed arrow	Freccia chiusa inversa
@@ -2328,7 +2334,8 @@ key	Space	Spazio
 	Printer paper and scaling may differ. Check driver settings.	Carta e scala della stampante possono differire. Controlla le impostazioni del driver.
 	Drawing scale changes. Use Actual size for full-scale plans.	La scala del disegno cambia. Usa Dimensioni effettive per le planimetrie in scala.
 	Reload documents when their files change on disk	Ricarica i documenti quando i loro file cambiano sul disco
-	Show validation marks over signed signatures	Mostra i segni di convalida sulle firme apposte
+	Don't show again	Non mostrare più
+	Show a notice when a document is secured	Mostra un avviso quando un documento è protetto
 	Always use my default zoom and page layout	Usa sempre il mio ingrandimento e layout di pagina predefiniti
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Questo file è cambiato sul disco. Ricarica mostra la nuova versione e scarta le modifiche non salvate; Salva la sostituisce con questa versione.
 	Reload	Ricarica
@@ -2694,6 +2701,19 @@ certificate	Key usage	Utilizzo chiave
 certificate	Self-signed	Autofirmato
 certificate	SHA-1 digest	Impronta SHA-1
 certificate	SHA-256 digest	Impronta SHA-256
+	Create & Edit	Crea e modifica
+	Review & Compare	Revisione e confronto
+	Forms & Signatures	Moduli e firme
+	Protect & Standardize	Proteggi e standardizza
+	Customize & Automate	Personalizza e automatizza
+	No tools match your search.	Nessuno strumento corrisponde alla ricerca.
+	Expand all tools	Espandi tutti gli strumenti
+	Collapse all tools	Comprimi tutti gli strumenti
+	Attach a file…	Allega un file…
+	Delete attachment	Elimina allegato
+	Attaching files is not available on the web yet	Allegare file non è ancora disponibile sul web
+	Attach {name}	Allega {name}
+	Delete attachment {key}	Elimina allegato {key}
 	Font	Carattere
 	Bulleted list	Elenco puntato
 	Numbered list	Elenco numerato
@@ -2748,6 +2768,21 @@ certificate	SHA-256 digest	Impronta SHA-256
 	field names can't contain a period: {name}	i nomi dei campi non possono contenere un punto: {name}
 	two cells would both be named {name}	due celle si chiamerebbero entrambe {name}
 	a field named {name} already exists	esiste già un campo chiamato {name}
+
+# Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
+	Today	Oggi
+@plural	{n} reply|{n} replies	{n} risposta|{n} risposte
+
+# Pages panel: the Page tools menu (#4415) (AI-assisted, not separately native-reviewed)
+	Page tools	Strumenti pagina
+	Insert pages from a file after the selection…	Inserisci pagine da un file dopo la selezione…
+	Rotate the selected pages counterclockwise	Ruota le pagine selezionate in senso antiorario
+	Rotate the selected pages clockwise	Ruota le pagine selezionate in senso orario
+	Extract the selected pages…	Estrai le pagine selezionate…
+	Delete the selected pages	Elimina le pagine selezionate
+
+# Personal-fork additions; contributor-original, AI-assisted.
+	Show validation marks over signed signatures	Mostra i segni di convalida sulle firme apposte
 	Lines	Linee
 	Line colour	Colore della linea
 	Drag a point to reshape the line. Delete removes it.	Trascina un punto per modificare la forma della linea. Canc la elimina.
@@ -2756,17 +2791,12 @@ certificate	SHA-256 digest	Impronta SHA-256
 	Ask whether to recognize the current page or all pages when editing a scan.	Durante la modifica di una scansione, chiedi se riconoscere la pagina corrente o tutte le pagine.
 	Scanned text detected	Rilevato testo scansionato
 	Recognize text on this page or throughout the document?	Riconoscere il testo di questa pagina o dell'intero documento?
-
-# Group selection and document save status.
 	Exit	Esci
 	Group select	Selezione di gruppo
 	Return to document	Torna al documento
 	Saved	Salvato
 	Saves document	Salva il documento
 	Unsaved changes	Modifiche non salvate
-
-
-# Remove Signature (sign.remove)
 	Remove signature…	Rimuovi firma…
 	Remove signature	Rimuovi firma
 	Remove Signature	Rimuovi firma
@@ -2814,15 +2844,11 @@ certificate	SHA-256 digest	Impronta SHA-256
 	The signature {names} locks this field.	La firma {names} blocca questo campo.
 	This document can't be changed: {names}	Questo documento non può essere modificato: {names}
 	Choose a signature that can be removed.	Scegli una firma che si possa rimuovere.
-
-# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
 	Open next PDF in folder	Apri il PDF successivo nella cartella
 	Open previous PDF in folder	Apri il PDF precedente nella cartella
 	This document isn't in a folder yet: save it first	Questo documento non è ancora in una cartella: salvalo prima
 	This is the last PDF in its folder	Questo è l'ultimo PDF della sua cartella
 	This is the first PDF in its folder	Questo è il primo PDF della sua cartella
-
-# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
 	Language and spelling	Lingua e ortografia
 	Interface and appearance	Interfaccia e aspetto
 	Check spelling while typing	Controlla ortografia durante la digitazione
@@ -2835,15 +2861,10 @@ certificate	SHA-256 digest	Impronta SHA-256
 	Spelling suggestions	Suggerimenti ortografici
 	No suggestions	Nessun suggerimento
 	Add to dictionary	Aggiungi al dizionario
-
 	Suggest edits	Suggerisci modifiche
-
-# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
 	Duplicate pages with new field names	Duplica pagine con nuovi nomi dei campi
 	Duplicate pages — 1 field renamed	Duplica pagine — 1 campo rinominato
 	Duplicate pages — fields renamed	Duplica pagine — campi rinominati
-
-# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
 	Documents	Documenti
 	AI Assistant	Assistente IA
 	Latin (accented)	Latino (con accenti)

@@ -582,6 +582,7 @@
 	Discard private data of other applications	Más alkalmazások privát adatainak elvetése
 	Discard hidden text	Rejtett szöveg elvetése
 	Use Flate to encode streams that are not encoded	A kódolatlan adatfolyamok Flate kódolása
+	In streams that use LZW encoding, use Flate instead	Az LZW kódolású adatfolyamok Flate kódolása
 	Remove invalid links and bookmarks	Érvénytelen hivatkozások és könyvjelzők eltávolítása
 	Remove unreferenced named destinations	Hivatkozás nélküli elnevezett célok eltávolítása
 	Compress document structure (object streams)	Dokumentumszerkezet tömörítése (objektumfolyamok)
@@ -1961,6 +1962,10 @@
 	Perimeter	Kerület
 	Area	Terület
 	Drawing scale	Rajz méretaránya
+	Scale	Méretarány
+	Common scales	Gyakori méretarányok
+	Enter a scale such as 1:50.	Adjon meg egy méretarányt, például 1:50.
+	Applying a scale switches units to m / mm.	A méretarány alkalmazása m / mm mértékegységre vált.
 	Snapping	Illesztés
 	Export measurements	Mérések exportálása
 	Open a PDF to measure it.	Nyiss meg egy PDF-et a méréshez.
@@ -2170,6 +2175,7 @@ comment menu	Edit	Szerkesztés
 signature pad	Type	Gépelés
 action wizard	Start	Indítás
 	Reopen the files that were open when PdfCraft last closed	A PdfCraft legutóbbi bezárásakor megnyitott fájlok újranyitása
+	Restore the last view (page, zoom and page display) when a document is opened again	A legutóbbi nézet (oldal, nagyítás és oldalmegjelenítés) visszaállítása a dokumentum újbóli megnyitásakor
 	Clear Recent Files	Legutóbbi fájlok listájának törlése
 	Remove from Recent	Eltávolítás a legutóbbiak közül
 	Remove {name} from Recent	{name} eltávolítása a legutóbbiak közül
@@ -2318,7 +2324,8 @@ key	Space	Szóköz
 	Printer paper and scaling may differ. Check driver settings.	A nyomtató papírja és méretezése eltérhet. Ellenőrizze az illesztőprogram beállításait.
 	Drawing scale changes. Use Actual size for full-scale plans.	A rajz méretaránya változik. Méretarányos tervekhez használja a Tényleges méret beállítást.
 	Reload documents when their files change on disk	Dokumentumok újratöltése, ha a fájljuk megváltozik a lemezen
-	Show validation marks over signed signatures	Érvényesítési jelek megjelenítése az aláírt aláírások felett
+	Don't show again	Ne jelenjen meg újra
+	Show a notice when a document is secured	Értesítés megjelenítése, ha egy dokumentum védett
 	Always use my default zoom and page layout	Mindig az alapértelmezett nagyításom és oldalelrendezésem használata
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Ez a fájl megváltozott a lemezen. Az Újratöltés az új változatot mutatja, és eldobja a nem mentett módosításokat; a Mentés erre a változatra cseréli le.
 	Reload	Újratöltés
@@ -2481,6 +2488,19 @@ animation effects	Off	Ki
 	Make properties default	Tulajdonságok beállítása alapértelmezettként
 	Pages selected	Kijelölt oldalak
 	Page properties	Oldaltulajdonságok
+	Create & Edit	Létrehozás és szerkesztés
+	Review & Compare	Áttekintés és összehasonlítás
+	Forms & Signatures	Űrlapok és aláírások
+	Protect & Standardize	Védelem és szabványosítás
+	Customize & Automate	Testreszabás és automatizálás
+	No tools match your search.	Egy eszköz sem felel meg a keresésnek.
+	Expand all tools	Az összes eszköz kibontása
+	Collapse all tools	Az összes eszköz összecsukása
+	Attach a file…	Fájl csatolása…
+	Delete attachment	Melléklet törlése
+	Attaching files is not available on the web yet	Fájlok csatolása a weben még nem érhető el
+	Attach {name}	{name} csatolása
+	Delete attachment {key}	{key} melléklet törlése
 	Font	Betűtípus
 	Bulleted list	Felsorolás
 	Numbered list	Számozott lista
@@ -2515,6 +2535,21 @@ animation effects	Off	Ki
 	field names can't contain a period: {name}	a mezőnevek nem tartalmazhatnak pontot: {name}
 	two cells would both be named {name}	két cella neve is {name} lenne
 	a field named {name} already exists	már van {name} nevű mező
+
+# Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
+	Today	Ma
+@plural	{n} reply|{n} replies	{n} válasz|{n} válasz
+
+# Pages panel: the Page tools menu (#4415) (AI-assisted, not separately native-reviewed)
+	Page tools	Oldaleszközök
+	Insert pages from a file after the selection…	Oldalak beszúrása fájlból a kijelölés után…
+	Rotate the selected pages counterclockwise	A kijelölt oldalak forgatása az óramutató járásával ellentétesen
+	Rotate the selected pages clockwise	A kijelölt oldalak forgatása az óramutató járásával megegyezően
+	Extract the selected pages…	A kijelölt oldalak kibontása…
+	Delete the selected pages	A kijelölt oldalak törlése
+
+# Personal-fork additions; contributor-original, AI-assisted.
+	Show validation marks over signed signatures	Érvényesítési jelek megjelenítése az aláírt aláírások felett
 	Lines	Vonalak
 	Line colour	Vonal színe
 	Drag a point to reshape the line. Delete removes it.	Húzzon el egy pontot a vonal alakjának módosításához. A Delete törli a vonalat.
@@ -2523,17 +2558,12 @@ animation effects	Off	Ki
 	Ask whether to recognize the current page or all pages when editing a scan.	Beolvasott dokumentum szerkesztésekor kérdezzen rá, hogy az aktuális vagy az összes oldalt ismerje-e fel.
 	Scanned text detected	Beolvasott szöveg észlelve
 	Recognize text on this page or throughout the document?	Ezen az oldalon vagy a teljes dokumentumban ismerje fel a szöveget?
-
-# Group selection and document save status.
 	Exit	Kilépés
 	Group select	Csoportos kijelölés
 	Return to document	Vissza a dokumentumhoz
 	Saved	Mentve
 	Saves document	Menti a dokumentumot
 	Unsaved changes	Nem mentett módosítások
-
-
-# Remove Signature (sign.remove)
 	Remove signature…	Aláírás eltávolítása…
 	Remove signature	Aláírás eltávolítása
 	Remove Signature	Aláírás eltávolítása
@@ -2581,15 +2611,11 @@ animation effects	Off	Ki
 	The signature {names} locks this field.	A(z) {names} aláírás zárolja ezt a mezőt.
 	This document can't be changed: {names}	Ez a dokumentum nem módosítható: {names}
 	Choose a signature that can be removed.	Válasszon egy eltávolítható aláírást.
-
-# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
 	Open next PDF in folder	A mappa következő PDF-jének megnyitása
 	Open previous PDF in folder	A mappa előző PDF-jének megnyitása
 	This document isn't in a folder yet: save it first	Ez a dokumentum még nincs mappában: előbb mentse el
 	This is the last PDF in its folder	Ez a mappa utolsó PDF-je
 	This is the first PDF in its folder	Ez a mappa első PDF-je
-
-# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
 	Language and spelling	Nyelv és helyesírás
 	Interface and appearance	Felület és megjelenés
 	Check spelling while typing	Helyesírás ellenőrzése gépelés közben
@@ -2602,15 +2628,10 @@ animation effects	Off	Ki
 	Spelling suggestions	Helyesírási javaslatok
 	No suggestions	Nincs javaslat
 	Add to dictionary	Hozzáadás a szótárhoz
-
 	Suggest edits	Módosítások javaslata
-
-# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
 	Duplicate pages with new field names	Oldalak másolása új mezőnevekkel
 	Duplicate pages — 1 field renamed	Oldalak megkettőzése — 1 mező átnevezve
 	Duplicate pages — fields renamed	Oldalak megkettőzése — mezők átnevezve
-
-# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
 	Documents	Dokumentumok
 	AI Assistant	AI-asszisztens
 	Latin (accented)	Latin (ékezetes)

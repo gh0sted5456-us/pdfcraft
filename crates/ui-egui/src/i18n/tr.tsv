@@ -569,6 +569,7 @@
 	Discard private data of other applications	Diğer uygulamaların özel verilerini at
 	Discard hidden text	Gizli metni at
 	Use Flate to encode streams that are not encoded	Kodlanmamış akışları kodlamak için Flate kullan
+	In streams that use LZW encoding, use Flate instead	LZW kodlamalı akışlarda bunun yerine Flate kullan
 	Remove invalid links and bookmarks	Geçersiz bağlantıları ve yer işaretlerini kaldır
 	Remove unreferenced named destinations	Referans verilmeyen adlandırılmış hedefleri kaldır
 	Compress document structure (object streams)	Belge yapısını sıkıştır (nesne akışları)
@@ -1934,6 +1935,10 @@
 	Perimeter	Çevre
 	Area	Alan
 	Drawing scale	Çizim ölçeği
+	Scale	Ölçek
+	Common scales	Yaygın ölçekler
+	Enter a scale such as 1:50.	1:50 gibi bir ölçek girin.
+	Applying a scale switches units to m / mm.	Ölçek uygulamak birimleri m / mm olarak değiştirir.
 	Snapping	Yakalama
 	Export measurements	Ölçümleri dışa aktar
 	Open a PDF to measure it.	Ölçmek için bir PDF açın.
@@ -2139,6 +2144,7 @@ signature pad	Type	Yaz
 certificate	Subject	Konu
 action wizard	Start	Başlat
 	Reopen the files that were open when PdfCraft last closed	PdfCraft en son kapatıldığında açık olan dosyaları yeniden aç
+	Restore the last view (page, zoom and page display) when a document is opened again	Bir belge yeniden açıldığında son görünümü (sayfa, yakınlaştırma ve sayfa görünümü) geri yükle
 	Add {what}	{what} ekle
 	Use {what}	{what} kullan
 	Place saved {what}	Kayıtlı {what} yerleştir
@@ -2316,7 +2322,8 @@ key	Space	Boşluk
 	Printer paper and scaling may differ. Check driver settings.	Yazıcı kâğıdı ve ölçekleme farklı olabilir. Sürücü ayarlarını kontrol edin.
 	Drawing scale changes. Use Actual size for full-scale plans.	Çizim ölçeği değişir. Tam ölçekli planlar için Gerçek boyutu kullanın.
 	Reload documents when their files change on disk	Diskteki dosyaları değiştiğinde belgeleri yeniden yükle
-	Show validation marks over signed signatures	İmzalanmış imzaların üzerinde doğrulama işaretlerini göster
+	Don't show again	Bir daha gösterme
+	Show a notice when a document is secured	Bir belge güvenli olduğunda bildirim göster
 	Always use my default zoom and page layout	Her zaman varsayılan yakınlaştırmamı ve sayfa düzenimi kullan
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	Bu dosya diskte değişti. Yeniden yükle yeni sürümü gösterir ve kaydedilmemiş değişikliklerinizi atar; Kaydet onu bu sürümle değiştirir.
 	Reload	Yeniden yükle
@@ -2478,6 +2485,19 @@ animation effects	Off	Kapalı
 	Make properties default	Özellikleri varsayılan yap
 	Pages selected	Seçilen sayfalar
 	Page properties	Sayfa özellikleri
+	Create & Edit	Oluştur ve Düzenle
+	Review & Compare	İncele ve Karşılaştır
+	Forms & Signatures	Formlar ve İmzalar
+	Protect & Standardize	Koru ve Standartlaştır
+	Customize & Automate	Özelleştir ve Otomatikleştir
+	No tools match your search.	Aramanızla eşleşen araç yok.
+	Expand all tools	Tüm araçları genişlet
+	Collapse all tools	Tüm araçları daralt
+	Attach a file…	Dosya ekle…
+	Delete attachment	Eki sil
+	Attaching files is not available on the web yet	Dosya eklemek web'de henüz kullanılamıyor
+	Attach {name}	{name} ekle
+	Delete attachment {key}	{key} ekini sil
 	Font	Yazı tipi
 	Bulleted list	Madde işaretli liste
 	Numbered list	Numaralı liste
@@ -2512,6 +2532,21 @@ animation effects	Off	Kapalı
 	field names can't contain a period: {name}	alan adları nokta içeremez: {name}
 	two cells would both be named {name}	iki hücrenin de adı {name} olurdu
 	a field named {name} already exists	{name} adlı bir alan zaten var
+
+# Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
+	Today	Bugün
+@plural	{n} reply|{n} replies	{n} yanıt
+
+# Pages panel: the Page tools menu (#4415) (AI-assisted, not separately native-reviewed)
+	Page tools	Sayfa araçları
+	Insert pages from a file after the selection…	Seçimin ardından dosyadan sayfa ekle…
+	Rotate the selected pages counterclockwise	Seçili sayfaları saat yönünün tersine döndür
+	Rotate the selected pages clockwise	Seçili sayfaları saat yönünde döndür
+	Extract the selected pages…	Seçili sayfaları ayıkla…
+	Delete the selected pages	Seçili sayfaları sil
+
+# Personal-fork additions; contributor-original, AI-assisted.
+	Show validation marks over signed signatures	İmzalanmış imzaların üzerinde doğrulama işaretlerini göster
 	Lines	Çizgiler
 	Line colour	Çizgi rengi
 	Drag a point to reshape the line. Delete removes it.	Çizginin şeklini değiştirmek için bir noktayı sürükleyin. Delete tuşu çizgiyi kaldırır.
@@ -2520,17 +2555,12 @@ animation effects	Off	Kapalı
 	Ask whether to recognize the current page or all pages when editing a scan.	Taranmış bir belge düzenlenirken geçerli sayfanın mı yoksa tüm sayfaların mı tanınacağını sor.
 	Scanned text detected	Taranmış metin algılandı
 	Recognize text on this page or throughout the document?	Bu sayfadaki metin mi yoksa belgenin tamamındaki metin mi tanınsın?
-
-# Group selection and document save status.
 	Exit	Çıkış
 	Group select	Grup seçimi
 	Return to document	Belgeye dön
 	Saved	Kaydedildi
 	Saves document	Belgeyi kaydeder
 	Unsaved changes	Kaydedilmemiş değişiklikler
-
-
-# Remove Signature (sign.remove)
 	Remove signature…	İmzayı kaldır…
 	Remove signature	İmzayı kaldır
 	Remove Signature	İmzayı Kaldır
@@ -2578,15 +2608,11 @@ animation effects	Off	Kapalı
 	The signature {names} locks this field.	{names} imzası bu alanı kilitliyor.
 	This document can't be changed: {names}	Bu belge değiştirilemez: {names}
 	Choose a signature that can be removed.	Kaldırılabilecek bir imza seçin.
-
-# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
 	Open next PDF in folder	Klasördeki sonraki PDF'yi aç
 	Open previous PDF in folder	Klasördeki önceki PDF'yi aç
 	This document isn't in a folder yet: save it first	Bu belge henüz bir klasörde değil: önce kaydedin
 	This is the last PDF in its folder	Bu, klasöründeki son PDF
 	This is the first PDF in its folder	Bu, klasöründeki ilk PDF
-
-# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
 	Language and spelling	Dil ve yazım
 	Interface and appearance	Arayüz ve görünüm
 	Check spelling while typing	Yazarken yazımı denetle
@@ -2599,15 +2625,10 @@ animation effects	Off	Kapalı
 	Spelling suggestions	Yazım önerileri
 	No suggestions	Öneri yok
 	Add to dictionary	Sözlüğe ekle
-
 	Suggest edits	Düzenleme öner
-
-# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
 	Duplicate pages with new field names	Sayfaları yeni alan adlarıyla çoğalt
 	Duplicate pages — 1 field renamed	Sayfaları çoğalt — 1 alan yeniden adlandırıldı
 	Duplicate pages — fields renamed	Sayfaları çoğalt — alanlar yeniden adlandırıldı
-
-# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
 	Documents	Belgeler
 	AI Assistant	Yapay zekâ asistanı
 	Latin (accented)	Latin (aksanlı)

@@ -244,6 +244,7 @@
 	Discard private data of other applications	捨棄其他應用程式的私有資料
 	Discard hidden text	捨棄隱藏文字
 	Use Flate to encode streams that are not encoded	使用 Flate 編碼未編碼的流
+	In streams that use LZW encoding, use Flate instead	在使用 LZW 編碼的流中改用 Flate
 	Remove invalid links and bookmarks	刪除無效連結和書籤
 	Remove unreferenced named destinations	刪除未引用的命名目標
 	Compress document structure (object streams)	壓縮文件結構（物件流）
@@ -2041,6 +2042,10 @@
 	Perimeter	周長
 	Area	面積
 	Drawing scale	圖面比例
+	Scale	比例
+	Common scales	常用比例
+	Enter a scale such as 1:50.	請輸入比例，例如 1:50。
+	Applying a scale switches units to m / mm.	套用比例會將單位切換為 m / mm。
 	Snapping	吸附
 	Export measurements	匯出測量結果
 	Open a PDF to measure it.	開啟 PDF 以進行測量。
@@ -2093,6 +2098,7 @@
 	Go to page…	轉到頁面…
 	For page sizes and margins.	用於頁面尺寸和邊距。
 	Reopen the files that were open when PdfCraft last closed	重新開啟上次關閉 PdfCraft 時開啟的檔案
+	Restore the last view (page, zoom and page display) when a document is opened again	再次開啟文件時還原上次的檢視（頁面、縮放與頁面顯示）
 	The PDF text fonts can't draw “{c}” ({code}). Choose supported text.	PDF 文字字型無法顯示「{c}」（{code}）。請選擇支援的文字。
 	The standard fonts can't draw “{c}” ({code}). Only Western European characters can be added as text for now.	標準字型無法顯示「{c}」（{code}）。目前只能新增西歐字元作為文字。
 	This field's font can't draw “{c}” ({code}), so PdfCraft shows ? in its place. The value is saved, and other PDF viewers redraw the field from it.	此欄位的字型無法顯示「{c}」（{code}），PdfCraft 會在該處顯示 ?。值已儲存，其他 PDF 閱讀器會依據該值重新繪製此欄位。
@@ -2193,7 +2199,8 @@ key	Space	空格
 	Tools	工具
 	Inspector	檢查器
 	Reload documents when their files change on disk	檔案在磁碟上變更時重新載入對應的文件
-	Show validation marks over signed signatures	在已簽署的簽名上顯示驗證標記
+	Don't show again	不再顯示
+	Show a notice when a document is secured	文件已加密時顯示通知
 	Always use my default zoom and page layout	一律使用我的預設縮放與頁面佈局
 	This file changed on disk. Reload shows the new version and drops your unsaved changes; Save replaces it with this version.	此檔案已在磁碟上變更。「重新載入」會顯示新版本並捨棄未儲存的變更；「儲存」則會以此版本取代它。
 	Reload	重新載入
@@ -2432,6 +2439,19 @@ animation effects	Off	關
 	Make properties default	將內容設為預設
 	Pages selected	選取的頁面
 	Page properties	頁面屬性
+	Create & Edit	建立與編輯
+	Review & Compare	審閱與比較
+	Forms & Signatures	表單與簽名
+	Protect & Standardize	保護與標準化
+	Customize & Automate	自訂與自動化
+	No tools match your search.	沒有符合搜尋的工具。
+	Expand all tools	展開所有工具
+	Collapse all tools	摺疊所有工具
+	Attach a file…	附加檔案…
+	Delete attachment	刪除附件
+	Attaching files is not available on the web yet	網頁版尚不支援附加檔案
+	Attach {name}	附加 {name}
+	Delete attachment {key}	刪除附件 {key}
 	Font	字型
 	Bulleted list	項目符號清單
 	Numbered list	編號清單
@@ -2467,16 +2487,26 @@ animation effects	Off	關
 	two cells would both be named {name}	兩個儲存格的名稱都會是 {name}
 	a field named {name} already exists	已有名為 {name} 的欄位
 
-# Group selection and document save status.
+# Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
+	Today	今天
+@plural	{n} reply|{n} replies	{n} 則回覆
+
+# Pages panel: the Page tools menu (#4415) (AI-assisted, not separately native-reviewed)
+	Page tools	頁面工具
+	Insert pages from a file after the selection…	在所選內容後插入檔案中的頁面…
+	Rotate the selected pages counterclockwise	逆時針旋轉所選頁面
+	Rotate the selected pages clockwise	順時針旋轉所選頁面
+	Extract the selected pages…	擷取所選頁面…
+	Delete the selected pages	刪除所選頁面
+
+# Personal-fork additions; contributor-original, AI-assisted.
+	Show validation marks over signed signatures	在已簽署的簽名上顯示驗證標記
 	Exit	結束
 	Group select	群組選取
 	Return to document	返回文件
 	Saved	已儲存
 	Saves document	儲存文件
 	Unsaved changes	未儲存的變更
-
-
-# Remove Signature (sign.remove)
 	Remove signature…	移除簽章…
 	Remove signature	移除簽章
 	Remove Signature	移除簽章
@@ -2524,15 +2554,11 @@ animation effects	Off	關
 	The signature {names} locks this field.	簽章 {names} 鎖定了此欄位。
 	This document can't be changed: {names}	無法變更此文件：{names}
 	Choose a signature that can be removed.	請選擇一個可以移除的簽章。
-
-# Folder navigation (#4267), adapted from @marcoarnulfo; not native-reviewed.
 	Open next PDF in folder	開啟資料夾中的下一個 PDF
 	Open previous PDF in folder	開啟資料夾中的上一個 PDF
 	This document isn't in a folder yet: save it first	此文件尚未儲存在資料夾中：請先儲存
 	This is the last PDF in its folder	這是所在資料夾中的最後一個 PDF
 	This is the first PDF in its folder	這是所在資料夾中的第一個 PDF
-
-# Language and spelling settings: contributor-original AI-assisted translations, not native-reviewed.
 	Language and spelling	語言和拼字
 	Interface and appearance	介面和外觀
 	Check spelling while typing	輸入時檢查拼字
@@ -2545,15 +2571,10 @@ animation effects	Off	關
 	Spelling suggestions	拼字建議
 	No suggestions	沒有建議
 	Add to dictionary	加入字典
-
 	Suggest edits	建議修改
-
-# Independent form fields on duplicated pages (AI-assisted; see ATTRIBUTION.toml).
 	Duplicate pages with new field names	使用新欄位名稱複製頁面
 	Duplicate pages — 1 field renamed	複製頁面 — 已重新命名 1 個欄位
 	Duplicate pages — fields renamed	複製頁面 — 已重新命名欄位
-
-# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
 	Documents	文件
 	AI Assistant	AI 助理
 	Latin (accented)	拉丁字母（含重音）

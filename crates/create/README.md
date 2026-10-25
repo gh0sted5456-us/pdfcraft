@@ -32,7 +32,9 @@ See [scope and limits](../../docs/xps-print-converter.md). It does not register 
 Image export and Save Image As apply each lossless image's Decode pair before converting its color components.
 Indexed Decode values select palette entries after rounding and clipping. Color-key masks compare the original samples.
 Missing, null or malformed Decode arrays keep the default mapping.
-The existing 16-bit path still uses each sample's high byte. JPEG and mask Decode handling remain limited.
+Soft-mask Decode intervals map samples to opacity before the mask is resized, including reversed ranges and indirect entries.
+The existing 16-bit path still uses each sample's high byte.
+JPEG image Decode handling remains limited.
 ICC transforms and calibrated color conversion remain outside this export path.
 
 `templates` contains 35 contributor-original starter layouts and bounded field specifications. The engine installs real AcroForm widgets and writes checked output. Templates are editable text/vector PDFs with no bundled raster artwork; see [starter templates](../../docs/pdf-templates.md).

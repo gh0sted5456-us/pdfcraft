@@ -13,11 +13,12 @@ pub enum ThemeKind {
     Dark,
 }
 
-/// The saved user choice, independent of the light/dark colours currently displayed.
+/// The saved user choice, independent of the light/dark colours currently displayed. A fresh
+/// install follows the system (#1248); a desktop that says nothing gets Light.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum ThemePreference {
-    System,
     #[default]
+    System,
     Light,
     Dark,
     Glass,
@@ -59,21 +60,27 @@ impl GlassSettings {
         self
     }
 
-    pub fn tokens(self) -> Tokens {
-        let mut t = Tokens::for_kind(ThemeKind::Dark);
+    pub fn surface(self) -> Color32 {
         let rgb = self.tint.map(|channel| 18 + channel / 5);
         let alpha = (u16::from(self.normalized().opacity) * 255 / 100) as u8;
-        let surface = Color32::from_rgba_unmultiplied(rgb[0], rgb[1], rgb[2], alpha);
-        t.titlebar = surface;
-        t.chrome = surface;
-        t.panel = surface;
-        t.pasteboard = surface;
-        t.card = surface;
-        t.field = surface;
-        let raised = |amount| Color32::from_rgba_unmultiplied(rgb[0] + amount, rgb[1] + amount, rgb[2] + amount, alpha);
-        t.hover = raised(8);
-        t.pressed = raised(16);
-        t.selected = raised(12);
+        Color32::from_rgba_unmultiplied(rgb[0], rgb[1], rgb[2], alpha)
+    }
+
+    pub fn tokens(self) -> Tokens {
+        let mut t = Tokens::for_kind(ThemeKind::Dark);
+        t.glass_surface = Some(self.surface());
+        // Paint the main tint once in clear_color; nested cards must not accumulate opacity.
+        t.titlebar = Color32::TRANSPARENT;
+        t.chrome = Color32::TRANSPARENT;
+        t.panel = Color32::TRANSPARENT;
+        t.pasteboard = Color32::TRANSPARENT;
+        t.card = Color32::TRANSPARENT;
+        t.field = Color32::TRANSPARENT;
+        let rgb = self.tint.map(|channel| 26 + channel / 5);
+        let raised = |alpha| Color32::from_rgba_unmultiplied(rgb[0], rgb[1], rgb[2], alpha);
+        t.hover = raised(40);
+        t.pressed = raised(75);
+        t.selected = raised(60);
         t.accent_soft = t.selected;
         t
     }
@@ -82,6 +89,8 @@ impl GlassSettings {
 #[derive(Clone, Copy, Debug)]
 pub struct Tokens {
     pub kind: ThemeKind,
+    /// Backing tint for Glass windows; ordinary nested surfaces remain clear.
+    pub glass_surface: Option<Color32>,
     /// Title/tab strip.
     pub titlebar: Color32,
     /// Mode bar, panels.
@@ -113,6 +122,7 @@ impl Tokens {
         match kind {
             ThemeKind::Light => Self {
                 kind,
+                glass_surface: None,
                 titlebar: Color32::from_rgb(0xE9, 0xE9, 0xEB),
                 chrome: Color32::from_rgb(0xFF, 0xFF, 0xFF),
                 panel: Color32::from_rgb(0xFF, 0xFF, 0xFF),
@@ -137,6 +147,7 @@ impl Tokens {
             },
             ThemeKind::Dark => Self {
                 kind,
+                glass_surface: None,
                 titlebar: Color32::from_rgb(0x1B, 0x1B, 0x1E),
                 chrome: Color32::from_rgb(0x26, 0x26, 0x2A),
                 panel: Color32::from_rgb(0x26, 0x26, 0x2A),
@@ -485,7 +496,7 @@ fn apply_tokens(ctx: &egui::Context, t: Tokens) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::new("pdfcraft-theme"), t));
     let mut v = if t.dark() { Visuals::dark() } else { Visuals::light() };
     v.panel_fill = t.panel;
-    v.window_fill = t.card;
+    v.window_fill = t.glass_surface.unwrap_or(t.card);
     v.window_stroke = Stroke::new(0.5, t.border);
     v.extreme_bg_color = t.field;
     v.faint_bg_color = t.hover;
@@ -542,9 +553,56 @@ fn apply_tokens(ctx: &egui::Context, t: Tokens) {
     ctx.set_style_of(egui::Theme::Dark, style);
 }
 
+/// WCAG 2 contrast ratio between two opaque colours.
+pub fn contrast(a: Color32, b: Color32) -> f32 {
+    let lum = |c: Color32| {
+        let lin = |v: u8| {
+            let s = v as f32 / 255.0;
+            if s <= 0.04045 { s / 12.92 } else { ((s + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
+    };
+    let (x, y) = (lum(a) + 0.05, lum(b) + 0.05);
+    x.max(y) / x.min(y)
+}
+
+/// `color` as text on `background`: itself when it reads (a WCAG 2 contrast of at least 3:1, the
+/// level for large or bold text), otherwise moved towards `text` until it does. A document's own
+/// colours (a bookmark's `/C`) were chosen for a white panel, and dark blue on a dark theme would
+/// be lost.
+pub fn readable(color: Color32, background: Color32, text: Color32) -> Color32 {
+    (0..=4).map(|step| color.lerp_to_gamma(text, step as f32 / 4.0)).find(|c| contrast(*c, background) >= 3.0).unwrap_or(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn glass_nested_surfaces_do_not_stack_the_window_tint() {
+        let t = GlassSettings { opacity: 50, ..GlassSettings::default() }.tokens();
+        for fill in [t.titlebar, t.chrome, t.panel, t.card, t.field, t.pasteboard] {
+            assert_eq!(fill, Color32::TRANSPARENT, "only the window backdrop paints the Glass tint");
+        }
+    }
+
+    /// #3193: a bookmark's own colour is kept where it reads on the panel, and moved towards the
+    /// theme's text colour where it doesn't (dark blue on the dark panel), never past it.
+    #[test]
+    fn a_document_colour_is_kept_where_it_reads() {
+        let (light, dark) = (Tokens::for_kind(ThemeKind::Light), Tokens::for_kind(ThemeKind::Dark));
+        let red = Color32::from_rgb(255, 0, 0);
+        assert_eq!(readable(red, light.panel, light.text), red, "red reads on white");
+        let navy = Color32::from_rgb(0, 0, 128);
+        assert_eq!(readable(navy, light.panel, light.text), navy);
+        let lifted = readable(navy, dark.panel, dark.text);
+        assert_ne!(lifted, navy, "navy is lost on the dark panel");
+        assert!(contrast(lifted, dark.panel) >= 3.0, "{lifted:?}");
+        assert_ne!(lifted, dark.text, "only as far as it needs");
+        // Even the panel's own colour comes out readable.
+        assert!(contrast(readable(dark.panel, dark.panel, dark.text), dark.panel) >= 3.0);
+        assert!(contrast(readable(light.panel, light.panel, light.text), light.panel) >= 3.0);
+    }
     use egui::epaint::text::{Fonts, TextOptions};
 
     const HINTING_CORPUS: [&str; 4] = ["Il1MWmw", "Hamburgefonts", "0123456789 .,;:!?()[]{}+-=/\\", "Café Ångström déjà-vu Ωμέγα Ελληνικά Журнал"];
@@ -776,19 +834,6 @@ mod tests {
         assert_eq!(ThemePreference::System.resolve(None, ThemeKind::Dark), ThemeKind::Dark);
         assert_eq!(ThemePreference::Light.resolve(Some(true), ThemeKind::Dark), ThemeKind::Light);
         assert_eq!(ThemePreference::Dark.resolve(Some(false), ThemeKind::Light), ThemeKind::Dark);
-    }
-
-    /// WCAG 2 contrast ratio between two opaque colours.
-    fn contrast(a: Color32, b: Color32) -> f32 {
-        let lum = |c: Color32| {
-            let lin = |v: u8| {
-                let s = v as f32 / 255.0;
-                if s <= 0.04045 { s / 12.92 } else { ((s + 0.055) / 1.055).powf(2.4) }
-            };
-            0.2126 * lin(c.r()) + 0.7152 * lin(c.g()) + 0.0722 * lin(c.b())
-        };
-        let (x, y) = (lum(a) + 0.05, lum(b) + 0.05);
-        x.max(y) / x.min(y)
     }
 
     #[test]

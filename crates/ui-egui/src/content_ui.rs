@@ -8,6 +8,7 @@ use pdfcraft_engine::{Added, AddedContent, AddedText, Edit};
 use pdfcraft_render::DocInfo;
 
 use crate::canvas::{DocView, PageXform};
+use crate::page_pointer::PagePointer;
 use crate::theme::Tokens;
 use crate::widgets;
 
@@ -185,6 +186,17 @@ impl MoveBackground {
             }
             self.tag = Some(tag);
         }
+        if self.receive(ctx, tag) && self.pending() {
+            ctx.request_repaint_after(std::time::Duration::from_millis(16));
+        }
+    }
+
+    /// Takes in the rasters rendered at `tag`. `false` when either failed: the preview is then
+    /// dropped whole, including rasters in from an earlier scale.
+    fn receive(&mut self, ctx: &egui::Context, tag: u64) -> bool {
+        let (Some(renderer), Some(item_renderer)) = (self.renderer.as_ref(), self.item_renderer.as_ref()) else {
+            return false;
+        };
         let mut failed = false;
         for (r, slot, name) in
             [(renderer, &mut self.texture, "added-content-move-background"), (item_renderer, &mut self.item, "added-content-move-item")]
@@ -204,11 +216,10 @@ impl MoveBackground {
             // Without both rasters the item stays put while dragged, as before.
             self.renderer = None;
             self.item_renderer = None;
-            return;
+            self.texture = None;
+            self.item = None;
         }
-        if self.pending() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(16));
-        }
+        !failed
     }
 
     /// The move was applied: keep the preview, now at the new generation, until the page is
@@ -230,17 +241,17 @@ impl MoveBackground {
     }
 
     /// The page without the moving item, then the item's own pixels (from its raster alone, so
-    /// nothing it covered comes along) at the dragged or applied position.
-    pub fn paint(&self, ui: &egui::Ui, painter: &egui::Painter, xf: &PageXform, page: usize, info: &DocInfo, cv: &ContentView) {
+    /// nothing it covered comes along) at the dragged (to the pages' `pointer`) or applied
+    /// position.
+    pub fn paint(&self, painter: &egui::Painter, xf: &PageXform, page: usize, info: &DocInfo, cv: &ContentView, pointer: Option<Pos2>) {
         let (Some((_, kp, _)), Some(background), Some(item), Some(from)) = (self.key, &self.texture, &self.item, self.from) else { return };
         if kp != page {
             return;
         }
         let r = screen_rect(xf, info, page, from);
         let to = if let Some((_, grab, start)) = cv.grab {
-            let Some(p) = ui.input(|i| i.pointer.hover_pos()) else { return };
-            let delta = if grab == Grab::Move { cv.move_delta.unwrap_or(p - start) } else { p - start };
-            dragged(r, grab, delta, self.picture)
+            let Some(p) = pointer else { return };
+            dragged(r, grab, if grab == Grab::Move { cv.move_delta.unwrap_or(p - start) } else { p - start }, self.picture)
         } else if let Some(to) = self.settling {
             let to = screen_rect(xf, info, page, to);
             // A moved text box keeps its top edge (its height follows its lines).
@@ -336,14 +347,12 @@ fn dragged(r: Rect, grab: Grab, d: egui::Vec2, keep_aspect: bool) -> Rect {
 }
 
 /// Added text and images keep pointer ownership over a form field while editing content.
-pub(crate) fn select_grabs(ui: &egui::Ui, xf: &PageXform, page: usize, info: &DocInfo, added: &[Added], view: &DocView) -> bool {
+pub(crate) fn select_grabs(xf: &PageXform, ptr: &PagePointer, page: usize, info: &DocInfo, added: &[Added], view: &DocView) -> bool {
     let cv = &view.content;
     if cv.grab.is_some_and(|(grab_page, _, _)| grab_page == page) {
         return true;
     }
-    let Some(p) = ui.input(|i| i.pointer.hover_pos().or(i.pointer.interact_pos())).filter(|p| xf.rect.contains(*p)) else {
-        return false;
-    };
+    let Some(p) = ptr.within(xf.rect) else { return false };
     on_page(added, page).into_iter().any(|(index, item)| {
         let rect = screen_rect(xf, info, page, item.content.rect());
         rect.expand(2.0).contains(p)
@@ -358,6 +367,7 @@ pub(crate) fn page_input(
     ui: &egui::Ui,
     resp: &egui::Response,
     xf: &PageXform,
+    ptr: &PagePointer,
     page: usize,
     info: &DocInfo,
     added: &[Added],
@@ -367,7 +377,7 @@ pub(crate) fn page_input(
     view: &mut DocView,
 ) -> bool {
     let mut consumed = false;
-    let pointer = ui.input(|i| i.pointer.hover_pos().or(i.pointer.interact_pos()));
+    let pointer = ptr.pos;
     let cv = &mut view.content;
     if let Some((gp, grab, start)) = cv.grab
         && gp == page
@@ -382,7 +392,7 @@ pub(crate) fn page_input(
             let target = pdfcraft_engine::ObjectTarget { kind: pdfcraft_engine::ObjectKind::Added, index: si };
             cv.move_delta = Some(view.objects.snap_drag(ui, xf, page, info, rect, &[target], pointer.unwrap_or(start) - start));
         }
-        if resp.drag_stopped() || !ui.input(|i| i.pointer.primary_down()) {
+        if resp.drag_stopped() || !ptr.primary_down {
             cv.grab = None;
             let end = pointer.unwrap_or(start);
             if let Some((sp, si)) = cv.selected
@@ -453,7 +463,7 @@ pub(crate) fn page_input(
     }
     if resp.drag_started() {
         cv.move_delta = None;
-        let origin = ui.input(|i| i.pointer.press_origin()).unwrap_or(p);
+        let origin = ptr.origin.unwrap_or(p);
         if let Some((_, left, top)) = selected_rect.and_then(|r| handles(r).into_iter().find(|(c, ..)| c.distance(origin) <= 6.0)) {
             cv.grab = Some((page, Grab::Corner(left, top), origin));
             consumed = true;
@@ -495,10 +505,18 @@ pub(crate) fn page_input(
     consumed || hit.is_some() && resp.is_pointer_button_down_on()
 }
 
-/// Outlines of added items (hover and selection with handles) and the box being dragged.
-pub(crate) fn paint_page(ui: &egui::Ui, painter: &egui::Painter, xf: &PageXform, page: usize, info: &DocInfo, added: &[Added], view: &DocView) {
+/// Outlines of added items (hover and selection with handles) and the box being dragged, the
+/// pages' `pointer` over them.
+pub(crate) fn paint_page(
+    painter: &egui::Painter,
+    xf: &PageXform,
+    page: usize,
+    info: &DocInfo,
+    added: &[Added],
+    view: &DocView,
+    pointer: Option<Pos2>,
+) {
     let cv = &view.content;
-    let pointer = ui.input(|i| i.pointer.hover_pos());
     for (i, a) in on_page(added, page) {
         if cv.draft.as_ref().is_some_and(|d| d.page == page && d.index == Some(i)) {
             continue;
@@ -556,7 +574,7 @@ pub(crate) fn after_refresh(view: &mut DocView, added: &[Added]) {
 pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, added: &[Added]) -> (Option<Edit>, bool) {
     let Some(page) = view.content.draft.as_ref().map(|d| d.page) else { return (None, false) };
     let Some(xf) = view.page_xform(page) else { return (None, false) };
-    let zoom = xf.rect.width() / xf.pw.max(1.0);
+    let zoom = xf.zoom();
     let Some(draft) = view.content.draft.as_mut() else { return (None, false) };
     let font = crate::edit_text_ui::editor_font(&draft.style, (draft.style.size as f32 * zoom).clamp(1.0, 300.0));
     let text = AddedText { text: draft.text.clone(), ..draft.style.clone() };
@@ -623,18 +641,27 @@ pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, ad
                 pdfcraft_engine::TextAlign::Right => egui::Align::Max,
                 pdfcraft_engine::TextAlign::Left | pdfcraft_engine::TextAlign::Justify => egui::Align::Min,
             };
+            // Character spacing shows as the page will draw it, scaled like the font.
+            let letter_spacing = (t.style.char_spacing * f64::from(zoom)) as f32;
+            let mut spaced = |ui: &egui::Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
+                let job = spaced_job(text.as_str(), &font, Color32::from_rgb(cr, cg, cb), letter_spacing, wrap_width, halign);
+                ui.fonts_mut(|f| f.layout_job(job))
+            };
             ui.horizontal_top(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
-                let mut out = egui::TextEdit::multiline(&mut t.text)
-                    .font(font)
+                let mut edit = egui::TextEdit::multiline(&mut t.text)
+                    .font(font.clone())
                     .desired_width(width)
                     .desired_rows(1)
                     .horizontal_align(halign)
                     .background_color(if background_ready { Color32::TRANSPARENT } else { Color32::WHITE })
                     .text_color(Color32::from_rgb(cr, cg, cb))
                     .hint_text(tl!("Type text"))
-                    .id(editor_id(view.id))
-                    .show(ui);
+                    .id(editor_id(view.id));
+                if letter_spacing != 0.0 {
+                    edit = edit.layouter(&mut spaced);
+                }
+                let mut out = edit.show(ui);
                 crate::spelling_ui::annotate(ui, &mut out, &mut t.text, None);
                 let resp = out.response;
                 if t.focus {
@@ -779,6 +806,8 @@ impl crate::PdfCraftApp {
 
     /// Copy Image: image `index` on `page`, at its own resolution, to the clipboard.
     pub(crate) fn copy_page_image(&mut self, page: usize, index: usize) -> bool {
+        // A newer copy wins over a whole-document copy still reading its pages.
+        self.document_copy = None;
         let Some((_, id)) = self.active_ids() else { return false };
         if !self.may_copy(id) {
             return false;
@@ -972,24 +1001,44 @@ pub(crate) fn image_panel(ui: &mut egui::Ui, t: &Tokens, img: &pdfcraft_engine::
         }
     });
     ui.label(egui::RichText::new(tl!("Crop (% trimmed from each side)")).small().color(t.text_muted));
-    let mut crop = img.crop.map(|v| (v * 100.0).round());
+    let most = (1.0 - pdfcraft_engine::AddedImage::MIN_CROP_KEEP) * 100.0;
+    // Unrounded: a side the user doesn't touch keeps its stored value, also one read from a file.
+    let shown = img.crop.map(|v| v * 100.0);
+    let mut crop = shown;
     let mut changed = false;
     ui.horizontal(|ui| {
         for (k, label) in ["L", "B", "R", "T"].into_iter().enumerate() {
             ui.label(label);
-            // Applied when the drag ends, so a drag is one undo step.
-            let r = ui.add(egui::DragValue::new(&mut crop[k]).range(0.0..=45.0).speed(0.5).suffix("%"));
+            // Up to what the opposite side leaves. Applied when the drag ends: one undo step.
+            let room = (most - crop.get((k + 2) % 4).copied().unwrap_or(0.0)).max(0.0);
+            let Some(side) = crop.get_mut(k) else { continue };
+            let r = ui.add(egui::DragValue::new(side).range(0.0..=room).clamp_existing_to_range(false).speed(0.5).suffix("%"));
             changed |= r.drag_stopped() || (r.changed() && !r.dragged());
         }
     });
     if changed {
         let mut i = img.clone();
-        i.crop = crop.map(|v| v / 100.0);
+        for (stored, (now, was)) in i.crop.iter_mut().zip(crop.iter().zip(&shown)) {
+            if now != was {
+                *stored = now / 100.0;
+            }
+        }
         if i.crop != img.crop {
             out = Some(ImageAction::Update(AddedContent::Image(i)));
         }
     }
     out
+}
+
+/// The editor's layout of added text with character spacing. The page puts the spacing after every
+/// character, the last of a line included (`latin_width`), while epaint puts it only between
+/// characters: the wrap width gives up one spacing so both break lines at the same place.
+fn spaced_job(text: &str, font: &egui::FontId, color: Color32, letter_spacing: f32, wrap_width: f32, halign: egui::Align) -> egui::text::LayoutJob {
+    let format = egui::TextFormat { font_id: font.clone(), color, extra_letter_spacing: letter_spacing, ..Default::default() };
+    let mut job = egui::text::LayoutJob::single_section(text.to_owned(), format);
+    job.wrap.max_width = (wrap_width - letter_spacing).max(0.0);
+    job.halign = halign;
+    job
 }
 
 #[cfg(test)]
@@ -1047,5 +1096,74 @@ mod tests {
         assert!(i.flip_h && !i.flip_v, "Flip horizontal mirrors left and right");
         let i = flipped("Flip vertical");
         assert!(i.flip_v && !i.flip_h, "Flip vertical mirrors top and bottom");
+    }
+
+    /// #4464: both rasters were in at one scale and a render at a new scale failed. The rasters
+    /// from the old scale must go too, or the item keeps following the pointer although the
+    /// preview gave up.
+    #[test]
+    fn failed_rerender_drops_the_rasters_from_the_earlier_scale() {
+        let ctx = egui::Context::default();
+        let texture = |name| Some(ctx.load_texture(name, egui::ColorImage::filled([1, 1], Color32::WHITE), egui::TextureOptions::LINEAR));
+        // Bytes no parser accepts: every render answers with an error.
+        let pool = || {
+            let pool = pdfcraft_render::RenderPool::new_inline(std::sync::Arc::new(b"not a pdf".to_vec()), Default::default());
+            pool.set_queue(vec![pdfcraft_render::RenderRequest { page: 0, scale: 2.0, tag: 2000, ..Default::default() }]);
+            pool
+        };
+        let mut mb = MoveBackground {
+            key: Some((0, 0, 0)),
+            renderer: Some(pool()),
+            texture: texture("background"),
+            item_renderer: Some(pool()),
+            item: texture("item"),
+            tag: Some(2000),
+            from: Some([0.0, 0.0, 10.0, 10.0]),
+            ..Default::default()
+        };
+        assert!(mb.ready(), "both rasters from the earlier scale are in");
+        assert!(!mb.receive(&ctx, 2000), "the new scale's renders fail");
+        assert!(mb.texture.is_none() && mb.item.is_none(), "no raster is left to draw the moving item from");
+        assert!(!mb.ready() && !mb.pending());
+    }
+
+    /// #4245: the page counts the spacing after a line's last character too, so a line that fits
+    /// only without it wraps in the saved text and must wrap in the editor.
+    #[test]
+    fn editor_wraps_where_the_saved_text_does_with_trailing_spacing() {
+        let rows = |wrap: f32| {
+            let mut n = 0;
+            let mut h = egui_kittest::Harness::new_ui_state(
+                move |ui, n: &mut usize| {
+                    let font = egui::FontId::proportional(14.0);
+                    let job = spaced_job("AAAA BBBB", &font, Color32::BLACK, 10.0, wrap, egui::Align::Min);
+                    *n = ui.fonts_mut(|f| f.layout_job(job)).rows.len();
+                },
+                n,
+            );
+            h.run();
+            n = *h.state();
+            n
+        };
+        // The text's width without the trailing spacing, as epaint measures it.
+        let one_line = rows(f32::INFINITY);
+        assert_eq!(one_line, 1);
+        let width = {
+            let mut w = 0.0;
+            let mut h = egui_kittest::Harness::new_ui_state(
+                |ui, w: &mut f32| {
+                    let font = egui::FontId::proportional(14.0);
+                    let job = spaced_job("AAAA BBBB", &font, Color32::BLACK, 10.0, f32::INFINITY, egui::Align::Min);
+                    *w = ui.fonts_mut(|f| f.layout_job(job)).rect.width();
+                },
+                w,
+            );
+            h.run();
+            w = *h.state();
+            w
+        };
+        // Page width = width + 10 (spacing after the last character) > width + 5: the page wraps.
+        assert_eq!(rows(width + 5.0), 2, "the saved text wraps here, so the editor must too");
+        assert_eq!(rows(width + 10.0), 1, "and keeps the line when the spacing fits");
     }
 }

@@ -10,6 +10,12 @@ use crate::{CloseRequest, Dialog, PdfCraftApp, PropsTab, panels::human_size, wid
 const INFO_KEYS: [&str; 4] = ["Title", "Author", "Subject", "Keywords"];
 
 pub fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
+    // The page sets hover cursors from the raw pointer position (form fields, links, comments)
+    // before any dialog is drawn, and nothing under a modal's backdrop takes clicks. Start from
+    // the arrow; the modal's own widgets set theirs as they are drawn.
+    if app.modal_open() || ctx.memory(|m| m.top_modal_layer().is_some()) {
+        ctx.set_cursor_icon(egui::CursorIcon::Default);
+    }
     dialogs(app, ctx);
     // Last, so it sits above Document Properties when Security's Unlock… asked for it.
     unlock(app, ctx);
@@ -38,11 +44,16 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let Some(dialog) = app.dialog else {
         app.props_draft = None;
         app.view_draft = None;
+        app.custom_draft = None;
         return;
     };
     // Properties ▸ Fonts shows the fonts as they are now, after any content edits.
     if let (Dialog::Properties(PropsTab::Fonts), Some((_, id))) = (dialog, app.active_ids()) {
         app.session.refresh_fonts(id);
+    }
+    // Properties ▸ Space Audit walks the whole file, so it is measured once per edit, not per frame.
+    if dialog == Dialog::Properties(PropsTab::SpaceAudit) {
+        app.refresh_space_audit();
     }
     // Seed the editable Description fields from the document when the dialog opens.
     if let (Dialog::Properties(_), Some((_, id))) = (dialog, app.active_ids())
@@ -51,6 +62,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     {
         app.props_draft = Some((id, INFO_KEYS.map(|k| doc.info_value(k).unwrap_or_default())));
         app.view_draft = Some((id, doc.initial_view()));
+        app.custom_draft = Some((id, crate::CustomDraft { props: doc.custom_info(), ..Default::default() }));
     }
     let mut apply = false;
     let mut split_now: Option<crate::SplitPlan> = None;
@@ -158,7 +170,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 return;
             }
             Dialog::Properties(tab) => {
-                crate::widgets::dialog_heading(ui, tl!("Document Properties"));
+                widgets::dialog_heading(ui, tl!("Document Properties"));
                 ui.add_space(8.0);
                 ui.horizontal_wrapped(|ui| {
                     for (tb, label) in [
@@ -166,7 +178,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                         (PropsTab::InitialView, tl!("Initial View")),
                         (PropsTab::Security, tl!("Security")),
                         (PropsTab::Fonts, tl!("Fonts")),
+                        (PropsTab::Custom, tl!("Custom")),
                         (PropsTab::Advanced, tl!("Advanced")),
+                        (PropsTab::SpaceAudit, tl!("Space Audit")),
                     ] {
                         if widgets::mode_tab(ui, label, tab == tb).clicked() {
                             next = Dialog::Properties(tb);
@@ -178,308 +192,398 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 let Some((_, id)) = app.active_ids() else { return };
                 let Some(doc) = app.session.get(id) else { return };
                 let i = &doc.info;
+                // Description shows plain values among text fields; they start where the fields' text does.
+                let editable_info = tab == PropsTab::Description && doc.allows_modification() && app.props_draft.is_some();
+                let inset = if editable_info { widgets::FIELD_TEXT_INSET } else { 0.0 };
                 let row = |ui: &mut egui::Ui, k: &str, v: String| {
                     // Row labels are UI chrome; values are document data and stay as they are.
                     ui.label(egui::RichText::new(tl!(k)).color(t.text_muted));
-                    ui.scope(|ui| {
-                        ui.set_max_width(420.0_f32.min(ui.available_width()));
+                    ui.horizontal(|ui| {
+                        ui.add_space(inset);
                         ui.add(
                             egui::Label::new(if v.is_empty() { egui::RichText::new("—").color(t.text_faint) } else { egui::RichText::new(v) }).wrap(),
                         );
                     });
                     ui.end_row();
                 };
-                egui::ScrollArea::vertical().max_height((ctx.content_rect().height() - 208.0).clamp(40.0, 620.0)).auto_shrink([false, true]).show(
-                    ui,
-                    |ui| {
-                        egui::Grid::new("props").num_columns(2).spacing([18.0, 8.0]).min_col_width(140.0).show(ui, |ui| match tab {
-                            PropsTab::Description => {
-                                row(ui, "File", crate::bidi::visual(&doc.name).into_owned());
-                                match app.props_draft.as_mut() {
-                                    Some((_, draft)) if doc.allows_modification() => {
-                                        for (k, v) in INFO_KEYS.iter().zip(draft.iter_mut()) {
-                                            let l = ui.label(egui::RichText::new(tl!(k)).color(t.text_muted));
-                                            ui.add(
-                                                widgets::line(v)
-                                                    .desired_width(420.0_f32.min(ui.available_width()))
-                                                    .background_color(t.field)
-                                                    .id_salt(("info", *k)),
-                                            )
-                                            .labelled_by(l.id);
-                                            ui.end_row();
-                                        }
-                                    }
-                                    _ => {
-                                        row(ui, "Title", i.title.clone().unwrap_or_default());
-                                        row(ui, "Author", i.author.clone().unwrap_or_default());
-                                        row(ui, "Subject", i.subject.clone().unwrap_or_default());
-                                        row(ui, "Keywords", i.keywords.clone().unwrap_or_default());
+                widgets::dialog_scroll(ui, "properties-body", |ui| {
+                    if tab == PropsTab::SpaceAudit {
+                        ui.add_space(4.0);
+                        crate::optimize_ui::audit_table(ui, &app.space_audit, &t);
+                        return;
+                    }
+                    egui::Grid::new("props").num_columns(2).spacing([18.0, 8.0]).min_col_width(140.0).show(ui, |ui| match tab {
+                        PropsTab::Description => {
+                            row(ui, "File", crate::bidi::visual(&doc.name).into_owned());
+                            match app.props_draft.as_mut() {
+                                Some((_, draft)) if editable_info => {
+                                    for (k, v) in INFO_KEYS.iter().zip(draft.iter_mut()) {
+                                        let l = ui.label(egui::RichText::new(tl!(k)).color(t.text_muted));
+                                        // Subject and Keywords are often a sentence or a list: they wrap and grow
+                                        // instead of hiding most of the value past the field's edge.
+                                        let field =
+                                            if matches!(*k, "Subject" | "Keywords") { widgets::block(v).desired_rows(1) } else { widgets::line(v) };
+                                        ui.add(
+                                            field
+                                                .desired_width((ui.available_width() - 1.0).max(1.0))
+                                                .background_color(t.field)
+                                                .id_salt(("info", *k)),
+                                        )
+                                        .labelled_by(l.id);
+                                        ui.end_row();
                                     }
                                 }
-                                row(ui, "Application", i.creator.clone().unwrap_or_default());
-                                row(ui, "PDF producer", i.producer.clone().unwrap_or_default());
+                                _ => {
+                                    row(ui, "Title", i.title.clone().unwrap_or_default());
+                                    row(ui, "Author", i.author.clone().unwrap_or_default());
+                                    row(ui, "Subject", i.subject.clone().unwrap_or_default());
+                                    row(ui, "Keywords", i.keywords.clone().unwrap_or_default());
+                                }
                             }
-                            PropsTab::InitialView => {
-                                use pdfcraft_engine::{InitialLayout as L, Magnification as M, Navigation as N};
-                                let editable = doc.allows_modification();
-                                let pages = i.pages.len();
-                                let Some((_, v)) = app.view_draft.as_mut() else { return };
-                                ui.label(egui::RichText::new(tl!("Layout and Magnification")).font(theme::semibold(12.5)));
+                            row(ui, "Application", i.creator.clone().unwrap_or_default());
+                            row(ui, "PDF producer", i.producer.clone().unwrap_or_default());
+                        }
+                        PropsTab::InitialView => {
+                            use pdfcraft_engine::{InitialLayout as L, Magnification as M, Navigation as N};
+                            let editable = doc.allows_modification();
+                            let pages = i.pages.len();
+                            let Some((_, v)) = app.view_draft.as_mut() else { return };
+                            ui.label(egui::RichText::new(tl!("Layout and Magnification")).font(theme::semibold(12.5)));
+                            ui.end_row();
+                            ui.label(tl!("Navigation tab"));
+                            ui.add_enabled_ui(editable, |ui| {
+                                egui::ComboBox::from_id_salt("iv-nav")
+                                    .selected_text(tl!(format!("{:?}", v.navigation)
+                                        .replace("PageOnly", "Page Only")
+                                        .replace("Pages", "Pages Panel and Page")
+                                        .as_str()))
+                                    .show_ui(ui, |ui| {
+                                        for (n, l) in [
+                                            (N::PageOnly, tl!("Page Only")),
+                                            (N::Bookmarks, tl!("Bookmarks Panel and Page")),
+                                            (N::Pages, tl!("Pages Panel and Page")),
+                                            (N::Attachments, tl!("Attachments Panel and Page")),
+                                            (N::Layers, tl!("Layers Panel and Page")),
+                                        ] {
+                                            ui.selectable_value(&mut v.navigation, n, l);
+                                        }
+                                    });
+                            });
+                            ui.end_row();
+                            ui.label(tl!("Page layout"));
+                            ui.add_enabled_ui(editable, |ui| {
+                                let names = [
+                                    (L::Default, tl!("Default")),
+                                    (L::SinglePage, tl!("Single Page")),
+                                    (L::SinglePageContinuous, tl!("Single Page Continuous")),
+                                    (L::TwoUp, tl!("Two-Up (Facing)")),
+                                    (L::TwoUpContinuous, tl!("Two-Up Continuous (Facing)")),
+                                    (L::TwoUpCoverPage, tl!("Two-Up (Cover Page)")),
+                                    (L::TwoUpContinuousCoverPage, tl!("Two-Up Continuous (Cover Page)")),
+                                ];
+                                let shown = names.iter().find(|(l, _)| *l == v.layout).map_or(tl!("Default"), |(_, n)| n);
+                                egui::ComboBox::from_id_salt("iv-layout").selected_text(shown).show_ui(ui, |ui| {
+                                    for (l, n) in names {
+                                        ui.selectable_value(&mut v.layout, l, n);
+                                    }
+                                });
+                            });
+                            ui.end_row();
+                            ui.label(tl!("Magnification"));
+                            ui.add_enabled_ui(editable, |ui| {
+                                ui.horizontal(|ui| {
+                                    let names = [
+                                        (M::Default, tl!("Default")),
+                                        (M::ActualSize, tl!("Actual Size")),
+                                        (M::FitPage, tl!("Fit Page")),
+                                        (M::FitWidth, tl!("Fit Width")),
+                                        (M::FitHeight, tl!("Fit Height")),
+                                        (M::FitVisible, tl!("Fit Visible")),
+                                    ];
+                                    let shown = match v.magnification {
+                                        M::Percent(p) => format!("{p:.0}%"),
+                                        m => names.iter().find(|(x, _)| *x == m).map_or(tl!("Default").to_string(), |(_, n)| n.to_string()),
+                                    };
+                                    egui::ComboBox::from_id_salt("iv-mag").selected_text(shown).show_ui(ui, |ui| {
+                                        for (m, n) in names {
+                                            ui.selectable_value(&mut v.magnification, m, n);
+                                        }
+                                        for p in [50.0, 75.0, 125.0, 150.0, 200.0] {
+                                            ui.selectable_value(&mut v.magnification, M::Percent(p), format!("{p:.0}%"));
+                                        }
+                                    });
+                                });
+                            });
+                            ui.end_row();
+                            ui.label(tl!("Open to page"));
+                            ui.add_enabled_ui(editable, |ui| {
+                                let mut p = v.page + 1;
+                                if ui.add(egui::DragValue::new(&mut p).range(1..=pages.max(1))).changed() {
+                                    v.page = p - 1;
+                                }
+                                ui.label(crate::i18n::fmt(tl!("of {pages}"), &[("pages", &pages.to_string())]));
+                            });
+                            ui.end_row();
+                            ui.label(egui::RichText::new(tl!("Window Options")).font(theme::semibold(12.5)));
+                            ui.end_row();
+                            ui.label("");
+                            ui.add_enabled_ui(editable, |ui| {
+                                ui.vertical(|ui| {
+                                    ui.add(widgets::checkbox(&mut v.fit_window, tl!("Resize window to initial page")));
+                                    ui.add(widgets::checkbox(&mut v.center_window, tl!("Center window on screen")));
+                                    ui.add(widgets::checkbox(&mut v.full_screen, tl!("Open in Full Screen mode")));
+                                    ui.horizontal(|ui| {
+                                        ui.label(tl!("Show:"));
+                                        widgets::radio_value(ui, &mut v.display_title, false, tl!("File Name"));
+                                        widgets::radio_value(ui, &mut v.display_title, true, tl!("Document Title"));
+                                    });
+                                });
+                            });
+                            ui.end_row();
+                            ui.label(egui::RichText::new(tl!("User Interface Options")).font(theme::semibold(12.5)));
+                            ui.end_row();
+                            ui.label("");
+                            ui.add_enabled_ui(editable, |ui| {
+                                ui.vertical(|ui| {
+                                    ui.add(widgets::checkbox(&mut v.hide_menubar, tl!("Hide menu bar")));
+                                    ui.add(widgets::checkbox(&mut v.hide_toolbar, tl!("Hide toolbars")));
+                                    ui.add(widgets::checkbox(&mut v.hide_window_ui, tl!("Hide window controls")));
+                                });
+                            });
+                            ui.end_row();
+                        }
+                        PropsTab::Security => match doc.security_summary() {
+                            None => {
+                                row(ui, "Security method", tl!("No security").to_string());
+                                row(ui, "Restrictions", tl!("None — everything is allowed").to_string());
+                                if doc.allows_security_change() && ui.button(tl!("Protect using password…")).clicked() {
+                                    link_command = Some("protect.password");
+                                }
+                            }
+                            Some(sec) => {
+                                row(ui, "Security method", tl!("Password security").to_string());
+                                row(ui, "Encryption", sec.method.clone());
+                                row(
+                                    ui,
+                                    "Opened with",
+                                    if sec.pending {
+                                        tl!("— (protection is applied when you save)").to_string()
+                                    } else if sec.owner {
+                                        tl!("Owner password (no restrictions apply)").to_string()
+                                    } else {
+                                        tl!("User password").to_string()
+                                    },
+                                );
+                                // A restricted document asks for its permissions password first.
+                                if doc.allows_security_change() || doc.can_unlock() {
+                                    ui.horizontal(|ui| {
+                                        if doc.can_unlock() && ui.button(tl!("Unlock…")).clicked() {
+                                            link_command = Some("protect.unlock");
+                                        }
+                                        if ui.button(tl!("Change settings…")).clicked() {
+                                            link_command = Some("protect.password");
+                                        }
+                                        if ui.button(tl!("Remove security")).clicked() {
+                                            link_command = Some("protect.remove");
+                                        }
+                                    });
+                                }
+                                let p = sec.permissions;
+                                let yes = |b: bool| tl!(if b { "Allowed" } else { "Not allowed" }).to_string();
+                                row(
+                                    ui,
+                                    "Printing",
+                                    if !p.print() {
+                                        tl!("Not allowed").to_string()
+                                    } else if p.print_high_quality() {
+                                        tl!("High resolution").to_string()
+                                    } else {
+                                        tl!("Low resolution").to_string()
+                                    },
+                                );
+                                row(ui, "Changing the document", yes(p.modify()));
+                                row(ui, "Document assembly", yes(p.assemble()));
+                                row(ui, "Content copying", yes(p.copy()));
+                                row(ui, "Content copying for accessibility", yes(p.extract_for_accessibility()));
+                                row(ui, "Commenting", yes(p.annotate()));
+                                row(ui, "Filling of form fields", yes(p.fill_forms()));
+                            }
+                        },
+                        PropsTab::Fonts => {
+                            if i.fonts.is_empty() {
+                                row(ui, "Fonts", tl!("No fonts are referenced by the pages.").to_string());
+                            }
+                            for f in &i.fonts {
+                                let mut detail = f.kind.clone();
+                                if let Some(e) = &f.encoding {
+                                    detail.push_str(&format!(" · {e}"));
+                                }
+                                detail.push_str(if f.subset {
+                                    " · Embedded subset"
+                                } else if f.embedded {
+                                    " · Embedded"
+                                } else {
+                                    " · Not embedded (substituted)"
+                                });
+                                row(ui, &f.name, detail);
+                            }
+                        }
+                        PropsTab::Custom => {
+                            // Add takes a new name, Update changes the value of the listed property the
+                            // Name field names, Delete removes it; OK writes the changes as one step.
+                            let editable = doc.allows_modification();
+                            let Some((_, d)) = app.custom_draft.as_mut() else { return };
+                            let l = ui.label(egui::RichText::new(tl!("Name:")).color(t.text_muted));
+                            ui.add_enabled(
+                                editable,
+                                widgets::line(&mut d.name).desired_width(420.0).background_color(t.field).id_salt("custom-name"),
+                            )
+                            .labelled_by(l.id);
+                            ui.end_row();
+                            let l = ui.label(egui::RichText::new(tl!("Value:")).color(t.text_muted));
+                            ui.add_enabled(
+                                editable,
+                                widgets::line(&mut d.value).desired_width(420.0).background_color(t.field).id_salt("custom-value"),
+                            )
+                            .labelled_by(l.id);
+                            ui.end_row();
+                            // Untrimmed: a file's `/Project#20` is not `/Project`, and a typed space is refused.
+                            let name = d.name.clone();
+                            let value = d.value.trim().to_owned();
+                            let listed = d.props.iter().position(|(k, _)| *k == name);
+                            // An entry the list leaves out (not text, only padding, or past its 256) keeps its value.
+                            let file_props = doc.custom_info();
+                            let unlisted = doc.has_info(&name) && !file_props.iter().any(|(k, _)| *k == name);
+                            let refused = pdfcraft_engine::check_custom_key(&name).err().filter(|_| !name.is_empty()).map(|e| e.to_string());
+                            ui.label("");
+                            // A file can hold a custom name that `check_custom_key` refuses, such as one
+                            // with a space: the tab lists it, and Add, Update and Delete stay off for it.
+                            let why = |b: egui::Response| match &refused {
+                                Some(why) => b.on_disabled_hover_text(crate::i18n::words(why)),
+                                None => b,
+                            };
+                            // A name that isn't UTF-8 is listed with U+FFFD and can't be written back as it is.
+                            let editable = editable && refused.is_none() && !name.contains(char::REPLACEMENT_CHARACTER);
+                            // `custom_info` lists at most 256 properties, and a new name goes after the file's
+                            // entries, so Add is off once the draft or the file's own list holds 256.
+                            let room = d.props.len() < 256 && file_props.len() < 256;
+                            ui.horizontal(|ui| {
+                                let add = editable && room && listed.is_none() && !unlisted && !name.is_empty() && !value.is_empty();
+                                if why(ui.add_enabled(add, egui::Button::new(tl!("Add")))).clicked() {
+                                    d.props.push((name.clone(), value.clone()));
+                                    d.name.clear();
+                                    d.value.clear();
+                                }
+                                let update = editable && !value.is_empty() && listed.and_then(|n| d.props.get(n)).is_some_and(|(_, v)| *v != value);
+                                if why(ui.add_enabled(update, egui::Button::new(tl!("Update")))).clicked()
+                                    && let Some(p) = listed.and_then(|n| d.props.get_mut(n))
+                                {
+                                    p.1 = value.clone();
+                                }
+                                if why(ui.add_enabled(editable && listed.is_some(), egui::Button::new(tl!("Delete")))).clicked()
+                                    && let Some(n) = listed.filter(|n| *n < d.props.len())
+                                {
+                                    d.props.remove(n);
+                                    d.name.clear();
+                                    d.value.clear();
+                                }
+                            });
+                            ui.end_row();
+                            if d.props.is_empty() {
+                                ui.label("");
+                                ui.label(egui::RichText::new(tl!("None")).color(t.text_faint));
                                 ui.end_row();
-                                ui.label(tl!("Navigation tab"));
-                                ui.add_enabled_ui(editable, |ui| {
-                                    egui::ComboBox::from_id_salt("iv-nav")
-                                        .selected_text(tl!(format!("{:?}", v.navigation)
-                                            .replace("PageOnly", "Page Only")
-                                            .replace("Pages", "Pages Panel and Page")
-                                            .as_str()))
-                                        .show_ui(ui, |ui| {
-                                            for (n, l) in [
-                                                (N::PageOnly, tl!("Page Only")),
-                                                (N::Bookmarks, tl!("Bookmarks Panel and Page")),
-                                                (N::Pages, tl!("Pages Panel and Page")),
-                                                (N::Attachments, tl!("Attachments Panel and Page")),
-                                                (N::Layers, tl!("Layers Panel and Page")),
-                                            ] {
-                                                ui.selectable_value(&mut v.navigation, n, l);
-                                            }
-                                        });
+                            }
+                            // A click on a property fills the fields with it; values are document data.
+                            let mut picked = None;
+                            for (k, v) in &d.props {
+                                if ui.selectable_label(*k == name, k.as_str()).clicked() {
+                                    picked = Some((k.clone(), v.clone()));
+                                }
+                                ui.scope(|ui| {
+                                    ui.set_max_width(420.0);
+                                    ui.add(egui::Label::new(v.as_str()).wrap());
                                 });
                                 ui.end_row();
-                                ui.label(tl!("Page layout"));
-                                ui.add_enabled_ui(editable, |ui| {
-                                    let names = [
-                                        (L::Default, tl!("Default")),
-                                        (L::SinglePage, tl!("Single Page")),
-                                        (L::SinglePageContinuous, tl!("Single Page Continuous")),
-                                        (L::TwoUp, tl!("Two-Up (Facing)")),
-                                        (L::TwoUpContinuous, tl!("Two-Up Continuous (Facing)")),
-                                        (L::TwoUpCoverPage, tl!("Two-Up (Cover Page)")),
-                                        (L::TwoUpContinuousCoverPage, tl!("Two-Up Continuous (Cover Page)")),
-                                    ];
-                                    let shown = names.iter().find(|(l, _)| *l == v.layout).map_or(tl!("Default"), |(_, n)| n);
-                                    egui::ComboBox::from_id_salt("iv-layout").selected_text(shown).show_ui(ui, |ui| {
-                                        for (l, n) in names {
-                                            ui.selectable_value(&mut v.layout, l, n);
+                            }
+                            if let Some((k, v)) = picked {
+                                d.name = k;
+                                d.value = v;
+                            }
+                        }
+                        PropsTab::Advanced => {
+                            row(ui, "PDF version", i.pdf_version.clone());
+                            row(ui, "Location", crate::bidi::visual(doc.path.as_deref().unwrap_or_default()).into_owned());
+                            row(ui, "File size", format!("{} ({})", human_size(i.file_size), crate::panels::byte_count(i.file_size)));
+                            let p = &i.pages[0];
+                            row(ui, "Page size", units.size(f64::from(p.width), f64::from(p.height)));
+                            row(ui, "Number of pages", i.pages.len().to_string());
+                            row(ui, "Tagged PDF", yes(i.tagged));
+                            row(ui, "Form fields", i.fields.len().to_string());
+                            row(ui, "Comments", i.annotations.len().to_string());
+                            row(ui, "Layers", i.layers.len().to_string());
+                            row(ui, "Attachments", i.attachments.len().to_string());
+                            row(ui, "JavaScript", yes(i.has_javascript));
+                            // Each incremental update is a revision; earlier ones open as their own document.
+                            let ends = doc.revision_ends();
+                            if ends.len() > 1 {
+                                ui.label(egui::RichText::new(tl!("Revisions")).color(t.text_muted));
+                                // Reserve the full wrapped height before the grid starts the next row.
+                                ui.vertical(|ui| {
+                                    ui.horizontal_wrapped(|ui| {
+                                        ui.label(ends.len().to_string());
+                                        for n in (1..ends.len()).rev().take(12) {
+                                            if ui
+                                                .small_button(crate::i18n::fmt(tl!("View revision {n}"), &[("n", &n.to_string())]))
+                                                .on_hover_text(tl!("Open the file as it was saved then"))
+                                                .clicked()
+                                            {
+                                                open_revision = Some(n);
+                                            }
                                         }
                                     });
                                 });
                                 ui.end_row();
-                                ui.label(tl!("Magnification"));
+                            }
+                            // Reading Options: binding and language.
+                            if let Some((_, v)) = app.view_draft.as_mut() {
+                                let editable = doc.allows_modification();
+                                ui.label(egui::RichText::new(tl!("Binding")).color(t.text_muted));
                                 ui.add_enabled_ui(editable, |ui| {
                                     ui.horizontal(|ui| {
-                                        let names = [
-                                            (M::Default, tl!("Default")),
-                                            (M::ActualSize, tl!("Actual Size")),
-                                            (M::FitPage, tl!("Fit Page")),
-                                            (M::FitWidth, tl!("Fit Width")),
-                                            (M::FitHeight, tl!("Fit Height")),
-                                            (M::FitVisible, tl!("Fit Visible")),
-                                        ];
-                                        let shown = match v.magnification {
-                                            M::Percent(p) => format!("{p:.0}%"),
-                                            m => names.iter().find(|(x, _)| *x == m).map_or(tl!("Default").to_string(), |(_, n)| n.to_string()),
-                                        };
-                                        egui::ComboBox::from_id_salt("iv-mag").selected_text(shown).show_ui(ui, |ui| {
-                                            for (m, n) in names {
-                                                ui.selectable_value(&mut v.magnification, m, n);
-                                            }
-                                            for p in [50.0, 75.0, 125.0, 150.0, 200.0] {
-                                                ui.selectable_value(&mut v.magnification, M::Percent(p), format!("{p:.0}%"));
-                                            }
-                                        });
+                                        widgets::radio_value(ui, &mut v.right_to_left, false, tl!("Left Edge"));
+                                        widgets::radio_value(ui, &mut v.right_to_left, true, tl!("Right Edge"));
                                     });
                                 });
                                 ui.end_row();
-                                ui.label(tl!("Open to page"));
-                                ui.add_enabled_ui(editable, |ui| {
-                                    let mut p = v.page + 1;
-                                    if ui.add(egui::DragValue::new(&mut p).range(1..=pages.max(1))).changed() {
-                                        v.page = p - 1;
-                                    }
-                                    ui.label(crate::i18n::fmt(tl!("of {pages}"), &[("pages", &pages.to_string())]));
-                                });
+                                let l = ui.label(egui::RichText::new(tl!("Language")).color(t.text_muted));
+                                let mut lang = v.language.clone().unwrap_or_default();
+                                if ui
+                                    .add_enabled(editable, widgets::line(&mut lang).hint_text(tl!("e.g. en-US")).desired_width(160.0))
+                                    .labelled_by(l.id)
+                                    .changed()
+                                {
+                                    v.language = (!lang.trim().is_empty()).then(|| lang.trim().to_string());
+                                }
                                 ui.end_row();
-                                ui.label(egui::RichText::new(tl!("Window Options")).font(theme::semibold(12.5)));
-                                ui.end_row();
+                            }
+                            // What was repaired while reading a damaged file (fidelity: never silent).
+                            let repairs = doc.repair_log();
+                            row(ui, "Repairs", if repairs.is_empty() { tl!("None").to_string() } else { repairs.len().to_string() });
+                            if !repairs.is_empty() {
                                 ui.label("");
-                                ui.add_enabled_ui(editable, |ui| {
-                                    ui.vertical(|ui| {
-                                        ui.add(widgets::checkbox(&mut v.fit_window, tl!("Resize window to initial page")));
-                                        ui.add(widgets::checkbox(&mut v.center_window, tl!("Center window on screen")));
-                                        ui.add(widgets::checkbox(&mut v.full_screen, tl!("Open in Full Screen mode")));
-                                        ui.horizontal(|ui| {
-                                            ui.label(tl!("Show:"));
-                                            widgets::radio_value(ui, &mut v.display_title, false, tl!("File Name"));
-                                            widgets::radio_value(ui, &mut v.display_title, true, tl!("Document Title"));
-                                        });
-                                    });
-                                });
-                                ui.end_row();
-                                ui.label(egui::RichText::new(tl!("User Interface Options")).font(theme::semibold(12.5)));
-                                ui.end_row();
-                                ui.label("");
-                                ui.add_enabled_ui(editable, |ui| {
-                                    ui.vertical(|ui| {
-                                        ui.add(widgets::checkbox(&mut v.hide_menubar, tl!("Hide menu bar")));
-                                        ui.add(widgets::checkbox(&mut v.hide_toolbar, tl!("Hide toolbars")));
-                                        ui.add(widgets::checkbox(&mut v.hide_window_ui, tl!("Hide window controls")));
-                                    });
+                                egui::CollapsingHeader::new(tl!("Repair log")).show(ui, |ui| {
+                                    for r in &repairs {
+                                        ui.add(egui::Label::new(egui::RichText::new(r).small()).wrap());
+                                    }
                                 });
                                 ui.end_row();
                             }
-                            PropsTab::Security => match doc.security_summary() {
-                                None => {
-                                    row(ui, "Security method", tl!("No security").to_string());
-                                    row(ui, "Restrictions", tl!("None — everything is allowed").to_string());
-                                    if doc.allows_security_change()
-                                        && widgets::dialog_button(ui, tl!("Protect using password…"), widgets::DialogAction::Back).clicked()
-                                    {
-                                        link_command = Some("protect.password");
-                                    }
-                                }
-                                Some(sec) => {
-                                    row(ui, "Security method", tl!("Password security").to_string());
-                                    row(ui, "Encryption", sec.method.clone());
-                                    row(
-                                        ui,
-                                        "Opened with",
-                                        if sec.pending {
-                                            tl!("— (protection is applied when you save)").to_string()
-                                        } else if sec.owner {
-                                            tl!("Owner password (no restrictions apply)").to_string()
-                                        } else {
-                                            tl!("User password").to_string()
-                                        },
-                                    );
-                                    // A restricted document asks for its permissions password first.
-                                    if doc.allows_security_change() || doc.can_unlock() {
-                                        ui.horizontal(|ui| {
-                                            if doc.can_unlock()
-                                                && widgets::dialog_button(ui, tl!("Unlock…"), widgets::DialogAction::Confirm).clicked()
-                                            {
-                                                link_command = Some("protect.unlock");
-                                            }
-                                            if widgets::dialog_button(ui, tl!("Change settings…"), widgets::DialogAction::Back).clicked() {
-                                                link_command = Some("protect.password");
-                                            }
-                                            if widgets::dialog_button(ui, tl!("Remove security"), widgets::DialogAction::Destructive).clicked() {
-                                                link_command = Some("protect.remove");
-                                            }
-                                        });
-                                    }
-                                    let p = sec.permissions;
-                                    let yes = |b: bool| tl!(if b { "Allowed" } else { "Not allowed" }).to_string();
-                                    row(
-                                        ui,
-                                        "Printing",
-                                        if !p.print() {
-                                            tl!("Not allowed").to_string()
-                                        } else if p.print_high_quality() {
-                                            tl!("High resolution").to_string()
-                                        } else {
-                                            tl!("Low resolution").to_string()
-                                        },
-                                    );
-                                    row(ui, "Changing the document", yes(p.modify()));
-                                    row(ui, "Document assembly", yes(p.assemble()));
-                                    row(ui, "Content copying", yes(p.copy()));
-                                    row(ui, "Content copying for accessibility", yes(p.extract_for_accessibility()));
-                                    row(ui, "Commenting", yes(p.annotate()));
-                                    row(ui, "Filling of form fields", yes(p.fill_forms()));
-                                }
-                            },
-                            PropsTab::Fonts => {
-                                if i.fonts.is_empty() {
-                                    row(ui, "Fonts", tl!("No fonts are referenced by the pages.").to_string());
-                                }
-                                for f in &i.fonts {
-                                    let mut detail = f.kind.clone();
-                                    if let Some(e) = &f.encoding {
-                                        detail.push_str(&format!(" · {e}"));
-                                    }
-                                    detail.push_str(if f.subset {
-                                        " · Embedded subset"
-                                    } else if f.embedded {
-                                        " · Embedded"
-                                    } else {
-                                        " · Not embedded (substituted)"
-                                    });
-                                    row(ui, &f.name, detail);
-                                }
-                            }
-                            PropsTab::Advanced => {
-                                row(ui, "PDF version", i.pdf_version.clone());
-                                row(ui, "Location", crate::bidi::visual(doc.path.as_deref().unwrap_or_default()).into_owned());
-                                row(ui, "File size", format!("{} ({})", human_size(i.file_size), crate::panels::byte_count(i.file_size)));
-                                let p = &i.pages[0];
-                                row(ui, "Page size", units.size(f64::from(p.width), f64::from(p.height)));
-                                row(ui, "Number of pages", i.pages.len().to_string());
-                                row(ui, "Tagged PDF", yes(i.tagged));
-                                row(ui, "Form fields", i.fields.len().to_string());
-                                row(ui, "Comments", i.annotations.len().to_string());
-                                row(ui, "Layers", i.layers.len().to_string());
-                                row(ui, "Attachments", i.attachments.len().to_string());
-                                row(ui, "JavaScript", yes(i.has_javascript));
-                                // Each incremental update is a revision; earlier ones open as their own document.
-                                let ends = doc.revision_ends();
-                                if ends.len() > 1 {
-                                    ui.label(egui::RichText::new(tl!("Revisions")).color(t.text_muted));
-                                    // Reserve the full wrapped height before the grid starts the next row.
-                                    ui.vertical(|ui| {
-                                        ui.horizontal_wrapped(|ui| {
-                                            ui.label(ends.len().to_string());
-                                            for n in (1..ends.len()).rev().take(12) {
-                                                if ui
-                                                    .small_button(crate::i18n::fmt(tl!("View revision {n}"), &[("n", &n.to_string())]))
-                                                    .on_hover_text(tl!("Open the file as it was saved then"))
-                                                    .clicked()
-                                                {
-                                                    open_revision = Some(n);
-                                                }
-                                            }
-                                        });
-                                    });
-                                    ui.end_row();
-                                }
-                                // Reading Options: binding and language.
-                                if let Some((_, v)) = app.view_draft.as_mut() {
-                                    let editable = doc.allows_modification();
-                                    ui.label(egui::RichText::new(tl!("Binding")).color(t.text_muted));
-                                    ui.add_enabled_ui(editable, |ui| {
-                                        ui.horizontal(|ui| {
-                                            widgets::radio_value(ui, &mut v.right_to_left, false, tl!("Left Edge"));
-                                            widgets::radio_value(ui, &mut v.right_to_left, true, tl!("Right Edge"));
-                                        });
-                                    });
-                                    ui.end_row();
-                                    let l = ui.label(egui::RichText::new(tl!("Language")).color(t.text_muted));
-                                    let mut lang = v.language.clone().unwrap_or_default();
-                                    if ui
-                                        .add_enabled(editable, widgets::line(&mut lang).hint_text(tl!("e.g. en-US")).desired_width(160.0))
-                                        .labelled_by(l.id)
-                                        .changed()
-                                    {
-                                        v.language = (!lang.trim().is_empty()).then(|| lang.trim().to_string());
-                                    }
-                                    ui.end_row();
-                                }
-                                // What was repaired while reading a damaged file (fidelity: never silent).
-                                let repairs = doc.repair_log();
-                                row(ui, "Repairs", if repairs.is_empty() { tl!("None").to_string() } else { repairs.len().to_string() });
-                                if !repairs.is_empty() {
-                                    ui.label("");
-                                    egui::CollapsingHeader::new(tl!("Repair log")).show(ui, |ui| {
-                                        for r in &repairs {
-                                            ui.add(egui::Label::new(egui::RichText::new(r).small()).wrap());
-                                        }
-                                    });
-                                    ui.end_row();
-                                }
-                            }
-                        })
-                    },
-                );
+                        }
+                        // Laid out above, outside the two-column grid.
+                        PropsTab::SpaceAudit => {}
+                    });
+                });
             }
             Dialog::Split => {
                 crate::widgets::dialog_heading(ui, tl!("Split document"));
@@ -658,15 +762,31 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 return;
             }
             Dialog::Extract => {
-                let count = app.active_ids().map_or(0, |(i, _)| app.views[i].target_pages().len());
+                let (selected, total) = app.active_ids().map_or((Vec::new(), 0), |(i, _)| (app.views[i].target_pages(), app.views[i].page_count()));
                 crate::widgets::dialog_heading(ui, tl!("Extract pages"));
                 ui.add_space(8.0);
-                let text = if count == 1 {
-                    tl!("1 page selected.").to_string()
-                } else {
-                    crate::i18n::fmt(tl!("{n} pages selected."), &[("n", &count.to_string())])
+                // Page ranges to take instead of the selection (#3593); the hint is the selection.
+                let hint = match crate::combine_ui::range_of(&selected, total) {
+                    all if all.is_empty() && total > 1 => format!("1-{total}"),
+                    all if all.is_empty() => "1".to_string(),
+                    some => some,
                 };
-                ui.label(text);
+                ui.horizontal(|ui| {
+                    let l = ui.label(tl!("Pages"));
+                    ui.add(egui::TextEdit::singleline(&mut app.extract_draft.pages).hint_text(hint).desired_width(240.0)).labelled_by(l.id);
+                });
+                let chosen = app.extract_draft.pages_to_extract(selected, total);
+                match &chosen {
+                    Ok(pages) if pages.len() == 1 => {
+                        ui.label(tl!("1 page selected."));
+                    }
+                    Ok(pages) => {
+                        ui.label(crate::i18n::fmt(tl!("{n} pages selected."), &[("n", &pages.len().to_string())]));
+                    }
+                    Err(e) => {
+                        ui.colored_label(ui.visuals().error_fg_color, e);
+                    }
+                }
                 ui.add_space(4.0);
                 // The name the pages are saved under (#737); separate files add " (page N)".
                 ui.horizontal(|ui| {
@@ -677,7 +797,11 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 ui.add(widgets::checkbox(&mut app.extract_draft.separate, tl!("Extract pages as separate files")));
                 ui.add_space(12.0);
                 crate::widgets::dialog_footer(ui, |ui| {
-                    if widgets::dialog_button(ui, tl!("Extract"), widgets::DialogAction::Confirm).clicked() {
+                    if ui
+                        .add_enabled_ui(chosen.is_ok(), |ui| widgets::dialog_button(ui, tl!("Extract"), widgets::DialogAction::Confirm))
+                        .inner
+                        .clicked()
+                    {
                         extract_now = true;
                         close = true;
                     }
@@ -799,7 +923,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 optimize_now = ok;
                 close = ok || cancel;
                 if std::mem::take(&mut app.optimize_draft.audit) {
-                    app.space_audit = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.audit_space()).unwrap_or_default();
+                    app.refresh_space_audit();
                     next = Dialog::AuditSpace;
                 }
                 return;
@@ -1447,8 +1571,10 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
             && let Some(i) = app.active
         {
             // Keep the (possibly renamed) field selected.
-            let prefix = d.field.rsplit_once('.').map(|(p, _)| format!("{p}.")).unwrap_or_default();
-            let name = format!("{prefix}{}", d.name.trim());
+            // A dotted name is the full name; a plain one renames the field within its parent.
+            let typed = d.name.trim();
+            let prefix = d.field.rsplit_once('.').filter(|_| !typed.contains('.')).map(|(p, _)| format!("{p}.")).unwrap_or_default();
+            let name = format!("{prefix}{typed}");
             if let (Some(before), Some(after)) = (before, form(app)) {
                 let n = pdfcraft_engine::form_calculations_changed(&before, &after).iter().filter(|f| **f != name).count();
                 if n > 0 {
@@ -1515,6 +1641,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
         app.dialog = None;
         app.props_draft = None;
         app.view_draft = None;
+        app.custom_draft = None;
         app.bulk_field_props = None;
     } else {
         app.dialog = Some(next);
@@ -1587,6 +1714,18 @@ fn draft_changes(app: &PdfCraftApp) -> Option<Vec<Edit>> {
         && *v != doc.initial_view()
     {
         edits.push(Edit::SetInitialView(Box::new(v.clone())));
+    }
+    // Custom: deleted properties are cleared, then added and changed ones are set.
+    if let Some((cid, d)) = &app.custom_draft
+        && cid == id
+    {
+        let before = doc.custom_info();
+        for (k, _) in before.iter().filter(|(k, _)| !d.props.iter().any(|(n, _)| n == k)) {
+            edits.push(Edit::SetInfo { key: k.clone(), value: String::new() });
+        }
+        for (k, v) in d.props.iter().filter(|(k, v)| !before.iter().any(|(n, w)| n == k && w == v)) {
+            edits.push(Edit::SetInfo { key: k.clone(), value: v.clone() });
+        }
     }
     Some(edits)
 }

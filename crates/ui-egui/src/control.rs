@@ -37,6 +37,8 @@
 //!   `theme=light|dark|glass|system` changes the saved theme preference; `ui.state.theme_preference`
 //!   reports the choice and `ui.state.theme` reports the resolved light/dark colours.
 //!   `preferences-category=appearance|documents|editing|pages|ocr|language|reading|identity|signing|security|javascript|assistant` selects a Settings pane.
+//!   `comment-tool-pinned=true|false` remembers the annotation quick bar's pin across restarts;
+//!   `ui.state.comment_tool_pinned` reports the same preference.
 //! - `ui.open {path}`: open a file. A file whose tab is already open focuses it
 //!   (`"focused": true`) instead of adding a tab; native opens report `pending: true` until
 //!   they complete and are listed in `ui.state.pending_opens`; only a failed open replies `Err`.
@@ -184,7 +186,11 @@ pub fn attach(ctx: &egui::Context) -> (Control, ControlClient) {
 pub(crate) trait Host {
     fn state(&self) -> Value;
     fn command(&mut self, id: &str) -> Reply;
-    fn dock(&mut self, reset: bool, params: &Value) -> Reply;
+    fn panel(&mut self, reset: bool, params: &Value) -> Reply;
+    fn dock(&mut self, _reset: bool, _params: &Value) -> Reply {
+        Err("Docking is unavailable on this host".into())
+    }
+
     fn commands(&self) -> Value;
     fn set(&mut self, key: &str, value: &str) -> Reply;
     fn open(&mut self, path: &str) -> Reply;
@@ -286,8 +292,10 @@ impl Control {
                 Ok(Handled::Now(Ok(state)))
             }
             "ui.commands" => Ok(Handled::Now(Ok(host.commands()))),
+            "ui.panel" => Ok(Handled::Now(host.panel(false, p))),
             "ui.dock" | "ui.dock.reset" => Ok(Handled::Now(host.dock(method == "ui.dock.reset", p))),
             "ui.command" if str_param("id")? == "ui.dock" => Ok(Handled::Now(host.dock(false, p.get("params").unwrap_or(p)))),
+            "ui.command" if str_param("id")? == "ui.panel" => Ok(Handled::Now(host.panel(false, p.get("params").unwrap_or(p)))),
             "ui.command" => Ok(Handled::Now(host.command(str_param("id")?))),
             "ui.set" => {
                 let value = match p.get("value") {
@@ -651,6 +659,10 @@ impl Host for crate::PdfCraftApp {
         crate::docking::command(self, reset, params)
     }
 
+    fn panel(&mut self, reset: bool, params: &Value) -> Reply {
+        crate::side_panels::command(self, reset, params)
+    }
+
     fn quit(&mut self, ctx: &egui::Context) -> bool {
         self.request_quit(ctx)
     }
@@ -672,6 +684,7 @@ impl Host for crate::PdfCraftApp {
         #[cfg(target_arch = "wasm32")]
         let pending_opens: Vec<Value> = Vec::new();
         json!({
+            "side_panels": crate::side_panels::state(self),
             "docking": self.docking,
             "documents": docs,
             "pending_opens": pending_opens,
@@ -736,8 +749,9 @@ impl Host for crate::PdfCraftApp {
             "mode": format!("{:?}", self.mode),
             "default_mode": self.default_mode,
             "preferences_category": self.preferences_category.key(),
+            "comment_tool_pinned": self.comment_prefs.pinned,
             "left_panel": if self.left_open { json!(format!("{:?}", self.left)) } else { Value::Null },
-            "tools_side": if self.docking.tools_on_right() { "right" } else { "left" },
+            "tools_side": if self.side_panels.tools_on_right() { "right" } else { "left" },
             "right_panel": self.right.map(|r| format!("{r:?}")),
             "dialog": self.dialog.map(|d| format!("{d:?}")),
             "palette_open": self.palette_open,
@@ -768,7 +782,8 @@ impl Host for crate::PdfCraftApp {
             .iter()
             .map(|c| json!({ "id": c.id, "label": c.label, "menu": c.menu, "enabled": self.command_enabled(c), "shortcut": c.shortcut.map(|s| s.label(cfg!(target_os = "macos"))) }))
             .collect();
-        list.push(json!({"id": "ui.dock", "label": "Arrange Panel", "enabled": true, "params": "action, or operation/panel; move: target/zone/before; float/moveFloating: rect; resizeSplit: path/size; setStackOpen: open; resizeStack: height"}));
+        list.push(json!({"id": "ui.dock", "label": "Panel layout", "enabled": true, "params": "action: docking action"}));
+        list.push(json!({"id": "ui.panel", "label": "Side panel", "enabled": true, "params": "panel: tools or side; open: boolean; width: number (clamped to the panel's limits)"}));
         json!({ "commands": list })
     }
 
