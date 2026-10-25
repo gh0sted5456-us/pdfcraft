@@ -1,5 +1,7 @@
 # Where PdfCraft falls short of Acrobat Pro
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Organize Pages padlocks now toggle individual unsigned page locks without changing the page selection, reuse Undo and persist after save/reopen. Signed locks, certification, restricted documents and the signing chooser keep their existing guards. Other readers may ignore PdfCraft page locks; readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Compact Settings now has twelve categories, solid scrollbars in both panes, shorter category labels, centered headings and fixed themed confirmation actions. The personal build also adapts community #2520 for local accented Latin OCR with persisted choices and Unicode search layers, and fixes repeated added-image resizing and off-page preview clipping (#4477). Readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal build adapts upstream #4533 search-focus selection, #4552 checkbox drag selection and #4557 independent form-field copies on duplicated pages. Ordinary duplication keeps shared field names; renamed copies report their new names and do not rewrite scripts. Readiness estimates unchanged.
@@ -425,6 +427,7 @@ update the numbers.
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-10-24 | minor | Organize Pages padlocks now toggle individual unsigned page locks without changing the page selection, reuse Undo and persist after save/reopen. Signed locks, certification, restricted documents and the signing chooser keep their existing guards. Other readers may ignore PdfCraft page locks; readiness estimates unchanged. |
 | 2026-10-19 | minor | Gap 2: a Type 0 font whose `/ToUnicode` is the name `/Identity-H` or `/Identity-V` (WSCAD) reads its codes as Unicode, so such pages have text to select, find and edit (hayro-interpret patch 44, `view.render-cid-fonts`). Estimates unchanged. |
 | 2026-10-15 | minor | Gap 21: the side-by-side view had already shipped; the Compare panel filters text changes and visual differences. Estimate 10–20 h → 8–16 h |
 | 2026-10-20 | minor | Gap 6 #3673: Character encoding accepts Identity-H/V with Adobe CJK collections, or a predefined non-Identity CMap; negative and indirect-reference regressions and a read-only automation test passed after failing before the fix. Per-glyph validation and embedded-font extraction remain separate. Scores and estimates unchanged. |

@@ -811,6 +811,7 @@ fn signing_confirmation_selects_page_protection_and_preserves_it_after_signing()
     h.get_by_label("Choose pages in Organize Pages…").click();
     h.run_steps(6);
     assert!(h.state().views[0].organize && h.state().views[0].organize_pick);
+    assert!(h.get_by_label("Lock page 1").accesskit_node().is_disabled(), "the signing chooser only selects pages");
     assert_eq!(h.state().dialog, None);
     h.get_by_label("Page 1").click();
     h.run_steps(3);
@@ -827,4 +828,11 @@ fn signing_confirmation_selects_page_protection_and_preserves_it_after_signing()
     assert_eq!(doc.protected_pages(), vec![0]);
     let doc_id = doc.id;
     assert!(h.state_mut().session.apply(doc_id, pdfcraft_engine::Edit::RotatePages { pages: vec![0], degrees: 90 }).is_err());
+    h.state_mut().set_option("organize", "on").unwrap();
+    h.run_steps(4);
+    assert!(h.get_by_label("Unlock page 1").accesskit_node().is_disabled(), "signed locks cannot be toggled");
+    h.get_by_label("Unlock page 1").click();
+    h.run_steps(3);
+    assert_eq!(h.state().session.get(doc_id).unwrap().protected_pages(), [0]);
+    assert!(!h.state().session.get(doc_id).unwrap().dirty);
 }

@@ -231,6 +231,70 @@ fn organize_checkboxes_toggle_multiple_pages_without_modifiers() {
 }
 
 #[test]
+fn organize_padlocks_toggle_one_page_preserve_selection_and_undo() {
+    let mut h = organize(3);
+    h.get_by_label("Select page 1").click();
+    h.run_steps(2);
+    h.get_by_label("Select page 3").click();
+    h.run_steps(2);
+    let id = h.state().views[0].id;
+    h.get_by_label("Lock page 2").click();
+    h.run_steps(3);
+    assert_eq!(h.state().session.get(id).unwrap().protected_pages(), [1]);
+    assert_eq!(h.state().views[0].target_pages(), [0, 2]);
+    assert!(h.state_mut().session.apply(id, pdfcraft_engine::Edit::DeletePages { pages: vec![1] }).is_err());
+    h.get_by_label("Unlock page 2").click();
+    h.run_steps(3);
+    assert!(h.state().session.get(id).unwrap().protected_pages().is_empty());
+    assert_eq!(h.state().views[0].target_pages(), [0, 2]);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(3);
+    assert_eq!(h.state().session.get(id).unwrap().protected_pages(), [1]);
+    let bytes = h.state_mut().session.save_bytes(id).unwrap();
+    h.state_mut().open_bytes("locked.pdf", None, bytes.as_ref().clone()).unwrap();
+    h.state_mut().set_option("organize", "on").unwrap();
+    h.run_steps(4);
+    let id = h.state().views.last().unwrap().id;
+    assert_eq!(h.state().session.get(id).unwrap().protected_pages(), [1]);
+    h.get_by_label("Unlock page 2").click();
+    h.run_steps(3);
+    assert!(h.state().session.get(id).unwrap().protected_pages().is_empty());
+    if let Some(path) = std::env::var_os("PDFCRAFT_ORGANIZE_SNAPSHOT") {
+        let _gpu = gpu();
+        h.get_by_label("Lock page 2").click();
+        for theme in ["dark", "light"] {
+            h.state_mut().set_option("theme", theme).unwrap();
+            h.run_steps(4);
+            h.render().unwrap().save(std::path::Path::new(&path).with_file_name(format!("page-locks-{theme}.png"))).unwrap();
+        }
+    }
+}
+
+#[test]
+fn organize_dragging_a_padlock_keeps_pages_and_selection() {
+    let mut h = organize(3);
+    h.get_by_label("Select page 1").click();
+    h.run_steps(2);
+    h.get_by_label("Select page 3").click();
+    h.run_steps(2);
+    let from = h.get_by_label("Lock page 2").rect().center();
+    let to = h.get_by_label("Page 3").rect().right_center();
+    drag(&mut h, from, to);
+    assert_eq!(page_texts(h.state()), ["Page 1", "Page 2", "Page 3"]);
+    assert_eq!(h.state().views[0].target_pages(), [0, 2]);
+    let id = h.state().views[0].id;
+    assert!(h.state().session.get(id).unwrap().protected_pages().is_empty());
+    assert!(!h.state().session.get(id).unwrap().dirty);
+    h.get_by_label("Lock page 2").click();
+    h.run_steps(3);
+    let from = h.get_by_label("Unlock page 2").rect().center();
+    drag(&mut h, from, to);
+    assert_eq!(page_texts(h.state()), ["Page 1", "Page 2", "Page 3"]);
+    assert_eq!(h.state().views[0].target_pages(), [0, 2]);
+    assert_eq!(h.state().session.get(id).unwrap().protected_pages(), [1]);
+}
+
+#[test]
 fn organize_page_actions_rotate_only_the_named_page_and_undo() {
     let mut h = organize(3);
     h.get_by_label("Select page 1").click();
@@ -287,6 +351,7 @@ fn organize_local_actions_respect_document_permissions() {
     assert!(h.get_by_label("Rotate page 2 clockwise").accesskit_node().is_disabled());
     assert!(h.get_by_label("Rotate page 2 counterclockwise").accesskit_node().is_disabled());
     assert!(h.get_by_label("Delete page 2").accesskit_node().is_disabled());
+    assert!(h.get_by_label("Lock page 2").accesskit_node().is_disabled());
     let app = h.state();
     let view = &app.views[app.active.unwrap()];
     assert_eq!(view.target_pages(), [1]);

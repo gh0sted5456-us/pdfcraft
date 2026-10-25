@@ -5505,14 +5505,18 @@ fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstruct
                 let i = row * cols + col;
                 let Some(p) = info.pages.get(i) else { break };
                 let c = Rect::from_min_size(pos2(row_rect.left() + left + col as f32 * cell.x, row_rect.top()), cell);
+                let pr = grid_page_rect(c, vec2(p.width, p.height));
+                let lock = Rect::from_min_size(pr.right_top() + vec2(-29.0, 3.0), Vec2::splat(26.0));
                 view.need_thumbnail(i, c.intersects(ui.clip_rect()));
                 let resp = ui.interact(c, ui.id().with(("org", i)), if editable { Sense::click_and_drag() } else { Sense::click() });
                 cells.push((i, c));
                 if let Some((_, above)) = anchor.filter(|(page, _)| *page == i) {
                     ui.scroll_to_rect_animation(c.translate(vec2(0.0, -above)), Some(egui::Align::Min), egui::style::ScrollAnimation::none());
                 }
+                // A click-only child does not stop egui giving its parent the drag gesture.
+                let from_lock = ui.input(|input| input.pointer.press_origin().is_some_and(|p| lock.contains(p)));
                 // Drag pages to move them (the selection, or the page grabbed).
-                if resp.drag_started() {
+                if resp.drag_started() && !from_lock {
                     if !view.selected.contains(&i) {
                         view.selected = [i].into();
                         view.select_anchor = Some(i);
@@ -5526,7 +5530,6 @@ fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstruct
                 }
                 let page_label = crate::i18n::fmt(tl!("Page {label}"), &[("label", &p.label)]);
                 resp.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Checkbox, true, view.selected.contains(&i), page_label.clone()));
-                let pr = grid_page_rect(c, vec2(p.width, p.height));
                 let size = pr.size();
                 let selected = view.selected.contains(&i) || (view.selected.is_empty() && i == view.current);
                 if selected || resp.hovered() {
@@ -5561,16 +5564,28 @@ fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstruct
                     ui.painter().image(tex.id(), pr, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
                 }
                 ui.painter().rect_stroke(pr, CornerRadius::ZERO, Stroke::new(1.0, t.border), egui::StrokeKind::Outside);
-                if protected.contains(&i) || doc.certification().is_some() {
-                    let lock = Rect::from_min_size(pr.right_top() + vec2(-23.0, 6.0), Vec2::splat(17.0));
-                    ui.painter().rect_filled(lock.expand(3.0), 3.0, t.chrome);
-                    icons::paint(ui, lock, "lock", 15.0, t.text_muted);
-                    ui.interact(lock, ui.id().with(("page-lock", i)), Sense::hover()).on_hover_text(if signed.contains(&i) {
-                        "Signed lock: remove the signature before unlocking"
-                    } else {
-                        "Locked in PdfCraft: unlock in Organize Pages"
-                    });
+                let locked = protected.contains(&i) || doc.certification().is_some();
+                let may_toggle = editable && doc.allows_modification() && !signed.contains(&i) && unobstructed && !middle_gesture && ui.is_enabled();
+                let lock_resp = ui.interact(lock, ui.id().with(("page-lock", i)), if may_toggle { Sense::click() } else { Sense::hover() });
+                let label = format!("{} page {}", if locked { "Unlock" } else { "Lock" }, p.label);
+                lock_resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, may_toggle, &label));
+                ui.painter().rect_filled(lock, 4.0, if may_toggle && lock_resp.hovered() { t.hover } else { t.chrome });
+                icons::paint(ui, lock, if locked { "lock" } else { "lock-open" }, 16.0, if may_toggle { t.icon } else { t.text_faint });
+                if may_toggle && lock_resp.clicked() {
+                    view.pending_edit = Some(Edit::SetPageLocks { pages: vec![i], locked: !locked });
                 }
+                let hint = if doc.certification().is_some() {
+                    "Certified document: remove the signature before changing page locks"
+                } else if signed.contains(&i) {
+                    "Signed lock: remove the signature before unlocking"
+                } else if view.organize_pick {
+                    "Select pages to protect after signing; page locks are unchanged here"
+                } else if !may_toggle {
+                    "Page locks cannot be changed with the current document permissions"
+                } else {
+                    &label
+                };
+                theme::hand(lock_resp).on_hover_text(hint);
                 let label_font = theme::medium(12.0);
                 let label_w = (c.width() - 12.0).max(0.0);
                 let page_label = crate::widgets::fit_line(&p.label, label_w, |s| crate::widgets::text_width(ui, s, &label_font));
