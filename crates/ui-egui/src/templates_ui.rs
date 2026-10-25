@@ -2,6 +2,7 @@
 use crate::{Dialog, PdfCraftApp, theme, widgets};
 use egui::{Color32, Rect, Sense, Stroke, vec2};
 use pdfcraft_engine::templates::{self, STARTERS, TemplateInfo};
+use std::collections::BTreeMap;
 use std::sync::{Arc, mpsc};
 
 #[derive(Clone)]
@@ -21,7 +22,11 @@ struct Preview {
 }
 struct Ready {
     preview: Preview,
-    texture: egui::TextureHandle,
+}
+struct Loading {
+    key: String,
+    selected: bool,
+    receiver: mpsc::Receiver<Result<Preview, String>>,
 }
 pub struct TemplateGallery {
     category: String,
@@ -32,7 +37,8 @@ pub struct TemplateGallery {
     ready: Option<Ready>,
     imported: Option<(TemplateInfo, Arc<Vec<u8>>)>,
     pending: Option<Source>,
-    receiving: Option<mpsc::Receiver<Result<Preview, String>>>,
+    receiving: Option<Loading>,
+    thumbnails: BTreeMap<String, Option<egui::TextureHandle>>,
     error: Option<String>,
 }
 pub struct TemplateExport {
@@ -105,6 +111,7 @@ impl TemplateGallery {
             imported: None,
             pending: Some(Source::Blank(paper.width, paper.height)),
             receiving: None,
+            thumbnails: BTreeMap::new(),
             error: None,
         }
     }
@@ -121,32 +128,56 @@ impl TemplateGallery {
         };
     }
     fn poll(&mut self, ctx: &egui::Context) {
-        let result = self.receiving.as_ref().and_then(|rx| match rx.try_recv() {
+        let result = self.receiving.as_ref().and_then(|job| match job.receiver.try_recv() {
             Ok(value) => Some(value),
             Err(mpsc::TryRecvError::Empty) => None,
             Err(mpsc::TryRecvError::Disconnected) => Some(Err("The template preview worker stopped".into())),
         });
         if let Some(result) = result {
-            self.receiving = None;
-            // A newer selection supersedes this preview; only one worker runs at a time.
-            if self.pending.is_none() {
-                match result {
-                    Ok(preview) => {
+            let Some(job) = self.receiving.take() else { return };
+            match result {
+                Ok(preview) => {
+                    let texture = ctx.load_texture(format!("template-{}", job.key), preview.image.clone(), egui::TextureOptions::LINEAR);
+                    self.thumbnails.insert(job.key, Some(texture.clone()));
+                    // A newer selection supersedes a selected preview; thumbnails never change the document to create.
+                    if job.selected && self.pending.is_none() {
                         if self.selected == "imported" {
                             self.imported = Some((preview.info.clone(), preview.bytes.clone()));
                         }
-                        let texture = ctx.load_texture("starter-template-preview", preview.image.clone(), egui::TextureOptions::LINEAR);
-                        self.ready = Some(Ready { preview, texture });
+                        self.ready = Some(Ready { preview });
                     }
-                    Err(error) => self.error = Some(error),
+                }
+                Err(error) => {
+                    self.thumbnails.insert(job.key, None);
+                    if job.selected && self.pending.is_none() {
+                        self.error = Some(error);
+                    }
                 }
             }
         }
-        if self.receiving.is_none()
-            && let Some(source) = self.pending.take()
-        {
-            let (tx, rx) = mpsc::channel();
-            self.receiving = Some(rx);
+        if self.receiving.is_some() {
+            return;
+        }
+        // One worker, selected template first; the cache has only built-in IDs in Letter/A4 and one imported template.
+        let next = if let Some(source) = self.pending.take() {
+            Some((format!("{}:{}", self.paper, self.selected), true, source))
+        } else {
+            STARTERS.iter().find_map(|item| {
+                let key = format!("{}:{}", self.paper, item.id);
+                if self.thumbnails.contains_key(&key) {
+                    return None;
+                }
+                let source = if item.id == "blank" {
+                    Source::Blank(self.default_size.0, self.default_size.1)
+                } else {
+                    Source::Starter(item.id.into(), self.paper.clone())
+                };
+                Some((key, false, source))
+            })
+        };
+        if let Some((key, selected, source)) = next {
+            let (tx, receiver) = mpsc::channel();
+            self.receiving = Some(Loading { key, selected, receiver });
             let ctx = ctx.clone();
             let work = move || {
                 let result = std::panic::catch_unwind(|| build(source)).unwrap_or_else(|_| Err("The template could not be previewed".into()));
@@ -154,9 +185,13 @@ impl TemplateGallery {
                 ctx.request_repaint();
             };
             #[cfg(not(target_arch = "wasm32"))]
-            if let Err(error) = std::thread::Builder::new().name("pdfcraft-template".into()).spawn(work) {
-                self.receiving = None;
-                self.error = Some(error.to_string());
+            if let Err(error) = std::thread::Builder::new().name("pdfcraft-template".into()).spawn(work)
+                && let Some(job) = self.receiving.take()
+            {
+                self.thumbnails.insert(job.key, None);
+                if job.selected {
+                    self.error = Some(error.to_string());
+                }
             }
             #[cfg(target_arch = "wasm32")]
             work();
@@ -168,159 +203,133 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> Action {
     let draft = app.template_gallery.get_or_insert_with(|| TemplateGallery::new(&app.default_paper));
     draft.poll(ui.ctx());
     let t = theme::Tokens::get(ui.ctx());
-    crate::widgets::dialog_heading(ui, "New PDF");
-    let (choose, mut action) = widgets::dialog_scroll(ui, "template-body", |ui| {
-        ui.label(egui::RichText::new(format!("Choose from {} editable layouts or import your own.", STARTERS.len())).color(t.text_muted));
-        ui.add_space(12.0);
-        let height = (ui.ctx().content_rect().height() - 320.0).clamp(110.0, 400.0);
-        let width = ui.available_width();
-        let list_width = (width * 0.36).clamp(120.0, 270.0).min(width * 0.48);
-        let mut choose = None;
-        let mut action = Action::None;
-        ui.horizontal_top(|ui| {
-            ui.set_height(height);
-            ui.allocate_ui_with_layout(vec2(list_width, height), egui::Layout::top_down(egui::Align::Min), |ui| {
-                let mut categories = vec!["All templates"];
-                for item in STARTERS {
-                    if !categories.contains(&item.category) {
-                        categories.push(item.category);
-                    }
-                }
-                if draft.imported.is_some() {
-                    categories.push("Imported");
-                }
-                egui::ComboBox::from_id_salt("template-category").selected_text(&draft.category).width((list_width - 28.0).max(50.0)).show_ui(
-                    ui,
-                    |ui| {
-                        for category in categories {
-                            ui.selectable_value(&mut draft.category, category.into(), category);
-                        }
-                    },
-                );
-                ui.add(egui::TextEdit::singleline(&mut draft.search).hint_text("Search templates").desired_width(list_width - 8.0));
-                let query = draft.search.to_lowercase();
-                let mut shown = false;
-                egui::ScrollArea::vertical()
-                    .id_salt("template-list")
-                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
-                    .max_height((height - 76.0).max(50.0))
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        for item in STARTERS {
-                            if draft.category != "All templates" && draft.category != item.category {
-                                continue;
-                            }
-                            if !format!("{} {} {}", item.title, item.category, item.description).to_lowercase().contains(&query) {
-                                continue;
-                            }
-                            shown = true;
-                            if card(ui, item.title, item.category, draft.selected == item.id, &t).clicked() {
-                                choose = Some(item.id.to_string());
-                            }
-                        }
-                        if let Some((info, _)) = &draft.imported
-                            && (draft.category == "All templates" || draft.category == "Imported")
-                            && info.title.to_lowercase().contains(&query)
-                        {
-                            shown = true;
-                            if card(ui, &info.title, "Imported", draft.selected == "imported", &t).clicked() {
-                                choose = Some("imported".into());
-                            }
-                        }
-                        if !shown {
-                            ui.label("No matching templates.");
-                        }
-                    });
-            });
-            ui.separator();
-            ui.allocate_ui_with_layout(vec2((width - list_width - 24.0).max(1.0), height), egui::Layout::top_down(egui::Align::Center), |ui| {
-                egui::ScrollArea::vertical().id_salt("template-details").max_height(height).auto_shrink([false, false]).show(ui, |ui| {
-                    if let Some(ready) = &draft.ready {
-                        let preview = &ready.preview;
-                        ui.vertical_centered(|ui| {
-                            ui.label(egui::RichText::new(&preview.info.title).font(theme::semibold(18.0)));
-                            ui.label(
-                                egui::RichText::new(format!(
-                                    "{} {} / {:.0} x {:.0} pt",
-                                    preview.pages,
-                                    if preview.pages == 1 { "page" } else { "pages" },
-                                    preview.size.0,
-                                    preview.size.1
-                                ))
-                                .color(t.text_muted),
-                            );
-                            let compact = height < 250.0;
-                            ui.add_space(if compact { 4.0 } else { 9.0 });
-                            let available = vec2((ui.available_width() - 16.0).max(1.0), (height - if compact { 50.0 } else { 105.0 }).max(50.0));
-                            let image = ready.texture.size_vec2();
-                            let scale = (available.x / image.x).min(available.y / image.y);
-                            let (paper, response) = ui.allocate_exact_size(image * scale, Sense::hover());
-                            ui.painter().rect_filled(paper, 0.0, Color32::WHITE);
-                            ui.painter().image(
-                                ready.texture.id(),
-                                paper,
-                                Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                                Color32::WHITE,
-                            );
-                            ui.painter().rect_stroke(paper, 0.0, Stroke::new(1.0, t.border), egui::StrokeKind::Outside);
-                            response.on_hover_text(&preview.info.description);
-                            if !compact {
-                                ui.add_space(10.0);
-                                ui.add(egui::Label::new(&preview.info.description).wrap());
-                            }
-                        });
-                    } else if let Some(error) = &draft.error {
-                        ui.colored_label(t.text, error);
-                    } else {
-                        ui.add_space(height * 0.35);
-                        ui.spinner();
-                        ui.label("Preparing your preview...");
-                    }
-                });
-            });
-        });
-        ui.add_space(10.0);
-        ui.horizontal_wrapped(|ui| {
-            ui.add_enabled_ui(draft.selected != "imported" && draft.selected != "blank", |ui| {
-                ui.label("Paper");
-                let old = draft.paper.clone();
-                egui::ComboBox::from_id_salt("starter-paper")
-                    .selected_text(if draft.selected == "blank" {
-                        "Settings default"
-                    } else if draft.selected == "imported" {
-                        "Original size"
-                    } else if draft.paper == "a4" {
-                        "A4"
-                    } else {
-                        "US Letter"
-                    })
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut draft.paper, "letter".into(), "US Letter");
-                        ui.selectable_value(&mut draft.paper, "a4".into(), "A4");
-                    });
-                if old != draft.paper {
-                    choose = Some(draft.selected.clone());
-                }
-            });
-            if widgets::dialog_button(ui, "Custom page...", widgets::DialogAction::Back).clicked() {
-                action = Action::Custom;
+    widgets::dialog_heading(ui, "New PDF");
+    ui.add_space(6.0);
+    let mut choose = None;
+    let mut action = Action::None;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        let mut categories = vec!["All templates"];
+        for item in STARTERS {
+            if !categories.contains(&item.category) {
+                categories.push(item.category);
+            }
+        }
+        if draft.imported.is_some() {
+            categories.push("Imported");
+        }
+        egui::ComboBox::from_id_salt("template-category").selected_text(&draft.category).width(160.0).show_ui(ui, |ui| {
+            for category in categories {
+                ui.selectable_value(&mut draft.category, category.into(), category);
             }
         });
-        ui.horizontal_wrapped(|ui| {
-            if widgets::dialog_button(ui, "Import template...", widgets::DialogAction::Back).clicked() {
-                action = Action::Import;
-            }
-            if ui
-                .add_enabled_ui(draft.ready.is_some(), |ui| widgets::dialog_button(ui, "Export template...", widgets::DialogAction::Back))
-                .inner
-                .clicked()
-            {
-                action = Action::Export;
-            }
-        });
-        ui.add_space(8.0);
-        (choose, action)
+        let search_width = (ui.available_width() - 80.0).max(50.0);
+        ui.add(widgets::line(&mut draft.search).hint_text("Search templates").desired_width(search_width));
+        if crate::icons::button(ui, "folder-open", 30.0, false, "Import template...").clicked() {
+            action = Action::Import;
+        }
+        if ui.add_enabled_ui(draft.ready.is_some(), |ui| crate::icons::button(ui, "file-down", 30.0, false, "Export template...")).inner.clicked() {
+            action = Action::Export;
+        }
     });
+    ui.add_space(6.0);
+    let height = (ui.ctx().content_rect().height() - 264.0).clamp(100.0, 540.0);
+    let compact = ui.ctx().content_rect().height() < 650.0;
+    let query = draft.search.to_lowercase();
+    let mut shown = 0usize;
+    ui.spacing_mut().scroll.floating = false;
+    egui::ScrollArea::vertical()
+        .id_salt("template-grid")
+        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+        .max_height(height)
+        .min_scrolled_height(height)
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            let gap = 10.0;
+            let columns = ((ui.available_width() + gap) / if compact { 150.0 } else { 180.0 }).floor().clamp(1.0, 6.0) as usize;
+            let tile = vec2(((ui.available_width() - gap * (columns - 1) as f32) / columns as f32).max(1.0), if compact { 104.0 } else { 170.0 });
+            egui::Grid::new("template-tiles").num_columns(columns).spacing([gap, gap]).show(ui, |ui| {
+                for item in STARTERS {
+                    if draft.category != "All templates" && draft.category != item.category {
+                        continue;
+                    }
+                    if !format!("{} {} {}", item.title, item.category, item.description).to_lowercase().contains(&query) {
+                        continue;
+                    }
+                    let key = format!("{}:{}", draft.paper, item.id);
+                    let thumbnail = draft.thumbnails.get(&key).and_then(Option::as_ref);
+                    if card(ui, item.title, item.category, draft.selected == item.id, thumbnail, tile, &t).clicked() {
+                        choose = Some(item.id.to_string());
+                    }
+                    shown += 1;
+                    if shown.is_multiple_of(columns) {
+                        ui.end_row();
+                    }
+                }
+                if let Some((info, _)) = &draft.imported
+                    && (draft.category == "All templates" || draft.category == "Imported")
+                    && info.title.to_lowercase().contains(&query)
+                {
+                    let key = format!("{}:imported", draft.paper);
+                    let thumbnail = draft.thumbnails.get(&key).and_then(Option::as_ref);
+                    if card(ui, &info.title, "Imported", draft.selected == "imported", thumbnail, tile, &t).clicked() {
+                        choose = Some("imported".into());
+                    }
+                    shown += 1;
+                }
+            });
+            if shown == 0 {
+                ui.label("No matching templates.");
+            }
+        });
+    ui.add_space(6.0);
+    if let Some(ready) = &draft.ready {
+        let p = &ready.preview;
+        ui.add(
+            egui::Label::new(format!(
+                "{} · {} {} · {:.0} × {:.0} pt",
+                p.info.title,
+                p.pages,
+                if p.pages == 1 { "page" } else { "pages" },
+                p.size.0,
+                p.size.1
+            ))
+            .truncate(),
+        )
+        .on_hover_text(&p.info.description);
+    } else if let Some(error) = &draft.error {
+        ui.add(egui::Label::new(error).truncate()).on_hover_text(error);
+    } else {
+        ui.label("Preparing selected template...");
+    }
+    ui.horizontal_wrapped(|ui| {
+        ui.add_enabled_ui(draft.selected != "imported" && draft.selected != "blank", |ui| {
+            ui.label("Paper");
+            let old = draft.paper.clone();
+            egui::ComboBox::from_id_salt("starter-paper")
+                .selected_text(if draft.selected == "blank" {
+                    "Settings default"
+                } else if draft.selected == "imported" {
+                    "Original size"
+                } else if draft.paper == "a4" {
+                    "A4"
+                } else {
+                    "US Letter"
+                })
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut draft.paper, "letter".into(), "US Letter");
+                    ui.selectable_value(&mut draft.paper, "a4".into(), "A4");
+                });
+            if old != draft.paper {
+                choose = Some(draft.selected.clone());
+            }
+        });
+        if widgets::dialog_button(ui, "Custom page...", widgets::DialogAction::Back).clicked() {
+            action = Action::Custom;
+        }
+        ui.label(egui::RichText::new(format!("{shown} templates")).small().color(t.text_muted));
+    });
+    ui.add_space(8.0);
     widgets::dialog_footer(ui, |ui| {
         if ui.add_enabled_ui(draft.ready.is_some(), |ui| widgets::dialog_button(ui, tl!("Create"), widgets::DialogAction::Confirm)).inner.clicked() {
             action = Action::Create;
@@ -335,38 +344,56 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> Action {
     action
 }
 
-fn card(ui: &mut egui::Ui, title: &str, category: &str, selected: bool, t: &theme::Tokens) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), 62.0), Sense::click());
+fn card(
+    ui: &mut egui::Ui,
+    title: &str,
+    category: &str,
+    selected: bool,
+    thumbnail: Option<&egui::TextureHandle>,
+    size: egui::Vec2,
+    t: &theme::Tokens,
+) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, selected, title));
     ui.painter().rect_filled(
-        rect.shrink(2.0),
-        7.0,
+        rect,
+        6.0,
         if selected {
             t.accent_soft
         } else if response.hovered() {
             t.hover
         } else {
-            t.chrome
+            t.field
         },
     );
-    if selected {
-        ui.painter().rect_stroke(rect.shrink(2.0), 7.0, Stroke::new(1.0, t.accent), egui::StrokeKind::Inside);
-    }
-    let paper = Rect::from_min_size(rect.min + vec2(11.0, 9.0), vec2(30.0, 42.0));
-    ui.painter().rect_filled(paper, 1.0, Color32::WHITE);
-    ui.painter().rect_filled(Rect::from_min_size(paper.min + vec2(4.0, 6.0), vec2(21.0, 5.0)), 0.0, Color32::from_rgb(13, 102, 117));
-    for line in 0..4 {
-        ui.painter().line_segment(
-            [paper.min + vec2(4.0, 18.0 + line as f32 * 4.0), paper.min + vec2(25.0, 18.0 + line as f32 * 4.0)],
-            Stroke::new(1.0, Color32::LIGHT_GRAY),
+    ui.painter().rect_stroke(
+        rect,
+        6.0,
+        Stroke::new(if selected { 1.0 } else { 0.5 }, if selected { t.accent } else { t.border }),
+        egui::StrokeKind::Inside,
+    );
+    if ui.is_rect_visible(rect) {
+        let area = Rect::from_min_max(rect.min + vec2(8.0, 8.0), rect.max - vec2(8.0, 42.0));
+        if let Some(texture) = thumbnail {
+            let image = texture.size_vec2();
+            let scale = (area.width() / image.x).min(area.height() / image.y);
+            let paper = Rect::from_center_size(area.center(), image * scale);
+            ui.painter().image(texture.id(), paper, Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), Color32::WHITE);
+        } else {
+            crate::icons::paint(ui, Rect::from_center_size(area.center(), vec2(24.0, 24.0)), "file-text", 24.0, t.text_faint);
+        }
+        let font = theme::semibold(12.5);
+        let title = widgets::fit_line(title, (rect.width() - 16.0).max(1.0), |s| widgets::text_width(ui, s, &font));
+        ui.painter().text(egui::pos2(rect.center().x, rect.bottom() - 27.0), egui::Align2::CENTER_CENTER, title, font, t.text);
+        ui.painter().text(
+            egui::pos2(rect.center().x, rect.bottom() - 11.0),
+            egui::Align2::CENTER_CENTER,
+            category,
+            theme::regular(10.5),
+            t.text_muted,
         );
     }
-    let text = rect.min + vec2(53.0, 18.0);
-    let font = theme::semibold(12.5);
-    let fitted = widgets::fit_line(title, (rect.width() - 62.0).max(1.0), |s| widgets::text_width(ui, s, &font));
-    ui.painter().text(text, egui::Align2::LEFT_CENTER, fitted, font, t.text);
-    ui.painter().text(text + vec2(0.0, 20.0), egui::Align2::LEFT_CENTER, category, theme::regular(10.5), t.text_muted);
-    theme::hand(response).on_hover_text(title)
+    theme::hand(response).on_hover_text(format!("{title} · {category}"))
 }
 
 impl PdfCraftApp {
@@ -400,6 +427,8 @@ impl PdfCraftApp {
                     |app, path| {
                         if let Some(draft) = app.template_gallery.as_mut() {
                             draft.selected = "imported".into();
+                            draft.category = "Imported".into();
+                            draft.search.clear();
                             draft.ready = None;
                             draft.error = None;
                             draft.pending = Some(Source::File(path));
@@ -512,4 +541,40 @@ pub(crate) fn export_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> (bool, bo
         cancel = widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked();
     });
     (save, cancel)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn thumbnails_finish_and_superseded_selections_never_become_the_created_pdf() {
+        let app = PdfCraftApp::new();
+        let mut gallery = TemplateGallery::new(&app.default_paper);
+        let ctx = egui::Context::default();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        while gallery.thumbnails.len() < STARTERS.len() && std::time::Instant::now() < deadline {
+            gallery.poll(&ctx);
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert_eq!(gallery.thumbnails.values().filter(|v| v.is_some()).count(), STARTERS.len());
+        let first = STARTERS.iter().find(|s| s.id != "blank").unwrap();
+        let last = STARTERS.iter().find(|s| s.id != "blank" && s.id != first.id).unwrap();
+        gallery.choose(first.id);
+        gallery.poll(&ctx);
+        gallery.choose(last.id);
+        while gallery.ready.is_none() && std::time::Instant::now() < deadline {
+            gallery.poll(&ctx);
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert_eq!(gallery.ready.as_ref().unwrap().preview.info.title, last.title);
+        gallery.paper = "a4".into();
+        gallery.choose(first.id);
+        while gallery.ready.is_none() && std::time::Instant::now() < deadline {
+            gallery.poll(&ctx);
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        assert_eq!(gallery.ready.as_ref().unwrap().preview.info.title, first.title);
+        assert!(gallery.thumbnails.contains_key(&format!("a4:{}", first.id)));
+        assert!(gallery.thumbnails.len() <= STARTERS.len() * 2 + 2);
+    }
 }

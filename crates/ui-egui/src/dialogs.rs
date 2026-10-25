@@ -101,7 +101,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
             Dialog::FieldProps | Dialog::BulkFieldProps => 600.0,
             Dialog::About => 780.0,
             Dialog::Assistant => 660.0,
-            Dialog::Templates => (ctx.content_rect().width() - 104.0).clamp(1.0, 880.0),
+            Dialog::Templates => (ctx.content_rect().width() - 104.0).clamp(1.0, 1120.0),
             Dialog::Preferences => (ctx.content_rect().width() - 104.0).clamp(1.0, 760.0),
             _ => 520.0,
         };

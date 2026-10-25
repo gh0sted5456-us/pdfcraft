@@ -1117,7 +1117,7 @@ fn space_audit_numbers_line_up_under_their_headers() {
     assert!((right("Percentage") - right("100.00%")).abs() < 1.0, "{} vs {}", right("Percentage"), right("100.00%"));
     assert!((right("Bytes") - right(&total)).abs() < 1.0, "{} vs {}", right("Bytes"), right(&total));
     let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap();
-    assert!(right("100.00%") < card.right() - 16.0, "the table stays inside the dialog");
+    assert!(right("100.00%") <= card.right() - 15.0, "the table stays inside the dialog");
 }
 
 #[test]

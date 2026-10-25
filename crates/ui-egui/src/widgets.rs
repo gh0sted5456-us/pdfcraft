@@ -10,20 +10,23 @@ const FIELD_MARGIN: egui::Margin = egui::Margin::symmetric(10, 6);
 /// Outer height of a single-line field, including its inset.
 const FIELD_MIN_HEIGHT: f32 = 30.0;
 /// Padding inside every modal.
-const DIALOG_PAD_X: i8 = 20;
-const DIALOG_PAD_Y: i8 = 16;
+const DIALOG_PAD_X: i8 = 16;
+const DIALOG_PAD_Y: i8 = 12;
 
 fn dialog_frame(ctx: &egui::Context) -> egui::Frame {
     let t = Tokens::get(ctx);
+    let mut shadow = ctx.global_style().visuals.window_shadow;
+    shadow.offset = [0, 3];
+    shadow.blur = 12;
     egui::Frame::new()
         .fill(t.card)
-        .stroke(Stroke::new(1.0, t.border))
-        .corner_radius(CornerRadius::same(10))
+        .stroke(Stroke::new(0.5, t.border))
+        .corner_radius(CornerRadius::same(8))
         .inner_margin(egui::Margin::symmetric(DIALOG_PAD_X, DIALOG_PAD_Y))
-        .shadow(ctx.global_style().visuals.window_shadow)
+        .shadow(shadow)
 }
 
-/// A modal with the card fill, a 10-point corner and room around its contents.
+/// A modal with the card fill, an 8-point corner and room around its contents.
 pub fn modal(ctx: &egui::Context, id: impl std::hash::Hash + std::fmt::Debug) -> egui::Modal {
     egui::Modal::new(egui::Id::new(id)).frame(dialog_frame(ctx))
 }
@@ -66,7 +69,7 @@ pub fn begin_dialog(ui: &mut egui::Ui) {
     }
     ui.visuals_mut().selection.stroke = Stroke::new(1.5, t.accent);
     ui.spacing_mut().interact_size.y = FIELD_MIN_HEIGHT;
-    ui.spacing_mut().item_spacing.x = 12.0;
+    ui.spacing_mut().item_spacing.x = 10.0;
 }
 
 /// A single-line field tall enough to read and to click.
@@ -598,6 +601,8 @@ pub fn toast(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let card = if app.progress_notice.is_some() { ctx.data(|d| d.get_temp::<f32>(egui::Id::new(PROGRESS_HEIGHT))).unwrap_or(0.0) } else { 0.0 };
     let lift = if card > 0.0 { 28.0 + card + 10.0 } else { 28.0 };
     egui::Area::new(egui::Id::new("toast"))
+        // A status message must not intercept the next click on a modal action.
+        .interactable(false)
         .order(egui::Order::Tooltip)
         .pivot(Align2::CENTER_BOTTOM)
         .fixed_pos(screen.center_bottom() - vec2(0.0, lift))
@@ -1102,7 +1107,7 @@ mod tests {
             assert!((card.center() - screen.center()).length() < 2., "Off center: {card:?} in {screen:?}");
             assert!(screen.contains_rect(card), "Clipped dialog: {card:?} in {screen:?}");
             if width >= 1200. {
-                assert!(card.width() >= 759., "The wrapper clipped the requested dialog width: {card:?}");
+                assert!(card.width() >= 720. + 2. * f32::from(DIALOG_PAD_X) - 1., "The wrapper clipped the requested dialog width: {card:?}");
             }
         }
     }

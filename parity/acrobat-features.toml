@@ -3484,8 +3484,8 @@ milestone = "M4"
 status = "shipped"
 commands = ["file.properties"]
 tools = ["doc_initial_view"]
-evidence = ["crates/organize/src/view.rs::initial_view_resolves_indirect_boolean_preferences", "crates/ui-egui/tests/it/ui.rs::a_document_asking_for_full_screen_is_asked_about_first", "crates/organize/src/tests.rs::initial_view_round_trips_and_keeps_scripts", "crates/ui-egui/tests/it/viewer.rs::initial_view_is_edited_and_honoured_on_open", "crates/automation/tests/it/automation.rs::initial_view_through_tools"]
-notes = "navigation panel, layout, magnification, page, window and interface options; honoured on open; script open actions kept. Open in Full Screen mode (/PageMode /FullScreen) asks first (Full Screen / Not now), as Acrobat does, instead of taking the screen. Window and interface options also read indirect boolean ViewerPreferences values. Missing: Acrobat's Full Screen preference to turn that alert off and its \"remember my choice for this document\" (misc.prefs-full-screen)"
+evidence = ["crates/organize/src/view.rs::initial_view_resolves_indirect_boolean_preferences", "crates/ui-egui/tests/it/ui.rs::a_document_asking_for_full_screen_is_asked_about_first", "crates/organize/src/tests.rs::initial_view_round_trips_and_keeps_scripts", "crates/ui-egui/tests/it/viewer.rs::initial_view_is_edited_and_honoured_on_open", "crates/automation/tests/it/automation.rs::initial_view_through_tools", "crates/organize/src/tests.rs::choosing_page_one_replaces_a_named_opening_destination", "crates/automation/tests/it/production.rs::named_opening_page_can_be_changed_undone_and_saved_through_tools"]
+notes = "Named opening destinations read their resolved page and magnification; an explicit page change replaces them, while unrelated preferences retain the original position, name and action chain. navigation panel, layout, magnification, page, window and interface options; honoured on open; script open actions kept. Open in Full Screen mode (/PageMode /FullScreen) asks first (Full Screen / Not now), as Acrobat does, instead of taking the screen. Window and interface options also read indirect boolean ViewerPreferences values. Missing: Acrobat's Full Screen preference to turn that alert off and its \"remember my choice for this document\" (misc.prefs-full-screen)"
 
 [[feature]]
 id = "organize.custom-properties"
@@ -10241,8 +10241,8 @@ milestone = "M10"
 status = "partial"
 commands = ["create.new", "create.save_template"]
 tools = ["template_list", "template_export", "doc_create", "doc_open"]
-evidence = ["crates/automation/tests/it/templates.rs::reusable_templates_keep_text_fields_and_enforce_file_roots", "crates/ui-egui/tests/it/create.rs::new_pdf_opens_a_template_gallery_without_creating_a_document", "crates/ui-egui/tests/it/create.rs::gallery_creates_fillable_starters_and_template_open_is_always_a_copy", "crates/ui-egui/tests/it/create.rs::template_gallery_fits_small_windows_and_both_themes", "crates/engine/src/templates.rs::template_versions_metadata_and_signed_sources_are_checked", "crates/engine/src/templates.rs::template_labels_do_not_overlap_fillable_fields"]
-notes = "Personal build: 35 contributor-original fixed layouts, local previews, Letter/A4, real form fields, PDF-based version-1 files, bounded validated imports and source-preserving exports. Preserves unsigned locks. English starter content; one imported gallery entry at a time. Native Linux/macOS and browser runtime unverified. No named page templates/JavaScript spawning (#755), booklet imposition or automatic document reflow."
+evidence = ["crates/automation/tests/it/templates.rs::reusable_templates_keep_text_fields_and_enforce_file_roots", "crates/ui-egui/tests/it/create.rs::new_pdf_opens_a_template_gallery_without_creating_a_document", "crates/ui-egui/tests/it/create.rs::gallery_creates_fillable_starters_and_template_open_is_always_a_copy", "crates/ui-egui/tests/it/create.rs::template_gallery_fits_small_windows_and_both_themes", "crates/engine/src/templates.rs::template_versions_metadata_and_signed_sources_are_checked", "crates/engine/src/templates.rs::template_labels_do_not_overlap_fillable_fields", "crates/ui-egui/tests/it/create.rs::template_gallery_shows_a_wide_grid_instead_of_a_narrow_list", "crates/ui-egui/src/templates_ui.rs::thumbnails_finish_and_superseded_selections_never_become_the_created_pdf"]
+notes = "Personal build: 35 contributor-original fixed layouts, responsive multi-column real previews, a single background worker with bounded thumbnail caching, Letter/A4, real form fields, PDF-based version-1 files, bounded validated imports and source-preserving exports. Preserves unsigned locks. English starter content; one imported gallery entry at a time. Native Linux/macOS and browser runtime unverified. No named page templates/JavaScript spawning (#755), booklet imposition or automatic document reflow."
 
 [[feature]]
 id = "personal.paper-and-export"
@@ -10268,3 +10268,27 @@ commands = ["tools.js_console", "tools.document_js", "tools.document_actions"]
 tools = ["js_run", "js_document_scripts", "js_set_document_script"]
 evidence = ["crates/js/src/tests.rs::document_runtime_preserves_globals_and_refreshes_host_snapshots", "crates/js/src/tests.rs::persistent_realms_keep_sandbox_hooks_and_isolate_error_writes", "crates/ui-egui/src/assistant_ui.rs::assistant_tabs_are_compact_centered_and_keep_their_footer_visible", "crates/ui-egui/tests/it/dialog_chrome.rs::shared_dialogs_remain_centered_and_fit_small_and_large_windows", "crates/engine/src/commands.rs::menus_follow_create_open_save_export_print_and_page_workflows", "crates/ui-egui/src/widgets.rs::dialog_button_outline_stays_inside_its_hit_box", "crates/ui-egui/src/widgets.rs::confirmation_groups_stay_centered_when_actions_change"]
 notes = "Console, document/field libraries and lifecycle actions share document-local state. Widget focus/blur/mouse actions, dynamic choices, border colour and actions are supported. Explicit sandbox errors, loop/recursion/source/buffer limits; no general file/network/eval access. Shared centered titles and confirmation groups, semantic matte actions and bounded scrolling tool settings; File/Edit/Pages workflow order. Cards fit tested 640x480 and 1200x800 light/dark viewports. Not all Adobe/Foxit JavaScript APIs or dialog states; native Linux/macOS/browser runtime unverified."
+
+[[feature]]
+id = "personal.toolbar-and-dialog-polish"
+title = "Visible Undo/Redo actions and compact shared dialogs"
+area = "A"
+tier = "P1"
+milestone = "M14"
+status = "partial"
+commands = ["edit.undo", "edit.redo"]
+tools = ["edit_undo", "edit_redo", "command_run"]
+evidence = ["crates/ui-egui/tests/it/commands.rs::toolbar_undo_and_redo_follow_the_current_document_history", "crates/ui-egui/tests/it/commands.rs::toolbar_search_and_actions_fit_narrow_english_and_german_windows", "crates/ui-egui/tests/it/dialog_chrome.rs::shared_dialogs_remain_centered_and_fit_small_and_large_windows", "crates/ui-egui/tests/it/create.rs::gallery_creates_fillable_starters_and_template_open_is_always_a_copy"]
+notes = "Personal build: existing document/Combine undo and redo commands available in the mode bar. Search and secondary tools collapse at narrow widths. Shared thinner modal outlines, 16x12 padding, restrained shadows, centered semantic action rows; informational toasts pass clicks through. English/German narrow-window regression coverage, native Linux/macOS/browser runtime unverified. Existing text-editor undo semantics are unchanged."
+
+[[feature]]
+id = "personal.finite-number-formatting"
+title = "Finite form numbers survive decimal rounding overflow"
+area = "G"
+tier = "P1"
+milestone = "M6"
+status = "partial"
+commands = []
+tools = ["form_set_props", "form_fill", "form_fields", "doc_save", "doc_open"]
+evidence = ["crates/forms/src/af.rs::huge_finite_numbers_do_not_print_inf", "crates/automation/tests/it/production.rs::huge_finite_numbers_format_through_native_form_tools"]
+notes = "Personal adaptation of #4592: avoids overflowing the intermediate decimal-rounding scale of a finite Number or Percent display value. Keeps ordinary rounding behavior; no arbitrary-precision arithmetic or full calculation-engine parity claim."

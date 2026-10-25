@@ -821,3 +821,48 @@ fn stepping_through_a_folder_reads_it_off_the_ui_thread() {
     assert_eq!(shown(&h), Some(path("b.pdf")), "the worker's answer opens the next file");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn toolbar_undo_and_redo_follow_the_current_document_history() {
+    use egui_kittest::kittest::NodeT;
+    let mut h = harness();
+    assert!(h.get_by_label_contains("Undo (").accesskit_node().is_disabled());
+    assert!(h.get_by_label_contains("Redo (").accesskit_node().is_disabled());
+    h.state_mut().apply_edit(pdfcraft_engine::Edit::RotatePages { pages: vec![0], degrees: 90 });
+    h.run_steps(4);
+    h.get_by_label_contains("Undo (").click();
+    h.run_steps(4);
+    let id = h.state().views[0].id;
+    assert!(h.state().session.get(id).unwrap().can_undo().is_none());
+    assert!(h.state().session.get(id).unwrap().can_redo().is_some());
+    h.get_by_label_contains("Redo (").click();
+    h.run_steps(4);
+    assert!(h.state().session.get(id).unwrap().can_undo().is_some());
+    h.get_by_label("Home").click();
+    h.run_steps(4);
+    assert!(h.get_by_label_contains("Undo (").accesskit_node().is_disabled());
+}
+
+#[test]
+fn toolbar_search_and_actions_fit_narrow_english_and_german_windows() {
+    for width in [640.0, 820.0, 1200.0] {
+        for language in ["en", "de"] {
+            let mut h = Harness::builder().with_size(egui::vec2(width, 800.0)).build_eframe(move |_| {
+                let mut app = PdfCraftApp::new();
+                app.set_option("language", language).unwrap();
+                app.open_bytes("toolbar.pdf", None, fixture(1)).unwrap();
+                app
+            });
+            h.run_steps(5);
+            let undo = if language == "de" { "Rückgängig (" } else { "Undo (" };
+            let action = h.get_by_label_contains(undo).rect();
+            let end_tab = h.get_by_label(if language == "de" { "E-Signatur" } else { "E-Sign" }).rect();
+            assert!(action.left() > end_tab.right(), "{width} {language}: {action:?} overlaps {end_tab:?}");
+            assert!(action.right() <= width);
+            if let Some(search) = h.query_by_label(if language == "de" { "Werkzeuge und Befehle suchen" } else { "Find tools and commands" }) {
+                let rect = search.rect();
+                assert!(rect.left() >= end_tab.right() && rect.right() <= action.left(), "{width} {language}: {rect:?}");
+            }
+        }
+    }
+}

@@ -81,3 +81,58 @@ fn dynamic_choices_border_and_widget_scripts_survive_roundtrip() {
     let check = format!("getField('{}').strokeColor.join(',')", name);
     assert_eq!(ok(&mut a, "js_run", json!({"doc":opened,"script":check}))["result"], "RGB,1,0,0");
 }
+
+#[test]
+fn named_opening_page_can_be_changed_undone_and_saved_through_tools() {
+    let root = std::env::temp_dir().join(format!("pdfcraft-named-opening-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let bytes = pdfcraft_engine::Session::new().create_blank(300.0, 400.0, 3).unwrap();
+    let mut cos = pdfcraft_cos::Document::open(bytes).unwrap();
+    let catalog = cos.root().unwrap();
+    let pages = cos.resolve(cos.get(catalog).as_dict().unwrap().get(b"Pages").unwrap());
+    let page = pages.as_dict().unwrap().get(b"Kids").unwrap().as_array().unwrap()[2].clone();
+    let mut dests = pdfcraft_cos::Dict::new();
+    dests.set(
+        b"start".to_vec(),
+        pdfcraft_cos::Object::Array(vec![
+            page,
+            pdfcraft_cos::Object::name("XYZ"),
+            pdfcraft_cos::Object::Null,
+            pdfcraft_cos::Object::Null,
+            pdfcraft_cos::Object::Int(2),
+        ]),
+    );
+    cos.update_dict(catalog, |c| {
+        c.set(b"Dests".to_vec(), pdfcraft_cos::Object::Dict(dests));
+        c.set(b"OpenAction".to_vec(), pdfcraft_cos::Object::name("start"));
+    })
+    .unwrap();
+    std::fs::write(root.join("named.pdf"), pdfcraft_cos::write_full(&cos, &Default::default()).unwrap()).unwrap();
+    let mut a = Automation::new().with_root(&root).unwrap();
+    let id = ok(&mut a, "doc_open", json!({"path":"named.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "doc_initial_view", json!({"doc":id}))["initial_view"]["page"], 3);
+    assert_eq!(ok(&mut a, "doc_initial_view", json!({"doc":id,"page":1}))["initial_view"]["page"], 1);
+    ok(&mut a, "edit_undo", json!({"doc":id}));
+    assert_eq!(ok(&mut a, "doc_initial_view", json!({"doc":id}))["initial_view"]["page"], 3);
+    ok(&mut a, "edit_redo", json!({"doc":id}));
+    ok(&mut a, "doc_save", json!({"doc":id,"path":"first-page.pdf"}));
+    let saved = ok(&mut a, "doc_open", json!({"path":"first-page.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "doc_initial_view", json!({"doc":saved}))["initial_view"]["page"], 1);
+}
+
+#[test]
+fn huge_finite_numbers_format_through_native_form_tools() {
+    let root = std::env::temp_dir().join(format!("pdfcraft-finite-format-{}", std::process::id()));
+    std::fs::create_dir_all(&root).unwrap();
+    let mut a = Automation::new().with_root(&root).unwrap();
+    let id = ok(&mut a, "doc_create", json!({"from":"blank"}))["doc"].as_u64().unwrap();
+    ok(&mut a, "form_add_field", json!({"doc":id,"page":1,"type":"text","name":"Amount","rect":[20,20,200,50]}));
+    ok(&mut a, "form_set_props", json!({"doc":id,"field":"Amount","format":{"type":"number","decimals":2,"separator":1}}));
+    ok(&mut a, "form_fill", json!({"doc":id,"values":{"Amount":"1e307"}}));
+    let fields = ok(&mut a, "form_fields", json!({"doc":id}));
+    let text = fields["fields"][0]["display"].as_str().unwrap();
+    assert!(text.len() > 300 && text.ends_with(".00") && !text.contains("inf"), "{text}");
+    ok(&mut a, "doc_save", json!({"doc":id,"path":"formatted.pdf"}));
+    let saved = ok(&mut a, "doc_open", json!({"path":"formatted.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "form_fields", json!({"doc":saved}))["fields"][0]["display"], text);
+}

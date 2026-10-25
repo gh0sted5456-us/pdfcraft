@@ -57,7 +57,7 @@ fn document_properties_fields_are_tall_and_inset() {
     let card = card(&h, "dialog");
     let heading = h.get_by_label("Document Properties").rect();
     assert!(heading.left() - card.left() >= 16.0, "heading inset {heading:?} in {card:?}");
-    assert!(heading.top() - card.top() >= 16.0, "heading inset {heading:?} in {card:?}");
+    assert!(heading.top() - card.top() >= 12.0, "heading inset {heading:?} in {card:?}");
     let field = h.get_by_role_and_label(Role::TextInput, "Title").rect();
     assert!(field.height() >= 30.0, "title field {field:?}");
     assert!(field.left() >= card.left() + 16.0, "title field {field:?} in {card:?}");
@@ -77,9 +77,9 @@ fn password_prompt_field_is_tall_and_inset() {
     let field = h.get_by_role(Role::PasswordInput).rect();
     assert!(field.height() >= 30.0, "password field {field:?}");
     assert!(field.left() - card.left() >= 16.0, "password field {field:?} in {card:?}");
-    assert!(card.right() - field.right() >= 16.0, "password field {field:?} in {card:?}");
+    assert!(card.right() - field.right() >= 15.0, "password field {field:?} in {card:?}");
     let heading = h.get_by_label("Password required").rect();
-    assert!(heading.top() - card.top() >= 16.0, "heading inset {heading:?} in {card:?}");
+    assert!(heading.top() - card.top() >= 12.0, "heading inset {heading:?} in {card:?}");
 }
 
 #[test]

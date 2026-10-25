@@ -3348,3 +3348,51 @@ fn repeated_content_references_share_one_decode_budget() {
         assert!(len <= pdfcraft_cos::MAX_PAGE_DECODED + 300, "{len} bytes");
     }
 }
+
+#[test]
+fn choosing_page_one_replaces_a_named_opening_destination() {
+    use crate::view::Magnification;
+    for tree in [false, true] {
+        for goto in [false, true] {
+            let mut doc = open(fixture());
+            let root = doc.root().unwrap();
+            let page3 = crate::walk(&doc).unwrap()[2].0;
+            let destination = Object::Array(vec![Object::Ref(page3), Object::name("XYZ"), Object::Int(15), Object::Int(30), Object::Int(2)]);
+            let name = if tree { Object::String(pdfcraft_cos::PdfString::text("there")) } else { Object::name("there") };
+            let action = if goto {
+                let mut d = pdfcraft_cos::Dict::new();
+                d.set(b"S".to_vec(), Object::name("GoTo"));
+                d.set(b"D".to_vec(), name.clone());
+                Object::Dict(d)
+            } else {
+                name.clone()
+            };
+            doc.update_dict(root, |c| {
+                if tree {
+                    let mut d = pdfcraft_cos::Dict::new();
+                    d.set(b"Names".to_vec(), Object::Array(vec![Object::String(pdfcraft_cos::PdfString::text("there")), destination]));
+                    let mut names = pdfcraft_cos::Dict::new();
+                    names.set(b"Dests".to_vec(), Object::Dict(d));
+                    c.set(b"Names".to_vec(), Object::Dict(names));
+                } else {
+                    let mut d = pdfcraft_cos::Dict::new();
+                    d.set(b"there".to_vec(), destination);
+                    c.set(b"Dests".to_vec(), Object::Dict(d));
+                }
+                c.set(b"OpenAction".to_vec(), action.clone());
+            })
+            .unwrap();
+            let view = crate::initial_view(&doc);
+            assert_eq!((view.page, view.magnification), (2, Magnification::Percent(200.0)));
+            crate::set_initial_view(&mut doc, &crate::InitialView { hide_toolbar: true, ..view.clone() }).unwrap();
+            assert_eq!(
+                doc.get(root).as_dict().unwrap().get(b"OpenAction"),
+                Some(&action),
+                "unrelated preferences preserve the original destination and position"
+            );
+            crate::set_initial_view(&mut doc, &crate::InitialView { page: 0, magnification: Magnification::Default, ..view }).unwrap();
+            assert!(doc.get(root).as_dict().unwrap().get(b"OpenAction").is_none());
+            assert_eq!(crate::initial_view(&save_and_reopen(&doc)).page, 0);
+        }
+    }
+}

@@ -76,7 +76,7 @@ mod tests {
             assert!(cancel.right() < confirm.left());
             assert!((cancel.center().y - confirm.center().y).abs() < 0.5);
             assert!((cancel.union(confirm).center().x - card.center().x).abs() < 1.0, "confirmation group belongs at the center");
-            assert!((confirm.bottom() - (card.bottom() - 16.0)).abs() <= 2.0, "only the dialog padding below the footer: {confirm:?} in {card:?}");
+            assert!((confirm.bottom() - (card.bottom() - 12.0)).abs() <= 2.0, "only the dialog padding below the footer: {confirm:?} in {card:?}");
             for rect in [cancel, confirm] {
                 assert!(rect.width() >= 80.0 && (rect.height() - 28.0).abs() < 0.5, "shared action size: {rect:?}");
                 let fill = h

@@ -256,6 +256,12 @@ fn explicit_dest(doc: &Document, targets: &mut Targets, dest: &Object, depth: u8
     }
 }
 
+/// Resolve a destination through the same bounded name-tree traversal used by bookmarks.
+pub(crate) fn resolve_dest(doc: &Document, dest: &Object) -> Option<Vec<Object>> {
+    let mut targets = Targets { pages: HashMap::new(), names: None };
+    explicit_dest(doc, &mut targets, dest, 0)
+}
+
 /// The page index an explicit destination array names.
 fn page_of_explicit(targets: &Targets, dest: &[Object]) -> Option<usize> {
     match dest.first()? {

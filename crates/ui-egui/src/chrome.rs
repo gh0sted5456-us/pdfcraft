@@ -514,29 +514,46 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 }
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
+                    let room = ui.available_width();
                     let has_doc = app.active.is_some();
                     ui.add_enabled_ui(has_doc, |ui| {
-                        let tip = crate::commands::command_tip(ui.ctx(), tl!("Print ({key})"), "print.dialog");
-                        // A document that forbids printing says so here, before the dialog (#2669).
-                        let may_print = !has_doc || pdfcraft_engine::commands::command("print.dialog").is_some_and(|c| app.command_enabled(c));
-                        let mut print = ui.add_enabled_ui(may_print, |ui| icons::button(ui, "printer", 32.0, false, &tip)).inner;
-                        if !may_print {
-                            print = print.on_disabled_hover_text(crate::print_refused());
-                        }
-                        if print.clicked() {
-                            app.run_command("print.dialog");
+                        if room >= 180.0 {
+                            let tip = crate::commands::command_tip(ui.ctx(), tl!("Print ({key})"), "print.dialog");
+                            let may_print = !has_doc || pdfcraft_engine::commands::command("print.dialog").is_some_and(|c| app.command_enabled(c));
+                            let mut print = ui.add_enabled_ui(may_print, |ui| icons::button(ui, "printer", 32.0, false, &tip)).inner;
+                            if !may_print {
+                                print = print.on_disabled_hover_text(crate::print_refused());
+                            }
+                            if print.clicked() {
+                                app.run_command("print.dialog");
+                            }
                         }
                         let tip = crate::commands::command_tip(ui.ctx(), tl!("Save ({key})"), "file.save");
                         if icons::button(ui, "save", 32.0, false, &tip).clicked() {
                             app.run_command("file.save");
                         }
-                        let tip = crate::commands::command_tip(ui.ctx(), tl!("Document properties ({key})"), "file.properties");
-                        if icons::button(ui, "info", 32.0, false, &tip).clicked() {
-                            app.dialog = Some(Dialog::Properties(PropsTab::Description));
+                        if room >= 280.0 {
+                            let tip = crate::commands::command_tip(ui.ctx(), tl!("Document properties ({key})"), "file.properties");
+                            if icons::button(ui, "info", 32.0, false, &tip).clicked() {
+                                app.dialog = Some(Dialog::Properties(PropsTab::Description));
+                            }
                         }
                     });
+                    ui.add_space(4.0);
+                    for (id, icon, label) in [("edit.redo", "redo-2", "Redo"), ("edit.undo", "undo-2", "Undo")] {
+                        let enabled = pdfcraft_engine::commands::command(id).is_some_and(|c| app.command_enabled(c));
+                        let tip = format!("{} ({})", tl!(label), crate::commands::command_shortcut_label(ui.ctx(), id));
+                        if ui.add_enabled_ui(enabled, |ui| icons::button(ui, icon, 32.0, false, &tip)).inner.clicked() {
+                            app.run_command(id);
+                        }
+                    }
                     ui.add_space(8.0);
-                    if widgets::search_box(ui, tl!("Find tools and commands"), 260.0).clicked() {
+                    let width = (ui.available_width() - 8.0).min(260.0);
+                    if width >= 90.0 {
+                        if widgets::search_box(ui, tl!("Find tools and commands"), width).clicked() {
+                            app.palette_open = true;
+                        }
+                    } else if width >= 32.0 && icons::button(ui, "search", 32.0, false, tl!("Find tools and commands")).clicked() {
                         app.palette_open = true;
                     }
                 });

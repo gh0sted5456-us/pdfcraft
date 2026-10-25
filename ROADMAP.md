@@ -1,5 +1,8 @@
 # PdfCraft roadmap
 
+> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Change:** Wider New PDF gallery with a responsive grid of real template previews, one background worker and bounded Letter/A4 thumbnail caching; compact filters and centered actions. Shared dialogs use thinner borders, less padding and smaller shadows. Undo/Redo controls reuse document/Combine commands with responsive toolbar spacing. Named opening destinations now report the right page and can be redirected to page 1; finite form numbers avoid overflow during decimal rounding. Status notices no longer intercept dialog clicks. Native Linux/macOS and browser runtime remain unverified; readiness estimates unchanged.
+
+
 - **2026-10-24:** Centered shared confirmation groups (including Back/Cancel/primary actions); long tool bodies scroll independently. Button outlines remain inside their hit boxes. Small/large light/dark dialog and changing-action layout regressions cover this UI pass.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Shared centered modal titles across document tools, compact Assistant setup with aligned full-width fields and a dedicated connection footer, theme-aware semantic actions and wrapping narrow-screen footers. File/Edit/Pages commands are grouped by workflow, with separators and File/Edit/View/Pages/Help navigation. Existing permission/consent behavior is retained. Native Linux/macOS UI and browser runtime remain unverified; readiness estimates unchanged.

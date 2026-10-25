@@ -589,3 +589,29 @@ fn template_gallery_fits_small_windows_and_both_themes() {
         }
     }
 }
+
+#[test]
+fn template_gallery_shows_a_wide_grid_instead_of_a_narrow_list() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).build_eframe(|_| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        assert!(app.execute("create.new"));
+        app
+    });
+    h.run_steps(6);
+    let starters = pdfcraft_engine::templates::STARTERS;
+    let first = h.get_by_label(starters[0].title).rect();
+    let second = h.get_by_label(starters[1].title).rect();
+    assert!((first.top() - second.top()).abs() < 1.0, "templates should share a grid row: {first:?}, {second:?}");
+    assert!(first.width() >= 150.0, "a useful preview tile: {first:?}");
+    let footer = h.get_by_label("Cancel").rect();
+    let visible = starters
+        .iter()
+        .filter(|item| {
+            let r = h.get_by_label(item.title).rect();
+            r.top() >= first.top() && r.bottom() < footer.top() - 55.0
+        })
+        .count();
+    assert!(visible >= 9, "only {visible} templates visible");
+}

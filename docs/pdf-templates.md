@@ -1,8 +1,8 @@
 # Starter PDFs and reusable templates
 
-> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Status:** Personal 0.13.1; starter gallery and version-1 template files. Native Linux/macOS dialogs and browser interactions still need runtime checks.
+> **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Status:** Personal 0.13.1; starter gallery and version-1 template files. Native Linux/macOS dialogs and browser interactions still need runtime checks.
 
-Choose **File > Create a PDF** or press **Ctrl+N** (Cmd+N on macOS). The centered gallery has category filtering, search, a preview of the selected PDF and separate scrolling areas. **Create** opens a new unsaved document in Edit PDF. **New blank PDF** remains available as a direct action.
+Choose **File > Create a PDF** or press **Ctrl+N** (Cmd+N on macOS). The centered gallery uses most of the window width for a scrollable grid of real PDF previews. Filter by category or search, select a tile, and review its name, page count and physical size below the grid. Folder and download buttons at the top import and export templates. Previews load locally on one background worker, prioritizing the current selection. **Create** opens a new unsaved document in Edit PDF. **New blank PDF** remains available as a direct action.
 
 The 35 built-in starters cover:
 
