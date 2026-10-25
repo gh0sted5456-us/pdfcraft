@@ -572,6 +572,7 @@ pub struct PdfCraftApp {
     /// Resolved colours, including the current OS theme when following the system.
     pub theme: ThemeKind,
     pub theme_preference: ThemePreference,
+    pub glass: theme::GlassSettings,
     #[cfg(target_os = "windows")]
     native_frame_theme: Option<ThemeKind>,
     /// The reading-colours preference (Preferences ▸ Reading colours): applied to every open
@@ -1030,6 +1031,7 @@ impl PdfCraftApp {
             comment_prefs: Default::default(),
             theme: ThemeKind::Light,
             theme_preference: ThemePreference::Light,
+            glass: theme::GlassSettings::default(),
             #[cfg(target_os = "windows")]
             native_frame_theme: None,
             reading_colors: Default::default(),
@@ -2219,9 +2221,27 @@ impl PdfCraftApp {
         self.theme_preference = preference;
         if let Some(ctx) = self.ctx.clone() {
             self.sync_theme(&ctx);
-            theme::apply(&ctx, self.theme);
+            self.apply_theme(&ctx);
         } else {
             self.theme = preference.resolve(None, ThemeKind::Light);
+        }
+    }
+
+    fn apply_theme(&self, ctx: &egui::Context) {
+        if self.theme_preference == ThemePreference::Glass {
+            theme::apply_glass(ctx, self.glass);
+        } else {
+            theme::apply(ctx, self.theme);
+        }
+        ctx.request_repaint();
+    }
+
+    pub fn set_glass_settings(&mut self, settings: theme::GlassSettings) {
+        self.glass = settings.normalized();
+        if self.theme_preference == ThemePreference::Glass
+            && let Some(ctx) = &self.ctx
+        {
+            self.apply_theme(ctx);
         }
     }
 
@@ -2272,7 +2292,7 @@ impl PdfCraftApp {
         let kind = self.theme_preference.resolve(system, ThemeKind::Light);
         if kind != self.theme {
             self.theme = kind;
-            theme::apply(ctx, kind);
+            self.apply_theme(ctx);
         }
         #[cfg(not(target_arch = "wasm32"))]
         if self.window_icon_theme != Some(kind) {
@@ -2287,7 +2307,7 @@ impl PdfCraftApp {
         ctx.set_theme(match self.theme_preference {
             ThemePreference::System => egui::ThemePreference::System,
             ThemePreference::Light => egui::ThemePreference::Light,
-            ThemePreference::Dark => egui::ThemePreference::Dark,
+            ThemePreference::Dark | ThemePreference::Glass => egui::ThemePreference::Dark,
         });
     }
 
@@ -2482,6 +2502,7 @@ impl PdfCraftApp {
             "system_title_bar": self.system_title_bar,
             "pinned_folders": self.pinned.folders,
             "theme": self.theme_preference,
+            "glass": self.glass,
             "scroll_speed": self.scroll_speed,
             "animation_effects": self.animation_effects,
             "default_mode": self.default_mode,
@@ -2594,6 +2615,9 @@ impl PdfCraftApp {
             self.show_signature_badges = on;
         }
         self.pinned.restore(&v["pinned_folders"]);
+        if let Ok(glass) = serde_json::from_value::<theme::GlassSettings>(v["glass"].clone()) {
+            self.set_glass_settings(glass);
+        }
         if let Ok(preference) = serde_json::from_value::<ThemePreference>(v["theme"].clone()) {
             self.set_theme_preference(preference);
         }
@@ -2803,9 +2827,22 @@ impl PdfCraftApp {
                     "system" => ThemePreference::System,
                     "light" => ThemePreference::Light,
                     "dark" => ThemePreference::Dark,
-                    _ => return Err("theme must be light, dark, or system".into()),
+                    "glass" => ThemePreference::Glass,
+                    _ => return Err("theme must be light, dark, glass, or system".into()),
                 };
                 self.set_theme_preference(preference);
+            }
+            ("glass-opacity", _) => {
+                let opacity = value.parse::<u8>().ok().filter(|v| (35..=100).contains(v)).ok_or("glass-opacity must be 35 to 100 percent")?;
+                self.set_glass_settings(theme::GlassSettings { opacity, ..self.glass });
+            }
+            ("glass-tint", _) => {
+                let hex = value.strip_prefix('#').unwrap_or(value);
+                if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+                    return Err("glass-tint must be #rrggbb".into());
+                }
+                let rgb = u32::from_str_radix(hex, 16).map_err(|_| "glass-tint must be #rrggbb")?;
+                self.set_glass_settings(theme::GlassSettings { tint: [(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8], ..self.glass });
             }
             ("scroll_speed", _) => {
                 self.scroll_speed = scroll_speed::ScrollSpeed::parse(value).ok_or("scroll_speed must be slow, normal, or fast")?;
@@ -3362,6 +3399,14 @@ impl PdfCraftApp {
 }
 
 impl eframe::App for PdfCraftApp {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        if self.theme_preference == ThemePreference::Glass {
+            [0.0; 4]
+        } else {
+            theme::Tokens::for_kind(self.theme).pasteboard.to_normalized_gamma_f32()
+        }
+    }
+
     /// While files are dragged over the window the system sends no pointer moves, so egui
     /// would keep the place the pointer entered at: tell it where the pointer really is, so the
     /// page grid can show (and use) the gap under it.
@@ -3409,7 +3454,7 @@ impl eframe::App for PdfCraftApp {
             egui_extras::install_image_loaders(ctx);
             theme::install_fonts_for(ctx, cjk);
             self.fonts_cjk = cjk;
-            theme::apply(ctx, self.theme);
+            self.apply_theme(ctx);
             self.styled = true;
         } else {
             self.fonts_ready = true;

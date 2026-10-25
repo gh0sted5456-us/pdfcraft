@@ -1616,3 +1616,69 @@ fn document_tabs_keep_red_unsaved_and_green_saved_dots_in_both_themes() {
         let _ = std::fs::remove_file(out);
     }
 }
+
+#[test]
+fn glass_theme_settings_validate_persist_and_keep_documents_opaque() {
+    use pdfcraft_ui_egui::theme::{GlassSettings, ThemeKind, ThemePreference};
+    let mut app = PdfCraftApp::new();
+    app.set_option("theme", "glass").unwrap();
+    app.set_option("glass-tint", "#2a9dcc").unwrap();
+    app.set_option("glass-opacity", "63").unwrap();
+    assert_eq!(app.theme_preference, ThemePreference::Glass);
+    assert_eq!(app.theme, ThemeKind::Dark);
+    assert_eq!(app.glass, GlassSettings { tint: [42, 157, 204], opacity: 63 });
+    for bad in ["NaN", "-1", "0", "34", "101", "256"] {
+        assert!(app.set_option("glass-opacity", bad).is_err());
+    }
+    for bad in ["#xx0000", "#fff", "abcdef00", "💧abcd"] {
+        assert!(app.set_option("glass-tint", bad).is_err());
+    }
+    let t = app.glass.tokens();
+    assert_eq!(t.panel.a(), 160);
+    assert_eq!(t.card.a(), 255);
+    assert_eq!(t.field.a(), 255);
+    assert_eq!(eframe::App::clear_color(&app, &egui::Visuals::dark()), [0.0; 4]);
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&app.persist());
+    assert_eq!(restored.glass, app.glass);
+    assert_eq!(restored.theme_preference, ThemePreference::Glass);
+    restored.restore(r#"{"glass":{"opacity":0}}"#);
+    assert_eq!(restored.glass.opacity, 35);
+    restored.restore(r#"{"glass":{"opacity":999,"tint":[1,2]}}"#);
+    assert_eq!(restored.glass.opacity, 35);
+    let mut h = harness(|app| {
+        app.open_bytes("glass.pdf", None, TEXT_FIXTURE.to_vec()).unwrap();
+        app.execute("view.theme.glass");
+    });
+    settle(&mut h);
+    assert_eq!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a(), 204);
+    h.state_mut().set_option("glass-opacity", "50").unwrap();
+    h.run();
+    assert_eq!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a(), 127);
+    h.state_mut().execute("view.theme.dark");
+    h.run();
+    assert_eq!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a(), 255);
+    assert_eq!(eframe::App::clear_color(h.state(), &egui::Visuals::dark())[3], 1.0);
+}
+
+#[test]
+fn glass_controls_are_visible_above_the_preview_cards_in_small_preferences() {
+    use egui::accesskit::Role;
+    let mut h = Harness::builder().with_size(egui::vec2(1024.0, 740.0)).build_eframe(|_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.set_option("theme", "glass").unwrap();
+        app.set_option("preferences-category", "appearance").unwrap();
+        app.set_option("dialog", "preferences").unwrap();
+        app
+    });
+    h.run_steps(8);
+    let opacity = h.get_by_role_and_label(Role::Slider, "Opacity").rect();
+    let footer = h.get_by_label("OK").rect();
+    assert!(opacity.top() > 0.0 && opacity.bottom() < footer.top(), "{opacity:?} vs {footer:?}");
+    let before = h.state().glass.opacity;
+    h.get_by_role_and_label(Role::Slider, "Opacity").click();
+    h.run_steps(3);
+    assert_ne!(h.state().glass.opacity, before);
+    assert!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a() < 255);
+}

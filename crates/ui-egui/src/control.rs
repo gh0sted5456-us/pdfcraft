@@ -34,12 +34,13 @@
 //!   input leaves the previous selection unchanged. `ui.state.active.selected_pages` reports it.
 //!   `default-mode=all|read|edit|convert|sign` applies to future PDF opens; `mode` overrides it
 //!   for this session without changing the saved preference. `ui.state.default_mode` reports it.
-//!   `theme=light|dark|system` changes the saved theme preference; `ui.state.theme_preference`
+//!   `theme=light|dark|glass|system` changes the saved theme preference; `ui.state.theme_preference`
 //!   reports the choice and `ui.state.theme` reports the resolved light/dark colours.
 //!   `preferences-category=appearance|documents|editing|pages|ocr|language|reading|identity|signing|security|javascript|assistant` selects a Settings pane.
 //! - `ui.open {path}`: open a file. A file whose tab is already open focuses it
 //!   (`"focused": true`) instead of adding a tab; native opens report `pending: true` until
 //!   they complete and are listed in `ui.state.pending_opens`; only a failed open replies `Err`.
+//!   `glass-tint=#rrggbb` and `glass-opacity=35..100` configure Glass surfaces; `ui.state.glass` reports both.
 //! - `ui.screenshot {region?}`: PNG of the window (base64), optionally cropped to a rect.
 
 use std::collections::{HashMap, VecDeque};
@@ -742,6 +743,7 @@ impl Host for crate::PdfCraftApp {
             "palette_open": self.palette_open,
             "theme": format!("{:?}", self.theme),
             "theme_preference": self.theme_preference,
+            "glass": self.glass,
             "language": self.language,
             "spelling": {"enabled": self.spelling.enabled, "language": self.spelling.language, "personal_words": self.spelling.words.len()},
             "auto_ocr": self.auto_ocr,

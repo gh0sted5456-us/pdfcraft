@@ -286,15 +286,17 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         ThemePreference::System => ("monitor", tl!("Use system setting")),
                         ThemePreference::Light => ("sun", tl!("Light gray")),
                         ThemePreference::Dark => ("moon", tl!("Dark gray")),
+                        ThemePreference::Glass => ("monitor", tl!("Glass")),
                     };
                     let tip = format!("{}: {label}", tl!("Display theme"));
                     let response = icons::button(ui, icon, button, false, &tip);
-                    // A click cycles System, Light, Dark; a right-click opens the menu.
+                    // A click cycles System, Light, Dark, Glass; a right-click opens the menu.
                     if response.clicked() {
                         app.execute(match app.theme_preference {
                             ThemePreference::System => "view.theme.light",
                             ThemePreference::Light => "view.theme.dark",
-                            ThemePreference::Dark => "view.theme.system",
+                            ThemePreference::Dark => "view.theme.glass",
+                            ThemePreference::Glass => "view.theme.system",
                         });
                     }
                     egui::Popup::context_menu(&response).id(response.id.with("theme_menu")).show(|ui| appearance_menu(app, ui));
@@ -316,6 +318,7 @@ fn theme_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         (ThemePreference::System, "view.theme.system", "Use system setting"),
         (ThemePreference::Light, "view.theme.light", "Light gray"),
         (ThemePreference::Dark, "view.theme.dark", "Dark gray"),
+        (ThemePreference::Glass, "view.theme.glass", "Glass"),
     ] {
         if ui.add(widgets::radio(app.theme_preference == preference, tl!(label))).clicked() {
             app.execute(command);

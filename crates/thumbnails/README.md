@@ -4,7 +4,8 @@ First-page thumbnails of PDF files for the operating system's file manager.
 
 - `render_thumbnail` (every platform) renders a document's first page, fitted into a square of the
   requested size, onto white, as top-down BGRA pixels. It never panics: a file that can't be read
-  or drawn is an error, and the file manager then shows the file's icon.
+  or drawn is an error, and the file manager then shows the file's icon. Fractional raster padding
+  is excluded geometrically to avoid a bright outer pixel; actual white page margins remain.
 - On Windows the crate also builds `pdfcraft_thumbnails.dll`, an `IThumbnailProvider` that File
   Explorer loads (in its isolated thumbnail process) for files whose type is `PdfCraft.Document`,
   so PDFs show their first page while PdfCraft is the default PDF app. The MSI registers it

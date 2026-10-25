@@ -111,6 +111,10 @@ fn named_opening_page_can_be_changed_undone_and_saved_through_tools() {
     let mut a = Automation::new().with_root(&root).unwrap();
     let id = ok(&mut a, "doc_open", json!({"path":"named.pdf"}))["doc"].as_u64().unwrap();
     assert_eq!(ok(&mut a, "doc_initial_view", json!({"doc":id}))["initial_view"]["page"], 3);
+    ok(&mut a, "doc_optimize", json!({"doc":id,"path":"optimized-opening.pdf"}));
+    let optimized = ok(&mut a, "doc_open", json!({"path":"optimized-opening.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "doc_initial_view", json!({"doc":optimized}))["initial_view"]["page"], 3);
+
     assert_eq!(ok(&mut a, "doc_initial_view", json!({"doc":id,"page":1}))["initial_view"]["page"], 1);
     ok(&mut a, "edit_undo", json!({"doc":id}));
     assert_eq!(ok(&mut a, "doc_initial_view", json!({"doc":id}))["initial_view"]["page"], 3);

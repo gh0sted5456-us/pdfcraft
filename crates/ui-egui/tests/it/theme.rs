@@ -25,7 +25,7 @@ fn assert_theme(h: &Harness<'static, PdfCraftApp>, preference: ThemePreference, 
     let native = match preference {
         ThemePreference::System => egui::ThemePreference::System,
         ThemePreference::Light => egui::ThemePreference::Light,
-        ThemePreference::Dark => egui::ThemePreference::Dark,
+        ThemePreference::Dark | ThemePreference::Glass => egui::ThemePreference::Dark,
     };
     #[cfg(not(target_os = "windows"))]
     let native = egui::ThemePreference::System;
@@ -33,7 +33,7 @@ fn assert_theme(h: &Harness<'static, PdfCraftApp>, preference: ThemePreference, 
     for branch in [egui::Theme::Light, egui::Theme::Dark] {
         let style = h.ctx.style_of(branch);
         assert_eq!(style.visuals.dark_mode, kind == ThemeKind::Dark);
-        assert_eq!(style.visuals.panel_fill, Tokens::for_kind(kind).panel);
+        assert_eq!(style.visuals.panel_fill, Tokens::get(&h.ctx).panel);
     }
 }
 
@@ -57,13 +57,15 @@ fn open_view_menu(h: &mut Harness<'static, PdfCraftApp>) {
 }
 
 #[test]
-fn toolbar_and_view_menu_share_three_state_preferences() {
+fn toolbar_and_view_menu_share_four_state_preferences() {
     let mut h = harness();
     // Explicit light wins even on a dark desktop, including egui's popup style.
     assert_theme(&h, ThemePreference::Light, ThemeKind::Light);
     click_toolbar(&mut h, "Light gray");
     assert_theme(&h, ThemePreference::Dark, ThemeKind::Dark);
     click_toolbar(&mut h, "Dark gray");
+    assert_theme(&h, ThemePreference::Glass, ThemeKind::Dark);
+    click_toolbar(&mut h, "Glass");
     assert_theme(&h, ThemePreference::System, ThemeKind::Dark);
 
     open_view_menu(&mut h);
@@ -131,7 +133,7 @@ fn commands_and_options_apply_before_the_first_frame() {
     assert_eq!(app.theme, ThemeKind::Dark);
     app.run_command("view.theme.light");
     app.set_option("theme", "dark").unwrap();
-    assert!(app.set_option("theme", "purple").unwrap_err().contains("light, dark, or system"));
+    assert!(app.set_option("theme", "purple").unwrap_err().contains("light, dark, glass, or system"));
     assert_eq!(app.theme_preference, ThemePreference::Dark);
     assert_eq!(app.theme, ThemeKind::Dark);
 }
@@ -211,7 +213,7 @@ fn native_frame_follows_saved_theme_and_live_changes() {
             let expected = match next {
                 ThemePreference::System => egui::SystemTheme::SystemDefault,
                 ThemePreference::Light => egui::SystemTheme::Light,
-                ThemePreference::Dark => egui::SystemTheme::Dark,
+                ThemePreference::Dark | ThemePreference::Glass => egui::SystemTheme::Dark,
             };
             #[cfg(not(target_os = "windows"))]
             let expected = egui::SystemTheme::SystemDefault;

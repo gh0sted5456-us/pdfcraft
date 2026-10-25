@@ -1,4 +1,4 @@
-//! The title bar's theme button: a click cycles System, Light and Dark; a right-click opens the
+//! The title bar's theme button: a click cycles System, Light, Dark and Glass; a right-click opens the
 //! menu with the appearance settings.
 
 use egui_kittest::Harness;
@@ -23,9 +23,12 @@ fn preference(h: &Harness<'static, PdfCraftApp>) -> String {
 fn a_click_cycles_the_theme_and_a_right_click_opens_the_menu() {
     let mut h = harness();
     assert_eq!(preference(&h), "Light", "new installs start Light");
-    for (label, next) in
-        [("Display theme: Light gray", "Dark"), ("Display theme: Dark gray", "System"), ("Display theme: Use system setting", "Light")]
-    {
+    for (label, next) in [
+        ("Display theme: Light gray", "Dark"),
+        ("Display theme: Dark gray", "Glass"),
+        ("Display theme: Glass", "System"),
+        ("Display theme: Use system setting", "Light"),
+    ] {
         h.get_by_label(label).click();
         h.run_steps(4);
         assert_eq!(preference(&h), next);

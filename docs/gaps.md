@@ -1,5 +1,7 @@
 # Where PdfCraft falls short of Acrobat Pro
 
+**Personal 0.13.1 / 2026-10-25:** Glass supports tinted per-pixel window surfaces (35–100%), with opaque documents/cards/fields. Compositing support depends on the desktop; no blur is implemented. Explorer thumbnail padding and optimization of named opening views have synthetic regressions; native Linux/macOS transparency remains unverified.
+
 > **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Change:** Wider New PDF gallery with a responsive grid of real template previews, one background worker and bounded Letter/A4 thumbnail caching; compact filters and centered actions. Shared dialogs use thinner borders, less padding and smaller shadows. Undo/Redo controls reuse document/Combine commands with responsive toolbar spacing. Named opening destinations now report the right page and can be redirected to page 1; finite form numbers avoid overflow during decimal rounding. Status notices no longer intercept dialog clicks. Native Linux/macOS and browser runtime remain unverified; readiness estimates unchanged.
 
 

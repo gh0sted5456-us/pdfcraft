@@ -1658,7 +1658,7 @@ milestone = "M3"
 status = "shipped"
 commands = ["view.theme", "view.theme.light", "view.theme.dark"]
 tools = []
-evidence = ["crates/ui-egui/src/widgets.rs::dialog_action_colors_and_dimensions_stay_consistent_in_both_themes", "crates/ui-egui/src/widgets.rs::dialogs_stay_centered_and_inside_the_window_when_their_contents_grow", "crates/ui-egui/tests/it/theme.rs::toolbar_and_view_menu_share_three_state_preferences", "crates/ui-egui/src/theme.rs::text_is_readable_on_every_surface"]
+evidence = ["crates/ui-egui/src/widgets.rs::dialog_action_colors_and_dimensions_stay_consistent_in_both_themes", "crates/ui-egui/src/widgets.rs::dialogs_stay_centered_and_inside_the_window_when_their_contents_grow", "crates/ui-egui/tests/it/theme.rs::toolbar_and_view_menu_share_four_state_preferences", "crates/ui-egui/src/theme.rs::text_is_readable_on_every_surface"]
 notes = "Personal build: dialogs use centered bounded cards and measured action rows; cancellation blue, confirmation green, destructive actions red, navigation neutral, matte until hover. See docs/ui-conventions.md. Toolbar and Display theme share three choices and a preference setter; manual choices exit system mode. Every text colour meets WCAG AA (4.5:1) on every surface in both themes; glyphs are pixel-aligned for sharper text at 100–150 % scaling."
 
 [[feature]]
@@ -1670,7 +1670,7 @@ milestone = "M3"
 status = "shipped"
 commands = ["view.theme.system"]
 tools = []
-evidence = ["crates/ui-egui/tests/it/theme.rs::toolbar_and_view_menu_share_three_state_preferences", "crates/ui-egui/tests/it/theme.rs::saved_preferences_restore_with_legacy_light_dark_settings", "crates/ui-egui/tests/it/control.rs::theme_commands_and_options_report_preference_and_effective_colours"]
+evidence = ["crates/ui-egui/tests/it/theme.rs::toolbar_and_view_menu_share_four_state_preferences", "crates/ui-egui/tests/it/theme.rs::saved_preferences_restore_with_legacy_light_dark_settings", "crates/ui-egui/tests/it/control.rs::theme_commands_and_options_report_preference_and_effective_colours"]
 notes = "Toolbar, Display theme and --theme system share a persisted System preference that follows OS changes without losing the selected mode; ui.state reports preference and resolved colours separately."
 
 [[feature]]
@@ -10292,3 +10292,28 @@ commands = []
 tools = ["form_set_props", "form_fill", "form_fields", "doc_save", "doc_open"]
 evidence = ["crates/forms/src/af.rs::huge_finite_numbers_do_not_print_inf", "crates/automation/tests/it/production.rs::huge_finite_numbers_format_through_native_form_tools"]
 notes = "Personal adaptation of #4592: avoids overflowing the intermediate decimal-rounding scale of a finite Number or Percent display value. Keeps ordinary rounding behavior; no arbitrary-precision arithmetic or full calculation-engine parity claim."
+
+
+[[feature]]
+id = "view.theme-glass"
+title = "Glass theme with adjustable tint and opacity"
+area = "B"
+tier = "P2"
+milestone = "M14"
+status = "shipped"
+commands = ["view.theme.glass"]
+tools = []
+evidence = ["crates/ui-egui/tests/it/ui.rs::glass_controls_are_visible_above_the_preview_cards_in_small_preferences", "crates/ui-egui/tests/it/ui.rs::glass_theme_settings_validate_persist_and_keep_documents_opaque", "crates/ui-egui/tests/it/theme.rs::toolbar_and_view_menu_share_four_state_preferences"]
+notes = "Appearance offers Glass with a color picker and 35–100% surface opacity. Values persist and are reachable through ui.set glass-tint/glass-opacity and ui.state. Native windows enable per-pixel transparency; dark/light remain opaque. PDF pages, fields and dialogs stay opaque. Desktop compositing is required; blur and native Linux/macOS runtime qualification are not claimed."
+
+[[feature]]
+id = "misc.windows-pdf-thumbnails"
+title = "Windows Explorer first-page PDF thumbnails"
+area = "N"
+tier = "P2"
+milestone = "M14"
+status = "shipped"
+commands = []
+tools = []
+evidence = ["crates/thumbnails/src/lib.rs::the_first_page_is_fitted_into_the_square_on_white_paper", "crates/thumbnails/src/lib.rs::fractional_page_edges_do_not_gain_a_white_strip"]
+notes = "Local Windows COM provider renders the first page for PdfCraft.Document; Explorer adds its native PdfCraft badge. Fractional raster padding is excluded without trimming document margins. The existing unsafe COM module has owner approval for the local fork. Explorer may retain older cached thumbnails; native macOS/Linux thumbnail handlers are provided by those desktops."

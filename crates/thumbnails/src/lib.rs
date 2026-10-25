@@ -58,13 +58,18 @@ fn render(bytes: Arc<Vec<u8>>, side: u32) -> Result<Thumbnail, String> {
     if pixels == 0 || rgba.len() != pixels.saturating_mul(4) {
         return Err("the renderer returned no pixels".into());
     }
-    // Premultiplied RGBA over white: each channel gains the paper showing through, 255 - alpha.
-    let mut bgra = Vec::with_capacity(rgba.len());
-    for p in rgba.as_chunks::<4>().0 {
-        let paper = 255 - p[3];
-        bgra.extend_from_slice(&[p[2].saturating_add(paper), p[1].saturating_add(paper), p[0].saturating_add(paper), 255]);
+    // The rasterizer rounds up: its fractional outer pixel exposes white outside the page.
+    // Remove only that raster padding, never white margins that belong to the document.
+    let width = ((w * scale + 0.0001).floor() as u32).clamp(1, page.width);
+    let height = ((h * scale + 0.0001).floor() as u32).clamp(1, page.height);
+    let mut bgra = Vec::with_capacity((width * height * 4) as usize);
+    for row in rgba.chunks_exact(page.width as usize * 4).take(height as usize) {
+        for p in row.as_chunks::<4>().0.iter().take(width as usize) {
+            let paper = 255 - p[3];
+            bgra.extend_from_slice(&[p[2].saturating_add(paper), p[1].saturating_add(paper), p[0].saturating_add(paper), 255]);
+        }
     }
-    Ok(Thumbnail { width: page.width, height: page.height, bgra })
+    Ok(Thumbnail { width, height, bgra })
 }
 
 #[cfg(test)]
@@ -110,6 +115,20 @@ pub(crate) mod tests {
         // Portrait pages are fitted by their height.
         let t = render_thumbnail(pdf(100, 200, ""), 96).unwrap();
         assert_eq!((t.width, t.height), (48, 96));
+    }
+
+    #[test]
+    fn fractional_page_edges_do_not_gain_a_white_strip() {
+        for (w, h) in [(612, 792), (595, 842), (792, 612)] {
+            for side in [96, 256] {
+                let t = render_thumbnail(pdf(w, h, &format!("0.1 g 0 0 {w} {h} re f")), side).unwrap();
+                let center = pixel(&t, t.width / 2, t.height / 2);
+                for (x, y) in [(t.width - 1, t.height / 2), (t.width / 2, t.height - 1)] {
+                    let edge = pixel(&t, x, y);
+                    assert!(edge[0].abs_diff(center[0]) <= 2, "{w}x{h} at {side}: {edge:?} vs {center:?}");
+                }
+            }
+        }
     }
 
     #[test]
