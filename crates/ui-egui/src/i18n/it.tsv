@@ -2709,6 +2709,14 @@ certificate	SHA-256 digest	Impronta SHA-256
 	One sheet per page	Un foglio per pagina
 	Each page on its own sheet, named Page 1, Page 2…	Ogni pagina nel proprio foglio, chiamato Page 1, Page 2…
 	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Le tabelle diventano celle; numeri, importi, percentuali e date diventano valori con cui Excel può calcolare, mostrati come nella pagina.
+	Create & Edit	Crea e modifica
+	Review & Compare	Revisione e confronto
+	Forms & Signatures	Moduli e firme
+	Protect & Standardize	Proteggi e standardizza
+	Customize & Automate	Personalizza e automatizza
+	No tools match your search.	Nessuno strumento corrisponde alla ricerca.
+	Expand all tools	Espandi tutti gli strumenti
+	Collapse all tools	Comprimi tutti gli strumenti
 	Attach a file…	Allega un file…
 	Delete attachment	Elimina allegato
 	Attaching files is not available on the web yet	Allegare file non è ancora disponibile sul web
@@ -2771,3 +2779,4 @@ certificate	SHA-256 digest	Impronta SHA-256
 
 # Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
 	Today	Oggi
+@plural	{n} reply|{n} replies	{n} risposta|{n} risposte

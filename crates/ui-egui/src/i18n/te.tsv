@@ -2406,6 +2406,14 @@ animation effects	Off	ఆఫ్
 	One sheet per page	ప్రతి పేజీకి ఒక షీట్
 	Each page on its own sheet, named Page 1, Page 2…	ప్రతి పేజీ దాని స్వంత షీట్‌లో, పేర్లు: Page 1, Page 2…
 	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	పట్టికలు గడులుగా మారుతాయి; సంఖ్యలు, మొత్తాలు, శాతాలు, తేదీలు Excel లెక్కించగల విలువలుగా మారి, పేజీలో ఉన్నట్లే కనిపిస్తాయి.
+	Create & Edit	సృష్టించు & సవరించు
+	Review & Compare	సమీక్షించు & పోల్చు
+	Forms & Signatures	ఫారమ్‌లు & సంతకాలు
+	Protect & Standardize	రక్షించు & ప్రామాణీకరించు
+	Customize & Automate	అనుకూలీకరించు & ఆటోమేట్ చేయి
+	No tools match your search.	మీ శోధనకు సరిపోలే సాధనాలు లేవు.
+	Expand all tools	అన్ని సాధనాలను విస్తరించు
+	Collapse all tools	అన్ని సాధనాలను కుదించు
 	Attach a file…	ఫైల్‌ను జోడించు…
 	Delete attachment	జోడింపును తొలగించు
 	Attaching files is not available on the web yet	వెబ్‌లో ఫైల్‌లను జోడించడం ఇంకా అందుబాటులో లేదు
@@ -2448,3 +2456,4 @@ animation effects	Off	ఆఫ్
 
 # Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
 	Today	ఈరోజు
+@plural	{n} reply|{n} replies	{n} ప్రత్యుత్తరం|{n} ప్రత్యుత్తరాలు

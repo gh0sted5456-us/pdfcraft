@@ -2497,6 +2497,14 @@ animation effects	Off	Désactivés
 	One sheet per page	Une feuille par page
 	Each page on its own sheet, named Page 1, Page 2…	Chaque page sur sa propre feuille, nommée Page 1, Page 2…
 	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Les tableaux deviennent des cellules ; les nombres, montants, pourcentages et dates deviennent des valeurs qu'Excel peut calculer, affichées comme sur la page.
+	Create & Edit	Créer et modifier
+	Review & Compare	Réviser et comparer
+	Forms & Signatures	Formulaires et signatures
+	Protect & Standardize	Protéger et normaliser
+	Customize & Automate	Personnaliser et automatiser
+	No tools match your search.	Aucun outil ne correspond à votre recherche.
+	Expand all tools	Développer tous les outils
+	Collapse all tools	Réduire tous les outils
 	Attach a file…	Joindre un fichier…
 	Delete attachment	Supprimer la pièce jointe
 	Attaching files is not available on the web yet	Joindre des fichiers n'est pas encore disponible sur le web
@@ -2805,3 +2813,4 @@ certificate	Version	Version
 
 # Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
 	Today	Aujourd'hui
+@plural	{n} reply|{n} replies	{n} réponse|{n} réponses

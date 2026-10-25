@@ -2493,6 +2493,14 @@ animation effects	Off	Kapalı
 	One sheet per page	Her sayfa için bir çalışma sayfası
 	Each page on its own sheet, named Page 1, Page 2…	Her sayfa kendi çalışma sayfasında, adları: Page 1, Page 2…
 	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Tablolar hücrelere dönüşür; sayılar, tutarlar, yüzdeler ve tarihler Excel'in hesaplayabileceği değerlere dönüşür ve sayfadaki gibi görünür.
+	Create & Edit	Oluştur ve Düzenle
+	Review & Compare	İncele ve Karşılaştır
+	Forms & Signatures	Formlar ve İmzalar
+	Protect & Standardize	Koru ve Standartlaştır
+	Customize & Automate	Özelleştir ve Otomatikleştir
+	No tools match your search.	Aramanızla eşleşen araç yok.
+	Expand all tools	Tüm araçları genişlet
+	Collapse all tools	Tüm araçları daralt
 	Attach a file…	Dosya ekle…
 	Delete attachment	Eki sil
 	Attaching files is not available on the web yet	Dosya eklemek web'de henüz kullanılamıyor
@@ -2535,3 +2543,4 @@ animation effects	Off	Kapalı
 
 # Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
 	Today	Bugün
+@plural	{n} reply|{n} replies	{n} yanıt
