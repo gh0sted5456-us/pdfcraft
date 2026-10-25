@@ -2454,6 +2454,14 @@ animation effects	Off	關
 	The trim box is kept where it is, so the printed page cuts the same.	裁切框保持不變，列印頁面的裁切位置相同。
 	Printer marks added	已新增印刷標記
 	printer marks	印刷標記
+	Create & Edit	建立與編輯
+	Review & Compare	審閱與比較
+	Forms & Signatures	表單與簽名
+	Protect & Standardize	保護與標準化
+	Customize & Automate	自訂與自動化
+	No tools match your search.	沒有符合搜尋的工具。
+	Expand all tools	展開所有工具
+	Collapse all tools	摺疊所有工具
 	Attach a file…	附加檔案…
 	Delete attachment	刪除附件
 	Attaching files is not available on the web yet	網頁版尚不支援附加檔案
@@ -2496,3 +2504,4 @@ animation effects	Off	關
 
 # Date picker: Today button (#4274) (AI-assisted, not separately native-reviewed)
 	Today	今天
+@plural	{n} reply|{n} replies	{n} 則回覆
