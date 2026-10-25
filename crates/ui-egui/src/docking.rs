@@ -429,7 +429,7 @@ pub fn show(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
     style.resize_label = crate::i18n::t("Resize panels").into();
     style.resize_window_label = crate::i18n::t("Resize panel window").into();
     style.background = if app.theme_preference == crate::theme::ThemePreference::Glass { egui::Color32::TRANSPARENT } else { t.panel };
-    style.tab_background = t.chrome;
+    style.tab_background = t.glass_toolbar_shade().unwrap_or(t.chrome);
     style.floating_background = t.glass_popup_surface().unwrap_or(t.panel);
     style.active_background = t.selected;
     style.text = t.text;
@@ -455,22 +455,29 @@ pub fn show(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
         |panel| crate::i18n::t(panel.label()).into(),
         render_permissions,
         panel_limits,
-        |ui, panel| match panel {
-            Panel::Canvas => {
-                ui.painter().rect_filled(ui.max_rect(), 0.0, t.pasteboard);
-                match app.active {
-                    None if app.combine_showing() => crate::combine_ui::page(app, ui),
-                    None => crate::home::show(app, ui),
-                    Some(index) => match crate::compare_ui::side_by_side(app, index) {
-                        Some((old, new)) => crate::compare_ui::compare_area(app, old, new, ui),
-                        None => crate::canvas::document_area(app, index, ui),
-                    },
-                }
+        |ui, panel| {
+            if !matches!(panel, Panel::Canvas)
+                && let Some(shade) = t.glass_toolbar_shade()
+            {
+                ui.painter().rect_filled(ui.max_rect(), 0.0, shade);
             }
-            Panel::Tools => crate::panels::left_panel(app, ui),
-            Panel::Inspector => {
-                ui.data_mut(|data| data.insert_temp(egui::Id::new("pdfcraft-inspector-body"), ui.max_rect()));
-                crate::panels::right_panel(app, ui);
+            match panel {
+                Panel::Canvas => {
+                    ui.painter().rect_filled(ui.max_rect(), 0.0, t.pasteboard);
+                    match app.active {
+                        None if app.combine_showing() => crate::combine_ui::page(app, ui),
+                        None => crate::home::show(app, ui),
+                        Some(index) => match crate::compare_ui::side_by_side(app, index) {
+                            Some((old, new)) => crate::compare_ui::compare_area(app, old, new, ui),
+                            None => crate::canvas::document_area(app, index, ui),
+                        },
+                    }
+                }
+                Panel::Tools => crate::panels::left_panel(app, ui),
+                Panel::Inspector => {
+                    ui.data_mut(|data| data.insert_temp(egui::Id::new("pdfcraft-inspector-body"), ui.max_rect()));
+                    crate::panels::right_panel(app, ui);
+                }
             }
         },
     );

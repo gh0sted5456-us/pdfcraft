@@ -398,7 +398,7 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         .policy(SidePolicy::Columns)
         .f6(false)
         .labels(labels)
-        .frame(egui::Frame::NONE.fill(t.panel))
+        .frame(egui::Frame::NONE.fill(t.glass_toolbar_shade().unwrap_or(t.panel)))
         .body_margin(egui::Margin::ZERO)
         .show(ui, &open, |pane| Some(state_of(&panels, *pane)), &mut Content { app });
     for request in output.requests {

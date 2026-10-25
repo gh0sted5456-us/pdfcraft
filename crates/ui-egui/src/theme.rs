@@ -118,6 +118,11 @@ pub struct Tokens {
 }
 
 impl Tokens {
+    /// One neutral shade over Glass tool panes; the central canvas stays clear.
+    pub fn glass_toolbar_shade(self) -> Option<Color32> {
+        self.glass_surface.map(|_| Color32::from_black_alpha(96))
+    }
+
     /// Raised Glass surfaces stay legible above document content and the desktop.
     pub fn glass_popup_surface(self) -> Option<Color32> {
         self.glass_surface.map(|surface| {

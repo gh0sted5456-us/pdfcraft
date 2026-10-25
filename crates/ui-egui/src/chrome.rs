@@ -699,7 +699,12 @@ pub fn right_rail(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let mut page_display = None;
     let rail = Rail::new("rail")
         .edge(Edge::End)
-        .frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin::symmetric(6, 8)).stroke(Stroke::new(1.0, t.divider)))
+        .frame(
+            egui::Frame::NONE
+                .fill(t.glass_toolbar_shade().unwrap_or(t.chrome))
+                .inner_margin(egui::Margin::symmetric(6, 8))
+                .stroke(Stroke::new(1.0, t.divider)),
+        )
         .show(ui, &items, app.right.as_ref(), |ui| {
             // Page navigation cluster at the bottom, a panel of its own so that in a short
             // window the buttons above scroll instead of running into it (#3282).
