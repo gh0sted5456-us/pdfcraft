@@ -138,7 +138,7 @@ pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
 }
 
 pub(crate) fn new_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> (bool, bool) {
-    ui.heading("Custom PDF page");
+    crate::widgets::dialog_heading(ui, "Custom PDF page");
     controls(ui, &mut app.new_paper, &mut app.units);
     ui.add_space(12.0);
     let (mut go, mut cancel) = (false, false);

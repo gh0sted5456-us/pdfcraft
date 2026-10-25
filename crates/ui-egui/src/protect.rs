@@ -94,7 +94,7 @@ fn radio(ui: &mut egui::Ui, t: &Tokens, on: bool, label: &str) -> egui::Response
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (bool, bool) {
     use pdfcraft_engine::Algorithm as A;
     let d = &mut app.protect_draft;
-    ui.label(egui::RichText::new(tl!("Protect Using Password")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Protect Using Password"));
     ui.add_space(4.0);
     ui.separator();
     ui.add_space(6.0);

@@ -5,7 +5,7 @@
 use pdfcraft_engine::{CommentProps, Edit, LineEnding, NoteIcon};
 
 use crate::comments::swatch_grid;
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{PdfCraftApp, widgets};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -185,7 +185,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     });
     let Some(d) = app.comment_props.as_mut() else { return (false, true) };
     let kind = tl!(crate::comments_panel::subtype_label(&d.edited.subtype)).to_string();
-    ui.label(egui::RichText::new(crate::i18n::fmt(tl!("{kind} Properties"), &[("kind", &kind)])).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, crate::i18n::fmt(tl!("{kind} Properties"), &[("kind", &kind)]));
     ui.add_space(6.0);
     ui.horizontal_wrapped(|ui| {
         for (tab, label) in

@@ -6,7 +6,7 @@ use egui::Color32;
 use pdfcraft_engine::DocId;
 use pdfcraft_engine::compare::{Comparison, Kind};
 
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{PdfCraftApp, RightPanel, widgets};
 
 /// The last comparison.
@@ -50,7 +50,7 @@ pub fn colour(kind: Kind) -> Color32 {
 
 /// The Compare Files dialog: pick the older document. Returns (compare, cancel).
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (bool, bool) {
-    ui.label(egui::RichText::new(tl!("Compare Files")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Compare Files"));
     ui.add_space(8.0);
     let Some((_, new)) = app.active_ids() else { return (false, true) };
     let others: Vec<(DocId, String)> =

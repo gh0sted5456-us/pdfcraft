@@ -418,6 +418,21 @@ impl PdfCraftApp {
             "a11y.find_untagged" => self.find_untagged_content(),
             "ocr.recognize" => self.dialog = Some(Dialog::RecognizeText),
             "tools.js_console" => self.dialog = Some(Dialog::JsConsole),
+            "tools.document_actions" => {
+                self.doc_js = crate::js_ui::DocJsDraft {
+                    name: "Open".into(),
+                    script: self
+                        .active_ids()
+                        .and_then(|(_, id)| self.session.get(id))
+                        .and_then(|d| d.document_actions().into_iter().find(|(e, _)| e == "Open"))
+                        .map(|(_, s)| s)
+                        .unwrap_or_default(),
+                };
+                self.dialog = Some(Dialog::DocumentActions);
+            }
+            "preflight.run" | "prepress.output_preview" => {
+                self.open_production(id == "prepress.output_preview");
+            }
             "tools.document_js" => {
                 self.doc_js = Default::default();
                 self.dialog = Some(Dialog::DocumentJs);
@@ -814,7 +829,28 @@ fn tab_after(current: Option<usize>, count: usize, forward: bool) -> Option<usiz
 /// Render a top-level menu's registered commands (with live labels, shortcuts and enablement).
 pub(crate) fn registry_menu(app: &mut PdfCraftApp, ui: &mut egui::Ui, menu: &str) {
     for spec in commands::menu(menu) {
-        if spec.id == "app.language_spelling" {
+        if matches!(
+            spec.id,
+            "create.custom"
+                | "file.save"
+                | "export.choose"
+                | "optimize.reduce"
+                | "protect.password"
+                | "print.dialog"
+                | "file.properties"
+                | "file.revert"
+                | "edit.copy"
+                | "edit.find"
+                | "form.clear"
+                | "app.language_spelling"
+                | "page.insert_blank"
+                | "page.rotate"
+                | "page.extract"
+                | "bookmark.add"
+                | "page.delete"
+                | "help.check_updates"
+                | "help.about"
+        ) {
             ui.separator();
         }
         let label = commands::current_label(spec, &app.session, app.active_ids().map(|(_, id)| id));

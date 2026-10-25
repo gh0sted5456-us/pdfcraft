@@ -298,3 +298,6 @@ Personal-build signature ownership checks and page protection are described in [
 Personal tools: `ai_prepare` and explicit network-gated AI connection/request tools are documented in [Assistant setup](../../docs/assistant.md); `page_lock`/`page_locks` expose ordinary and signed page protection.
 
 `page_duplicate` accepts optional `field_conflicts: "rename"` to give copied form fields independent names (`Text1-1`, `Text1-2`, …). The default `"merge"` keeps ordinary duplication behavior. The repair log lists renames and warns that scripts referencing old names are not rewritten; filling a renamed copy does not change the original. The GUI exposes **Duplicate pages with new field names** in Pages and Organize Pages ▸ Insert. Adapted from [upstream #4557](https://github.com/storytold/pdfcraft/pull/4557) by @Lcoding15.
+
+
+Personal 0.13.1 additions: `js_document_actions` lists Open/WillSave/WillPrint actions; `js_set_document_action` edits one with standard PDF storage. `js_run` retains globals within each open document. `output_inspection` takes a 1-based `page` and returns bounded source-colour/spot/overprint findings; `print_readiness` returns existing print checks. Both reports are read-only and available in Print Production. Source CMYK sums are not composited ink coverage or a soft proof.

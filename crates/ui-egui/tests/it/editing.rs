@@ -490,7 +490,7 @@ fn organize_select_all_applies_operations_to_every_page() {
     assert_eq!(h.state().views[0].target_pages(), [0, 1, 2]);
     h.get_by_label("Rotate clockwise").click();
     h.run_steps(3);
-    let app = h.state();
+    let app = h.state_mut();
     let rotations: Vec<_> = app.session.get(app.views[0].id).unwrap().info.pages.iter().map(|p| p.rotation).collect();
     assert_eq!(rotations, [90, 90, 90]);
 }
@@ -3524,7 +3524,7 @@ fn text_tool_mixed_style_row_grows_in_the_editor_and_saved_pdf() {
     }
     h.key_press_modifiers(Modifiers::COMMAND, Key::Enter);
     h.run_steps(3);
-    let state = h.state();
+    let state = h.state_mut();
     let doc = state.session.get(state.views[0].id).unwrap();
     assert_eq!(doc.text_blocks(0)[0].editor_text, replacement);
     assert_eq!(doc.text_blocks(0)[0].rows.len(), 1);
@@ -3799,7 +3799,7 @@ fn the_format_panel_takes_any_scale_and_character_spacing() {
     assert_eq!(extras(&h), Some((250.0, -2.0)));
     assert_eq!(h.state().session.get(id).unwrap().can_undo(), Some("Edit text"));
     // Saved and reopened, the paragraph is as wide as the engine draws it with those values.
-    let bytes = h.state().session.save_bytes(id).unwrap();
+    let bytes = h.state_mut().session.save_bytes(id).unwrap();
     h.state_mut().open_bytes("reference.pdf", None, fixture(1)).expect("opens");
     let style = pdfcraft_engine::BlockStyle { scale: Some(250.0), char_spacing: Some(-2.0), ..Default::default() };
     assert!(h.state_mut().apply_edit(pdfcraft_engine::Edit::EditTextBlock { page: 0, block: 0, text: "Page 1".into(), style }));
@@ -4295,7 +4295,7 @@ fn check_added_text_drag(panel_open: bool) {
             },
         )
         .unwrap();
-    let original = h.state().session.save_bytes(id).unwrap();
+    let original = h.state_mut().session.save_bytes(id).unwrap();
     h = paragraph_drag_harness(original.as_ref().clone(), 0);
     h.state_mut().left_open = panel_open;
     h.run_steps(4);
@@ -5117,7 +5117,7 @@ fn inline_editor_preserves_source_font_and_previews_live_bounds() {
     h.run_steps(3);
     assert!(dirty(&h));
     assert_eq!(h.state().session.get(id).unwrap().text_blocks(0)[0].rect, measured);
-    let bytes = h.state().session.save_bytes(id).unwrap();
+    let bytes = h.state_mut().session.save_bytes(id).unwrap();
     let mut reopened = pdfcraft_engine::Session::new();
     let reopened_id = reopened.open("again.pdf", None, bytes, None).unwrap();
     assert_eq!(reopened.get(reopened_id).unwrap().text_blocks(0)[0].rect, measured);
@@ -5274,7 +5274,7 @@ fn cropped_image_corner_resize_keeps_opposite_corner_and_scales_crop() {
         }
         assert_eq!(text(h.state().session.get(id).unwrap()), original_text, "image resizing leaves captions in place");
     }
-    let saved = h.state().session.save_bytes(id).unwrap();
+    let saved = h.state_mut().session.save_bytes(id).unwrap();
     let mut reopened = pdfcraft_engine::Session::new();
     let re = reopened.open("again.pdf", None, saved, None).unwrap();
     assert_eq!(reopened.get(re).unwrap().page_images(0), h.state().session.get(id).unwrap().page_images(0));

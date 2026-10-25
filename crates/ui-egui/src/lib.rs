@@ -61,6 +61,7 @@ mod export_ui;
 mod js_ui;
 mod paper_ui;
 mod preferences_ui;
+mod production_ui;
 mod templates_ui;
 pub use preferences_ui::PreferencesCategory;
 #[cfg(target_os = "macos")]
@@ -372,6 +373,8 @@ pub enum Dialog {
     JsConsole,
     /// Document JavaScripts.
     DocumentJs,
+    DocumentActions,
+    PrintProduction,
     /// Preferences.
     Preferences,
     NewPaper,
@@ -743,6 +746,7 @@ pub struct PdfCraftApp {
     pub compare: Option<compare_ui::CompareState>,
     /// The JavaScript console and the Document JavaScripts draft.
     pub js_console: js_ui::JsConsole,
+    pub(crate) production: production_ui::Draft,
     pub doc_js: js_ui::DocJsDraft,
     pub a11y: a11y_ui::A11yState,
     pub(crate) tags_state: tags_ui::State,
@@ -1128,6 +1132,7 @@ impl PdfCraftApp {
             compare_old: None,
             compare: None,
             js_console: Default::default(),
+            production: Default::default(),
             doc_js: Default::default(),
             a11y: a11y_ui::A11yState::default(),
             tags_state: Default::default(),
@@ -2900,6 +2905,14 @@ impl PdfCraftApp {
                     "recognize-text" => Some(Dialog::RecognizeText),
                     "js-console" => Some(Dialog::JsConsole),
                     "document-js" => Some(Dialog::DocumentJs),
+                    "document-actions" => {
+                        self.execute("tools.document_actions");
+                        self.dialog
+                    }
+                    "print-production" | "output-inspection" => {
+                        self.open_production(value == "output-inspection");
+                        self.dialog
+                    }
                     "preferences" => Some(Dialog::Preferences),
                     "templates" => Some(Dialog::Templates),
                     "compare-files" => Some(Dialog::CompareFiles),

@@ -677,6 +677,29 @@ impl Automation {
         Ok(json!({ "scripts": list }))
     }
 
+    pub(crate) fn js_field_event(&mut self, a: &Args) -> Result<Value> {
+        let id = self.doc(a)?.id;
+        let trigger =
+            pdfcraft_engine::FieldTrigger::from_id(a.str("trigger")?).ok_or_else(|| crate::ToolError::InvalidArgs("unknown field trigger".into()))?;
+        let out = self.session.run_field_event(id, a.str("field")?, trigger).map_err(failed)?;
+        let requests: Vec<_> = out.requests.iter().map(request_json).collect();
+        Ok(json!({"alerts":out.alerts, "console":out.console, "requests":requests, "errors":out.errors}))
+    }
+
+    pub(crate) fn js_document_actions(&self, a: &Args) -> Result<Value> {
+        Ok(
+            json!({ "actions": self.doc(a)?.document_actions().into_iter().map(|(event, script)| json!({"event": event, "script": script})).collect::<Vec<_>>() }),
+        )
+    }
+
+    pub(crate) fn js_set_document_action(&mut self, a: &Args) -> Result<Value> {
+        let id = self.doc(a)?.id;
+        self.session
+            .apply(id, pdfcraft_engine::Edit::SetDocumentAction { event: a.str("event")?.into(), script: a.opt_str("script")?.map(str::to_string) })
+            .map_err(failed)?;
+        self.js_document_actions(a)
+    }
+
     pub(crate) fn js_set_document_script(&mut self, a: &Args) -> Result<Value> {
         let edit = pdfcraft_engine::Edit::SetDocumentScript { name: a.str("name")?.into(), script: a.opt_str("script")?.map(str::to_string) };
         let id = self.doc(a)?.id;
@@ -749,6 +772,14 @@ impl Automation {
             "issues": issues,
             "declared": { "pdfa": d.pdfa.map(|(p, c)| format!("PDF/A-{p}{}", c.to_lowercase())), "pdfua": d.pdfua, "output_intents": d.output_intents },
         }))
+    }
+
+    pub(crate) fn output_inspection(&self, a: &Args) -> Result<Value> {
+        let page = self.page(a)?;
+        let report = self.doc(a)?.output_inspection(page).map_err(failed)?;
+        Ok(
+            json!({"page": page + 1, "spaces": report.spaces, "spots": report.spots, "overprint_declared": report.overprint_declared, "max_source_cmyk_percent": report.max_source_cmyk_percent, "complete": report.complete, "warnings": report.warnings, "report": report.text()}),
+        )
     }
 
     pub(crate) fn print_readiness(&self, a: &Args) -> Result<Value> {

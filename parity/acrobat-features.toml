@@ -5162,11 +5162,11 @@ title = "Document actions (will close, will save, did save, will print, did prin
 area = "F"
 tier = "P1"
 milestone = "M6"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["tools.document_actions"]
+tools = ["js_document_actions", "js_set_document_action"]
+evidence = ["crates/automation/tests/it/production.rs::persistent_document_actions_survive_save_reopen_and_remain_undoable", "crates/engine/src/js.rs::save_errors_disable_switch_and_print_hooks_preserve_document_rules", "crates/engine/src/js.rs::action_editor_refuses_to_destroy_destinations_or_action_chains"]
+notes = "Personal build: author Open/WillSave/WillPrint JavaScript actions, standard catalog storage, undo and save/reopen; preserves existing destinations/chains. Shared sandbox state with console/field scripts. DidSave/DidPrint/WillClose/page events and timers remain unsupported."
 
 [[feature]]
 id = "form.js-host"
@@ -7694,11 +7694,11 @@ title = "Preflight analysis"
 area = "K"
 tier = "P1"
 milestone = "M11"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["preflight.run"]
+tools = ["print_readiness"]
+evidence = ["crates/automation/tests/it/production.rs::production_reports_are_read_only_and_validate_page_ranges"]
+notes = "Personal build exposes existing effective image PPI, font embedding, output intents and trim/bleed report in Print Production. Issue links navigate to pages; report can be copied. No PDF/X certification, custom profiles or automatic fixups."
 
 [[feature]]
 id = "optimize.preflight-fix"
@@ -8250,11 +8250,11 @@ title = "Output preview"
 area = "L"
 tier = "P1"
 milestone = "M11"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["prepress.output_preview"]
+tools = ["output_inspection"]
+evidence = ["crates/automation/tests/it/production.rs::production_reports_are_read_only_and_validate_page_ranges", "crates/engine/src/outputcheck.rs::nested_resources_spots_overprint_and_cycles_are_bounded_and_read_only", "crates/engine/src/outputcheck.rs::oversized_content_reports_incomplete_instead_of_passing"]
+notes = "Personal build: bounded source inventory of declared page/Form/image colour resources, spot names, overprint declarations and explicit k/K CMYK component sums; page-box diagram. No rendered plate separations, ICC soft proof, composited total ink coverage or annotation appearance scan. Incomplete scans report warnings."
 
 [[feature]]
 id = "print.separations"
@@ -10255,3 +10255,16 @@ commands = ["create.custom", "export.choose"]
 tools = ["doc_create", "doc_export_office", "doc_export_text", "doc_export_images"]
 evidence = ["crates/ui-egui/tests/it/create.rs::physical_paper_defaults_roundtrip_and_create_print_sized_cards", "crates/ui-egui/tests/it/create.rs::paper_settings_calibrate_view_without_resizing_the_pdf", "crates/ui-egui/tests/it/create.rs::custom_page_dialog_creates_the_requested_dimensions", "crates/ui-egui/tests/it/create.rs::export_to_opens_a_format_picker", "crates/ui-egui/tests/it/create.rs::office_export_preserves_open_original_and_exports_docx_and_pptx"]
 notes = "Personal build: persisted blank-page size presets and validated custom dimensions; manual physical-ruler calibration of existing Actual size actions; unified picker reuses DOCX/PPTX/RTF/HTML/text/image exports. WordCraft uses DOCX. Designed starters retain Letter/A4; existing PDFs retain their own dimensions. No physical printer/monitor calibration, WordCraft reader, native Linux/macOS or browser runtime test. Conversion fidelity remains limited."
+
+
+[[feature]]
+id = "personal.persistent-js-and-dialog-layout"
+title = "Persistent form scripting and compact dialog layouts"
+area = "G"
+tier = "P1"
+milestone = "M6"
+status = "partial"
+commands = ["tools.js_console", "tools.document_js", "tools.document_actions"]
+tools = ["js_run", "js_document_scripts", "js_set_document_script"]
+evidence = ["crates/js/src/tests.rs::document_runtime_preserves_globals_and_refreshes_host_snapshots", "crates/js/src/tests.rs::persistent_realms_keep_sandbox_hooks_and_isolate_error_writes", "crates/ui-egui/src/assistant_ui.rs::assistant_tabs_are_compact_centered_and_keep_their_footer_visible", "crates/ui-egui/tests/it/dialog_chrome.rs::shared_dialogs_remain_centered_and_fit_small_and_large_windows", "crates/engine/src/commands.rs::menus_follow_create_open_save_export_print_and_page_workflows", "crates/ui-egui/src/widgets.rs::dialog_button_outline_stays_inside_its_hit_box", "crates/ui-egui/src/widgets.rs::confirmation_groups_stay_centered_when_actions_change"]
+notes = "Console, document/field libraries and lifecycle actions share document-local state. Widget focus/blur/mouse actions, dynamic choices, border colour and actions are supported. Explicit sandbox errors, loop/recursion/source/buffer limits; no general file/network/eval access. Shared centered titles and confirmation groups, semantic matte actions and bounded scrolling tool settings; File/Edit/Pages workflow order. Cards fit tested 640x480 and 1200x800 light/dark viewports. Not all Adobe/Foxit JavaScript APIs or dialog states; native Linux/macOS/browser runtime unverified."

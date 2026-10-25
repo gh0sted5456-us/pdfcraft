@@ -325,6 +325,10 @@ fn the_pages_menu_comes_from_the_registry() {
     h.run_steps(2);
     h.get_by_label("Pages ⏵").hover();
     h.run_steps(3);
+    // Destructive actions follow the page workflow groups; scroll the last item into view.
+    h.get_by_label_contains("Delete pages").scroll_to_me();
+    h.run_steps(4);
+    assert!(h.ctx.content_rect().contains_rect(h.get_by_label_contains("Delete pages").rect()));
     h.get_by_label_contains("Delete pages").click();
     h.run_steps(3);
     let app = h.state();

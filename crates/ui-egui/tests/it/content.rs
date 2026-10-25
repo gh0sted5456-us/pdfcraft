@@ -207,7 +207,7 @@ fn text_tool_single_click_retypes_added_text_without_another_item() {
             h.get_by_label("Done adding text").click();
             h.run_steps(3);
             assert_eq!(texts(&h), [replacement]);
-            let state = h.state();
+            let state = h.state_mut();
             let bytes = state.session.save_bytes(state.views[0].id).unwrap();
             let mut reopened = pdfcraft_engine::Session::new();
             let id = reopened.open("again.pdf", None, bytes, None).unwrap();

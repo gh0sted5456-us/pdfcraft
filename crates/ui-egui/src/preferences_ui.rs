@@ -120,7 +120,7 @@ impl PreferencesCategory {
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (bool, bool) {
     let mut connections = false;
     let mut close_requested = false;
-    ui.label(RichText::new(tl!("Preferences")).font(theme::semibold(22.0)));
+    crate::widgets::dialog_heading(ui, tl!("Preferences"));
     ui.add_space(10.0);
     let height = (ui.ctx().content_rect().height() - 176.0).clamp(16.0, 380.0);
     let width = ui.available_width();

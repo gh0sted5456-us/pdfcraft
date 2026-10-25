@@ -1186,7 +1186,7 @@ fn the_panel_reveals_edits_and_reopens_a_late_thread_without_changing_its_replie
     let late = before.iter().find(|a| a.name.as_deref() == Some("late")).unwrap();
     assert_eq!(late.contents.as_deref(), Some("Late root edited exactly"));
     let id = h.state().views[0].id;
-    let saved = h.state().session.save_bytes(id).unwrap().as_ref().clone();
+    let saved = h.state_mut().session.save_bytes(id).unwrap().as_ref().clone();
     let mut reopened = harness_with_bytes(saved, |app| {
         app.set_option("panel", "comments").unwrap();
         app.views[0].comments.search = Some("late thread reply".into());
@@ -2033,7 +2033,7 @@ fn multiline_markup_hover_stays_on_marked_lines() {
                     "{subtype}, page/view rotation {page_rotation}/{view_rotation}, user point ({x}, {y})"
                 );
             }
-            let app = h.state();
+            let app = h.state_mut();
             let id = app.views[0].id;
             let doc = app.session.get(id).unwrap();
             assert!(!doc.dirty, "hovering never edits the document");

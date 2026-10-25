@@ -3,7 +3,7 @@
 
 use pdfcraft_engine::pdfa::{Issue, Level};
 
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{PdfCraftApp, widgets};
 
 /// The dialog's state: the chosen level and the last result.
@@ -46,7 +46,7 @@ impl PdfCraftApp {
 
 /// Returns `true` to close.
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
-    ui.label(egui::RichText::new("PDF/A").font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, "PDF/A");
     ui.add_space(6.0);
     let declared = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.standards()).unwrap_or_default();
     let mut standards: Vec<String> = declared.pdfa.iter().map(|(p, c)| format!("PDF/A-{p}{}", c.to_lowercase())).collect();

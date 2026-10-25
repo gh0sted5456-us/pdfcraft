@@ -197,7 +197,7 @@ fn a_watched_label_replacement_keeps_the_display_mode_and_focused_page() {
         assert_eq!(h.state().views[0].page_input, "2");
         h.key_press(egui::Key::Enter);
         h.run_steps(3);
-        let app = h.state();
+        let app = h.state_mut();
         assert_eq!((app.views[0].id, app.views[0].current, app.views[0].page_input.as_str()), (id, 1, "ii"));
         let doc = app.session.get(id).unwrap();
         assert_eq!(doc.path.as_deref(), Some(file.path.as_str()));

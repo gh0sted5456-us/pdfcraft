@@ -21,7 +21,7 @@ pub struct ImageImport {
 }
 
 pub(crate) fn image_import_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> (bool, bool) {
-    ui.heading(tl!("Create PDF from images"));
+    crate::widgets::dialog_heading(ui, tl!("Create PDF from images"));
     let Some(draft) = app.image_import.as_mut() else { return (false, true) };
     ui.label(crate::i18n::fmt(tl!("Selected image files: {count}"), &[("count", &draft.images.len().to_string())]));
     ui.add_space(8.0);

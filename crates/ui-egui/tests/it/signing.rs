@@ -568,7 +568,7 @@ fn long_digital_id_names_stay_inside_the_picker() {
     });
     h.state_mut().sign_draft.as_mut().unwrap().step = SignStep::Choose;
     h.run_steps(3);
-    let right = h.get_by_label("Continue").rect().right();
+    let right = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap().right() - 16.0;
     let lines: Vec<_> = h
         .output()
         .shapes
@@ -583,7 +583,7 @@ fn long_digital_id_names_stay_inside_the_picker() {
         assert!(line.galley.elided, "{}", line.galley.job.text);
         assert!(
             line.pos.x + line.galley.size().x <= right,
-            "the line ends at {} but the dialog's buttons end at {right}",
+            "the line ends at {} but the dialog's inner edge is {right}",
             line.pos.x + line.galley.size().x
         );
     }

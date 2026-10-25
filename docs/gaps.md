@@ -1,5 +1,11 @@
 # Where PdfCraft falls short of Acrobat Pro
 
+- **2026-10-24:** Centered shared confirmation groups (including Back/Cancel/primary actions); long tool bodies scroll independently. Button outlines remain inside their hit boxes. Small/large light/dark dialog and changing-action layout regressions cover this UI pass.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Shared centered modal titles across document tools, compact Assistant setup with aligned full-width fields and a dedicated connection footer, theme-aware semantic actions and wrapping narrow-screen footers. File/Edit/Pages commands are grouped by workflow, with separators and File/Edit/View/Pages/Help navigation. Existing permission/consent behavior is retained. Native Linux/macOS UI and browser runtime remain unverified; readiness estimates unchanged.
+
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 fixes JavaScript tool routing, preserves one isolated script realm per open PDF, dispatches Open/WillSave/WillPrint and widget actions, and adds an undoable standard document-action editor. Print Production now exposes existing resolution/font/bleed preflight plus bounded source-colour/spot/overprint inspection and page-box maps. Assistant size and shared dialog widths are capped for small viewports. Full Adobe/Foxit APIs, post-save/close/page/timer events, ICC soft proofing, separations, composited total ink coverage, conversion, printer marks and hairline repair remain separate; readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal 0.13.1 adds a centered starter gallery with 34 editable layouts, live form fields and versioned .pdfcraft-template import/export. Opening templates creates unsaved copies and preserves unsigned page locks; signed/protected sources are refused. Headless listing/creation/export and root-confinement coverage accompany the UI. Starter wording is English; booklet imposition and native Linux/macOS/browser runtime verification remain separate. Readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Locked pages now refuse Edit-mode interaction immediately: original text/images, added content, group selection, forms, crop and modifying context actions. Locked scans defer automatic OCR until unlocked. Engine write guards still apply; other readers may ignore these PdfCraft-only locks. Readiness estimates unchanged.
@@ -455,3 +461,8 @@ update the numbers.
 | 2026-10-10 | major | Created. Ranked 24 gaps from the 2026-10-10 re-measure, the open GitHub issues and the former ROADMAP.md §Where we're lacking and where we're going (renderer, hardening, fidelity, editing, Pro workflows, 1.0 polish), which this file replaces |
 
 - **2026-10-24:** Personal paper defaults, business-card starter, calibrated actual-size viewing and unified export picker; physical printing and native non-Windows runtime remain unverified.
+
+
+Personal JavaScript integration adapts public MIT/Apache Rust work from [PR #344](https://github.com/storytold/pdfcraft/pull/344), @DWAA1660, head `2b3a9f999a7a9dccdd678f49ac32bb763571d70e`, preserving this fork's newer immutable snapshots and code-from-string restrictions. The 16 MiB buffer hook follows the public approach in [PR #4069](https://github.com/storytold/pdfcraft/pull/4069). This does not include that PR's larger intrinsic replacement patch. These are source credits, not claims of upstream acceptance.
+
+Compatibility references: [Acrobat JavaScript execution contexts](https://developer.adobe.com/acrobat-pdfl-sdk/guides/jsdevguide/js-dev-contexts), [document API](https://developer.adobe.com/acrobat-pdfl-sdk/guides/jsapiref/doc), and [Foxit form scripting](https://help.foxit.com/manuals/pdf-editor/mac/en-us/2026.2/Work_with_PDF_Forms.html). No Adobe assets or implementation files were used. Script globals last only for the open document and are reset on revert/reload. Native Linux/macOS and browser runtime checks remain unverified.

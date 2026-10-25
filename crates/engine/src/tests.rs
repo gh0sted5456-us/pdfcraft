@@ -2512,7 +2512,7 @@ fn printing_keeps_hidden_layers_hidden() {
     pdf.extend_from_slice(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objs.len() + 1).as_bytes());
 
     // Red and green pixels on the first printed sheet.
-    let printed = |s: &Session, id: DocId| {
+    let printed = |s: &mut Session, id: DocId| {
         let bytes = s.print_pdf(id, &print::Settings { pages: vec![0], ..Default::default() }).unwrap();
         let mut out = Session::new();
         let printed = out.open("print.pdf", None, Arc::new(bytes), None).unwrap();
@@ -2524,21 +2524,21 @@ fn printing_keeps_hidden_layers_hidden() {
     };
     let mut s = Session::new();
     let id = s.open("layers.pdf", None, Arc::new(pdf), None).unwrap();
-    let (red, green) = printed(&s, id);
+    let (red, green) = printed(&mut s, id);
     assert!(red > 100 && green > 100, "untouched layers both print: {red} red, {green} green");
     let a = s.get(id).unwrap().info.layers.iter().position(|l| l.name == "Layer A").unwrap();
     assert!(s.set_layer_visible(id, a, false));
-    let (red, green) = printed(&s, id);
+    let (red, green) = printed(&mut s, id);
     assert_eq!(red, 0, "Layer A was hidden, so it doesn't print");
     assert!(green > 100, "Layer B still prints: {green} green");
     assert!(s.set_layer_visible(id, a, true));
-    let (red, _) = printed(&s, id);
+    let (red, _) = printed(&mut s, id);
     assert!(red > 100, "shown again, Layer A prints again: {red} red");
 }
 
 #[test]
 fn printing_lays_out_sheets_that_render() {
-    let (s, id) = session_with(5);
+    let (mut s, id) = session_with(5);
     let settings = print::Settings {
         pages: print::select_pages(5, Some("2-5"), &[], print::Subset::All, false).unwrap(),
         layout: print::Layout::multiple(2),
@@ -5006,7 +5006,8 @@ fn xfa_data_exports_imports_and_pictures_round_trip_through_the_session() {
     let cos = pdfcraft_cos::Document::open(s.save_bytes(id).unwrap()).unwrap();
     assert!(pdfcraft_xfa::data_of(&cos).unwrap().text_at(&som_to_path("form[0].page1[0].photo[0]")).unwrap().starts_with("iVBOR"));
     // Reopened: the picture and the imported values are what they were.
-    let id2 = s.open("again.pdf", None, s.save_bytes(id).unwrap(), None).unwrap();
+    let saved = s.save_bytes(id).unwrap();
+    let id2 = s.open("again.pdf", None, saved, None).unwrap();
     let d2 = s.get(id2).unwrap();
     assert_eq!(d2.form.iter().find(|f| f.name == "country").unwrap().value, vec!["FR".to_string()]);
     assert_eq!(d2.page_images(0).len(), 2);
@@ -6677,7 +6678,7 @@ fn marking_a_figure_decorative_keeps_other_page_streams() {
 /// grey. A page used on several sheets is rendered once.
 #[test]
 fn printing_as_image_sends_pictures_instead_of_pages() {
-    let (s, id) = session_with(3);
+    let (mut s, id) = session_with(3);
     let page_size = (s.get(id).unwrap().info.pages[1].width as f64, s.get(id).unwrap().info.pages[1].height as f64);
     let settings = print::Settings {
         pages: vec![1, 2, 1],
@@ -7701,4 +7702,16 @@ fn added_image_preview_keeps_pixels_outside_the_page() {
         assert!(preview.rgba.as_chunks::<4>().0.iter().any(|p| p[2] > 220 && p[0] < 30 && p[1] < 30 && p[3] > 220));
         assert_eq!(s.get(id).unwrap().bytes, before, "previews do not edit working bytes");
     }
+}
+
+#[test]
+fn certification_distinguishes_script_values_from_new_field_definitions() {
+    let value = Edit::ApplyScriptChanges {
+        changes: vec![pdfcraft_forms::FieldChange { name: "field".into(), value: Some(vec!["value".into()]), ..Default::default() }],
+    };
+    assert!(check_certified_edit(&value, Some(2)).is_ok());
+    let definition = Edit::ApplyScriptChanges {
+        changes: vec![pdfcraft_forms::FieldChange { name: "field".into(), actions: vec![("OnFocus".into(), "1".into())], ..Default::default() }],
+    };
+    assert!(check_certified_edit(&definition, Some(2)).is_err());
 }

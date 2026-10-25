@@ -1027,7 +1027,7 @@ fn alignment(ui: &mut egui::Ui, quadding: &mut i64) {
 pub(crate) fn body(ui: &mut egui::Ui, d: &mut FieldDraft, t: &crate::theme::Tokens) -> (bool, bool) {
     use crate::widgets;
     ui.set_width(600.0);
-    ui.label(egui::RichText::new(tl!(d.title())).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!(d.title()));
     ui.add_space(6.0);
     ui.horizontal_wrapped(|ui| {
         for (tab, label) in d.tabs() {

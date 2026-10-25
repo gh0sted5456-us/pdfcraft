@@ -4,7 +4,7 @@
 use pdfcraft_engine::js::{JsOutput, Request};
 use pdfcraft_engine::{DocId, Edit};
 
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{PdfCraftApp, widgets};
 
 /// The JavaScript console: the input and the output so far.
@@ -28,11 +28,105 @@ pub(crate) fn scripts_off_notice() -> String {
 }
 
 impl PdfCraftApp {
+    pub(crate) fn dispatch_form_events(&mut self, index: usize, ctx: &egui::Context) {
+        use pdfcraft_engine::{FieldTrigger as T, FormFieldKind as K};
+        if self.is_preparing() || self.dialog.is_some() || self.palette_open {
+            return;
+        }
+        let id = self.views[index].id;
+        let Some(doc) = self.session.get(id) else { return };
+        let (pointer, down, up) = ctx.input(|i| {
+            (i.pointer.hover_pos(), i.pointer.button_pressed(egui::PointerButton::Primary), i.pointer.button_released(egui::PointerButton::Primary))
+        });
+        let hovered = pointer.filter(|p| self.views[index].viewport_rect().contains(*p)).and_then(|p| {
+            doc.form
+                .iter()
+                .find(|f| {
+                    f.widgets.iter().enumerate().any(|(wi, w)| {
+                        !w.hidden && crate::forms_ui::field_screen_rect(&self.views[index], &doc.info, f, wi).is_some_and(|r| r.contains(p))
+                    })
+                })
+                .map(|f| f.name.clone())
+        });
+        let focus = if down {
+            hovered.clone()
+        } else {
+            self.views[index].forms.focus.as_ref().map(|f| f.name.clone()).or_else(|| {
+                self.views[index].forms.event_focus.clone().filter(|name| {
+                    doc.form.iter().find(|f| f.name == *name).is_some_and(|f| matches!(f.kind, K::PushButton | K::CheckBox | K::Radio))
+                })
+            })
+        };
+        let kind = hovered.as_ref().and_then(|name| doc.form.iter().find(|f| f.name == *name)).map(|f| f.kind);
+        let state = &mut self.views[index].forms;
+        let mut events = Vec::new();
+        if state.hovered != hovered {
+            if let Some(old) = state.hovered.take() {
+                events.push((old, T::MouseExit));
+            }
+            if let Some(new) = &hovered {
+                events.push((new.clone(), T::MouseEnter));
+            }
+            state.hovered = hovered.clone();
+        }
+        if state.event_focus != focus {
+            if let Some(old) = state.event_focus.take() {
+                events.push((old, T::OnBlur));
+            }
+            if let Some(new) = &focus {
+                events.push((new.clone(), T::OnFocus));
+            }
+            state.event_focus = focus;
+        }
+        if down {
+            state.event_pressed = hovered.clone();
+            if let Some(name) = &hovered {
+                events.push((name.clone(), T::MouseDown));
+            }
+        }
+        let released = up && state.event_pressed.take().is_some_and(|name| hovered.as_ref() == Some(&name));
+        for (field, trigger) in events {
+            self.dispatch_field_js(index, &field, trigger);
+        }
+        let toggle_edit = self.views[index]
+            .pending_edit
+            .as_ref()
+            .is_some_and(|edit| matches!(edit, Edit::SetFieldValue { name, .. } if hovered.as_ref() == Some(name)));
+        // A checkbox's Mouse Up observes its newly stored value; push buttons run below.
+        if !self.process_pending_edits() {
+            return;
+        }
+        if released
+            && !matches!(kind, Some(K::PushButton))
+            && (!matches!(kind, Some(K::CheckBox | K::Radio)) || !toggle_edit)
+            && let Some(name) = hovered
+        {
+            self.dispatch_field_js(index, &name, T::MouseUp);
+        }
+    }
+
+    fn dispatch_field_js(&mut self, index: usize, field: &str, trigger: pdfcraft_engine::FieldTrigger) {
+        let id = self.views[index].id;
+        let generation = self.session.get(id).map(|d| d.edit_generation());
+        match self.session.run_field_event(id, field, trigger) {
+            Ok(output) => {
+                if let Some(doc) = self.session.get(id)
+                    && Some(doc.edit_generation()) != generation
+                {
+                    self.views[index].document_changed(&doc.info);
+                }
+                self.handle_js(id, output);
+            }
+            Err(error) => self.notify_error(error),
+        }
+    }
+
     /// Act on what scripts produced in document `id`: alerts are shown, console output goes to
     /// the console, print and page requests are carried out, links wait for the user's permission
     /// (form submissions are reported, never sent).
     pub fn handle_js(&mut self, id: DocId, out: JsOutput) {
         let view = self.views.iter().position(|v| v.id == id);
+        let mut scripts_off_notice_shown = false;
         // A script that ran away turned the form's scripts off: calculations and buttons stop
         // working, and the error is only in the console. Say so once, and bring the notice bar
         // (which keeps saying so) back if it was closed. A message of the form's own, below,
@@ -44,6 +138,7 @@ impl PdfCraftApp {
             v.scripts_off_noted = true;
             v.notice_dismissed = false;
             self.notify(scripts_off_notice());
+            scripts_off_notice_shown = true;
         }
         if out.is_empty() {
             return;
@@ -51,6 +146,10 @@ impl PdfCraftApp {
         self.js_console.log.extend(out.console.iter().cloned());
         for e in &out.errors {
             self.js_console.log.push(format!("Error: {e}"));
+        }
+        // Keep the actionable scripts-off explanation; the detailed error is in the console.
+        if !scripts_off_notice_shown && let Some(error) = out.errors.first() {
+            self.notify_error(error);
         }
         for r in out.requests {
             match r {
@@ -151,7 +250,15 @@ fn buttons(ui: &mut egui::Ui, primary: &str, others: &[&str]) -> Option<String> 
             for o in others {
                 if ui
                     .push_id(o, |ui| {
-                        widgets::dialog_button(ui, tl!(o), if *o == "Cancel" { widgets::DialogAction::Cancel } else { widgets::DialogAction::Back })
+                        widgets::dialog_button(
+                            ui,
+                            tl!(o),
+                            match *o {
+                                "Cancel" | "Close" => widgets::DialogAction::Cancel,
+                                "Delete" | "Clear" => widgets::DialogAction::Destructive,
+                                _ => widgets::DialogAction::Back,
+                            },
+                        )
                     })
                     .inner
                     .clicked()
@@ -166,7 +273,7 @@ fn buttons(ui: &mut egui::Ui, primary: &str, others: &[&str]) -> Option<String> 
 
 /// The JavaScript console. Returns `true` to close.
 pub(crate) fn console_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
-    ui.label(egui::RichText::new(tl!("JavaScript Console")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("JavaScript Console"));
     ui.add_space(6.0);
     if !app.session.javascript() {
         ui.label(egui::RichText::new(tl!("JavaScript is turned off (Preferences ▸ JavaScript).")).small().color(t.text_muted));
@@ -207,7 +314,7 @@ pub(crate) fn console_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
 
 /// Document JavaScripts: list, edit, add and delete. Returns `true` to close.
 pub(crate) fn document_js_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
-    ui.label(egui::RichText::new(tl!("Document JavaScripts")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Document JavaScripts"));
     ui.add_space(6.0);
     let scripts = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.document_scripts()).unwrap_or_default();
     let mut edit: Option<Edit> = None;
@@ -249,6 +356,34 @@ pub(crate) fn document_js_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
     };
     if let Some(e) = edit {
         app.apply_edit(e);
+    }
+    close
+}
+
+pub(crate) fn document_actions_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
+    crate::widgets::dialog_heading(ui, "Document actions");
+    ui.label("Scripts share this PDF's isolated JavaScript state. File and network access are unavailable.");
+    let actions = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.document_actions()).unwrap_or_default();
+    let old = app.doc_js.name.clone();
+    egui::ComboBox::from_id_salt("document-action-event").selected_text(&old).show_ui(ui, |ui| {
+        for event in pdfcraft_engine::js::DOCUMENT_EVENTS {
+            ui.selectable_value(&mut app.doc_js.name, event.into(), event);
+        }
+    });
+    if app.doc_js.name != old {
+        app.doc_js.script = actions.iter().find(|(e, _)| *e == app.doc_js.name).map(|(_, s)| s.clone()).unwrap_or_default();
+    }
+    ui.add(crate::widgets::block(&mut app.doc_js.script).code_editor().desired_rows(10).desired_width(f32::INFINITY));
+    ui.label("Open runs on opening; WillSave runs before serialization; WillPrint runs before print layout. Other lifecycle events are preserved but do not run yet.");
+    let mut close = false;
+    let mut save = false;
+    widgets::dialog_footer(ui, |ui| {
+        save = widgets::dialog_button(ui, "Save", widgets::DialogAction::Confirm).clicked();
+        close = widgets::dialog_button(ui, "Cancel", widgets::DialogAction::Cancel).clicked();
+    });
+    if save {
+        let script = (!app.doc_js.script.trim().is_empty()).then(|| app.doc_js.script.clone());
+        close = app.apply_edit(Edit::SetDocumentAction { event: app.doc_js.name.clone(), script });
     }
     close
 }

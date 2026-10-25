@@ -81,39 +81,41 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     let d = &mut app.ocr_draft;
     d.to = d.to.clamp(1, pages);
     d.from = d.from.clamp(1, d.to);
-    ui.label(egui::RichText::new(tl!("Recognize Text")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Recognize Text"));
     ui.add_space(8.0);
-    let group = |ui: &mut egui::Ui, title: &str, body: &mut dyn FnMut(&mut egui::Ui)| {
-        ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(13.0)));
-        egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            body(ui);
+    widgets::dialog_scroll(ui, "ocr-body", |ui| {
+        let group = |ui: &mut egui::Ui, title: &str, body: &mut dyn FnMut(&mut egui::Ui)| {
+            ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(13.0)));
+            egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(10)).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                body(ui);
+            });
+            ui.add_space(8.0);
+        };
+        group(ui, "Pages", &mut |ui| {
+            widgets::radio_value(ui, &mut d.pages, OcrPages::All, tl!("All pages"));
+            widgets::radio_value(ui, &mut d.pages, OcrPages::Current, tl!("Current page"));
+            ui.horizontal(|ui| {
+                widgets::radio_value(ui, &mut d.pages, OcrPages::Range, tl!("From"));
+                let on = d.pages == OcrPages::Range;
+                ui.add_enabled(on, egui::DragValue::new(&mut d.from).range(1..=pages));
+                ui.label(tl!("to"));
+                ui.add_enabled(on, egui::DragValue::new(&mut d.to).range(1..=pages));
+            });
         });
-        ui.add_space(8.0);
-    };
-    group(ui, "Pages", &mut |ui| {
-        widgets::radio_value(ui, &mut d.pages, OcrPages::All, tl!("All pages"));
-        widgets::radio_value(ui, &mut d.pages, OcrPages::Current, tl!("Current page"));
-        ui.horizontal(|ui| {
-            widgets::radio_value(ui, &mut d.pages, OcrPages::Range, tl!("From"));
-            let on = d.pages == OcrPages::Range;
-            ui.add_enabled(on, egui::DragValue::new(&mut d.from).range(1..=pages));
-            ui.label(tl!("to"));
-            ui.add_enabled(on, egui::DragValue::new(&mut d.to).range(1..=pages));
+        group(ui, "Settings", &mut |ui| {
+            settings_controls(ui, d);
         });
-    });
-    group(ui, "Settings", &mut |ui| {
-        settings_controls(ui, d);
-    });
-    if !available {
-        ui.label(
+        if !available {
+            ui.label(
             egui::RichText::new(tl!("Text recognition isn't installed: its model files are missing. Reinstall PdfCraft, or set PDFCRAFT_MODELS to the folder that holds them."))
                 .small()
                 .color(t.text_muted),
         );
+            ui.add_space(6.0);
+        }
         ui.add_space(6.0);
-    }
-    ui.add_space(6.0);
+    });
     let (mut go, mut cancel) = (false, false);
     ui.horizontal(|ui| {
         crate::widgets::dialog_footer(ui, |ui| {
@@ -176,7 +178,7 @@ pub(crate) fn toggle(ui: &mut egui::Ui, app: &mut PdfCraftApp) {
 }
 
 pub(crate) fn scan_prompt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> (Option<bool>, bool) {
-    ui.label(egui::RichText::new(tl!("Scanned text detected")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Scanned text detected"));
     ui.add_space(8.0);
     ui.label(tl!("Recognize text on this page or throughout the document?"));
     ui.add_space(8.0);

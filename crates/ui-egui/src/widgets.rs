@@ -149,9 +149,46 @@ pub(crate) fn dialog_button_width(ui: &egui::Ui, label: &str) -> f32 {
     (text_width(ui, label, &theme::medium(12.5)) + 26.0).max(80.0)
 }
 
-/// Span the width without centering buttons in unused vertical space.
+/// Center the complete action group, retaining right-to-left primary/cancel/back order.
 pub(crate) fn dialog_footer<R>(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
-    ui.horizontal(|ui| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), content).inner)
+    let available = ui.available_rect_before_wrap();
+    let width = ui.available_width();
+    let id = ui.id().with("dialog-action-width");
+    let previous = ui.ctx().data(|d| d.get_temp::<f32>(id)).unwrap_or(width).min(width);
+    let right = available.left() + (width + previous) * 0.5;
+    // Keep the full wrapping width when actions change; only their group's alignment is cached.
+    let rect = Rect::from_min_size(egui::pos2(right - width, available.top()), vec2(width, 28.0));
+    ui.scope_builder(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::right_to_left(egui::Align::Center).with_main_wrap(true)), |ui| {
+        let value = content(ui);
+        let bounds = ui.min_rect();
+        let measured = bounds.width().min(width);
+        ui.ctx().data_mut(|d| {
+            d.insert_temp(id, measured);
+            d.insert_temp(egui::Id::new("dialog-action-bounds"), bounds);
+        });
+        if (measured - previous).abs() > 0.5 {
+            ui.ctx().request_repaint();
+        }
+        value
+    })
+}
+
+/// Scroll long tool settings while their confirmation row stays in view.
+pub(crate) fn dialog_scroll<R>(ui: &mut egui::Ui, id: &str, content: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let header = ui.cursor().top() - ui.min_rect().top();
+    let height = (ui.ctx().content_rect().height() - header - 160.0).clamp(40.0, 620.0);
+    ui.spacing_mut().scroll.floating = false;
+    let width = ui.available_width();
+    egui::ScrollArea::both()
+        .id_salt(id)
+        .max_width(width)
+        .max_height(height)
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            ui.set_width(width);
+            content(ui)
+        })
+        .inner
 }
 
 /// Shared matte actions: navigation is neutral, cancellation blue, confirmation green, deletion red.
@@ -176,7 +213,7 @@ pub(crate) fn dialog_button_marked(ui: &mut egui::Ui, label: &str, action: Dialo
     let down = t.field.lerp_to_gamma(color, if t.dark() { 0.50 } else { 0.30 });
     ui.painter().rect_filled(rect, 14, if enabled { press.fill(t.field, hover, down) } else { t.field });
     let edge = if focused { color.lerp_to_gamma(t.text, 0.35) } else { t.border.lerp_to_gamma(color, if enabled { press.hover } else { 0.0 }) };
-    ui.painter().rect_stroke(rect.expand(3.0), 17, Stroke::new(if focused { 2.0 } else { 1.0 }, edge), egui::StrokeKind::Outside);
+    ui.painter().rect_stroke(rect.shrink(0.5), 14, Stroke::new(if focused { 2.0 } else { 1.0 }, edge), egui::StrokeKind::Inside);
     ui.painter().text(
         rect.translate(press.offset()).center(),
         Align2::CENTER_CENTER,
@@ -264,6 +301,11 @@ pub fn search_box(ui: &mut egui::Ui, placeholder: &str, width: f32) -> Response 
     ui.painter().with_clip_rect(rect).galley(shortcut_pos, shortcut, t.text_faint);
     let resp = resp.on_hover_cursor(egui::CursorIcon::Text);
     if elided { resp.on_hover_text(placeholder) } else { resp }
+}
+
+/// Shared modal title: centered in the card, with the same type size in every tool.
+pub(crate) fn dialog_heading(ui: &mut egui::Ui, title: impl Into<String>) -> Response {
+    ui.vertical_centered(|ui| ui.label(egui::RichText::new(title).font(theme::semibold(18.0)))).inner
 }
 
 pub fn menu_item(ui: &mut egui::Ui, label: &str, shortcut: &str) -> Response {
@@ -749,6 +791,52 @@ mod tests {
     use egui::Pos2;
 
     #[test]
+    fn confirmation_groups_stay_centered_when_actions_change() {
+        let ctx = egui::Context::default();
+        ctx.set_fonts(theme::font_definitions());
+        for labels in [vec!["Close"], vec!["Save", "Cancel"], vec!["Save", "Exit", "Cancel"]] {
+            let mut group = Rect::NOTHING;
+            for _ in 0..4 {
+                ctx.run_ui(egui::RawInput::default(), |ui| {
+                    ui.set_width(400.0);
+                    group = Rect::NOTHING;
+                    dialog_footer(ui, |ui| {
+                        for label in &labels {
+                            group = group.union(dialog_button(ui, label, DialogAction::Confirm).rect);
+                        }
+                    });
+                })
+                .drop_without_applying_deltas();
+            }
+            assert!((group.center().x - 200.0).abs() < 1.0, "{labels:?}: {group:?}");
+        }
+    }
+
+    #[test]
+    fn dialog_button_outline_stays_inside_its_hit_box() {
+        let ctx = egui::Context::default();
+        ctx.set_fonts(theme::font_definitions());
+        let mut button = Rect::NOTHING;
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            button = dialog_button_marked(ui, "Save", DialogAction::Confirm, true).rect;
+        });
+        let shapes = output.shapes.clone();
+        output.drop_without_applying_deltas();
+        let mut outlines = 0;
+        for clipped in &shapes {
+            if let egui::epaint::Shape::Rect(shape) = &clipped.shape
+                && shape.stroke.width > 0.0
+                && shape.rect.intersects(button)
+            {
+                outlines += 1;
+                let paint = clipped.shape.visual_bounding_rect();
+                assert!(button.expand(0.01).contains_rect(paint), "button outline is clipped at a scroll-panel edge: {paint:?} outside {button:?}");
+            }
+        }
+        assert!(outlines > 0);
+    }
+
+    #[test]
     fn search_placeholder_never_overlaps_the_shortcut() {
         let previous = crate::i18n::current();
         for (code, expected) in [("en", "Ctrl+K"), ("de", "Strg+K")] {
@@ -973,9 +1061,10 @@ mod tests {
                     sizes.push(dialog_button_marked(ui, label, role, true).rect.size());
                 }
             });
+            let shapes = out.shapes.clone();
+            out.drop_without_applying_deltas();
             assert!(sizes.iter().all(|size| size.x >= 80. && size.y == 28.));
-            let colors: Vec<_> = out
-                .shapes
+            let colors: Vec<_> = shapes
                 .iter()
                 .filter_map(|s| match &s.shape {
                     egui::Shape::Rect(r) if r.stroke.width == 2. => Some(r.stroke.color),
@@ -988,7 +1077,6 @@ mod tests {
             assert!(cancel.b() > cancel.r() && cancel.b() > cancel.g(), "Cancel must be blue");
             assert!(save.g() > save.r() && save.g() > save.b(), "Save must be green");
             assert!(exit.r() > exit.g() && exit.r() > exit.b(), "Exit must be red");
-            out.drop_without_applying_deltas();
         }
     }
 

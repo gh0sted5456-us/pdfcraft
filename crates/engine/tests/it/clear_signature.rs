@@ -140,10 +140,10 @@ fn removing_the_only_signature_removes_its_field_and_a_clean_copy_drops_it() {
     s.apply(id, Edit::ClearSignature { field: field.clone(), remove_field: true }).unwrap();
     let doc = s.get(id).unwrap();
     assert!(doc.signatures.is_empty() && doc.form.is_empty() && !doc.is_signed());
-    assert_eq!(page_annots(&reopen(s.save_bytes(id).unwrap()), 0), 0, "the widget left its page");
     assert_eq!(doc.info.pages.len(), 2);
-    assert_eq!(page_texts(&s, id), texts, "page content is untouched");
     assert_eq!(doc.can_undo(), Some("Remove the signature Signature1"));
+    assert_eq!(page_annots(&reopen(s.save_bytes(id).unwrap()), 0), 0, "the widget left its page");
+    assert_eq!(page_texts(&s, id), texts, "page content is untouched");
 
     // Saved in place it is incremental, so the signed revision is still inside the file.
     let incremental = s.save_bytes(id).unwrap();

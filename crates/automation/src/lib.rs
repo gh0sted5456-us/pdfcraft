@@ -198,6 +198,11 @@ impl Automation {
         &self.session
     }
 
+    /// Direct engine access for operations that dispatch document actions (save and print).
+    pub fn session_mut(&mut self) -> &mut Session {
+        &mut self.session
+    }
+
     /// Save `bytes` that a caller writes on the session's behalf, such as `pdfcraft-cli run`
     /// saving a rendered page. With a root, it is confined like a tool's own output (a relative
     /// path resolves inside it). Written atomically either way (#2166), except to something
@@ -926,6 +931,9 @@ impl Automation {
             "accessibility_autotag_apply" => self.accessibility_autotag_apply(&a)?,
             "accessibility_autotag_form_fields" => self.accessibility_autotag_form_fields(&a)?,
             "ocr_recognize" => self.ocr_recognize(&a)?,
+            "js_field_event" => self.js_field_event(&a)?,
+            "js_document_actions" => self.js_document_actions(&a)?,
+            "js_set_document_action" => self.js_set_document_action(&a)?,
             "js_run" => self.js_run(&a)?,
             "js_document_scripts" => self.js_document_scripts(&a)?,
             "js_set_document_script" => self.js_set_document_script(&a)?,
@@ -937,6 +945,7 @@ impl Automation {
             "doc_compare" => self.doc_compare(&a)?,
             "action_list" => self.action_list()?,
             "pdfa_verify" => self.pdfa_verify(&a)?,
+            "output_inspection" => self.output_inspection(&a)?,
             "print_readiness" => self.print_readiness(&a)?,
             "doc_export_office" => self.doc_export_office(&a)?,
             "pdfa_convert" => self.pdfa_convert(&a)?,

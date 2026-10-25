@@ -96,3 +96,100 @@ fn document_properties_long_filename_does_not_overflow_card() {
     let card = card(&h, "dialog");
     assert!(card.width() <= 700.0, "dialog card should not blow out horizontally on long filename, width was: {}", card.width());
 }
+
+#[test]
+fn shared_dialogs_remain_centered_and_fit_small_and_large_windows() {
+    let _gpu = super::gpu();
+    for size in [egui::vec2(640.0, 480.0), egui::vec2(1200.0, 800.0)] {
+        for theme in ["light", "dark"] {
+            for dialog in [
+                "properties",
+                "security",
+                "fonts",
+                "advanced",
+                "shortcuts",
+                "split",
+                "protect",
+                "page-boxes",
+                "header-footer",
+                "watermark",
+                "background",
+                "export-image",
+                "export-text",
+                "recognize-text",
+                "js-console",
+                "document-js",
+                "document-actions",
+                "preferences",
+                "templates",
+                "compare-files",
+                "action-wizard",
+                "pdfa",
+                "signature",
+                "optimize",
+                "number-pages",
+                "print-production",
+                "output-inspection",
+                "print",
+                "about",
+                "custom-page",
+                "export-to",
+                "save-template",
+                "word-count",
+            ] {
+                let mut h = Harness::builder().with_size(size).build_eframe(move |_| {
+                    let mut app = PdfCraftApp::new();
+                    app.set_option("language", "en").unwrap();
+                    app.set_option("theme", theme).unwrap();
+                    app.open_bytes("Synthetic.pdf", None, fixture()).unwrap();
+                    match dialog {
+                        "print" => app.dialog = Some(pdfcraft_ui_egui::Dialog::Print),
+                        "custom-page" => {
+                            assert!(app.execute("create.custom"));
+                        }
+                        "export-to" => {
+                            assert!(app.execute("export.choose"));
+                        }
+                        "save-template" => {
+                            assert!(app.execute("create.save_template"));
+                        }
+                        _ => app.set_option("dialog", dialog).unwrap(),
+                    }
+                    app
+                });
+                h.run_steps(8);
+                let card = card(&h, "dialog");
+                let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, size);
+                assert!(screen.contains_rect(card), "{dialog} {theme} {size:?}: {card:?}");
+                assert!((card.center() - screen.center()).length() < 2.0, "{dialog} off centre: {card:?}");
+                let actions = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog-action-bounds")));
+                if let Some(actions) = actions {
+                    assert!(card.contains_rect(actions), "{dialog} {theme} {size:?}: footer {actions:?} outside {card:?}");
+                    assert!((actions.center().x - card.center().x).abs() < 2.0, "{dialog} {theme}: footer {actions:?} off center in {card:?}");
+                }
+                if dialog == "templates" {
+                    for label in ["Custom page...", "Import template...", "Export template..."] {
+                        assert!(card.contains_rect(h.get_by_label(label).rect()), "{label} clipped in {size:?}");
+                    }
+                }
+                let title = match dialog {
+                    "properties" => Some("Document Properties"),
+                    "js-console" => Some("JavaScript Console"),
+                    "document-js" => Some("Document JavaScripts"),
+                    "document-actions" => Some("Document actions"),
+                    "print-production" | "output-inspection" => Some("Print Production"),
+                    _ => None,
+                };
+                if let Some(title) = title {
+                    assert!((h.get_by_label(title).rect().center().x - card.center().x).abs() < 2.0, "{dialog} title is off center");
+                }
+
+                if (size.x < 800.0 || matches!(dialog, "print-production" | "output-inspection" | "document-actions"))
+                    && let Ok(dir) = std::env::var("PDFCRAFT_POPUP_SHOTS")
+                {
+                    h.render().unwrap().save(format!("{dir}/{dialog}-{theme}-{}.png", size.x)).unwrap();
+                }
+            }
+        }
+    }
+}

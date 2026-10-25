@@ -45,6 +45,9 @@ pub struct Focus {
 
 #[derive(Clone, Debug, Default)]
 pub struct FormView {
+    pub(crate) hovered: Option<String>,
+    pub(crate) event_focus: Option<String>,
+    pub(crate) event_pressed: Option<String>,
     pub focus: Option<Focus>,
     /// The draft whose edit is queued (`DocView::pending_edit`): if the field refuses the value,
     /// the editor reopens with it rather than losing the typing.

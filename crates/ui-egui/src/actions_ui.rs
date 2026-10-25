@@ -233,44 +233,46 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     if app.wizard.editing.is_some() {
         return edit_body(ui, app, t);
     }
-    ui.label(egui::RichText::new(tl!("Action Wizard")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Action Wizard"));
     ui.add_space(8.0);
     let actions = app.all_actions();
     if app.wizard.selected.as_ref().is_none_or(|s| !actions.iter().any(|a| &a.name == s)) {
         app.wizard.selected = actions.first().map(|a| a.name.clone());
     }
-    ui.horizontal_top(|ui| {
-        ui.vertical(|ui| {
-            ui.set_width(220.0);
-            egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(6)).show(ui, |ui| {
-                ui.set_width(208.0);
-                ui.set_min_height(260.0);
-                for a in &actions {
-                    let on = app.wizard.selected.as_deref() == Some(a.name.as_str());
-                    let name = if a.builtin { tl!(&a.name) } else { &a.name };
-                    if ui.selectable_label(on, name).clicked() {
-                        app.wizard.selected = Some(a.name.clone());
+    crate::widgets::dialog_scroll(ui, "wizard-body", |ui| {
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(220.0);
+                egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(6)).show(ui, |ui| {
+                    ui.set_width(208.0);
+                    ui.set_min_height(260.0);
+                    for a in &actions {
+                        let on = app.wizard.selected.as_deref() == Some(a.name.as_str());
+                        let name = if a.builtin { tl!(&a.name) } else { &a.name };
+                        if ui.selectable_label(on, name).clicked() {
+                            app.wizard.selected = Some(a.name.clone());
+                        }
                     }
+                });
+            });
+            ui.vertical(|ui| {
+                let Some(a) = actions.iter().find(|a| app.wizard.selected.as_deref() == Some(a.name.as_str())) else { return };
+                let name = if a.builtin { tl!(&a.name) } else { &a.name };
+                ui.label(egui::RichText::new(name).font(theme::semibold(15.0)));
+                if !a.description.is_empty() {
+                    let description = if a.builtin { tl!(&a.description) } else { &a.description };
+                    ui.label(egui::RichText::new(description).color(t.text_muted));
+                }
+                ui.add_space(6.0);
+                ui.label(egui::RichText::new(tl!("Steps")).font(theme::semibold(13.0)));
+                for (i, s) in a.steps.iter().enumerate() {
+                    let arg = s.arg().filter(|x| !x.is_empty()).map(|x| format!(": {x}")).unwrap_or_default();
+                    ui.label(format!("{}. {}{arg}", i + 1, tl!(s.label())));
                 }
             });
         });
-        ui.vertical(|ui| {
-            let Some(a) = actions.iter().find(|a| app.wizard.selected.as_deref() == Some(a.name.as_str())) else { return };
-            let name = if a.builtin { tl!(&a.name) } else { &a.name };
-            ui.label(egui::RichText::new(name).font(theme::semibold(15.0)));
-            if !a.description.is_empty() {
-                let description = if a.builtin { tl!(&a.description) } else { &a.description };
-                ui.label(egui::RichText::new(description).color(t.text_muted));
-            }
-            ui.add_space(6.0);
-            ui.label(egui::RichText::new(tl!("Steps")).font(theme::semibold(13.0)));
-            for (i, s) in a.steps.iter().enumerate() {
-                let arg = s.arg().filter(|x| !x.is_empty()).map(|x| format!(": {x}")).unwrap_or_default();
-                ui.label(format!("{}. {}{arg}", i + 1, tl!(s.label())));
-            }
-        });
+        ui.add_space(10.0);
     });
-    ui.add_space(10.0);
     let selected_custom = app.wizard.selected.as_ref().and_then(|n| app.custom_actions.iter().position(|a| &a.name == n));
     let mut close = false;
     ui.horizontal(|ui| {
@@ -287,22 +289,22 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
                 app.wizard.selected = None;
             }
         }
-        crate::widgets::dialog_footer(ui, |ui| {
-            if widgets::dialog_button(ui, tl_ctx!("action wizard", "Start"), widgets::DialogAction::Confirm).clicked() {
-                close = true;
-                app.start_selected_action();
-            }
-            if widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked() {
-                close = true;
-            }
-        });
+    });
+    crate::widgets::dialog_footer(ui, |ui| {
+        if widgets::dialog_button(ui, tl_ctx!("action wizard", "Start"), widgets::DialogAction::Confirm).clicked() {
+            close = true;
+            app.start_selected_action();
+        }
+        if widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked() {
+            close = true;
+        }
     });
     close
 }
 
 fn edit_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     let Some((original, a)) = app.wizard.editing.as_mut() else { return false };
-    ui.label(egui::RichText::new(if original.is_some() { tl!("Edit Action") } else { tl!("New Action") }).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, if original.is_some() { tl!("Edit Action") } else { tl!("New Action") });
     ui.add_space(8.0);
     egui::Grid::new("action-edit").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
         ui.label(tl!("Action name:"));

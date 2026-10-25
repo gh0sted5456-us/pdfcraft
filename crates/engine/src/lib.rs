@@ -31,6 +31,7 @@ pub mod js;
 pub mod links;
 pub mod ocr;
 pub mod optimizer;
+pub mod outputcheck;
 mod page_workflows;
 pub mod print_raster;
 pub mod printcheck;
@@ -282,6 +283,7 @@ fn uses_scripts(edit: &Edit) -> bool {
 
 fn scope_of(edit: &Edit) -> Scope {
     match edit {
+        Edit::ApplyScriptChanges { changes } if js::structural_changes(changes) => Scope::Full,
         Edit::SetInfo { .. } => Scope::Metadata,
         // A file attachment also changes the Attachments list.
         Edit::AddAnnotation(a) if matches!(a.shape, Shape::Attachment { .. }) => Scope::Full,
@@ -436,6 +438,7 @@ pub struct Document {
     config: RenderConfig,
     /// What field scripts printed or asked for (see [`Session::take_js_output`]).
     js_output: js::JsOutput,
+    js_runtime: Option<pdfcraft_js::Runtime>,
     /// Dynamic XFA forms: what laying the template out produced (pages and fields are
     /// PdfCraft's; Adobe's viewers draw the form from the XFA packets themselves).
     pub xfa: Option<XfaLayout>,
@@ -1748,6 +1751,10 @@ pub enum Edit {
     },
     /// Document JavaScripts: add, replace (`script`) or remove (`None`) the document-level
     /// script `name`.
+    SetDocumentAction {
+        event: String,
+        script: Option<String>,
+    },
     SetDocumentScript {
         name: String,
         script: Option<String>,
@@ -2279,6 +2286,7 @@ impl Edit {
             Edit::ConvertPdfA { level } => Label::with("Save as {level}", level.label()),
             Edit::RemoveStandardId { standard } => Label::with("Remove {standard} identification", standard.label()),
             Edit::SetFieldScript { name, .. } => Label::with("Edit script of {name}", name.as_str()),
+            Edit::SetDocumentAction { .. } => Label::of("Edit document action"),
             Edit::SetDocumentScript { script: None, .. } => Label::of("Delete document JavaScript"),
             Edit::SetDocumentScript { .. } => Label::of("Edit document JavaScript"),
             Edit::EditTextLine { .. } | Edit::EditTextBlock { .. } => Label::of("Edit text"),
@@ -2394,6 +2402,7 @@ fn check_certified_edit(edit: &Edit, permission: Option<u8>) -> Result<(), EditE
 
 fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), EditError> {
     match edit {
+        Edit::ApplyScriptChanges { changes } if js::structural_changes(changes) && !p.modify() => Err(EditError::NotPermitted("changes to field definitions")),
         Edit::RotatePages { .. }
         | Edit::DeletePages { .. }
         | Edit::MovePages { .. }
@@ -2503,6 +2512,7 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
         | Edit::MarkDecorative { .. }
         | Edit::MarkTagArtifact { .. }
         | Edit::AddOcrText { .. }
+        | Edit::SetDocumentAction { .. }
         | Edit::SetDocumentScript { .. }
         | Edit::SetFieldScript { .. }
         | Edit::ConvertPdfA { .. }
@@ -2724,10 +2734,32 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
         Edit::SetAnnotationInfo { page, index, author, subject, icon } => {
             pdfcraft_annot::set_info(doc, *page, *index, author.as_deref(), subject.as_deref(), *icon, &cx.meta())?;
         }
-        Edit::SetFieldValue { name, value } => match cx.js.as_mut() {
-            Some(js) => pdfcraft_forms::set_value_with(doc, name, value, js)?,
-            None => pdfcraft_forms::set_value(doc, name, value)?,
-        },
+        Edit::SetFieldValue { name, value } => {
+            match cx.js.as_mut() {
+                Some(js) => pdfcraft_forms::set_value_with(doc, name, value, js)?,
+                None => pdfcraft_forms::set_value(doc, name, value)?,
+            }
+            if let Some(js) = cx.js.as_mut() {
+                let fields = pdfcraft_forms::fields(doc);
+                if let Some(target) = fields.iter().find(|f| f.name == *name && matches!(f.kind, FormFieldKind::CheckBox | FormFieldKind::Radio)) {
+                    for (trigger, action) in pdfcraft_forms::field_actions(doc, name)? {
+                        if trigger == pdfcraft_forms::Trigger::MouseUp
+                            && let pdfcraft_forms::FieldAction::JavaScript(script) = action
+                        {
+                            let result = pdfcraft_forms::Scripts::run(
+                                js,
+                                pdfcraft_forms::FieldEvent::MouseUp,
+                                &script,
+                                target,
+                                &target.value.join(","),
+                                &fields,
+                            );
+                            pdfcraft_forms::apply_script_changes(doc, &result.changes, js)?;
+                        }
+                    }
+                }
+            }
+        }
         Edit::ApplyScriptChanges { changes } => match cx.js.as_mut() {
             Some(js) => pdfcraft_forms::apply_script_changes(doc, changes, js)?,
             None => pdfcraft_forms::apply_script_changes(doc, changes, &mut pdfcraft_forms::NoScripts)?,
@@ -2835,6 +2867,7 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             pdfcraft_preflight::convert(doc, *level).map_err(|e| EditError::Invalid(e.to_string()))?;
         }
         Edit::RemoveStandardId { standard } => pdfcraft_organize::remove_standard_id(doc, *standard)?,
+        Edit::SetDocumentAction { event, script } => js::set_document_action(doc, event, script.as_deref())?,
         Edit::SetDocumentScript { name, script } => pdfcraft_forms::set_document_script(doc, name, script.as_deref())?,
         Edit::AddOcrText { page, words } => {
             ocr::add_text(doc, *page, words)?;
@@ -3680,6 +3713,11 @@ impl Session {
         let mut document = prepared.document;
         document.id = id;
         self.docs.push(document);
+        if let Err(error) = self.run_document_event(id, "Open")
+            && let Some(d) = self.docs.iter_mut().find(|d| d.id == id)
+        {
+            d.js_output.errors.push(format!("The document's open scripts could not be applied: {error}"));
+        }
         id
     }
 
@@ -3946,6 +3984,7 @@ impl Session {
             editor,
             config,
             js_output: Default::default(),
+            js_runtime: None,
             xfa,
             xfa_template: None,
             xfa_scripts_off: false,
@@ -3964,6 +4003,7 @@ impl Session {
         let now = self.now();
         let today = self.today();
         let js_off = self.js_off;
+        let runtime = if !js_off && uses_scripts(&edit) { Some(self.js_runtime(id)?) } else { None };
         let doc = self.doc_mut(id)?;
         doc.edit_notices.clear();
         let name = doc.name.clone();
@@ -3977,6 +4017,7 @@ impl Session {
         cx.today = today;
         let reason = doc.read_only_reason.clone().unwrap_or_default();
         let signed = doc.is_signed();
+        let structural_scripts = doc.certification().is_none() && doc.permissions().is_none_or(|p| p.modify());
         check_certified_edit(&edit, doc.certification())?;
         let page_rules: Vec<_> = doc.signatures.iter().filter_map(|s| s.protection.clone()).collect();
         let editor = doc.editor.as_mut().ok_or(EditError::ReadOnly(reason))?;
@@ -4005,8 +4046,10 @@ impl Session {
             return Ok(());
         }
         let mut next = editor.cos.clone();
-        if !js_off && uses_scripts(&edit) {
-            cx.js = Some(js::JsRunner::new(&next, &name));
+        if let Some(runtime) = runtime {
+            let mut runner = js::JsRunner::with_runtime(&next, &name, runtime);
+            runner.allow_structure = structural_scripts;
+            cx.js = Some(runner);
         }
         cx.renamed_fields.clear();
         cx.redaction_overlays.clear();
@@ -4512,7 +4555,8 @@ impl Session {
     /// was edited: its bytes as opened are the damaged file, and this save is how the repair the
     /// user was told about reaches the disk (#1937). Not a signed one: a full rewrite would
     /// break its signatures, so with no edits it keeps its bytes, damage and all.
-    pub fn save_bytes(&self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
+    pub fn save_bytes(&mut self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
+        self.run_document_event(id, "WillSave")?;
         let doc = self.get(id).ok_or(EditError::NoDocument)?;
         let Some(editor) = doc.editor.as_ref() else { return Ok(doc.bytes.clone()) };
         let on_saved = Arc::ptr_eq(editor.cos.bytes(), &editor.saved);
@@ -4539,11 +4583,13 @@ impl Session {
     }
 
     /// A compact, garbage-collected rewrite (Save As ▸ "Optimized" / Reduce File Size groundwork).
-    pub fn save_full_bytes(&self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
+    pub fn save_full_bytes(&mut self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
         let doc = self.get(id).ok_or(EditError::NoDocument)?;
         if doc.is_signed() {
             return Err(EditError::Signed);
         }
+        self.run_document_event(id, "WillSave")?;
+        let doc = self.get(id).ok_or(EditError::NoDocument)?;
         let editor = doc.editor.as_ref().ok_or_else(|| EditError::ReadOnly(doc.read_only_reason.clone().unwrap_or_default()))?;
         let opts = SaveOptions { mod_date: self.now().map(pdfcraft_cos::pdf_date), ..SaveOptions::default() };
         guard(|| write_full(&editor.cos, &opts)).map_err(EditError::Write)?.map(Arc::new).map_err(|e| EditError::Write(e.to_string()))
@@ -4630,6 +4676,8 @@ impl Session {
             .into_iter()
             .find_map(|k| pdfcraft_cos::Document::open_with_password(base.clone(), k.reopen.as_deref()).ok().map(|c| (c, k)))
             .ok_or_else(|| EditError::Reopen("the saved file can't be opened".into()))?;
+        doc.js_runtime = None;
+        doc.js_output = js::JsOutput::default();
         editor.cos = cos;
         editor.keys = keys;
         editor.undo.clear();
@@ -4788,7 +4836,11 @@ impl Session {
     }
 
     /// The print-ready PDF for `settings` (sheets laid out for the paper; see `pdfcraft-print`).
-    pub fn print_pdf(&self, id: DocId, settings: &print::Settings) -> Result<Vec<u8>, EditError> {
+    pub fn print_pdf(&mut self, id: DocId, settings: &print::Settings) -> Result<Vec<u8>, EditError> {
+        if !self.get(id).ok_or(EditError::NoDocument)?.allows_printing() {
+            return Err(EditError::NotPermitted("printing"));
+        }
+        self.run_document_event(id, "WillPrint")?;
         let doc = self.get(id).ok_or(EditError::NoDocument)?;
         if !doc.allows_printing() {
             return Err(EditError::NotPermitted("printing"));

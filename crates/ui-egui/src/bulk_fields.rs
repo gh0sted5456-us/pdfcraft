@@ -260,7 +260,7 @@ fn color(ui: &mut egui::Ui, value: &mut Option<[f64; 3]>) {
 /// Check a property to apply its value to every selected field. No unchecked value is used.
 pub(crate) fn body(ui: &mut egui::Ui, d: &mut Draft, t: &theme::Tokens) -> (bool, bool) {
     ui.set_width(600.0);
-    ui.label(egui::RichText::new(tl!("Shared Field Properties")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Shared Field Properties"));
     ui.label(crate::i18n::fmt(tl!("{n} fields selected"), &[("n", &d.names.len().to_string())]));
     ui.label(
         egui::RichText::new(tl!("Only checked properties will change. Mixed means the selected fields have different values."))

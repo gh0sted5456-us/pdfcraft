@@ -405,12 +405,12 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
         icon: "printer",
         hue: PURPLE,
         badge: None,
-        availability: Planned("M11"),
+        availability: Ready,
         sections: &[ToolSection {
             title: "Print production",
             items: &[
-                item("Output preview", "layers", "prepress.output_preview", Planned("M11")),
-                item("Preflight", "file-check", "preflight.run", Planned("M11")),
+                item("Output preview", "layers", "prepress.output_preview", Ready),
+                item("Preflight", "file-check", "preflight.run", Ready),
                 item("Convert colors", "palette", "prepress.convert_colors", Planned("M11")),
                 item("Set page boxes", "square-dashed-mouse-pointer", "page.boxes", Ready),
                 item("Add printer marks", "ruler", "prepress.marks", Planned("M11")),
@@ -520,13 +520,13 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
         icon: "braces",
         hue: BLUE,
         badge: None,
-        availability: Planned("M6"),
+        availability: Ready,
         sections: &[ToolSection {
             title: "JavaScript",
             items: &[
-                item("Console", "braces", "js.console", Planned("M6")),
-                item("Document JavaScripts", "file-text", "js.document", Planned("M6")),
-                item("Document actions", "list-checks", "js.actions", Planned("M6")),
+                item("Console", "braces", "tools.js_console", Ready),
+                item("Document JavaScripts", "file-text", "tools.document_js", Ready),
+                item("Document actions", "list-checks", "tools.document_actions", Ready),
             ],
         }],
     },

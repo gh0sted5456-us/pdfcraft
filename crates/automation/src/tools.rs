@@ -1152,6 +1152,9 @@ pub fn tools() -> Vec<ToolDef> {
         t("form_merge_data", "Merge data files into spreadsheet", "Collect the field values of form data files (FDF, XFDF) or filled-in PDF forms into one CSV file at path: a column per field name, a row per file. Returns the row and column counts.")
             .cmd("form.merge_data")
             .with(schema(json!({ "paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 }, "path": { "type": "string" } }), &["paths", "path"])),
+        t("js_field_event", "Run a field action", "Dispatch a stored widget JavaScript trigger in the document realm; returns alerts, console, requests and errors. Field changes are undoable; external requests are only returned.").cmd("tools.js_console").with(schema(json!({"doc":doc(),"field":{"type":"string"},"trigger":{"type":"string","enum":["mouse_up","mouse_down","mouse_enter","mouse_exit","on_focus","on_blur"]}}), &["doc","field","trigger"])),
+        t("js_document_actions", "Document actions", "List Open, WillSave and WillPrint JavaScript actions.").ro().cmd("tools.document_actions").with(schema(json!({"doc": doc()}), &["doc"])),
+        t("js_set_document_action", "Edit document action", "Set or remove one Open, WillSave or WillPrint JavaScript action. Preserves non-JavaScript actions and chains by refusing to replace them. Undoable.").cmd("tools.document_actions").with(schema(json!({"doc": doc(), "event": {"type":"string", "enum":["Open","WillSave","WillPrint"]}, "script":{"type":"string"}}), &["doc", "event"])),
         t("js_run", "Run JavaScript", "Run Acrobat JavaScript in the document, as the JavaScript console does (or as push button `field`'s Mouse Up script when field is given; on a laid-out XFA form, `field` runs that button's XFA click script instead, JavaScript or FormCalc, which can add and remove rows and show or hide subforms). The form object model is available: this/getField, event, app, util, console, display, color, and the document-level scripts. Field changes and resetForm are applied as one undoable step; returns the script's alerts, console output, requests (print, page, url, submit) and error.")
             .cmd("tools.js_console")
             .with(schema(
@@ -1178,8 +1181,9 @@ pub fn tools() -> Vec<ToolDef> {
             .ro()
             .cmd("standards.pdfa")
             .with(schema(json!({ "doc": doc(), "level": { "type": "string", "enum": ["2b", "3b"], "description": "Default 2b." } }), &["doc"])),
+        t("output_inspection", "Inspect output source colours", "Bounded read-only page inspection of source colour spaces, declared spot colours and overprint, and largest explicit DeviceCMYK source component sum. This is not composited total ink coverage or an ICC soft proof.").ro().cmd("prepress.output_preview").with(schema(json!({"doc": doc(), "page":{"type":"integer","minimum":1}}), &["doc", "page"])),
         t("print_readiness", "Print readiness", "Verification only. Reports effective image resolution where each image is drawn (not against the page size), page boxes and bleed past the trim, output intents, fonts that are not embedded, and the PDF/A-2b structural result. Does not modify the document, embed fonts, invent a press profile, or check PDF/X.")
-            .ro()
+            .cmd("preflight.run").ro()
             .with(schema(json!({ "doc": doc() }), &["doc"])),
         t("pdfa_convert", "Save as PDF/A", "Standards ▸ Save as PDF/A: fix what can be fixed for PDF/A-2b or 3b (XMP identification and metadata, an sRGB output intent, forbidden actions and JavaScript, annotation print flags, image interpolation, encryption). Returns what was fixed and what remains (e.g. fonts that aren't embedded). Undoable; save the document to keep it.")
             .cmd("standards.pdfa")

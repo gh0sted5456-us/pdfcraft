@@ -75,7 +75,7 @@ mod tests {
             let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap();
             assert!(cancel.right() < confirm.left());
             assert!((cancel.center().y - confirm.center().y).abs() < 0.5);
-            assert!((confirm.right() - (card.right() - 20.0)).abs() < 1.0, "confirmation belongs at the right edge");
+            assert!((cancel.union(confirm).center().x - card.center().x).abs() < 1.0, "confirmation group belongs at the center");
             assert!((confirm.bottom() - (card.bottom() - 16.0)).abs() <= 2.0, "only the dialog padding below the footer: {confirm:?} in {card:?}");
             for rect in [cancel, confirm] {
                 assert!(rect.width() >= 80.0 && (rect.height() - 28.0).abs() < 0.5, "shared action size: {rect:?}");
@@ -84,7 +84,11 @@ mod tests {
                     .shapes
                     .iter()
                     .find_map(|s| match &s.shape {
-                        egui::Shape::Rect(r) if r.rect == rect => Some(r.fill),
+                        egui::Shape::Rect(r)
+                            if rect.contains_rect(r.rect) && r.rect.center() == rect.center() && r.fill != egui::Color32::TRANSPARENT =>
+                        {
+                            Some(r.fill)
+                        }
                         _ => None,
                     })
                     .unwrap();
@@ -194,7 +198,7 @@ mod tests {
 }
 
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
-    ui.heading(tl!("Timestamp"));
+    crate::widgets::dialog_heading(ui, tl!("Timestamp"));
     ui.label("Add a trusted timestamp to the document and save a copy. The server receives a cryptographic digest, not your PDF.");
     ui.add_space(8.0);
     server_selector(ui, &mut app.timestamp_server);
@@ -226,7 +230,7 @@ pub(crate) fn progress(app: &mut PdfCraftApp, ctx: &egui::Context) {
     }
     let mut cancel = false;
     widgets::show_modal(ctx, "timestamp-progress", |ui| {
-        ui.heading(tl!("Timestamp"));
+        crate::widgets::dialog_heading(ui, tl!("Timestamp"));
         ui.horizontal(|ui| {
             ui.spinner();
             ui.label("Waiting for the timestamp server…");

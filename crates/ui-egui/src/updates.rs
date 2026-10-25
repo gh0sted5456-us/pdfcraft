@@ -116,10 +116,10 @@ pub(crate) fn dialog(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut download: Option<String> = None;
     let modal = crate::widgets::show_modal(ctx, "updates", |ui| {
         ui.set_width(420.0);
-        ui.horizontal(|ui| {
+        ui.vertical_centered(|ui| {
             ui.add(crate::icons::image("cloud", 22.0, t.accent));
-            ui.label(egui::RichText::new(tl!("Check for updates")).font(theme::semibold(16.0)));
         });
+        crate::widgets::dialog_heading(ui, tl!("Check for updates"));
         ui.add_space(8.0);
         match &app.updates.check {
             Check::Idle => {
@@ -168,10 +168,10 @@ pub(crate) fn dialog(app: &mut PdfCraftApp, ctx: &egui::Context) {
         crate::widgets::dialog_footer(ui, |ui| {
             if let Some(url) = download.take() {
                 let get = widgets::dialog_button(ui, tl!("Download"), widgets::DialogAction::Confirm).clicked();
-                let later = widgets::pill_button(ui, tl!("Later"), false).clicked();
+                let later = widgets::dialog_button(ui, tl!("Later"), widgets::DialogAction::Cancel).clicked();
                 close = get || later;
                 download = get.then_some(url);
-            } else if widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Confirm).clicked() {
+            } else if widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked() {
                 close = true;
             }
         });

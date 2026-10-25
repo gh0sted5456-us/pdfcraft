@@ -4512,6 +4512,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
             crate::forms_ui::FormNotice::NoAction(name) => app.notify_fmt("{name} has no action", &[("name", &name)]),
         }
     }
+    app.dispatch_form_events(index, ui.ctx());
     if let Some((name, action)) = app.views[index].forms.button.take() {
         run_button(app, index, &name, action);
     }
@@ -4674,6 +4675,7 @@ fn run_button(app: &mut PdfCraftApp, index: usize, name: &str, action: pdfcraft_
                     read_only: None,
                     required: None,
                     display: Some(if hide { 1 } else { 0 }),
+                    ..Default::default()
                 })
                 .collect();
             if !changes.is_empty() {
@@ -4929,7 +4931,7 @@ fn notices(
             )
         };
         notice_bar(ui, t, "clock", t.accent_text, text, |ui| {
-            if crate::widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Confirm).clicked() {
+            if crate::widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked() {
                 close = true;
             }
         });

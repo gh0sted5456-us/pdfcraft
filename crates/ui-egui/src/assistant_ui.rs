@@ -187,12 +187,12 @@ pub(crate) fn poll(app: &mut PdfCraftApp, ctx: &egui::Context) {
 }
 
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
-    ui.heading("AI Assistant");
+    crate::widgets::dialog_heading(ui, "AI Assistant");
     #[cfg(target_arch = "wasm32")]
     {
         let _ = app;
         ui.label("Connect your own AI account in the desktop app.");
-        widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked()
+        widgets::dialog_footer(ui, |ui| widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked()).inner
     }
     #[cfg(not(target_arch = "wasm32"))]
     {
@@ -222,19 +222,21 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     let ctx = ui.ctx().clone();
     let d = &mut app.assistant;
     let busy = d.job.is_some();
-    ui.label("Connect your own account. PdfCraft includes no shared AI login or API key.");
+    ui.vertical_centered(|ui| {
+        ui.label("Connect your own account. PdfCraft includes no shared AI login or API key.");
+    });
     ui.horizontal(|ui| {
         ui.selectable_value(&mut d.setup, true, "Connections");
         ui.selectable_value(&mut d.setup, false, "Document assistant");
     });
     ui.separator();
-    let height = (ui.ctx().content_rect().height() - 240.0).clamp(120.0, 610.0);
-    egui::ScrollArea::vertical().id_salt("assistant-body").max_height(height).show(ui,|ui|{
+    ui.spacing_mut().scroll.floating = false;
+    let height = (ui.ctx().content_rect().height() - 240.0).clamp(16.0, 380.0);
+    egui::ScrollArea::vertical().id_salt("assistant-body").max_height(height).min_scrolled_height(64.0).auto_shrink([false,true]).scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible).show(ui,|ui|{
         ui.add_enabled_ui(!busy,|ui|{
-            ui.add(widgets::checkbox(&mut d.settings.enabled,"Enable Assistant requests (off by default)"));
             let before=d.settings.provider;
             let label=ui.label("AI connection");
-            egui::ComboBox::from_id_salt("assistant-provider").selected_text(d.settings.provider.label()).width(390.0).show_ui(ui,|ui|{
+            egui::ComboBox::from_id_salt("assistant-provider").selected_text(d.settings.provider.label()).width(ui.available_width()).show_ui(ui,|ui|{
                 for p in [Provider::ChatGpt,Provider::ClaudeSubscription,Provider::OpenAi,Provider::Anthropic]{ui.selectable_value(&mut d.settings.provider,p,p.label());}
             }).response.labelled_by(label.id);
             if before!=d.settings.provider {d.models.clear();d.settings.model.clear();d.api_key.clear();d.status.clear();}
@@ -283,7 +285,7 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
                     }
                     provider=>{
                         ui.label("Use your own API key. Requests use the provider's API billing, separately from a chat subscription. The key is saved only in this user's OS credential store.");
-                        let label=ui.label("Personal API key");ui.add(widgets::line(&mut d.api_key).password(true).char_limit(8192).desired_width(480.0)).labelled_by(label.id);
+                        let label=ui.label("Personal API key");ui.add(widgets::line(&mut d.api_key).password(true).char_limit(8192).desired_width(ui.available_width())).labelled_by(label.id);
                         ui.horizontal_wrapped(|ui|{
                             if widgets::dialog_button(ui,"Save personal API key",widgets::DialogAction::Confirm).clicked(){let key=std::mem::take(&mut d.api_key);d.start(&ctx,move|_,_|{platform::save_api_key(provider,&key)?;Ok(Update::Notice("Your personal API key was saved in the OS credential store.".into()))});}
                             if widgets::dialog_button(ui,"Check saved key",widgets::DialogAction::Back).clicked(){d.start(&ctx,move|_,_|Ok(Update::Notice(if platform::api_key_present(provider)?{"A personal API key is saved for this provider."}else{"No personal API key is saved."}.into())));}
@@ -292,18 +294,20 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
                     }
                 }
             }
-            let label=ui.label("Model ID");ui.add(widgets::line(&mut d.settings.model).char_limit(160).desired_width(420.0)).labelled_by(label.id);
+            let label=ui.label("Model ID");ui.add(widgets::line(&mut d.settings.model).char_limit(160).desired_width(ui.available_width())).labelled_by(label.id);
             if widgets::dialog_button(ui,"Load available models",widgets::DialogAction::Back).clicked(){let p=d.settings.provider;let account=d.settings.account.clone();d.start(&ctx,move|_,_|Ok(Update::Models(platform::models(p,&account)?)));}
-            if !d.models.is_empty(){egui::ComboBox::from_id_salt("assistant-model").selected_text(if d.settings.model.is_empty(){"Choose a model"}else{d.settings.model.as_str()}).width(420.0).show_ui(ui,|ui|{for model in &d.models{ui.selectable_value(&mut d.settings.model,model.id.clone(),&model.label);}});}
+            if !d.models.is_empty(){egui::ComboBox::from_id_salt("assistant-model").selected_text(if d.settings.model.is_empty(){"Choose a model"}else{d.settings.model.as_str()}).width(ui.available_width()).show_ui(ui,|ui|{for model in &d.models{ui.selectable_value(&mut d.settings.model,model.id.clone(),&model.label);}});}
+            ui.separator();
+            ui.add(widgets::checkbox(&mut d.settings.enabled,"Enable Assistant requests (off by default)"));
             if !d.setup {
                 ui.separator();
                 ui.horizontal_wrapped(|ui|{for task in [Task::Summary,Task::Suggestions,Task::Ask,Task::Translate]{ui.selectable_value(&mut d.task,task,task.label());}});
-                if matches!(d.task,Task::Ask|Task::Translate){let label=ui.label(if d.task==Task::Ask{"Your question"}else{"Target language"});ui.add(widgets::line(&mut d.question).char_limit(assistant::MAX_QUESTION_BYTES).desired_width(560.0)).labelled_by(label.id);}
+                if matches!(d.task,Task::Ask|Task::Translate){let label=ui.label(if d.task==Task::Ask{"Your question"}else{"Target language"});ui.add(widgets::line(&mut d.question).char_limit(assistant::MAX_QUESTION_BYTES).desired_width(ui.available_width())).labelled_by(label.id);}
                 ui.horizontal_wrapped(|ui|{ui.label("Document pages");for (value,label) in [(0,"Current page"),(1,"All pages"),(2,"Selected pages")]{widgets::radio_value(ui,&mut d.scope,value,label);}});
                 if widgets::dialog_button(ui,"Review PDF text",widgets::DialogAction::Back).clicked(){match source(d.scope){Ok(source)=>{if let Some(key)=d.source{d.start(&ctx,move|cancel,_|Ok(Update::Text(source.prepare(||cancel.load(std::sync::atomic::Ordering::Relaxed))?,key)));}},Err(error)=>d.status=error}}
                 ui.label("Only the reviewed text and your request go to the selected provider when you press Send. You can remove sensitive passages here. Scanned pages need OCR first.");
-                let label=ui.label("Text to send");ui.add(widgets::block(&mut d.text).desired_width(620.0).desired_rows(8).char_limit(assistant::MAX_TEXT_BYTES)).labelled_by(label.id);
-                if !d.answer.is_empty(){ui.separator();ui.label("Assistant answer — review before editing");ui.add(widgets::block(&mut d.answer).desired_width(620.0).desired_rows(9).interactive(false));if widgets::dialog_button(ui,"Copy answer",widgets::DialogAction::Back).clicked(){ui.ctx().copy_text(d.answer.clone());}}
+                let label=ui.label("Text to send");ui.add(widgets::block(&mut d.text).desired_width(ui.available_width()).desired_rows(8).char_limit(assistant::MAX_TEXT_BYTES)).labelled_by(label.id);
+                if !d.answer.is_empty(){ui.separator();ui.label("Assistant answer — review before editing");ui.add(widgets::block(&mut d.answer).desired_width(ui.available_width()).desired_rows(9).interactive(false));if widgets::dialog_button(ui,"Copy answer",widgets::DialogAction::Back).clicked(){ui.ctx().copy_text(d.answer.clone());}}
             }
         });
         if !d.status.is_empty(){ui.separator();ui.label(&d.status);}
@@ -312,7 +316,8 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     let mut close = false;
     widgets::dialog_footer(ui, |ui| {
         let ready = !d.setup && !busy && d.settings.enabled && !d.text.trim().is_empty() && platform::check_model(&d.settings.model).is_ok();
-        if ui.add_enabled_ui(ready, |ui| widgets::dialog_button(ui, "Send reviewed text", widgets::DialogAction::Confirm)).inner.clicked() {
+        if !d.setup && ui.add_enabled_ui(ready, |ui| widgets::dialog_button(ui, "Send reviewed text", widgets::DialogAction::Confirm)).inner.clicked()
+        {
             match assistant::prompt(d.task, &d.question, &d.text) {
                 Ok(prompt) => {
                     if let Some(key) = d.source {
@@ -344,6 +349,38 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
 mod tests {
     use super::*;
     use egui_kittest::{Harness, kittest::Queryable};
+    #[test]
+    fn assistant_tabs_are_compact_centered_and_keep_their_footer_visible() {
+        for size in [egui::vec2(1200.0, 800.0), egui::vec2(640.0, 480.0)] {
+            for theme in ["light", "dark"] {
+                for setup in [false, true] {
+                    let mut h = Harness::builder().with_size(size).build_eframe(move |_| {
+                        let mut app = PdfCraftApp::new();
+                        app.set_option("language", "en").unwrap();
+                        app.set_option("theme", theme).unwrap();
+                        app.dialog = Some(crate::Dialog::Assistant);
+                        app.assistant.setup = setup;
+                        app.assistant.task = Task::Ask;
+                        app.assistant.settings.model = "example-model".into();
+                        app
+                    });
+                    h.run_steps(8);
+                    let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+                    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, size);
+                    assert!(screen.contains_rect(card), "{theme} setup={setup}: {card:?} outside {screen:?}");
+                    assert!(card.height() <= 620.0, "Assistant should be compact: {card:?}");
+                    assert!((card.center() - screen.center()).length() < 2.0, "Assistant off centre: {card:?}");
+                    assert!(card.contains_rect(h.get_by_label("Close").rect()));
+                    assert!((h.get_by_label("AI Assistant").rect().center().x - card.center().x).abs() < 2.0);
+                    assert_eq!(h.query_by_label("Send reviewed text").is_none(), setup, "setup only shows connection actions");
+                    if let Ok(dir) = std::env::var("PDFCRAFT_POPUP_SHOTS") {
+                        h.render().unwrap().save(format!("{dir}/assistant-{theme}-{}-{setup}.png", size.x)).unwrap();
+                    }
+                    assert!(h.state().assistant.job.is_none(), "layout checks must not contact a provider");
+                }
+            }
+        }
+    }
     #[test]
     fn finished_jobs_keep_their_result_and_changed_documents_reject_stale_text() {
         let mut app = PdfCraftApp::new();

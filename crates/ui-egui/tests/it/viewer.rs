@@ -356,7 +356,7 @@ fn layouts_fit_height_labels_and_system_theme() {
     });
     h.run_steps(2);
     let labels: Vec<String> = {
-        let s = h.state();
+        let s = h.state_mut();
         s.session.get(s.views[0].id).unwrap().info.pages.iter().map(|p| p.label.clone()).collect()
     };
     assert_eq!(labels[1], "ii");
@@ -423,7 +423,7 @@ fn page_label_input_keeps_current_page_when_submitted_unchanged() {
     let before = h.state().session.get(id).unwrap();
     let undo = before.can_undo().map(str::to_owned);
     let dirty = before.dirty;
-    let before_bytes = h.state().session.save_bytes(id).unwrap();
+    let before_bytes = h.state_mut().session.save_bytes(id).unwrap();
     for (page, label) in ["i", "ii", "1", "2", "3"].into_iter().enumerate() {
         h.state_mut().views[0].go_to_page(page);
         h.run_steps(3);
@@ -437,7 +437,7 @@ fn page_label_input_keeps_current_page_when_submitted_unchanged() {
     let after = h.state().session.get(id).unwrap();
     assert_eq!(after.can_undo().map(str::to_owned), undo);
     assert_eq!(after.dirty, dirty, "navigation does not edit the PDF");
-    assert_eq!(h.state().session.save_bytes(id).unwrap(), before_bytes, "navigation preserves saved PDF bytes");
+    assert_eq!(h.state_mut().session.save_bytes(id).unwrap(), before_bytes, "navigation preserves saved PDF bytes");
     let mut empty = pdfcraft_ui_egui::canvas::DocView::new(pdfcraft_engine::DocId(0), &Default::default(), Default::default());
     assert!(!empty.go_to_typed("1", &[]), "an empty view has no current page to retain");
 }
@@ -543,7 +543,7 @@ fn page_label_input_new_document_does_not_inherit_or_commit_the_previous_draft()
     h.run_steps(3);
     type_page_input(&mut h, "ii");
     let original_id = h.state().views[0].id;
-    let original_bytes = h.state().session.save_bytes(original_id).unwrap();
+    let original_bytes = h.state_mut().session.save_bytes(original_id).unwrap();
 
     let mut source = Session::new().with_clock(|| 1_700_000_000);
     let source_id = source.open("new-labels.pdf", None, std::sync::Arc::new(fixture(5)), None).unwrap();
@@ -568,7 +568,7 @@ fn page_label_input_new_document_does_not_inherit_or_commit_the_previous_draft()
     h.run_steps(3);
     assert_eq!(h.state().active, Some(0));
     assert_eq!((h.state().views[0].current, h.state().views[0].page_input.as_str()), (3, "2"));
-    assert_eq!(h.state().session.save_bytes(original_id).unwrap(), original_bytes, "tab switching never edits the original PDF");
+    assert_eq!(h.state_mut().session.save_bytes(original_id).unwrap(), original_bytes, "tab switching never edits the original PDF");
 }
 
 #[test]
@@ -655,7 +655,7 @@ fn page_label_input_same_document_replacement_refreshes_the_focused_label() {
         let after = h.state().session.get(id).unwrap();
         assert!(!after.dirty, "navigation does not edit the replacement");
         assert_eq!((after.can_undo(), after.can_redo()), (None, None));
-        assert_eq!(h.state().session.save_bytes(id).unwrap(), replacement, "navigation preserves replacement PDF bytes");
+        assert_eq!(h.state_mut().session.save_bytes(id).unwrap(), replacement, "navigation preserves replacement PDF bytes");
     }
 }
 
@@ -720,7 +720,7 @@ fn page_label_input_same_document_replacement_keeps_full_label_selected_for_typi
         let after = h.state().session.get(id).unwrap();
         assert!(!after.dirty, "navigation does not edit the replacement PDF");
         assert_eq!((after.can_undo(), after.can_redo()), (None, None));
-        assert_eq!(h.state().session.save_bytes(id).unwrap(), replacement, "typing and navigation preserve replacement PDF bytes");
+        assert_eq!(h.state_mut().session.save_bytes(id).unwrap(), replacement, "typing and navigation preserve replacement PDF bytes");
     }
 }
 
@@ -792,7 +792,7 @@ fn initial_view_is_edited_and_honoured_on_open() {
     h.run_steps(2);
     h.get_by_label("OK").click();
     h.run_steps(3);
-    let s = h.state();
+    let s = h.state_mut();
     let id = s.views[s.active.unwrap()].id;
     let v = s.session.get(id).unwrap().initial_view();
     assert_eq!((v.navigation, v.layout, v.page, v.language.as_deref()), (Navigation::Bookmarks, InitialLayout::TwoUpCoverPage, 1, Some("de-DE")));
@@ -1116,7 +1116,8 @@ fn space_audit_numbers_line_up_under_their_headers() {
     let right = |label: &str| h.get_by_label(label).rect().right();
     assert!((right("Percentage") - right("100.00%")).abs() < 1.0, "{} vs {}", right("Percentage"), right("100.00%"));
     assert!((right("Bytes") - right(&total)).abs() < 1.0, "{} vs {}", right("Bytes"), right(&total));
-    assert!(right("100.00%") < right("OK") + 1.0, "the table stays inside the dialog");
+    let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+    assert!(right("100.00%") < card.right() - 16.0, "the table stays inside the dialog");
 }
 
 #[test]

@@ -163,18 +163,18 @@ const HELP: Option<&str> = Some("Help");
 
 /// Every command, in menu order.
 pub const COMMANDS: &[CommandSpec] = &[
+    c("create.new", "Create a PDF", FILE, Some(Shortcut::cmd("N")), Nothing, "file-plus-2"),
     c("file.open", "Open…", FILE, Some(Shortcut::cmd("O")), Nothing, "folder-open"),
     c("file.open_recent", "Open Recent", FILE, None, Nothing, "clock"),
-    // ⇧⌘→ selects to the end of the line in a text field, so the field keeps it there.
+    // Folder navigation yields to text inputs that use these selection keys.
     ct("file.open_next_in_folder", "Open next PDF in folder", FILE, Some(Shortcut::cmd_shift("→")), Document, "chevron-right"),
-    ct("file.open_previous_in_folder", "Open previous PDF in folder", FILE, Some(Shortcut::cmd_shift("←")), Document, "chevron-left"),
     // Shown at the foot of File ▸ Open Recent and on Home, not as its own File menu item.
     c("file.clear_recent", "Clear Recent Files", None, None, Nothing, "trash-2"),
+    ct("file.open_previous_in_folder", "Open previous PDF in folder", FILE, Some(Shortcut::cmd_shift("←")), Document, "chevron-left"),
     c("file.pin_folder", "Pin folder to Home…", FILE, None, Nothing, "folder-plus"),
-    c("create.new", "Create a PDF", FILE, Some(Shortcut::cmd("N")), Nothing, "file-plus-2"),
-    c("create.save_template", "Save as template", FILE, None, Document, "file-output"),
     c("create.custom", "Custom page…", FILE, None, Nothing, "file-plus-2"),
     c("create.blank", "New blank PDF", FILE, None, Nothing, "file-plus-2"),
+    c("create.file", "Create PDF from file…", FILE, None, Nothing, "file-input"),
     c("measure.distance", "Measure distance", None, None, Annotate, "ruler"),
     c("measure.perimeter", "Measure perimeter", None, None, Annotate, "ruler"),
     c("measure.area", "Measure area", None, None, Annotate, "ruler"),
@@ -185,7 +185,6 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("page.copy", "Copy pages", None, None, Document, "copy"),
     c("page.cut", "Cut pages", None, None, Assembly, "scissors"),
     c("page.paste", "Paste pages", None, None, Assembly, "clipboard-paste"),
-    c("create.file", "Create PDF from file…", FILE, None, Nothing, "file-input"),
     c("create.multiple", "Create PDF from multiple files…", FILE, None, Nothing, "files"),
     c("create.multiple_separate", "Create separate PDFs…", FILE, None, Nothing, "files"),
     c("create.images", "Create PDF from images…", FILE, None, Nothing, "image"),
@@ -193,16 +192,17 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("page.combine", "Combine files…", FILE, None, Nothing, "files"),
     c("file.save", "Save", FILE, Some(Shortcut::cmd("S")), Document, "save"),
     c("file.save_as", "Save as…", FILE, Some(Shortcut::cmd_shift("S")), Document, "save"),
-    c("file.close", "Close file", FILE, Some(Shortcut::cmd("W")), Document, "x"),
-    c("file.close_all", "Close all", FILE, Some(Shortcut::cmd_shift("W")), Document, "x"),
-    c("file.revert", "Revert", FILE, None, Undo, "rotate-ccw"),
-    c("print.dialog", "Print…", FILE, Some(Shortcut::cmd("P")), Printing, "printer"),
-    c("file.properties", "Document properties…", FILE, Some(Shortcut::cmd("D")), Document, "info"),
-    c("file.word_count", "Word count…", FILE, None, Copying, "hash"),
+    c("create.save_template", "Save as template", FILE, None, Document, "file-output"),
+    c("export.choose", "Export to", FILE, None, Copying, "file-output"),
+    c("export.docx", "Export to Word…", FILE, None, Copying, "file-text"),
+    c("export.pptx", "Export to PowerPoint…", FILE, None, Copying, "presentation"),
+    c("export.rtf", "Export to RTF…", FILE, None, Copying, "file-text"),
+    c("export.html", "Export to HTML…", FILE, None, Copying, "file-symlink"),
+    c("export.text", "Export to text…", FILE, None, Copying, "type"),
     ct("edit.undo", "Undo", EDIT, Some(Shortcut::cmd("Z")), Undo, "undo-2"),
     ct("edit.redo", "Redo", EDIT, Some(Shortcut::cmd_shift("Z")), Redo, "redo-2"),
-    c("edit.find", "Find…", EDIT, Some(Shortcut::cmd("F")), Document, "search"),
-    c("edit.advanced_search", "Advanced search…", EDIT, Some(Shortcut::cmd_shift("F")), Document, "search"),
+    c("edit.copy", "Copy", EDIT, None, Copying, "copy"),
+    c("edit.column_select", "Column select", EDIT, None, Document, "text-select"),
     c("view.palette", "Find tools and commands…", VIEW, Some(Shortcut::cmd("K")), Nothing, "search"),
     // Page display: View ▸ Page display and the rail's button list the base layouts as radios and
     // continuous scrolling as a checkbox, so `menu = None` keeps them out of the generated menus.
@@ -223,9 +223,9 @@ pub const COMMANDS: &[CommandSpec] = &[
     // drag with the Select tool does the same; this is the way in where the desktop takes
     // Alt-drag for moving windows (several Linux window managers).
     // Copy events stay with the frontend so focused text inputs and page clipboard routing keep ownership.
-    c("edit.copy", "Copy", EDIT, None, Copying, "copy"),
-    c("edit.column_select", "Column select", EDIT, None, Document, "text-select"),
     c("edit.snapshot", "Take a snapshot", EDIT, None, Copying, "camera"),
+    c("edit.find", "Find…", EDIT, Some(Shortcut::cmd("F")), Document, "search"),
+    c("edit.advanced_search", "Advanced search…", EDIT, Some(Shortcut::cmd_shift("F")), Document, "search"),
     c("view.full_screen", "Full screen mode", VIEW, Some(Shortcut::cmd("L")), Document, "maximize"),
     c("view.read_mode", "Read mode", VIEW, Some(Shortcut { command: true, shift: false, mac_ctrl: true, key: "H" }), Document, "book-open"),
     // Browsers' tab keys (#1542): Ctrl+Tab on every platform, ⌃Tab rather than ⌘Tab on macOS,
@@ -337,18 +337,21 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("sign.fill.signature.remove", "Fill & Sign: remove saved signature", None, None, Nothing, "x"),
     c("sign.fill.initials.remove", "Fill & Sign: remove saved initials", None, None, Nothing, "x"),
     c("sign.fill.initials.change", "Fill & Sign: change initials", None, None, Nothing, "signature"),
-    c("export.choose", "Export to", FILE, None, Copying, "file-output"),
     c("export.image", "Export to image…", FILE, None, Copying, "image"),
+    c("export.all_images", "Export all images…", FILE, None, Copying, "image"),
     c("optimize.reduce", "Reduce file size…", FILE, None, Document, "file-down"),
     c("optimize.advanced", "Optimize PDF…", FILE, None, Document, "settings-2"),
-    c("export.text", "Export to text…", FILE, None, Copying, "type"),
-    c("export.docx", "Export to Word…", FILE, None, Copying, "file-text"),
-    c("export.pptx", "Export to PowerPoint…", FILE, None, Copying, "presentation"),
-    c("export.html", "Export to HTML…", FILE, None, Copying, "file-symlink"),
-    c("export.rtf", "Export to RTF…", FILE, None, Copying, "file-text"),
+    c("protect.password", "Protect using password…", FILE, None, Security, "lock"),
+    c("protect.remove", "Remove security", FILE, None, ProtectedSecurity, "lock-open"),
+    c("protect.properties", "Security properties…", FILE, None, Document, "shield-check"),
+    c("print.dialog", "Print…", FILE, Some(Shortcut::cmd("P")), Printing, "printer"),
+    c("file.properties", "Document properties…", FILE, Some(Shortcut::cmd("D")), Document, "info"),
     c("app.language_spelling", "Language and spelling", EDIT, None, Nothing, "languages"),
     c("app.preferences", "Preferences…", EDIT, Some(Shortcut::cmd(",")), Nothing, "settings"),
     c("tools.js_console", "JavaScript console…", None, Some(Shortcut::cmd("J")), Document, "square-terminal"),
+    c("tools.document_actions", "Document actions", None, None, Modification, "file-code"),
+    c("preflight.run", "Preflight", None, None, Document, "file-check"),
+    c("prepress.output_preview", "Output preview", None, None, Document, "layers"),
     c("tools.document_js", "Document JavaScripts…", None, None, Modification, "file-code"),
     c("ocr.recognize", "Recognize text…", None, None, Modification, "scan-text"),
     c("ocr.enhance_camera", "Enhance camera image", None, None, Modification, "camera"),
@@ -361,7 +364,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("a11y.alt_text", "Add alternate text…", None, None, Modification, "image"),
     c("a11y.autotag_fields", "Tag form fields", None, None, Modification, "tag"),
     c("a11y.tags", "Tags panel", None, None, Document, "tag"),
-    c("export.all_images", "Export all images…", FILE, None, Copying, "image"),
+    c("file.word_count", "Word count…", FILE, None, Copying, "hash"),
     c("edit.header_footer", "Add header & footer…", None, None, Modification, "heading"),
     c("edit.header_footer.update", "Update header & footer…", None, None, Marks(crate::MarkKind::HeaderFooter), "heading"),
     c("edit.header_footer.remove", "Remove header & footer", None, None, Marks(crate::MarkKind::HeaderFooter), "heading"),
@@ -371,30 +374,30 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("edit.background", "Add background…", None, None, Modification, "palette"),
     c("edit.background.update", "Update background…", None, None, Marks(crate::MarkKind::Background), "palette"),
     c("edit.background.remove", "Remove background", None, None, Marks(crate::MarkKind::Background), "palette"),
-    c("protect.password", "Protect using password…", FILE, None, Security, "lock"),
-    c("protect.remove", "Remove security", FILE, None, ProtectedSecurity, "lock-open"),
+    c("file.revert", "Revert", FILE, None, Undo, "rotate-ccw"),
+    c("file.close", "Close file", FILE, Some(Shortcut::cmd("W")), Document, "x"),
     c("protect.unlock", "Enter permissions password…", None, None, Unlock, "lock-open"),
-    c("protect.properties", "Security properties…", FILE, None, Document, "shield-check"),
+    c("file.close_all", "Close all", FILE, Some(Shortcut::cmd_shift("W")), Document, "x"),
     c("page.organize", "Organize pages", PAGES, None, Document, "layout-grid"),
-    c("bookmark.add", "New bookmark", PAGES, Some(Shortcut::cmd("B")), Assembly, "bookmark-plus"),
-    c("bookmark.from_structure", "New bookmarks from structure", PAGES, None, Assembly, "list"),
+    c("page.insert_blank", "Insert blank page", PAGES, None, Assembly, "file-plus"),
+    c("page.insert", "Insert pages from file…", PAGES, None, Assembly, "file-input"),
+    c("page.replace", "Replace pages…", PAGES, None, Assembly, "replace"),
+    c("page.duplicate", "Duplicate pages", PAGES, None, Assembly, "copy-plus"),
+    c("page.duplicate_renaming_fields", "Duplicate pages with new field names", PAGES, None, Assembly, "copy-plus"),
     c("page.rotate", "Rotate pages clockwise", PAGES, None, Assembly, "rotate-cw"),
     c("page.rotate_ccw", "Rotate pages counterclockwise", PAGES, None, Assembly, "rotate-ccw"),
-    c("page.delete", "Delete pages", PAGES, None, Assembly, "trash-2"),
-    c("page.insert_blank", "Insert blank page", PAGES, None, Assembly, "file-plus"),
     c("page.rotate_dialog", "Rotate pages…", PAGES, None, Assembly, "rotate-cw"),
-    c("page.duplicate", "Duplicate pages", PAGES, None, Assembly, "copy-plus"),
     // The copies' form fields get names of their own (Text1 becomes Text1-1), so filling in a
     // copy doesn't fill in the original (#2228).
-    c("page.duplicate_renaming_fields", "Duplicate pages with new field names", PAGES, None, Assembly, "copy-plus"),
     c("page.reverse", "Reverse pages", PAGES, None, Assembly, "arrow-up-down"),
     c("page.crop", "Crop pages", PAGES, None, Assembly, "crop"),
     c("page.boxes", "Set page boxes…", PAGES, None, Assembly, "square-dashed-mouse-pointer"),
-    c("page.insert", "Insert pages from file…", PAGES, None, Assembly, "file-input"),
-    c("page.replace", "Replace pages…", PAGES, None, Assembly, "replace"),
+    c("page.number", "Number pages…", PAGES, None, Assembly, "hash"),
     c("page.extract", "Extract pages…", PAGES, None, Assembly, "file-output"),
     c("page.split", "Split document…", PAGES, None, Assembly, "scissors"),
-    c("page.number", "Number pages…", PAGES, None, Assembly, "hash"),
+    c("bookmark.add", "New bookmark", PAGES, Some(Shortcut::cmd("B")), Assembly, "bookmark-plus"),
+    c("bookmark.from_structure", "New bookmarks from structure", PAGES, None, Assembly, "list"),
+    c("page.delete", "Delete pages", PAGES, None, Assembly, "trash-2"),
     c("help.shortcuts", "Keyboard shortcuts", HELP, None, Nothing, "circle-help"),
     c("help.discord", "Join the ArtCraft Discord", HELP, None, Nothing, "messages-square"),
     c("help.app_page", "PdfCraft web page", HELP, None, Nothing, "globe"),
@@ -511,5 +514,22 @@ mod tests {
         s.apply(id, crate::Edit::RotatePages { pages: vec![0], degrees: 90 }).unwrap();
         assert!(is_enabled(undo, &s, Some(id)));
         assert_eq!(current_label(undo, &s, Some(id)), "Undo Rotate page");
+    }
+}
+
+#[cfg(test)]
+mod menu_order_tests {
+    use super::*;
+    #[test]
+    fn menus_follow_create_open_save_export_print_and_page_workflows() {
+        let file: Vec<_> = menu("File").map(|c| c.id).collect();
+        assert_eq!(&file[..3], ["create.new", "file.open", "file.open_recent"]);
+        let pos = |id| file.iter().position(|x| *x == id).unwrap();
+        assert!(pos("file.save") < pos("export.choose"));
+        assert!(pos("export.choose") < pos("print.dialog"));
+        assert_eq!(file.last(), Some(&"file.close_all"));
+        assert_eq!(menu("Pages").last().unwrap().id, "page.delete");
+        let edit: Vec<_> = menu("Edit").map(|c| c.id).collect();
+        assert_eq!(&edit[..3], ["edit.undo", "edit.redo", "edit.copy"]);
     }
 }
