@@ -2706,3 +2706,11 @@ animation effects	Off	Wyłączone
 	Duplicate pages with new field names	Powiel strony z nowymi nazwami pól
 	Duplicate pages — 1 field renamed	Powiel strony — zmieniono nazwę 1 pola
 	Duplicate pages — fields renamed	Powiel strony — zmieniono nazwy pól
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Dokumenty
+	AI Assistant	Asystent AI
+	Latin (accented)	Łacina (ze znakami diakrytycznymi)
+	Opening documents	Otwieranie dokumentów
+	Files	Pliki
+	Navigation	Nawigacja

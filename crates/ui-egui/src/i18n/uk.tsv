@@ -2637,3 +2637,11 @@ animation effects	Off	Вимкнено
 	Duplicate pages with new field names	Дублювати сторінки з новими назвами полів
 	Duplicate pages — 1 field renamed	Дублювати сторінки — 1 поле перейменовано
 	Duplicate pages — fields renamed	Дублювати сторінки — поля перейменовано
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Документи
+	AI Assistant	ШІ-помічник
+	Latin (accented)	Латиниця (з діакритикою)
+	Opening documents	Відкриття документів
+	Files	Файли
+	Navigation	Навігація

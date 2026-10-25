@@ -126,6 +126,7 @@ pub(crate) struct MoveBackground {
     /// raster has whatever the item covers in its box too, which must stay where it is (#4464).
     item_renderer: Option<pdfcraft_render::RenderPool>,
     item: Option<egui::TextureHandle>,
+    item_bounds: Option<[f64; 4]>,
     tag: Option<u64>,
     /// The item's display-space box when the gesture started.
     from: Option<[f64; 4]>,
@@ -154,11 +155,14 @@ impl MoveBackground {
             (Some((gp, Grab::Corner(..), _)), Some((sp, si))) if gp == sp && picture(sp, si) => Some((doc.edit_generation(), sp, si)),
             _ => None,
         };
-        if !(key.is_none() && self.settling.is_some()) && self.key != key {
+        if !(key.is_none() && self.settling.is_some()) && (self.key != key || key.is_some() && self.settling.is_some()) {
             *self = Self { key, ..Default::default() };
             if let Some((_, page, index)) = key {
                 self.renderer = doc.added_content_preview(page, index).ok().map(|p| p.renderer());
-                self.item_renderer = doc.added_content_alone(page, index).ok().map(|p| p.renderer());
+                if let Ok(preview) = doc.added_content_alone(page, index) {
+                    self.item_bounds = preview.content_bounds();
+                    self.item_renderer = Some(preview.renderer());
+                }
                 self.from = on_page(doc.added(), page).into_iter().find(|(i, _)| *i == index).map(|(_, a)| a.content.rect());
                 self.picture = picture(page, index);
             }
@@ -174,7 +178,9 @@ impl MoveBackground {
         let scale = scale.min(crate::canvas::BASE_SIDE.min(max_side) / p.width.max(p.height).max(1.0));
         let tag = (scale * 1000.0) as u64;
         if self.tag != Some(tag) {
-            for r in [renderer, item_renderer] {
+            let item_side = self.item_bounds.map_or(1.0, |r| ((r[2] - r[0]).max(r[3] - r[1])) as f32).max(1.0);
+            let item_scale = scale.min(crate::canvas::BASE_SIDE.min(max_side) / item_side);
+            for (r, scale) in [(renderer, scale), (item_renderer, item_scale)] {
                 r.set_queue(vec![pdfcraft_render::RenderRequest { page, scale, tag, ..Default::default() }]);
             }
             self.tag = Some(tag);
@@ -253,7 +259,16 @@ impl MoveBackground {
             (r.right_bottom(), to.right_bottom()),
             (r.left_bottom(), to.left_bottom()),
         ] {
-            let (u, v) = xf.screen_to_norm(a);
+            let (u, v) = self.item_bounds.map_or_else(
+                || xf.screen_to_norm(a),
+                |[left, bottom, right, top]| {
+                    let (x, y) = xf.screen_to_view(a);
+                    (
+                        ((f64::from(x) - left) / (right - left).max(1e-3)) as f32,
+                        ((f64::from(y) - (f64::from(xf.ph) - top)) / (top - bottom).max(1e-3)) as f32,
+                    )
+                },
+            );
             mesh.vertices.push(egui::epaint::Vertex { pos: b, uv: Pos2::new(u, v), color: Color32::WHITE });
         }
         mesh.add_triangle(0, 1, 2);
@@ -298,7 +313,9 @@ fn dragged(r: Rect, grab: Grab, d: egui::Vec2, keep_aspect: bool) -> Rect {
         Grab::Corner(left, top) => {
             let (mut dx, mut dy) = (if left { -d.x } else { d.x }, if top { -d.y } else { d.y });
             if keep_aspect && r.width() > 0.0 && r.height() > 0.0 {
-                let k = ((r.width() + dx) / r.width()).max((r.height() + dy) / r.height()).max(0.05);
+                let (horizontal, vertical) = (dx / r.width(), dy / r.height());
+                let delta = if horizontal.abs() > vertical.abs() { horizontal } else { vertical };
+                let k = (1.0 + delta).max(0.05);
                 dx = r.width() * k - r.width();
                 dy = r.height() * k - r.height();
             }
@@ -980,6 +997,14 @@ mod tests {
     use egui_kittest::kittest::Queryable;
 
     use super::*;
+
+    #[test]
+    fn a_picture_corner_shrinks_when_only_one_axis_moves() {
+        let rect = Rect::from_min_size(Pos2::new(10.0, 20.0), egui::vec2(100.0, 50.0));
+        let result = dragged(rect, Grab::Corner(false, false), egui::vec2(-25.0, 0.0), true);
+        assert_eq!(result.min, rect.min);
+        assert_eq!(result.size(), egui::vec2(75.0, 37.5));
+    }
 
     /// The image a flip button leaves behind, as the panel returns it.
     fn flipped(tooltip: &str) -> pdfcraft_engine::AddedImage {

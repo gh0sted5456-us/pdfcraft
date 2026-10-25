@@ -117,6 +117,7 @@ fn reading_colours_preference_round_trips() {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
         app.open_bytes("doc.pdf", None, pdf()).expect("opens");
+        app.set_option("preferences-category", "reading").unwrap();
         app.set_option("dialog", "preferences").unwrap();
         app
     });

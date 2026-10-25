@@ -51,7 +51,7 @@ fn language_and_spelling_are_separate_and_persist_regional_english() {
     let mut h = harness();
     assert!(h.state_mut().execute("app.language_spelling"));
     h.run_steps(3);
-    h.get_by_label("Language and spelling");
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Language");
     h.state_mut().set_option("language", "en-GB").unwrap();
     h.state_mut().set_option("spelling-language", "es-MX").unwrap();
     h.state_mut().set_option("spell-check", "false").unwrap();

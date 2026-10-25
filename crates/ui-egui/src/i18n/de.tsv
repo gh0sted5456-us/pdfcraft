@@ -2611,3 +2611,11 @@ animation effects	Off	Aus
 	Duplicate pages with new field names	Seiten mit neuen Feldnamen duplizieren
 	Duplicate pages — 1 field renamed	Seiten duplizieren — 1 Feld umbenannt
 	Duplicate pages — fields renamed	Seiten duplizieren — Felder umbenannt
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Dokumente
+	AI Assistant	KI-Assistent
+	Latin (accented)	Lateinisch (mit Akzenten)
+	Opening documents	Dokumente öffnen
+	Files	Dateien
+	Navigation	Navigation

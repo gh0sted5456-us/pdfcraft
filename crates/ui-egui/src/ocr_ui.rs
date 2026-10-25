@@ -33,7 +33,14 @@ pub struct OcrDraft {
 
 impl Default for OcrDraft {
     fn default() -> Self {
-        OcrDraft { pages: OcrPages::All, from: 1, to: 1, language: "en".into(), dpi: 300, text_pages: false }
+        OcrDraft {
+            pages: OcrPages::All,
+            from: 1,
+            to: 1,
+            language: if pdfcraft_engine::ocr::available_for("la") { "la" } else { "en" }.into(),
+            dpi: 300,
+            text_pages: false,
+        }
     }
 }
 
@@ -70,7 +77,7 @@ pub struct OcrRun {
 
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (bool, bool) {
     let pages = app.active_ids().and_then(|(_, id)| app.session.get(id)).map_or(1, |d| d.info.pages.len().max(1));
-    let available = pdfcraft_engine::ocr::available();
+    let available = pdfcraft_engine::ocr::available_for(&app.ocr_draft.language);
     let d = &mut app.ocr_draft;
     d.to = d.to.clamp(1, pages);
     d.from = d.from.clamp(1, d.to);
@@ -96,33 +103,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
         });
     });
     group(ui, "Settings", &mut |ui| {
-        egui::Grid::new("ocr-settings").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-            ui.label(tl!("Document language"));
-            let name = LANGUAGES.iter().find(|l| l.0 == d.language).map_or("English", |l| l.1);
-            egui::ComboBox::from_id_salt("ocr-language").selected_text(tl!(name)).width(220.0).show_ui(ui, |ui| {
-                for (code, name) in LANGUAGES {
-                    ui.selectable_value(&mut d.language, (*code).to_string(), tl!(*name));
-                }
-            });
-            ui.end_row();
-            ui.label(tl!("Output"));
-            egui::ComboBox::from_id_salt("ocr-output").selected_text(tl!("Searchable Image (Exact)")).width(220.0).show_ui(ui, |ui| {
-                let _ = ui
-                    .selectable_label(true, tl!("Searchable Image (Exact)"))
-                    .on_hover_text(tl!("Adds invisible text over each word; the page image is not changed"));
-            });
-            ui.end_row();
-            ui.label(tl!("Downsample to"));
-            egui::ComboBox::from_id_salt("ocr-dpi").selected_text(format!("{} dpi", d.dpi)).width(220.0).show_ui(ui, |ui| {
-                for v in [600, 300, 150, 72] {
-                    ui.selectable_value(&mut d.dpi, v, format!("{v} dpi"));
-                }
-            });
-            ui.end_row();
-        });
-        ui.add_space(4.0);
-        ui.add(crate::widgets::checkbox(&mut d.text_pages, tl!("Also recognize pages that already have text")))
-            .on_hover_text(tl!("Pictures on those pages are recognized too; words already in the page's text are not added again"));
+        settings_controls(ui, d);
     });
     if !available {
         ui.label(
@@ -145,6 +126,42 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
         })
     });
     (go, cancel)
+}
+
+pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut PdfCraftApp) {
+    toggle(ui, app);
+    ui.add_space(12.0);
+    settings_controls(ui, &mut app.ocr_draft);
+}
+
+fn settings_controls(ui: &mut egui::Ui, d: &mut OcrDraft) {
+    egui::Grid::new("ocr-settings").num_columns(2).min_col_width(110.0).spacing([12.0, 8.0]).show(ui, |ui| {
+        ui.label(tl!("Document language"));
+        let name = LANGUAGES.iter().find(|l| l.0 == d.language).map_or("English", |l| l.1);
+        egui::ComboBox::from_id_salt("ocr-language").selected_text(tl!(name)).width(220.0).show_ui(ui, |ui| {
+            for (code, name) in LANGUAGES {
+                ui.selectable_value(&mut d.language, (*code).to_string(), tl!(*name));
+            }
+        });
+        ui.end_row();
+        ui.label(tl!("Output"));
+        egui::ComboBox::from_id_salt("ocr-output").selected_text(tl!("Searchable Image (Exact)")).width(220.0).show_ui(ui, |ui| {
+            let _ = ui
+                .selectable_label(true, tl!("Searchable Image (Exact)"))
+                .on_hover_text(tl!("Adds invisible text over each word; the page image is not changed"));
+        });
+        ui.end_row();
+        ui.label(tl!("Downsample to"));
+        egui::ComboBox::from_id_salt("ocr-dpi").selected_text(format!("{} dpi", d.dpi)).width(220.0).show_ui(ui, |ui| {
+            for v in [600, 300, 150, 72] {
+                ui.selectable_value(&mut d.dpi, v, format!("{v} dpi"));
+            }
+        });
+        ui.end_row();
+    });
+    ui.add_space(4.0);
+    ui.add(crate::widgets::checkbox(&mut d.text_pages, tl!("Also recognize pages that already have text")))
+        .on_hover_text(tl!("Pictures on those pages are recognized too; words already in the page's text are not added again"));
 }
 
 pub(crate) fn toggle(ui: &mut egui::Ui, app: &mut PdfCraftApp) {
@@ -231,7 +248,7 @@ impl PdfCraftApp {
             let area = (x1 - x0).abs() * (y1 - y0).abs();
             image.width > 1 && image.height > 1 && area.is_finite() && area >= 0.5 * page_area
         });
-        if scanned && pdfcraft_engine::ocr::available() {
+        if scanned && pdfcraft_engine::ocr::available_for(&self.ocr_draft.language) {
             self.views[view].ocr_prompted.insert(page);
             self.dialog = Some(crate::Dialog::RecognizeScan { doc, page, generation });
         }
@@ -283,13 +300,14 @@ impl PdfCraftApp {
             self.notify_tr("This document does not allow editing");
             return;
         }
+        let language = settings.language.clone();
         let Some(job) = self.session.ocr_job(id, pages, settings) else { return };
         let generation = self.session.get(id).map_or(0, |d| d.edit_generation());
         let progress = Arc::new(Mutex::new(OcrProgress { total: job.pages.len(), ..Default::default() }));
         let p = progress.clone();
         let work = move || {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                pdfcraft_engine::ocr::engine().map(|ocr| {
+                pdfcraft_engine::ocr::engine_for(&language).map(|ocr| {
                     job.run(&ocr, |done, total| {
                         let Ok(mut s) = p.lock() else { return false };
                         s.done = done;
@@ -353,7 +371,7 @@ impl PdfCraftApp {
         let work = move || {
             crate::i18n::set_current(lang);
             let (mut ok, mut words, mut failed) = (0, 0, Vec::new());
-            match pdfcraft_engine::ocr::engine() {
+            match pdfcraft_engine::ocr::engine_for(&settings.language) {
                 Err(e) => failed.push(e),
                 Ok(ocr) => {
                     for (i, (name, bytes)) in files.into_iter().enumerate() {

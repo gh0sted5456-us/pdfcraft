@@ -299,3 +299,16 @@ fn an_ocr_word_opens_for_editing_and_stays_open() {
     h.run_steps(4);
     assert_eq!(opened(&h).as_deref(), Some("Recognize"), "moving the pointer away keeps the word open");
 }
+
+#[test]
+fn ocr_preferences_survive_restart_and_reject_damaged_values() {
+    let mut app = PdfCraftApp::new();
+    app.ocr_draft.language = "fr".into();
+    app.ocr_draft.dpi = 600;
+    app.ocr_draft.text_pages = true;
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&app.persist());
+    assert_eq!(restored.ocr_draft.settings(), app.ocr_draft.settings());
+    restored.restore(r#"{"ocr":{"language":"invalid","dpi":18446744073709551615,"text_pages":"yes"}}"#);
+    assert_eq!(restored.ocr_draft.settings(), app.ocr_draft.settings());
+}

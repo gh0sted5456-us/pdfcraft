@@ -1044,3 +1044,45 @@ fn a_resized_added_picture_shows_only_at_its_new_size() {
     let pixels = h.render().unwrap();
     assert!(red(&pixels, kept) > 100 && red(&pixels, gone) == 0, "the page raster has the picture at its new size");
 }
+
+#[test]
+fn added_image_handles_keep_working_after_release_and_accept_their_outer_edge() {
+    let mut h = harness();
+    assert!(h.state_mut().execute("edit.edit_text"));
+    h.run_steps(2);
+    let mut png = Vec::new();
+    image::RgbImage::from_pixel(60, 40, image::Rgb([200, 30, 30])).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+    h.state_mut().add_image("resize.png".into(), png);
+    h.run_steps(4);
+    let id = h.state().views[0].id;
+    for offset in [egui::vec2(1.0, 1.0), egui::vec2(4.0, 0.0)] {
+        let before = added(&h)[0].content.rect();
+        let r = item_on_screen(&h, before);
+        let grip = r.right_bottom() + offset;
+        let to = grip + egui::vec2(20.0, 20.0);
+        let generation = h.state().session.get(id).unwrap().edit_generation();
+        h.hover_at(grip);
+        h.run_steps(1);
+        h.drag_at(grip);
+        h.run_steps(1);
+        for k in 1..=4 {
+            h.hover_at(grip + (to - grip) * (k as f32 / 4.0));
+            h.run_steps(1);
+        }
+        assert_eq!(h.state().session.get(id).unwrap().edit_generation(), generation, "preview only while held");
+        h.drop_at(to);
+        h.run_steps(4);
+        let after = added(&h)[0].content.rect();
+        assert!(
+            after[2] - after[0] > before[2] - before[0] + 1.0,
+            "the next resize must respond, including the outer handle: {before:?} -> {after:?}"
+        );
+        assert_eq!(h.state().views[0].content.selected, Some((0, 0)));
+        let (w, h) = (after[2] - after[0], after[3] - after[1]);
+        assert!((w / h - 1.5).abs() < 0.001, "keep the image's aspect ratio");
+    }
+    let saved = h.state_mut().session.save_bytes(id).unwrap();
+    let mut s = pdfcraft_engine::Session::new();
+    let reopened = s.open("resized.pdf", None, saved, None).unwrap();
+    assert_eq!(s.get(reopened).unwrap().added()[0].content.rect(), added(&h)[0].content.rect());
+}

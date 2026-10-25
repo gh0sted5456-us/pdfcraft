@@ -423,7 +423,10 @@ impl PdfCraftApp {
                 self.dialog = Some(Dialog::DocumentJs);
             }
             "app.preferences" => self.dialog = Some(Dialog::Preferences),
-            "app.language_spelling" => self.dialog = Some(Dialog::Preferences),
+            "app.language_spelling" => {
+                self.preferences_category = crate::PreferencesCategory::Language;
+                self.dialog = Some(Dialog::Preferences);
+            }
             "ocr.recognize_batch" => self.ocr_files_dialog(),
             "edit.edit_text" => {
                 self.quick_tool = crate::QuickTool::EditText;

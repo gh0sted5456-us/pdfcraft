@@ -16,6 +16,7 @@ fn harness() -> Harness<'static, PdfCraftApp> {
     let mut h = Harness::builder().with_size(egui::vec2(1000.0, 900.0)).build_eframe(|_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
+        app.set_option("preferences-category", "documents").unwrap();
         app.set_option("dialog", "preferences").unwrap();
         app
     });

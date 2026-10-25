@@ -558,7 +558,7 @@ fn input(s: &mut ObjectSelection, ui: &egui::Ui, resp: &egui::Response, xf: &Pag
     // paragraph (as in `edit_text_ui`) instead of starting an area selection (#2276).
     let on_edge = view.line_editor.as_ref().is_none_or(|e| e.page != page)
         && crate::edit_text_ui::grabs_edge(xf, info, page, objects.iter().filter(|o| o.target.kind == ObjectKind::Text).map(|o| o.rect), p);
-    if hit.is_some() || on_edge {
+    if hit.is_some() || on_edge || crate::content_ui::select_grabs(ui, xf, page, info, doc.added(), view) {
         return false;
     }
     leave_single(view);

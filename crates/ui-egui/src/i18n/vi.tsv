@@ -2879,3 +2879,11 @@ key	Space	Space
 	Duplicate pages with new field names	Nhân bản trang với tên trường mới
 	Duplicate pages — 1 field renamed	Nhân bản trang — 1 trường được đổi tên
 	Duplicate pages — fields renamed	Nhân bản trang — các trường được đổi tên
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Tài liệu
+	AI Assistant	Trợ lý AI
+	Latin (accented)	Chữ Latinh (có dấu)
+	Opening documents	Mở tài liệu
+	Files	Tệp
+	Navigation	Điều hướng

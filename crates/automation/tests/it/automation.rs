@@ -8513,3 +8513,26 @@ fn mixed_originals_and_comments_move_delete_undo_and_reopen_atomically() {
     assert_eq!(ok(&mut a, "object_list", json!({"doc":doc,"page":1}))["objects"], moved["objects"]);
     assert_eq!(ok(&mut a, "comment_list", json!({"doc":doc}))["count"], 1);
 }
+
+#[test]
+fn accented_ocr_is_available_through_the_tools_and_searches_saved_text() {
+    let dir = workdir("ocr-accents");
+    let mut a = auto(&dir);
+    let status = ok(&mut a, "ocr_status", json!({}));
+    let french = status["languages"].as_array().unwrap().iter().find(|l| l["code"] == "fr").unwrap();
+    if french["available"] != true {
+        eprintln!("skipped: Latin OCR model not installed");
+        return;
+    }
+    let doc = ok(&mut a, "doc_create", json!({"from":"text", "text":"Café été façade où"}))["doc"].as_u64().unwrap();
+    ok(&mut a, "doc_export_images", json!({"doc":doc,"folder":"scan","dpi":300,"pages":[1]}));
+    let png = std::fs::read_dir(dir.join("scan")).unwrap().next().unwrap().unwrap().path();
+    let scan = ok(&mut a, "doc_create", json!({"from":"images","paths":[png.to_string_lossy()]}))["doc"].as_u64().unwrap();
+    let found = ok(&mut a, "ocr_recognize", json!({"doc":scan,"language":"fr"}));
+    let text = found["pages"][0]["text"].as_str().unwrap();
+    assert!(text.contains('é') && text.contains('ç') && text.contains('ù'), "{text}");
+    assert!(ok(&mut a, "text_find", json!({"doc":scan,"query":"Café"}))["count"].as_u64().unwrap() > 0);
+    ok(&mut a, "doc_save", json!({"doc":scan,"path":"searchable.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"searchable.pdf"}))["doc"].as_u64().unwrap();
+    assert!(ok(&mut a, "text_find", json!({"doc":reopened,"query":"façade"}))["count"].as_u64().unwrap() > 0);
+}

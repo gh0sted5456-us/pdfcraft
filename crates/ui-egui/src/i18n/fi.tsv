@@ -2883,3 +2883,11 @@ theme	Appearance	Teema
 	Duplicate pages with new field names	Monista sivut uusilla kenttien nimillä
 	Duplicate pages — 1 field renamed	Monista sivut — 1 kenttä nimetty uudelleen
 	Duplicate pages — fields renamed	Monista sivut — kenttiä nimetty uudelleen
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Asiakirjat
+	AI Assistant	Tekoälyavustaja
+	Latin (accented)	Latinalainen (tarkkeineen)
+	Opening documents	Asiakirjojen avaaminen
+	Files	Tiedostot
+	Navigation	Navigointi

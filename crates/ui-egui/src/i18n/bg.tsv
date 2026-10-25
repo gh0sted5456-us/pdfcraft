@@ -2573,3 +2573,11 @@ animation effects	Off	Изключени
 	Duplicate pages with new field names	Дублиране на страници с нови имена на полетата
 	Duplicate pages — 1 field renamed	Дублирай страници — 1 поле е преименувано
 	Duplicate pages — fields renamed	Дублирай страници — полета са преименувани
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Документи
+	AI Assistant	AI асистент
+	Latin (accented)	Латиница (с диакритични знаци)
+	Opening documents	Отваряне на документи
+	Files	Файлове
+	Navigation	Навигация

@@ -1655,6 +1655,7 @@ fn picture_harness_sized(size: egui::Vec2) -> (image::RgbaImage, Harness<'static
     let mut h = Harness::builder().with_size(size).build_eframe(move |_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
+        app.set_option("auto_ocr", "off").unwrap();
         app.open_bytes("pic.pdf", None, pdf.to_vec()).unwrap();
         app
     });

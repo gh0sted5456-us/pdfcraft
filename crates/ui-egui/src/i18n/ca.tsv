@@ -2874,3 +2874,11 @@ theme	Appearance	Aspecte
 	Duplicate pages with new field names	Duplica les pàgines amb noms de camp nous
 	Duplicate pages — 1 field renamed	Duplica pàgines — 1 camp s'ha reanomenat
 	Duplicate pages — fields renamed	Duplica pàgines — camps reanomenats
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Documents
+	AI Assistant	Assistent d’IA
+	Latin (accented)	Llatí (amb accents)
+	Opening documents	Obertura de documents
+	Files	Fitxers
+	Navigation	Navegació

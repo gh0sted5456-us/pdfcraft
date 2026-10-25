@@ -2876,3 +2876,11 @@ theme	Appearance	Išvaizda
 	Duplicate pages with new field names	Dubliuoti puslapius su naujais laukų pavadinimais
 	Duplicate pages — 1 field renamed	Dubliuoti puslapius — pervadintas 1 laukas
 	Duplicate pages — fields renamed	Dubliuoti puslapius — laukai pervadinti
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Dokumentai
+	AI Assistant	DI asistentas
+	Latin (accented)	Lotynų (su diakritiniais ženklais)
+	Opening documents	Dokumentų atvėrimas
+	Files	Failai
+	Navigation	Naršymas

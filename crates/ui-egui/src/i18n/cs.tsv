@@ -2917,3 +2917,11 @@ certificate	Version	Verze
 	Duplicate pages with new field names	Duplikovat stránky s novými názvy polí
 	Duplicate pages — 1 field renamed	Duplikovat stránky — 1 pole přejmenováno
 	Duplicate pages — fields renamed	Duplikovat stránky — pole přejmenována
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Dokumenty
+	AI Assistant	Asistent AI
+	Latin (accented)	Latinka (s diakritikou)
+	Opening documents	Otevírání dokumentů
+	Files	Soubory
+	Navigation	Navigace

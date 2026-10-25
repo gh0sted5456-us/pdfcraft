@@ -2848,3 +2848,11 @@ theme	Appearance	Tampilan
 	Duplicate pages with new field names	Gandakan halaman dengan nama bidang baru
 	Duplicate pages — 1 field renamed	Duplikat halaman — 1 kolom diganti namanya
 	Duplicate pages — fields renamed	Duplikat halaman — kolom diganti namanya
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Dokumen
+	AI Assistant	Asisten AI
+	Latin (accented)	Latin (beraksen)
+	Opening documents	Membuka dokumen
+	Files	Berkas
+	Navigation	Navigasi

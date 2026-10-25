@@ -20,3 +20,7 @@ All roles use the shared matte theme fill at rest, matching dimensions and focus
 Labelled interface checkboxes support dragging across adjacent boxes to apply the starting box’s new value. Disabled, clipped and covered boxes are skipped. Organize Pages thumbnail checkboxes retain page dragging; PDF form checkboxes retain their document behavior. Adapted from [upstream #4552](https://github.com/storytold/pdfcraft/pull/4552) by @Lcoding15.
 
 Find and Advanced Search select the complete current query only on an explicit focus request, so reopening search replaces the old query while normal typing and cursor placement still work. Adapted from [upstream #4533](https://github.com/storytold/pdfcraft/pull/4533) by @urbanij.
+
+Settings uses a left category rail and right settings pane, each with independent bounded scrolling. The title and green confirmation row stay in place as categories change. Existing settings apply immediately; OK closes. Category navigation never changes PDF contents. `preferences-category` selects a pane through UI automation; the language/spelling shortcut opens its category directly.
+
+Personal Settings stays about 800 × 515 points with twelve compact navigation entries and solid scrollbars in both panes. Pane headings are centered; related controls share section spacing. OCR uses the same controls as Recognize Text, and Security reuses the timestamp selector without making requests. New-text style is session-only; page preview sizes apply to the current document. AI connections open the existing dedicated setup.

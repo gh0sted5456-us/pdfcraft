@@ -2610,3 +2610,11 @@ animation effects	Off	オフ
 	Duplicate pages with new field names	新しいフィールド名でページを複製
 	Duplicate pages — 1 field renamed	ページを複製 — 1 個のフィールド名を変更
 	Duplicate pages — fields renamed	ページを複製 — フィールド名を変更
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	文書
+	AI Assistant	AI アシスタント
+	Latin (accented)	ラテン文字（アクセント付き）
+	Opening documents	文書を開く
+	Files	ファイル
+	Navigation	ナビゲーション

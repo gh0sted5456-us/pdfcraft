@@ -2606,3 +2606,11 @@ animation effects	Off	Kapalı
 	Duplicate pages with new field names	Sayfaları yeni alan adlarıyla çoğalt
 	Duplicate pages — 1 field renamed	Sayfaları çoğalt — 1 alan yeniden adlandırıldı
 	Duplicate pages — fields renamed	Sayfaları çoğalt — alanlar yeniden adlandırıldı
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Belgeler
+	AI Assistant	Yapay zekâ asistanı
+	Latin (accented)	Latin (aksanlı)
+	Opening documents	Belgeleri açma
+	Files	Dosyalar
+	Navigation	Gezinme

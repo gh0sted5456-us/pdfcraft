@@ -2876,3 +2876,11 @@ certificate	Version	Version
 	Duplicate pages with new field names	Dupliquer les pages avec de nouveaux noms de champs
 	Duplicate pages — 1 field renamed	Dupliquer des pages — 1 champ renommé
 	Duplicate pages — fields renamed	Dupliquer des pages — champs renommés
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Documents
+	AI Assistant	Assistant IA
+	Latin (accented)	Latin (avec accents)
+	Opening documents	Ouverture des documents
+	Files	Fichiers
+	Navigation	Navigation

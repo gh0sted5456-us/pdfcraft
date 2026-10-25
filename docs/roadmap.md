@@ -1,5 +1,7 @@
 # PdfCraft roadmap: milestones and what's next
 
+> **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Compact Settings now has twelve categories, solid scrollbars in both panes, shorter category labels, centered headings and fixed themed confirmation actions. The personal build also adapts community #2520 for local accented Latin OCR with persisted choices and Unicode search layers, and fixes repeated added-image resizing and off-page preview clipping (#4477). Readiness estimates unchanged.
+
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal build adapts upstream #4533 search-focus selection, #4552 checkbox drag selection and #4557 independent form-field copies on duplicated pages. Ordinary duplication keeps shared field names; renamed copies report their new names and do not rewrite scripts. Readiness estimates unchanged.
 
 > **Last reviewed:** 2026-10-24 · **Last updated:** 2026-10-24 · **Change:** Personal build adds optional per-user AI subscription/API setup and reviewed read-only assistance, unsigned page locks captured by subsequent signatures, an Organize Pages signing chooser, and bounded centered shared dialogs. Live AI/provider login, native Linux/macOS credential stores and physical CAC remain unverified. Other readers may ignore PdfCraft page locks; readiness estimates unchanged.

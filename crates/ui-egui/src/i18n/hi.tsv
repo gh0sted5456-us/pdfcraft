@@ -2847,3 +2847,11 @@ theme	Appearance	स्वरूप
 	Duplicate pages with new field names	नए फ़ील्ड नामों के साथ पृष्ठों की प्रतिलिपि बनाएँ
 	Duplicate pages — 1 field renamed	पृष्ठ डुप्लिकेट करें — 1 फ़ील्ड का नाम बदला गया
 	Duplicate pages — fields renamed	पृष्ठ डुप्लिकेट करें — फ़ील्ड के नाम बदले गए
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	दस्तावेज़
+	AI Assistant	AI सहायक
+	Latin (accented)	लैटिन (स्वराघात चिह्नों सहित)
+	Opening documents	दस्तावेज़ खोलना
+	Files	फ़ाइलें
+	Navigation	नेविगेशन

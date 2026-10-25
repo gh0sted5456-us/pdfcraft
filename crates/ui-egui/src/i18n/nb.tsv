@@ -2780,3 +2780,11 @@ key	Space	Mellomrom
 	Duplicate pages with new field names	Dupliser sider med nye feltnavn
 	Duplicate pages — 1 field renamed	Dupliser sider — 1 felt fikk nytt navn
 	Duplicate pages — fields renamed	Dupliser sider — felt fikk nytt navn
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Dokumenter
+	AI Assistant	KI-assistent
+	Latin (accented)	Latin (med aksenter)
+	Opening documents	Åpning av dokumenter
+	Files	Filer
+	Navigation	Navigasjon

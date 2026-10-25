@@ -2847,3 +2847,11 @@ theme	Appearance	모양
 	Duplicate pages with new field names	새 필드 이름으로 페이지 복제
 	Duplicate pages — 1 field renamed	페이지 복제 — 필드 1개 이름 변경됨
 	Duplicate pages — fields renamed	페이지 복제 — 필드 이름 변경됨
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	문서
+	AI Assistant	AI 도우미
+	Latin (accented)	라틴 문자(발음 구별 부호 포함)
+	Opening documents	문서 열기
+	Files	파일
+	Navigation	탐색

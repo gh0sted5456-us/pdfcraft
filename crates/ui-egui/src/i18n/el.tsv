@@ -2608,3 +2608,11 @@ animation effects	Off	Ανενεργά
 	Duplicate pages with new field names	Διπλασιασμός σελίδων με νέα ονόματα πεδίων
 	Duplicate pages — 1 field renamed	Δημιουργία αντιγράφων σελίδων — μετονομάστηκε 1 πεδίο
 	Duplicate pages — fields renamed	Δημιουργία αντιγράφων σελίδων — μετονομάστηκαν πεδία
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Έγγραφα
+	AI Assistant	Βοηθός AI
+	Latin (accented)	Λατινικά (με τόνους)
+	Opening documents	Άνοιγμα εγγράφων
+	Files	Αρχεία
+	Navigation	Πλοήγηση

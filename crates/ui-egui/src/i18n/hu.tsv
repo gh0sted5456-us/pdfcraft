@@ -2609,3 +2609,11 @@ animation effects	Off	Ki
 	Duplicate pages with new field names	Oldalak másolása új mezőnevekkel
 	Duplicate pages — 1 field renamed	Oldalak megkettőzése — 1 mező átnevezve
 	Duplicate pages — fields renamed	Oldalak megkettőzése — mezők átnevezve
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Dokumentumok
+	AI Assistant	AI-asszisztens
+	Latin (accented)	Latin (ékezetes)
+	Opening documents	Dokumentumok megnyitása
+	Files	Fájlok
+	Navigation	Navigáció

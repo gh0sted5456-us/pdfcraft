@@ -2886,3 +2886,11 @@ certificate	Version	الإصدار
 	Duplicate pages with new field names	تكرار الصفحات بأسماء حقول جديدة
 	Duplicate pages — 1 field renamed	تكرار الصفحات — تمت إعادة تسمية حقل واحد
 	Duplicate pages — fields renamed	تكرار الصفحات — تمت إعادة تسمية حقول
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	المستندات
+	AI Assistant	مساعد الذكاء الاصطناعي
+	Latin (accented)	اللاتينية (بعلامات تشكيل)
+	Opening documents	فتح المستندات
+	Files	الملفات
+	Navigation	التنقل

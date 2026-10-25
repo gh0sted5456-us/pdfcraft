@@ -2574,3 +2574,11 @@ animation effects	Off	关
 	Duplicate pages with new field names	使用新字段名复制页面
 	Duplicate pages — 1 field renamed	重复页面 — 已重命名 1 个字段
 	Duplicate pages — fields renamed	重复页面 — 已重命名字段
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	文档
+	AI Assistant	AI 助手
+	Latin (accented)	拉丁字母（带重音）
+	Opening documents	打开文档
+	Files	文件
+	Navigation	导航

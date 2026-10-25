@@ -2932,3 +2932,11 @@ theme	Appearance	Aspecto
 	Duplicate pages with new field names	Duplicar páginas con nuevos nombres de campo
 	Duplicate pages — 1 field renamed	Duplicar páginas — 1 campo renombrado
 	Duplicate pages — fields renamed	Duplicar páginas — campos renombrados
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Documentos
+	AI Assistant	Asistente de IA
+	Latin (accented)	Latín (con acentos)
+	Opening documents	Apertura de documentos
+	Files	Archivos
+	Navigation	Navegación

@@ -24,6 +24,7 @@ fn the_identity_name_signs_new_comments_and_is_remembered() {
         app.set_option("language", "en").unwrap();
         app.open_bytes("doc.pdf", None, PDF.to_vec()).expect("opens");
         app.set_option("author", "Tester").unwrap();
+        app.set_option("preferences-category", "identity").unwrap();
         app.set_option("dialog", "preferences").unwrap();
         app
     });

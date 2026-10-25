@@ -2608,3 +2608,11 @@ animation effects	Off	Өшірулі
 	Duplicate pages with new field names	Беттерді жаңа өріс атауларымен көшіру
 	Duplicate pages — 1 field renamed	Беттерді көшірмелеу — 1 өріс қайта аталды
 	Duplicate pages — fields renamed	Беттерді көшірмелеу — өрістер қайта аталды
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	Құжаттар
+	AI Assistant	ЖИ көмекшісі
+	Latin (accented)	Латын (диакритикалық белгілермен)
+	Opening documents	Құжаттарды ашу
+	Files	Файлдар
+	Navigation	Шарлау

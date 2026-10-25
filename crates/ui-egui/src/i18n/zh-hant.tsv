@@ -2552,3 +2552,11 @@ animation effects	Off	關
 	Duplicate pages with new field names	使用新欄位名稱複製頁面
 	Duplicate pages — 1 field renamed	複製頁面 — 已重新命名 1 個欄位
 	Duplicate pages — fields renamed	複製頁面 — 已重新命名欄位
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	文件
+	AI Assistant	AI 助理
+	Latin (accented)	拉丁字母（含重音）
+	Opening documents	開啟文件
+	Files	檔案
+	Navigation	導覽

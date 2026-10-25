@@ -2718,3 +2718,11 @@ theme	Appearance	ลักษณะที่ปรากฏ
 	Duplicate pages with new field names	ทำสำเนาหน้าพร้อมชื่อช่องข้อมูลใหม่
 	Duplicate pages — 1 field renamed	ทำสำเนาหน้า — เปลี่ยนชื่อ 1 ช่อง
 	Duplicate pages — fields renamed	ทำสำเนาหน้า — มีการเปลี่ยนชื่อช่อง
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	เอกสาร
+	AI Assistant	ผู้ช่วย AI
+	Latin (accented)	อักษรละติน (มีเครื่องหมายกำกับเสียง)
+	Opening documents	การเปิดเอกสาร
+	Files	ไฟล์
+	Navigation	การนำทาง

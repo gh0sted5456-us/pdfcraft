@@ -2750,3 +2750,11 @@ certificate	Version	وەشان
 	Duplicate pages with new field names	دووبارەکردنەوەی لاپەڕەکان بە ناوی نوێی خانەکان
 	Duplicate pages — 1 field renamed	دووبارەکردنەوەی پەڕەکان — 1 خانە ناونرایەوە
 	Duplicate pages — fields renamed	دووبارەکردنەوەی پەڕەکان — خانەکان ناونرانەوە
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	بەڵگەنامەکان
+	AI Assistant	یاریدەدەری زیرەکی دەستکرد
+	Latin (accented)	لاتینی (بە نیشانەکانەوە)
+	Opening documents	کردنەوەی بەڵگەنامەکان
+	Files	پەڕگەکان
+	Navigation	گەڕان

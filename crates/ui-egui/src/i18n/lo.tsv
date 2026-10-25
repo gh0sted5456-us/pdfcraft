@@ -2466,3 +2466,11 @@ animation effects	Off	ປິດ
 	Duplicate pages with new field names	ເຮັດສຳເນົາໜ້າດ້ວຍຊື່ຊ່ອງໃໝ່
 	Duplicate pages — 1 field renamed	ສຳເນົາໜ້າຊ້ຳ — ປ່ຽນຊື່ແລ້ວ 1 ຊ່ອງ
 	Duplicate pages — fields renamed	ສຳເນົາໜ້າຊ້ຳ — ປ່ຽນຊື່ຊ່ອງຂໍ້ມູນແລ້ວ
+
+# Compact Settings and accented OCR (AI-assisted; see ATTRIBUTION.toml).
+	Documents	ເອກະສານ
+	AI Assistant	ຜູ້ຊ່ວຍ AI
+	Latin (accented)	ລາຕິນ (ມີເຄື່ອງໝາຍ)
+	Opening documents	ການເປີດເອກະສານ
+	Files	ໄຟລ໌
+	Navigation	ການນຳທາງ

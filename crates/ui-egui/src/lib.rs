@@ -59,6 +59,8 @@ mod crop;
 mod drag_pointer;
 mod export_ui;
 mod js_ui;
+mod preferences_ui;
+pub use preferences_ui::PreferencesCategory;
 #[cfg(target_os = "macos")]
 mod macos_association;
 mod marks_ui;
@@ -578,6 +580,8 @@ pub struct PdfCraftApp {
     pub(crate) spelling: spelling_ui::Settings,
     /// Preferences ▸ Interface size as a factor, or `None` to follow [`Self::system_text_scale`].
     pub ui_scale: Option<f32>,
+    /// Selected Settings category for this session.
+    pub preferences_category: PreferencesCategory,
     /// The desktop's text scaling (GNOME's text scaling factor), which the desktop app reads at
     /// launch. 1.0 elsewhere, so tests and screenshots don't depend on the machine.
     pub system_text_scale: f32,
@@ -987,6 +991,7 @@ impl PdfCraftApp {
             active: None,
             mode: Mode::AllTools,
             default_mode: Mode::AllTools,
+            preferences_category: PreferencesCategory::default(),
             view_defaults: Default::default(),
             units: Default::default(),
             date_format_draft: None,
@@ -2515,6 +2520,7 @@ impl PdfCraftApp {
         v["show_signature_badges"] = serde_json::Value::Bool(self.show_signature_badges);
         v["organize_zoom"] = serde_json::json!(self.organize_zoom);
         v["auto_ocr"] = serde_json::Value::Bool(self.auto_ocr);
+        v["ocr"] = serde_json::json!({"language": self.ocr_draft.language, "dpi": self.ocr_draft.dpi, "text_pages": self.ocr_draft.text_pages});
         // Canonical names survive changes to the order of PAPERS and do not depend on UI language.
         v["print_paper"] = serde_json::json!(pdfcraft_engine::print::PAPERS.get(self.print_draft.paper).map(|(name, _)| *name));
         v.to_string()
@@ -2574,6 +2580,15 @@ impl PdfCraftApp {
         }
         if let Some(enabled) = v["auto_ocr"].as_bool() {
             self.auto_ocr = enabled;
+        }
+        if let Some(language) = v["ocr"]["language"].as_str().filter(|code| pdfcraft_engine::ocr::LANGUAGES.iter().any(|l| l.0 == *code)) {
+            self.ocr_draft.language = language.into();
+        }
+        if let Some(dpi) = v["ocr"]["dpi"].as_u64().filter(|dpi| [72, 150, 300, 600].contains(dpi)) {
+            self.ocr_draft.dpi = dpi as u32;
+        }
+        if let Some(text_pages) = v["ocr"]["text_pages"].as_bool() {
+            self.ocr_draft.text_pages = text_pages;
         }
         if let Ok(mode) = serde_json::from_value::<Mode>(v["default_mode"].clone()) {
             self.default_mode = mode;
@@ -2797,6 +2812,7 @@ impl PdfCraftApp {
             ("default-mode", _) => {
                 self.default_mode = Mode::parse(value).ok_or("default-mode must be all, read, edit, convert or sign")?;
             }
+            ("preferences-category", _) => self.preferences_category = PreferencesCategory::parse(value)?,
             ("date-format", _) => self.session.set_date_format(value)?,
             ("date-language", _) => self.session.set_date_language(Some(value).filter(|v| *v != "auto"))?,
             ("spell-check", _) => {
