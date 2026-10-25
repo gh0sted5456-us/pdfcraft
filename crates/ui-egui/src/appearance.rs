@@ -132,7 +132,7 @@ pub fn preferences_section(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
         if glass != app.glass {
             app.set_glass_settings(glass);
         }
-        ui.small("Tinted window transparency. PDF pages and dialogs stay opaque. Desktop compositing is required.");
+        ui.small("Shared tint and opacity for all panes, dialogs and fields. PDF pages stay opaque. Desktop compositing is required.");
         ui.add_space(8.0);
     }
     let light_active = app.theme == ThemeKind::Light;

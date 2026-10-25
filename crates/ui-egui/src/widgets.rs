@@ -608,7 +608,13 @@ pub fn toast(app: &mut PdfCraftApp, ctx: &egui::Context) {
         .fixed_pos(screen.center_bottom() - vec2(0.0, lift))
         .show(ctx, |ui| {
             egui::Frame::NONE
-                .fill(if t.dark() { Color32::from_rgb(0xEC, 0xEC, 0xEF) } else { Color32::from_rgb(0x2A, 0x2A, 0x2F) })
+                .fill(if app.theme_preference == crate::theme::ThemePreference::Glass {
+                    t.card
+                } else if t.dark() {
+                    Color32::from_rgb(0xEC, 0xEC, 0xEF)
+                } else {
+                    Color32::from_rgb(0x2A, 0x2A, 0x2F)
+                })
                 .corner_radius(CornerRadius::same(8))
                 .inner_margin(egui::Margin::symmetric(16, 10))
                 .show(ui, |ui| {
@@ -618,8 +624,14 @@ pub fn toast(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     // including the frame's 32 points and 16-point outside margins.
                     ui.set_max_width((screen.width() - 64.0).clamp(1.0, 560.0));
                     ui.add(
-                        egui::Label::new(egui::RichText::new(msg).color(if t.dark() { Color32::from_rgb(0x22, 0x22, 0x26) } else { Color32::WHITE }))
-                            .wrap(),
+                        egui::Label::new(egui::RichText::new(msg).color(if app.theme_preference == crate::theme::ThemePreference::Glass {
+                            t.text
+                        } else if t.dark() {
+                            Color32::from_rgb(0x22, 0x22, 0x26)
+                        } else {
+                            Color32::WHITE
+                        }))
+                        .wrap(),
                     );
                 });
         });

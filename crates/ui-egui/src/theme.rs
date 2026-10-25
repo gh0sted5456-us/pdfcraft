@@ -39,7 +39,7 @@ impl ThemePreference {
     }
 }
 
-/// Glass affects window surfaces only; documents, cards and fields remain opaque.
+/// All Glass UI surfaces share one tint and opacity; document pixels stay opaque.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct GlassSettings {
@@ -68,8 +68,13 @@ impl GlassSettings {
         t.chrome = surface;
         t.panel = surface;
         t.pasteboard = surface;
-        t.card = Color32::from_rgb(rgb[0], rgb[1], rgb[2]);
-        t.field = Color32::from_rgb(rgb[0] / 2, rgb[1] / 2, rgb[2] / 2);
+        t.card = surface;
+        t.field = surface;
+        let raised = |amount| Color32::from_rgba_unmultiplied(rgb[0] + amount, rgb[1] + amount, rgb[2] + amount, alpha);
+        t.hover = raised(8);
+        t.pressed = raised(16);
+        t.selected = raised(12);
+        t.accent_soft = t.selected;
         t
     }
 }

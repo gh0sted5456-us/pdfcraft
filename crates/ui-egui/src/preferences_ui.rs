@@ -131,33 +131,37 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     ui.horizontal_top(|ui| {
         ui.spacing_mut().item_spacing.x = 12.0;
         ui.allocate_ui_with_layout(vec2(rail, height), Layout::top_down(Align::Min), |ui| {
-            egui::Frame::new().fill(t.hover).corner_radius(8).inner_margin(egui::Margin::same(padding)).show(ui, |ui| {
-                ui.set_width((rail - f32::from(padding) * 2.0).max(1.0));
-                ui.spacing_mut().scroll.floating = false;
-                egui::ScrollArea::vertical()
-                    .id_salt("preferences-categories")
-                    .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
-                    .max_height(inside_height)
-                    .min_scrolled_height(inside_height)
-                    .auto_shrink([false, false])
-                    .show(ui, |ui| {
-                        for category in PreferencesCategory::ALL {
-                            let selected = app.preferences_category == category;
-                            let button = egui::Button::image_and_text(
-                                icons::image(category.icon(), 17.0, if selected { t.accent_text } else { t.icon }),
-                                tl!(category.navigation_label()),
-                            )
-                            .selected(selected)
-                            .frame_when_inactive(selected)
-                            .frame(true)
-                            .min_size(vec2(ui.available_width(), 34.0))
-                            .truncate();
-                            if ui.add(button).on_hover_text(tl!(category.label())).clicked() {
-                                app.preferences_category = category;
+            egui::Frame::new()
+                .fill(if app.theme_preference == crate::theme::ThemePreference::Glass { t.panel } else { t.hover })
+                .corner_radius(8)
+                .inner_margin(egui::Margin::same(padding))
+                .show(ui, |ui| {
+                    ui.set_width((rail - f32::from(padding) * 2.0).max(1.0));
+                    ui.spacing_mut().scroll.floating = false;
+                    egui::ScrollArea::vertical()
+                        .id_salt("preferences-categories")
+                        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                        .max_height(inside_height)
+                        .min_scrolled_height(inside_height)
+                        .auto_shrink([false, false])
+                        .show(ui, |ui| {
+                            for category in PreferencesCategory::ALL {
+                                let selected = app.preferences_category == category;
+                                let button = egui::Button::image_and_text(
+                                    icons::image(category.icon(), 17.0, if selected { t.accent_text } else { t.icon }),
+                                    tl!(category.navigation_label()),
+                                )
+                                .selected(selected)
+                                .frame_when_inactive(selected)
+                                .frame(true)
+                                .min_size(vec2(ui.available_width(), 34.0))
+                                .truncate();
+                                if ui.add(button).on_hover_text(tl!(category.label())).clicked() {
+                                    app.preferences_category = category;
+                                }
                             }
-                        }
-                    });
-            });
+                        });
+                });
         });
         ui.allocate_ui_with_layout(vec2(pane, height), Layout::top_down(Align::Min), |ui| {
             egui::Frame::new().fill(t.card).stroke(egui::Stroke::new(1.0, t.border)).corner_radius(8).inner_margin(egui::Margin::same(padding)).show(

@@ -10303,8 +10303,8 @@ milestone = "M14"
 status = "shipped"
 commands = ["view.theme.glass"]
 tools = []
-evidence = ["crates/ui-egui/tests/it/ui.rs::glass_controls_are_visible_above_the_preview_cards_in_small_preferences", "crates/ui-egui/tests/it/ui.rs::glass_theme_settings_validate_persist_and_keep_documents_opaque", "crates/ui-egui/tests/it/theme.rs::toolbar_and_view_menu_share_four_state_preferences"]
-notes = "Appearance offers Glass with a color picker and 35–100% surface opacity. Values persist and are reachable through ui.set glass-tint/glass-opacity and ui.state. Native windows enable per-pixel transparency; dark/light remain opaque. PDF pages, fields and dialogs stay opaque. Desktop compositing is required; blur and native Linux/macOS runtime qualification are not claimed."
+evidence = ["crates/ui-egui/tests/it/ui.rs::glass_panes_controls_and_windows_header_share_the_live_surface", "crates/ui-egui/tests/it/ui.rs::glass_controls_are_visible_above_the_preview_cards_in_small_preferences", "crates/ui-egui/tests/it/ui.rs::glass_theme_settings_validate_persist_and_keep_documents_opaque", "crates/ui-egui/tests/it/theme.rs::toolbar_and_view_menu_share_four_state_preferences"]
+notes = "Appearance offers Glass with a color picker and 35–100% surface opacity. Values persist and are reachable through ui.set glass-tint/glass-opacity and ui.state. Native windows enable per-pixel transparency; dark/light remain opaque. PDF pages stay opaque; UI panes, dialogs, cards, fields and hover surfaces share the tint and opacity. Dock underlays are removed to preserve desktop transparency. Windows Glass uses the existing app-drawn header and restores the desktop frame on exit. Desktop compositing is required; blur and native Linux/macOS runtime qualification are not claimed."
 
 [[feature]]
 id = "misc.windows-pdf-thumbnails"

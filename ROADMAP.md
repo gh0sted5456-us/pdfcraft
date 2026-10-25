@@ -1,6 +1,8 @@
 # PdfCraft roadmap
 
-**2026-10-25 — Personal 0.13.1:** Glass appearance adds saved tint and 35–100% surface opacity; pages, fields and dialogs stay opaque. Explorer thumbnails exclude fractional raster padding that created a white edge. Optimization preserves directly named opening destinations (upstream #4678). Appearance cards share one layout; native transparent windows require desktop compositing.
+**2026-10-25 Glass refinement:** Shared tint/opacity now covers dialogs, cards, fields, settings rails and floating panes. Redundant dock backgrounds are removed so desktop transparency is preserved. Windows Glass reuses the app header and window controls; leaving Glass restores the normal frame. Installer behavior is unchanged. Native Linux/macOS transparency remains unverified.
+
+**2026-10-25 — Personal 0.13.1:** Glass appearance adds saved tint and 35–100% surface opacity; PDF pages stay opaque; UI panes, dialogs and fields share the Glass surface. Explorer thumbnails exclude fractional raster padding that created a white edge. Optimization preserves directly named opening destinations (upstream #4678). Appearance cards share one layout; native transparent windows require desktop compositing.
 
 > **Last reviewed:** 2026-10-25 · **Last updated:** 2026-10-25 · **Change:** Wider New PDF gallery with a responsive grid of real template previews, one background worker and bounded Letter/A4 thumbnail caching; compact filters and centered actions. Shared dialogs use thinner borders, less padding and smaller shadows. Undo/Redo controls reuse document/Combine commands with responsive toolbar spacing. Named opening destinations now report the right page and can be redirected to page 1; finite form numbers avoid overflow during decimal rounding. Status notices no longer intercept dialog clicks. Native Linux/macOS and browser runtime remain unverified; readiness estimates unchanged.
 

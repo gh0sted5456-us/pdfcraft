@@ -48,11 +48,8 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
             }
             // GNOME on Wayland: the strip is the header bar, with the window buttons at its ends.
             let fullscreen = ui.ctx().input(|i| i.viewport().fullscreen.unwrap_or(false));
-            let controls = app
-                .window_controls
-                .clone()
-                .filter(|_| app.draws_window_frame() && !fullscreen)
-                .unwrap_or_else(|| window_controls::Layout { left: Vec::new(), right: Vec::new() });
+            let controls =
+                app.window_frame_layout().filter(|_| !fullscreen).unwrap_or_else(|| window_controls::Layout { left: Vec::new(), right: Vec::new() });
             ui.horizontal_centered(|ui| {
                 ui.spacing_mut().item_spacing.x = 4.0;
                 if !controls.left.is_empty() {

@@ -1719,22 +1719,28 @@ impl PdfCraftApp {
         }
     }
 
-    /// Whether the app draws the window's title bar, buttons and resize edges: the desktop leaves
-    /// the frame to the app and Use system title bar is off.
+    /// Use the app header on desktops that request it, and for transparent Windows Glass.
     pub fn draws_window_frame(&self) -> bool {
-        self.window_controls.is_some() && !self.system_title_bar
+        self.window_frame_layout().is_some()
     }
 
-    /// Follow Use system title bar at once: the window starts without winit's frame wherever the
-    /// app may draw its own, and gets it back (or loses it again) when the preference changes.
+    pub(crate) fn window_frame_layout(&self) -> Option<window_controls::Layout> {
+        if cfg!(target_os = "windows") && self.theme_preference == ThemePreference::Glass {
+            Some(window_controls::Layout::default())
+        } else {
+            self.window_controls.clone().filter(|_| !self.system_title_bar)
+        }
+    }
+
+    /// Follow the desktop title-bar preference, or the transparent Windows Glass header.
     fn sync_window_frame(&mut self, ctx: &egui::Context) {
-        if self.window_controls.is_none() {
+        let app_frame = self.draws_window_frame();
+        if self.window_controls.is_none() && !app_frame && self.app_frame_shown.is_none() {
             return;
         }
-        let app_frame = self.draws_window_frame();
         if self.app_frame_shown != Some(app_frame) {
-            // The window opens undecorated, so only a change from that needs a command.
-            if self.app_frame_shown.is_some() || !app_frame {
+            // Linux app headers start undecorated; Windows Glass switches from the native frame.
+            if self.app_frame_shown.is_some() || !app_frame || self.window_controls.is_none() {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Decorations(!app_frame));
             }
             self.app_frame_shown = Some(app_frame);
@@ -3677,7 +3683,10 @@ impl eframe::App for PdfCraftApp {
             }
         }
         let t = theme::Tokens::get(&ctx);
-        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.pasteboard)).show(ui, |ui| {
+        // Docked panes paint their own Glass surface once; stacking it hides the desktop.
+        let background =
+            if self.theme_preference == ThemePreference::Glass && self.mode != Mode::Read { egui::Color32::TRANSPARENT } else { t.pasteboard };
+        egui::CentralPanel::default().frame(egui::Frame::NONE.fill(background)).show(ui, |ui| {
             if self.mode == Mode::Read {
                 match self.active {
                     None if self.combine_showing() => combine_ui::page(self, ui),

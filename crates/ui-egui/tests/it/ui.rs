@@ -1635,8 +1635,8 @@ fn glass_theme_settings_validate_persist_and_keep_documents_opaque() {
     }
     let t = app.glass.tokens();
     assert_eq!(t.panel.a(), 160);
-    assert_eq!(t.card.a(), 255);
-    assert_eq!(t.field.a(), 255);
+    assert_eq!(t.card.a(), 160);
+    assert_eq!(t.field.a(), 160);
     assert_eq!(eframe::App::clear_color(&app, &egui::Visuals::dark()), [0.0; 4]);
     let mut restored = PdfCraftApp::new();
     restored.restore(&app.persist());
@@ -1681,4 +1681,44 @@ fn glass_controls_are_visible_above_the_preview_cards_in_small_preferences() {
     h.run_steps(3);
     assert_ne!(h.state().glass.opacity, before);
     assert!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a() < 255);
+}
+
+#[test]
+fn glass_panes_controls_and_windows_header_share_the_live_surface() {
+    let mut h = harness(|app| {
+        app.set_option("theme", "glass").unwrap();
+        app.set_option("glass-opacity", "50").unwrap();
+    });
+    h.run_steps(4);
+    let t = pdfcraft_ui_egui::theme::Tokens::get(&h.ctx);
+    for surface in [t.titlebar, t.chrome, t.panel, t.pasteboard, t.card, t.field] {
+        assert_eq!(surface, t.panel);
+        assert_eq!(surface.a(), 127);
+    }
+    for surface in [t.hover, t.pressed, t.selected, t.accent_soft] {
+        assert_eq!(surface.a(), 127);
+    }
+    // The Tools pane gets one backing fill, not three stacked translucent layers.
+    let point = egui::pos2(200.0, 450.0);
+    let fills = h
+        .output()
+        .shapes
+        .iter()
+        .filter(|s| s.clip_rect.contains(point) && matches!(&s.shape, egui::Shape::Rect(r) if r.rect.contains(point) && r.fill == t.panel))
+        .count();
+    assert_eq!(fills, 1);
+    #[cfg(windows)]
+    {
+        assert!(h.state().draws_window_frame());
+        for label in ["Minimize", "Maximize", "Close"] {
+            h.get_by_label(label);
+        }
+        h.state_mut().set_option("system-title-bar", "true").unwrap();
+        h.run_steps(2);
+        assert!(h.state().draws_window_frame(), "Glass uses the tinted header even when the system bar was saved");
+        h.state_mut().execute("view.theme.dark");
+        h.run_steps(2);
+        assert!(!h.state().draws_window_frame());
+        assert!(h.query_by_label("Minimize").is_none());
+    }
 }
