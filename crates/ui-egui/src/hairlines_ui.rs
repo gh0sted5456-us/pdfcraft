@@ -32,12 +32,16 @@ impl HairlinesDraft {
     }
 }
 
-/// A width in points edited in `unit`.
-fn width_field(ui: &mut egui::Ui, pts: &mut f64, unit: Unit) {
+/// A width in points edited in `unit`, named by the label `label`.
+fn width_field(ui: &mut egui::Ui, pts: &mut f64, unit: Unit, label: egui::Id) {
     let k = unit.per_point();
     let mut v = *pts * k;
     let step = 0.001 * k;
-    if ui.add(egui::DragValue::new(&mut v).range(0.0..=10.0 * k).speed(step.max(0.0005)).fixed_decimals(unit.decimals().max(3))).changed() {
+    if ui
+        .add(egui::DragValue::new(&mut v).range(0.0..=10.0 * k).speed(step.max(0.0005)).fixed_decimals(unit.decimals().max(3)))
+        .labelled_by(label)
+        .changed()
+    {
         *pts = v / k;
     }
     ui.label(unit.label());
@@ -53,11 +57,11 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     ui.label(egui::RichText::new(tl!("Fix hairlines")).font(theme::semibold(18.0)));
     ui.add_space(8.0);
     egui::Grid::new("hairlines").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-        ui.label(tl!("Narrower than"));
-        ui.horizontal(|ui| width_field(ui, &mut d.settings.narrower_than, unit));
+        let label = ui.label(tl!("Narrower than")).id;
+        ui.horizontal(|ui| width_field(ui, &mut d.settings.narrower_than, unit, label));
         ui.end_row();
-        ui.label(tl!("New width"));
-        ui.horizontal(|ui| width_field(ui, &mut d.settings.width, unit));
+        let label = ui.label(tl!("New width")).id;
+        ui.horizontal(|ui| width_field(ui, &mut d.settings.width, unit, label));
         ui.end_row();
     });
     ui.label(egui::RichText::new(tl!("Zero-width lines always count as narrower.")).small().color(t.text_muted));
