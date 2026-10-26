@@ -1228,7 +1228,7 @@ mod tests {
         ] {
             let args: Vec<String> = args.into_iter().map(str::to_string).collect();
             assert!(super::validate_options("run", &args, super::RUN_OPTIONS).is_ok());
-            assert_eq!(super::positional(&args), ["doc_timestamp", "doc=999"]);
+            assert_eq!(super::positional(&args, super::RUN_OPTIONS), ["doc_timestamp", "doc=999"]);
         }
     }
 

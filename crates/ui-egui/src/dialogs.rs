@@ -33,6 +33,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     if app.dialog != Some(Dialog::WordCount) {
         app.word_count_draft.cancel();
     }
+    if app.dialog != Some(Dialog::CorrectOcrText) {
+        app.ocr_correction = Default::default();
+    }
     if app.dialog != Some(Dialog::FieldTable) {
         app.field_table_draft = None;
     }
@@ -75,6 +78,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut apply_number = false;
     let mut link_command: Option<&'static str> = None;
     let mut protect_now = false;
+    let mut certificate_now = false;
     let mut boxes_now = false;
     let mut marks_now = false;
     let mut export_now = false;
@@ -1191,6 +1195,10 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 }
                 return;
             }
+            Dialog::CorrectOcrText => {
+                close = crate::ocr_correct::body(ui, app, &t);
+                return;
+            }
             Dialog::RecognizeText => {
                 let (go, cancel) = crate::ocr_ui::body(ui, app, &t);
                 ocr_now = go;
@@ -1232,6 +1240,12 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
             Dialog::Protect => {
                 let (apply, cancel) = crate::protect::body(ui, app, &t);
                 protect_now = apply;
+                close = apply || cancel;
+                return;
+            }
+            Dialog::EncryptCertificate => {
+                let (apply, cancel) = crate::certificate_ui::body(ui, app, &t);
+                certificate_now = apply;
                 close = apply || cancel;
                 return;
             }
@@ -1622,6 +1636,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     if protect_now && app.apply_edit(app.protect_draft.edit()) {
         app.protect_draft = Default::default();
         app.notify_tr("Password protection will be applied when you save");
+    }
+    if certificate_now {
+        app.apply_certificate_draft();
     }
     if apply_number && let Some(edit) = number_now {
         app.apply_edit(edit);
@@ -2090,6 +2107,10 @@ fn password_modal(
 /// Password prompt for encrypted documents (Acrobat: "Password" dialog on open).
 fn password(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let Some(prompt) = app.password_prompt.as_mut() else { return };
+    if prompt.digital_id.is_some() {
+        crate::certificate_ui::open_prompt(app, ctx);
+        return;
+    }
     let message = crate::i18n::fmt(tl!("“{name}” is protected. Enter a password to open it."), &[("name", &prompt.name)]);
     match password_modal(ctx, "password", tl!("Password required"), message, &mut prompt.input, prompt.error.as_deref(), tl!("Open")) {
         Some(PasswordAnswer::Submit) => {

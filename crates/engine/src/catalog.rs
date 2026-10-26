@@ -140,13 +140,13 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
             ToolSection {
                 title: "Add content",
                 items: &[
+                    menu_item("Background", "palette", &["edit.background", "edit.background.update", "edit.background.remove"]),
                     item("Text", "type", "edit.text", Ready),
                     item("Image", "image-plus", "edit.image", Ready),
                     menu_item("Header and footer", "heading", &["edit.header_footer", "edit.header_footer.update", "edit.header_footer.remove"]),
                     menu_item("Watermark", "stamp", &["edit.watermark", "edit.watermark.update", "edit.watermark.remove"]),
                     item("Link", "link-2", "edit.link", Ready),
                     item("Bates numbering", "hash", "edit.bates", Ready),
-                    menu_item("Background", "palette", &["edit.background", "edit.background.update", "edit.background.remove"]),
                     item("Attach file", "paperclip", "edit.attach", Ready),
                 ],
             },
@@ -266,9 +266,9 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
             items: &[
                 item("In this file", "scan-text", "ocr.recognize", Ready),
                 item("In multiple files", "files", "ocr.recognize_batch", Ready),
-                item("Enhance scanned file", "sparkles", "ocr.enhance", Planned("M10")),
+                item("Enhance scanned file", "sparkles", "ocr.enhance", Ready),
                 item("Enhance camera image", "camera", "ocr.enhance_camera", Ready),
-                item("Correct recognized text", "text-select", "ocr.correct", Planned("M10")),
+                item("Correct recognized text", "text-select", "ocr.correct", Ready),
             ],
         }],
     },
@@ -290,7 +290,7 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
             ToolSection {
                 title: "Advanced options",
                 items: &[
-                    item("Encrypt with certificate", "file-lock-2", "protect.certificate", Planned("M8")),
+                    item("Encrypt with certificate", "file-lock-2", "protect.certificate", Ready),
                     item("Security properties", "shield-check", "protect.properties", Ready),
                     item("Remove security", "lock-open", "protect.remove", Ready),
                 ],
@@ -327,7 +327,7 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
             items: &[
                 item("Reduce file size", "file-down", "optimize.reduce", Ready),
                 item("Advanced optimization", "settings-2", "optimize.advanced", Ready),
-                item("Audit space usage", "gauge", "optimize.audit", Planned("M11")),
+                item("Audit space usage", "gauge", "optimize.audit", Ready),
             ],
         }],
     },

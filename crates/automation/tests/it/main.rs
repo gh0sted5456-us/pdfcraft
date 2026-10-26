@@ -25,3 +25,5 @@ mod timestamp;
 mod production;
 
 mod attachment_key;
+mod protect_certificate_command;
+mod protect_certificate_schema;

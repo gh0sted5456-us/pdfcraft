@@ -97,7 +97,19 @@ impl GroupSelection {
         let mut selected = if g.additive { self.selected.clone() } else { BTreeSet::new() };
         if g.start.distance(g.now) >= 3.0 {
             let marquee = Rect::from_two_pos(g.start, g.now);
-            selected.extend(items.iter().filter(|(_, rect)| marquee.intersects(*rect)).map(|(target, _)| *target));
+            // Match Edit's marquee: contain paths so touching page artwork does not select its background.
+            selected.extend(
+                items
+                    .iter()
+                    .filter(|(target, rect)| {
+                        if matches!(target, Target::Object(ObjectTarget { kind: ObjectKind::Path, .. })) {
+                            marquee.contains_rect(*rect)
+                        } else {
+                            marquee.intersects(*rect)
+                        }
+                    })
+                    .map(|(target, _)| *target),
+            );
         } else if let Some((target, _)) = items.iter().rev().find(|(_, rect)| rect.expand(3.0).contains(g.now))
             && !selected.remove(target)
         {
@@ -298,5 +310,31 @@ pub(crate) fn keys(ctx: &egui::Context, view: &mut DocView) {
             Ok(edit) => view.pending_edit = Some(edit),
             Err(why) => view.group.notice = Some(why.into()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn marquee_over_foreground_leaves_large_background_paths_alone() {
+        let target = |kind, index| Target::Object(ObjectTarget { kind, index });
+        let background = target(ObjectKind::Path, 0);
+        let decoration = target(ObjectKind::Path, 1);
+        let text = target(ObjectKind::Text, 0);
+        let image = target(ObjectKind::Image, 0);
+        let rect = |x, y, w, h| Rect::from_min_size(Pos2::new(x, y), egui::vec2(w, h));
+        let group = GroupSelection {
+            gesture: Some(Gesture { start: Pos2::new(40.0, 40.0), now: Pos2::new(180.0, 160.0), additive: false, moving: false }),
+            ..Default::default()
+        };
+        let items = [
+            (background, rect(0.0, 0.0, 612.0, 792.0)),
+            (decoration, rect(60.0, 60.0, 20.0, 20.0)),
+            (text, rect(50.0, 50.0, 100.0, 24.0)),
+            (image, rect(160.0, 100.0, 80.0, 80.0)),
+        ];
+        assert_eq!(group.preview(&items), BTreeSet::from([decoration, text, image]));
     }
 }

@@ -2316,6 +2316,22 @@ key	Space	Szóköz
 	Resize panel window	Panelablak átméretezése
 	Tools	Eszközök
 	Inspector	Tulajdonságvizsgáló
+	Scan and text recognition	Szkennelés és szövegfelismerés
+	Searchable Image	Kereshető kép
+	Corrected scan	Javított szkennelés
+	Scan correction	Szkennelés javítása
+	Automatically rotate sideways and upside-down pages	Oldalra vagy fejjel lefelé álló oldalak automatikus elforgatása
+	Straighten skewed scans	Ferde szkennelt oldalak kiegyenesítése
+	Add searchable text	Kereshető szöveg hozzáadása
+	Uncertain orientations are left unchanged. Deskew fits the full image inside the page.	A bizonytalan tájolás változatlan marad. A kiegyenesítés a teljes képet az oldalon belül tartja.
+	Correct scans	Szkennelések javítása
+	Scan processing cancelled	Szkennelések feldolgozása megszakítva
+	; 1 page skipped	; 1 oldal kihagyva
+	; {n} pages skipped	; {n} oldal kihagyva
+	; corrected {n} pages	; {n} oldal javítva
+	Crop scanner borders to the paper edge	Beolvasási szegélyek levágása a papír széléig
+	Safety margin (pt)	Biztonsági margó (pt)
+	Only clear paper edges are cropped. Indistinguishable white borders are kept.	Csak a jól felismerhető papírszéleket vágja körbe. A megkülönböztethetetlen fehér szegélyek megmaradnak.
 
 # Architectural print controls (follow-up to #599).
 	PDF page: {size}	PDF-oldal: {size}
@@ -2436,6 +2452,7 @@ animation effects	Off	Ki
 	This document is trying to open a local file:	Ez a dokumentum egy helyi fájlt próbál megnyitni:
 	Move tag earlier	Címke korábbra helyezése
 	Move tag later	Címke későbbre helyezése
+	Straighten scanned page	Beszkennelt oldal kiegyenesítése
 
 # Historical snapshot notice bar (View signed version / View revision).
 	You are viewing the signed version of “{from}” (revision {rev}). It is a snapshot: changes here won't affect the original.	A(z) „{from}“ aláírt változatát (a {rev}. változatot) tekinti meg. Ez egy pillanatkép: az itteni módosítások nem érintik az eredetit.
@@ -2488,6 +2505,31 @@ animation effects	Off	Ki
 	Make properties default	Tulajdonságok beállítása alapértelmezettként
 	Pages selected	Kijelölt oldalak
 	Page properties	Oldaltulajdonságok
+# Encrypt with certificate.
+	Couldn't encrypt: {e}	A titkosítás nem sikerült: {e}
+	Encrypt with certificate…	Titkosítás tanúsítvánnyal…
+	Encrypt with Certificate	Titkosítás tanúsítvánnyal
+	Only the recipients can open the document, each with the private key of their own certificate.	Csak a címzettek nyithatják meg a dokumentumot, mindegyikük a saját tanúsítványa titkos kulcsával.
+	Recipients	Címzettek
+	No recipients yet.	Még nincsenek címzettek.
+	{name} (you)	{name} (te)
+	Expires {date}	Lejár: {date}
+	All permissions	Minden engedély
+	Add certificate file…	Tanúsítványfájl hozzáadása…
+	Add your digital ID	Saját digitális azonosító hozzáadása
+	Certificate	Tanúsítvány
+	None of the recipients is one of your digital IDs: you won't be able to open the saved document.	Egyik címzett sem a te digitális azonosítód: nem fogod tudni megnyitni a mentett dokumentumot.
+	The restrictions apply to recipients without “All permissions”. It's applied when you save.	A korlátozások a „Minden engedély” nélküli címzettekre vonatkoznak. Mentéskor lép életbe.
+	Digital ID required	Digitális azonosító szükséges
+	Choose a digital ID file	Válassz digitálisazonosító-fájlt
+	“{name}” is encrypted for specific people. Choose your digital ID and enter its password to open it.	„{name}” meghatározott személyek számára van titkosítva. A megnyitásához válaszd ki a digitális azonosítódat, és add meg a jelszavát.
+	Add at least one recipient.	Adj hozzá legalább egy címzettet.
+	Only certificates with RSA keys can be recipients.	Csak RSA-kulcsú tanúsítványok lehetnek címzettek.
+	None of your digital IDs can open this document.	Egyik digitális azonosítód sem tudja megnyitni ezt a dokumentumot.
+	Certificate encryption will be applied when you save	A tanúsítványos titkosítás mentéskor lép életbe
+	Encrypt for recipient	Titkosítás címzett számára
+	Encrypt for recipients	Titkosítás címzettek számára
+	The password is incorrect.	A jelszó helytelen.
 	Create & Edit	Létrehozás és szerkesztés
 	Review & Compare	Áttekintés és összehasonlítás
 	Forms & Signatures	Űrlapok és aláírások

@@ -2851,6 +2851,8 @@ pub struct BlockStyle {
     /// For an invisible paragraph ([`TextBlock::invisible`]): fill its old area with this colour
     /// (RGB 0–1) before the new text, hiding the scanned word beneath it.
     pub cover: Option<[f64; 3]>,
+    /// Correct the searchable OCR layer without painting over or revealing the scan.
+    pub keep_invisible: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -2896,9 +2898,12 @@ fn rewrite_block_from(
 ) -> Result<LineEdit, EditError> {
     let blocks = group_blocks(&lines);
     let b = blocks.get(block).cloned().ok_or_else(|| EditError::Invalid(format!("page {} has no paragraph {}", page + 1, block + 1)))?;
+    if style.keep_invisible && (!b.invisible || style.cover.is_some()) {
+        return Err(EditError::Invalid("OCR correction requires invisible text and cannot cover the scan".into()));
+    }
     let members: Vec<&TextLine> = b.lines.iter().map(|i| &lines[*i]).collect();
     // One clipping run is enough: rewriting the paragraph would drop its mask with the rest.
-    let mut dropped = coincident_ops(&lines, &members);
+    let mut dropped = if style.keep_invisible { std::collections::HashSet::new() } else { coincident_ops(&lines, &members) };
     dropped.extend(members.iter().flat_map(|l| l.ops.iter().copied()));
     refuse_clipping_text(&lines, &dropped)?;
     let first = members.first().copied().ok_or_else(|| EditError::Invalid("the paragraph has no source runs".into()))?;
@@ -2925,7 +2930,8 @@ fn rewrite_block_from(
     if upright
         && !hebrew
         && !visual_indic
-        && (!style.ranges.is_empty()
+        && (b.invisible
+            || !style.ranges.is_empty()
             || style.resource.is_some()
             || (text.is_some_and(|draft| {
                 // A row break, `\n` or a carriage return, takes the path that keeps untouched rows.
@@ -3317,6 +3323,9 @@ fn rewrite_block_from(
 pub(crate) fn reveal_ops(block: &TextBlock, lines: &[TextLine], style: &BlockStyle, ctm: [f64; 6]) -> Result<Vec<Op>, EditError> {
     if !block.invisible {
         return Ok(Vec::new());
+    }
+    if style.keep_invisible {
+        return Ok(vec![Op::new("Tr", vec![Object::Int(3)])]);
     }
     let n = pdfcraft_content::num;
     let mut ops = Vec::new();

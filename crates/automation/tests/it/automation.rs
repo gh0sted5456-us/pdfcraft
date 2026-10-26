@@ -6436,6 +6436,15 @@ fn ocr_tools_make_a_scan_searchable() {
     let mut a = auto(&dir);
     let status = ok(&mut a, "ocr_status", json!({}));
     assert_eq!(status["languages"][0]["code"], "en");
+    for language in ["de", "ja", "fr", "es", "it", "nl", "da", "nb", "sv", "fi", "pt", "ca", "zh-Hant", "zh-Hans"] {
+        assert!(status["languages"].as_array().unwrap().iter().any(|l| l["code"] == language));
+    }
+    for name in ["ocr_recognize", "ocr_recognize_files"] {
+        let tool = tools().into_iter().find(|tool| tool.name == name).unwrap();
+        let advertised = &tool.input_schema["properties"]["language"]["enum"];
+        let available: Vec<_> = status["languages"].as_array().unwrap().iter().map(|language| language["code"].clone()).collect();
+        assert_eq!(advertised, &json!(available), "{name} schema must advertise the same languages as ocr_status");
+    }
     if status["available"] != true {
         eprintln!("skipped: OCR models not installed");
         return;
@@ -6450,6 +6459,13 @@ fn ocr_tools_make_a_scan_searchable() {
     let again = ok(&mut a, "ocr_recognize", json!({ "doc": scan, "pages": [1] }));
     assert!(again["pages"][0]["skipped"].is_string(), "{again}");
     assert!(matches!(a.call("ocr_recognize", &json!({ "doc": scan, "language": "xx" })), Err(ToolError::InvalidArgs(_))));
+    // Chinese and Catalan choices must reach the real recognizer through the public tool.
+    // An ASCII fixture checks dispatch only, not language-specific scan accuracy.
+    for language in ["it", "zh-Hant", "zh-Hans", "ca"] {
+        let doc = ok(&mut a, "doc_create", json!({ "from": "images", "paths": [png.to_string_lossy()] }))["doc"].as_u64().unwrap();
+        let result = ok(&mut a, "ocr_recognize", json!({ "doc": doc, "language": language, "auto_rotate": false, "deskew": false }));
+        assert!(result["pages"][0]["text"].as_str().unwrap().to_lowercase().contains("searchable"), "{language}: {result}");
+    }
 }
 
 /// #1028: `skip_text_pages: false` reads a picture on a page that has its own text, and the
@@ -6478,6 +6494,54 @@ fn ocr_recognize_reads_pictures_on_pages_with_text() {
     let found = |a: &mut Automation, q: &str| ok(a, "text_find", json!({ "doc": doc, "query": q }))["count"].as_u64().unwrap();
     assert_eq!((found(&mut a, "invoice"), found(&mut a, "searchable")), (1, 1));
     assert!(matches!(a.call("ocr_recognize", &json!({ "doc": doc, "skip_text_pages": "no" })), Err(ToolError::InvalidArgs(_))));
+}
+
+#[test]
+fn ocr_enhance_crops_paper_edges_with_margin_and_undo() {
+    let dir = workdir("ocr-crop");
+    let mut a = auto(&dir);
+    if ok(&mut a, "ocr_status", json!({}))["available"] != true {
+        return;
+    }
+    let image = image::RgbImage::from_fn(800, 600, |x, y| image::Rgb(if (180..800).contains(&x) && y < 490 { [235; 3] } else { [25; 3] }));
+    image.save(dir.join("scan.png")).unwrap();
+    let doc = ok(&mut a, "doc_create", json!({"from":"images","paths":["scan.png"]}))["doc"].as_u64().unwrap();
+    let no_crop = ok(&mut a, "ocr_enhance", json!({"doc":doc,"auto_crop":false,"auto_rotate":false,"deskew":false}));
+    assert!(no_crop["pages"][0]["crop_box"].is_null());
+    let cropped = ok(&mut a, "ocr_enhance", json!({"doc":doc,"crop_margin":0,"auto_rotate":false,"deskew":false}));
+    let rect = cropped["pages"][0]["crop_box"].as_array().unwrap();
+    assert!(rect[0].as_f64().unwrap() > 100.0);
+    assert_eq!(cropped["words"], 0);
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"cropped.pdf"}));
+    assert_eq!(ok(&mut a, "edit_undo", json!({"doc":doc}))["undone"], "Correct scans");
+    let padded = ok(&mut a, "ocr_enhance", json!({"doc":doc,"crop_margin":10,"auto_rotate":false,"deskew":false}));
+    let padded_rect = padded["pages"][0]["crop_box"].as_array().unwrap();
+    assert!((rect[0].as_f64().unwrap() - padded_rect[0].as_f64().unwrap() - 10.0).abs() < 1.0);
+    assert!((rect[1].as_f64().unwrap() - padded_rect[1].as_f64().unwrap() - 10.0).abs() < 1.0);
+    for margin in [-1, 21] {
+        assert!(matches!(a.call("ocr_enhance", &json!({"doc":doc,"crop_margin":margin})), Err(ToolError::InvalidArgs(_))));
+    }
+}
+
+#[test]
+fn ocr_enhance_corrects_rotation_without_adding_text() {
+    let dir = workdir("ocr-enhance");
+    let mut a = auto(&dir);
+    if ok(&mut a, "ocr_status", json!({}))["available"] != true {
+        return;
+    }
+    let sentence =
+        (0..18).map(|_| "Please read this document with the page upright. The quick brown fox jumps over the lazy dog.\n").collect::<String>();
+    let doc = ok(&mut a, "doc_create", json!({"from":"text","text":sentence}))["doc"].as_u64().unwrap();
+    ok(&mut a, "page_rotate", json!({"doc":doc,"pages":[1],"degrees":180}));
+    ok(&mut a, "doc_export_images", json!({"doc":doc,"folder":"scan","dpi":150,"pages":[1]}));
+    let png = std::fs::read_dir(dir.join("scan")).unwrap().next().unwrap().unwrap().path();
+    let scan = ok(&mut a, "doc_create", json!({"from":"images","paths":[png.to_string_lossy()]}))["doc"].as_u64().unwrap();
+    let corrected = ok(&mut a, "ocr_enhance", json!({"doc":scan,"deskew":false}));
+    assert_eq!(corrected["pages"][0]["rotation"], 180, "{corrected}");
+    assert_eq!(corrected["words"], 0);
+    let read = ok(&mut a, "ocr_recognize", json!({"doc":scan,"auto_rotate":false,"deskew":false}));
+    assert!(read["pages"][0]["text"].as_str().unwrap().contains("Please"), "{read}");
 }
 
 #[test]
@@ -8774,6 +8838,69 @@ fn a_root_less_write_output_is_atomic_too() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// A file from the signing crate's test data (digital IDs and certificates).
+fn sign_test_data(name: &str) -> Vec<u8> {
+    std::fs::read(format!("{}/../sign/tests/data/{name}", env!("CARGO_MANIFEST_DIR"))).unwrap()
+}
+
+#[test]
+fn encrypting_with_certificates_through_the_tools() {
+    let dir = workdir("pubsec");
+    std::fs::write(dir.join("me.p12"), sign_test_data("rsa-aes.p12")).unwrap();
+    std::fs::write(dir.join("ada.p12"), sign_test_data("chain.p12")).unwrap();
+    std::fs::write(dir.join("ec.p12"), sign_test_data("ec-p256.p12")).unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
+    // Encrypt for two RSA holders; an EC certificate is refused; the session goes on as owner.
+    assert!(a.call("doc_protect_certificates", &json!({ "doc": doc, "certificates": ["ec.p12"], "password": "test" })).is_err());
+    let r = ok(
+        &mut a,
+        "doc_protect_certificates",
+        json!({ "doc": doc, "certificates": ["ada.p12"], "owners": ["me.p12"], "password": "test", "printing": "none", "copy": false }),
+    );
+    assert_eq!(r["recipients"].as_array().unwrap().len(), 2, "{r}");
+    assert!(r["security"]["method"].as_str().unwrap().contains("certificates (2 recipients)"), "{r}");
+    assert_eq!(page_text(&mut a, doc)[0], "Page 1", "the open session still reads it");
+    ok(&mut a, "doc_save", json!({ "doc": doc, "path": "secret.pdf" }));
+    let saved = std::fs::read(dir.join("secret.pdf")).unwrap();
+    assert!(saved.windows(12).any(|w| w == b"Adobe.PubSec"));
+    assert!(!saved.windows(6).any(|w| w == b"Page 1"), "the text is encrypted");
+    // Without an identity the file cannot be opened, and the message says why.
+    let mut b = auto(&dir);
+    let err = b.call("doc_open", &json!({ "path": "secret.pdf" })).err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(err.contains("specific people"), "{err}");
+    // With Ada's identity it opens, reads, and her permissions apply; a save stays encrypted.
+    ok(&mut b, "identity_add", json!({ "path": "ada.p12", "password": "test" }));
+    let d2 = ok(&mut b, "doc_open", json!({ "path": "secret.pdf" }))["doc"].as_u64().unwrap();
+    // Her envelope gives no copying, so extracting text is refused like any restricted file.
+    let refused = b.call("text_extract", &json!({ "doc": d2 })).err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(refused.contains("copying"), "{refused}");
+    let info = ok(&mut b, "doc_info", json!({ "doc": d2 }));
+    assert_eq!(info["security"]["protected"], true, "{info}");
+    assert!(info["security"]["method"].as_str().unwrap().contains("certificates (2 recipients)"), "{info}");
+    assert_eq!(
+        (info["security"]["printing"].as_str(), info["security"]["copy"].as_bool(), info["security"]["opened_as_owner"].as_bool()),
+        (Some("none"), Some(false), Some(false)),
+        "Ada's permissions: {info}"
+    );
+    // Ada may not change it: her envelope said so.
+    assert!(b.call("doc_set_info", &json!({ "doc": d2, "key": "Subject", "value": "x" })).is_err());
+    // The author's own identity opens it with everything allowed; an edit saved stays encrypted.
+    let mut c = auto(&dir);
+    ok(&mut c, "identity_add", json!({ "path": "me.p12", "password": "test" }));
+    let d3 = ok(&mut c, "doc_open", json!({ "path": "secret.pdf" }))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut c, "doc_info", json!({ "doc": d3 }))["security"]["opened_as_owner"], true);
+    ok(&mut c, "doc_set_info", json!({ "doc": d3, "key": "Subject", "value": "still private" }));
+    ok(&mut c, "doc_save", json!({ "doc": d3, "path": "secret2.pdf" }));
+    let again = std::fs::read(dir.join("secret2.pdf")).unwrap();
+    assert!(again.windows(12).any(|w| w == b"Adobe.PubSec") && !again.windows(13).any(|w| w == b"still private"));
+    assert_eq!(ok(&mut c, "doc_info", json!({ "doc": d3 }))["subject"], "still private", "the open session reads its own save");
+    let mut d = auto(&dir);
+    ok(&mut d, "identity_add", json!({ "path": "ada.p12", "password": "test" }));
+    let d4 = ok(&mut d, "doc_open", json!({ "path": "secret2.pdf" }))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut d, "doc_info", json!({ "doc": d4 }))["subject"], "still private", "Ada reads the author's save");
+}
+
 #[test]
 fn attaching_and_deleting_files_through_the_tools() {
     let dir = workdir("attach");
@@ -9516,4 +9643,31 @@ fn page_render_draws_stamps_without_an_appearance() {
     let custom = ink(170, 290);
     let grey = custom.iter().filter(|p| p[0].abs_diff(p[1]) < 24 && p[1].abs_diff(p[2]) < 24).count();
     assert!(grey > 100 && grey == custom.len(), "an unknown name is a grey placeholder: {grey} of {}", custom.len());
+}
+
+#[test]
+fn ocr_correction_through_tools_preserves_scan_artwork() {
+    if !pdfcraft_engine::ocr::available() {
+        return;
+    }
+    let dir = workdir("ocr-correction");
+    let mut a = auto(&dir);
+    let text = ok(&mut a, "doc_create", json!({"from":"text","text":"Original words to correct"}))["doc"].as_u64().unwrap();
+    ok(&mut a, "doc_export_images", json!({"doc":text,"folder":"source","dpi":150,"pages":[1]}));
+    let image = std::fs::read_dir(dir.join("source")).unwrap().next().unwrap().unwrap().path();
+    let doc = ok(&mut a, "doc_create", json!({"from":"images","paths":[image.to_string_lossy()]}))["doc"].as_u64().unwrap();
+    let result = ok(&mut a, "ocr_recognize", json!({"doc":doc,"auto_rotate":false,"deskew":false}));
+    assert!(result["words"].as_u64().unwrap() > 0);
+    ok(&mut a, "doc_export_images", json!({"doc":doc,"folder":"before","dpi":150,"pages":[1]}));
+    let before = std::fs::read(std::fs::read_dir(dir.join("before")).unwrap().next().unwrap().unwrap().path()).unwrap();
+    let listed = ok(&mut a, "text_paragraphs", json!({"doc":doc,"page":1}));
+    let paragraph = listed["paragraphs"].as_array().unwrap().iter().find(|b| b["invisible"] == true).unwrap()["paragraph"].clone();
+    ok(&mut a, "ocr_correct", json!({"doc":doc,"page":1,"paragraph":paragraph,"text":"Corrected words"}));
+    let listed = ok(&mut a, "text_paragraphs", json!({"doc":doc,"page":1}));
+    assert!(listed["paragraphs"].as_array().unwrap().iter().any(|b| b["invisible"] == true && b["text"] == "Corrected words"));
+    ok(&mut a, "doc_export_images", json!({"doc":doc,"folder":"after","dpi":150,"pages":[1]}));
+    let after = std::fs::read(std::fs::read_dir(dir.join("after")).unwrap().next().unwrap().unwrap().path()).unwrap();
+    assert_eq!(before, after);
+    assert_eq!(ok(&mut a, "edit_undo", json!({"doc":doc}))["undone"], "Correct recognized text");
+    assert!(a.call("ocr_correct", &json!({"doc":text,"page":1,"paragraph":1,"text":"hidden"})).is_err(), "visible text is refused");
 }

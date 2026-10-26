@@ -2237,6 +2237,22 @@ key	Space	Пробел
 	Resize panel window	Изменить размер окна панели
 	Tools	Инструменты
 	Inspector	Инспектор
+	Scan and text recognition	Сканирование и распознавание текста
+	Searchable Image	Изображение с поиском
+	Corrected scan	Исправленный скан
+	Scan correction	Исправление скана
+	Automatically rotate sideways and upside-down pages	Автоматически поворачивать боковые и перевёрнутые страницы
+	Straighten skewed scans	Выравнивать наклонённые сканы
+	Add searchable text	Добавить текст для поиска
+	Uncertain orientations are left unchanged. Deskew fits the full image inside the page.	Неуверенно определённая ориентация не меняется. При выравнивании всё изображение помещается на странице.
+	Correct scans	Исправить сканы
+	Scan processing cancelled	Обработка сканов отменена
+	; 1 page skipped	; пропущена 1 страница
+	; {n} pages skipped	; пропущено страниц: {n}
+	; corrected {n} pages	; исправлено страниц: {n}
+	Crop scanner borders to the paper edge	Обрезать поля скана до края бумаги
+	Safety margin (pt)	Защитное поле (пт)
+	Only clear paper edges are cropped. Indistinguishable white borders are kept.	Обрезаются только чёткие края бумаги. Неразличимые белые поля сохраняются.
 
 # Architectural print controls (follow-up to #599).
 	PDF page: {size}	Страница PDF: {size}
@@ -2350,6 +2366,7 @@ animation effects	Off	Выкл
 	This document is trying to open a local file:	Этот документ пытается открыть локальный файл:
 	Move tag earlier	Переместить тег раньше
 	Move tag later	Переместить тег позже
+	Straighten scanned page	Выровнять отсканированную страницу
 
 # Historical snapshot notice bar (View signed version / View revision).
 	You are viewing the signed version of “{from}” (revision {rev}). It is a snapshot: changes here won't affect the original.	Вы просматриваете подписанную версию документа «{from}» (ревизия {rev}). Это снимок: изменения здесь не затронут оригинал.
@@ -2402,6 +2419,31 @@ animation effects	Off	Выкл
 	Make properties default	Сделать свойства стандартными
 	Pages selected	Выделенные страницы
 	Page properties	Свойства страницы
+# Encrypt with certificate.
+	Couldn't encrypt: {e}	Не удалось зашифровать: {e}
+	Encrypt with certificate…	Шифровать сертификатом…
+	Encrypt with Certificate	Шифрование сертификатом
+	Only the recipients can open the document, each with the private key of their own certificate.	Открыть документ могут только получатели — каждый с закрытым ключом своего сертификата.
+	Recipients	Получатели
+	No recipients yet.	Получателей пока нет.
+	{name} (you)	{name} (вы)
+	Expires {date}	Действует до {date}
+	All permissions	Все разрешения
+	Add certificate file…	Добавить файл сертификата…
+	Add your digital ID	Добавить ваш цифровой идентификатор
+	Certificate	Сертификат
+	None of the recipients is one of your digital IDs: you won't be able to open the saved document.	Ни один из получателей не является вашим цифровым идентификатором: вы не сможете открыть сохранённый документ.
+	The restrictions apply to recipients without “All permissions”. It's applied when you save.	Ограничения действуют для получателей без «Все разрешения». Применяется при сохранении.
+	Digital ID required	Требуется цифровой идентификатор
+	Choose a digital ID file	Выберите файл цифрового идентификатора
+	“{name}” is encrypted for specific people. Choose your digital ID and enter its password to open it.	«{name}» зашифрован для определённых людей. Выберите свой цифровой идентификатор и введите его пароль, чтобы открыть документ.
+	Add at least one recipient.	Добавьте хотя бы одного получателя.
+	Only certificates with RSA keys can be recipients.	Получателями могут быть только сертификаты с ключами RSA.
+	None of your digital IDs can open this document.	Ни один из ваших цифровых идентификаторов не может открыть этот документ.
+	Certificate encryption will be applied when you save	Шифрование сертификатом будет применено при сохранении
+	Encrypt for recipient	Зашифровать для получателя
+	Encrypt for recipients	Зашифровать для получателей
+	The password is incorrect.	Неверный пароль.
 	Create & Edit	Создание и редактирование
 	Review & Compare	Рецензирование и сравнение
 	Forms & Signatures	Формы и подписи

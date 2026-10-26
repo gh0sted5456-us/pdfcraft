@@ -2245,6 +2245,22 @@ key	Space	స్పేస్
 	Resize panel window	ప్యానెల్ విండో పరిమాణం మార్చు
 	Tools	సాధనాలు
 	Inspector	పరిశీలకుడు
+	Scan and text recognition	స్కాన్ మరియు అక్షర గుర్తింపు
+	Searchable Image	శోధించగల చిత్రం
+	Corrected scan	సరిచేసిన స్కాన్
+	Scan correction	స్కాన్ సవరణ
+	Automatically rotate sideways and upside-down pages	పక్కకు లేదా తలక్రిందులుగా ఉన్న పేజీలను స్వయంచాలకంగా తిప్పు
+	Straighten skewed scans	వంగిన స్కాన్‌లను నిటారుగా చేయి
+	Add searchable text	శోధించగల పాఠ్యాన్ని చేర్చు
+	Uncertain orientations are left unchanged. Deskew fits the full image inside the page.	దిశ స్పష్టంగా లేనప్పుడు మార్చబడదు. నిటారుగా చేసేటప్పుడు మొత్తం చిత్రం పేజీలోనే ఉంటుంది.
+	Correct scans	స్కాన్‌లను సరిచేయి
+	Scan processing cancelled	స్కాన్ ప్రాసెసింగ్ రద్దయింది
+	; 1 page skipped	; 1 పేజీ దాటవేయబడింది
+	; {n} pages skipped	; {n} పేజీలు దాటవేయబడ్డాయి
+	; corrected {n} pages	; {n} పేజీలు సరిచేయబడ్డాయి
+	Crop scanner borders to the paper edge	స్కాన్ అంచులను కాగితం అంచు వరకు కత్తిరించు
+	Safety margin (pt)	భద్రతా అంచు (pt)
+	Only clear paper edges are cropped. Indistinguishable white borders are kept.	స్పష్టమైన కాగితం అంచులు మాత్రమే కత్తిరించబడతాయి. గుర్తించలేని తెల్ల అంచులు అలాగే ఉంటాయి.
 	Select page {label}	{label} పేజీని ఎంచుకోండి
 	Rotate page {label} counterclockwise	{label} పేజీని అపసవ్య దిశలో తిప్పండి
 	Rotate page {label} clockwise	{label} పేజీని సవ్య దిశలో తిప్పండి
@@ -2350,6 +2366,7 @@ animation effects	Off	ఆఫ్
 	This document is trying to open a local file:	ఈ పత్రం ఒక స్థానిక ఫైల్‌ను తెరవడానికి ప్రయత్నిస్తోంది:
 	Move tag earlier	ట్యాగ్‌ను ముందుకు తరలించు
 	Move tag later	ట్యాగ్‌ను వెనుకకు తరలించు
+	Straighten scanned page	స్కాన్ చేసిన పేజీని సరిచేయి
 	Turn upside down (180°)	తలకిందులుగా తిప్పు (180°)
 	4 x 6 in label (101.6 x 152.4 mm)	4 × 6 అం. లేబుల్ (101.6 × 152.4 మి.మీ.)
 	Cuts each page to its printed area, turns it upright and fits it to the sheet without stretching. One label per sheet.	ప్రతి పేజీని ముద్రిత ప్రాంతానికి కత్తిరించి, నిటారుగా తిప్పి, సాగదీయకుండా షీట్‌కు సరిపెడుతుంది. ఒక్కో షీట్‌కు ఒక లేబుల్.
@@ -2398,6 +2415,31 @@ animation effects	Off	ఆఫ్
 	Make properties default	లక్షణాలను డిఫాల్ట్‌గా చేయి
 	Pages selected	ఎంచుకున్న పేజీలు
 	Page properties	పేజీ లక్షణాలు
+# Encrypt with certificate.
+	Couldn't encrypt: {e}	ఎన్‌క్రిప్ట్ చేయడం సాధ్యం కాలేదు: {e}
+	Encrypt with certificate…	సర్టిఫికెట్‌తో ఎన్‌క్రిప్ట్ చేయి…
+	Encrypt with Certificate	సర్టిఫికెట్‌తో ఎన్‌క్రిప్ట్ చేయి
+	Only the recipients can open the document, each with the private key of their own certificate.	గ్రహీతలు మాత్రమే ఈ పత్రాన్ని తెరవగలరు, ప్రతి ఒక్కరూ తమ సొంత సర్టిఫికెట్ ప్రైవేట్ కీతో.
+	Recipients	గ్రహీతలు
+	No recipients yet.	ఇంకా గ్రహీతలు లేరు.
+	{name} (you)	{name} (మీరు)
+	Expires {date}	గడువు {date}
+	All permissions	అన్ని అనుమతులు
+	Add certificate file…	సర్టిఫికెట్ ఫైల్‌ను జోడించు…
+	Add your digital ID	మీ డిజిటల్ ఐడీని జోడించు
+	Certificate	సర్టిఫికెట్
+	None of the recipients is one of your digital IDs: you won't be able to open the saved document.	గ్రహీతలలో ఎవరూ మీ డిజిటల్ ఐడీలలో ఒకటి కాదు: సేవ్ చేసిన పత్రాన్ని మీరు తెరవలేరు.
+	The restrictions apply to recipients without “All permissions”. It's applied when you save.	“అన్ని అనుమతులు” లేని గ్రహీతలకు పరిమితులు వర్తిస్తాయి. మీరు సేవ్ చేసినప్పుడు వర్తింపజేయబడుతుంది.
+	Digital ID required	డిజిటల్ ఐడీ అవసరం
+	Choose a digital ID file	డిజిటల్ ఐడీ ఫైల్‌ను ఎంచుకోండి
+	“{name}” is encrypted for specific people. Choose your digital ID and enter its password to open it.	“{name}” నిర్దిష్ట వ్యక్తుల కోసం ఎన్‌క్రిప్ట్ చేయబడింది. దీన్ని తెరవడానికి మీ డిజిటల్ ఐడీని ఎంచుకుని దాని పాస్‌వర్డ్‌ను నమోదు చేయండి.
+	Add at least one recipient.	కనీసం ఒక గ్రహీతను జోడించండి.
+	Only certificates with RSA keys can be recipients.	RSA కీలు ఉన్న సర్టిఫికెట్‌లు మాత్రమే గ్రహీతలు కావచ్చు.
+	None of your digital IDs can open this document.	మీ డిజిటల్ ఐడీలలో ఏదీ ఈ పత్రాన్ని తెరవలేదు.
+	Certificate encryption will be applied when you save	మీరు సేవ్ చేసినప్పుడు సర్టిఫికెట్ ఎన్‌క్రిప్షన్ వర్తింపజేయబడుతుంది
+	Encrypt for recipient	గ్రహీత కోసం ఎన్‌క్రిప్ట్ చేయి
+	Encrypt for recipients	గ్రహీతల కోసం ఎన్‌క్రిప్ట్ చేయి
+	The password is incorrect.	పాస్‌వర్డ్ తప్పు.
 	Create & Edit	సృష్టించు & సవరించు
 	Review & Compare	సమీక్షించు & పోల్చు
 	Forms & Signatures	ఫారమ్‌లు & సంతకాలు

@@ -39,6 +39,7 @@ mod camera;
 
 mod checkbox_drag;
 
+mod certificate_signed_version;
 mod column_select;
 
 mod combine_grid;

@@ -2317,6 +2317,22 @@ key	Space	スペース
 	Resize panel window	パネルウィンドウのサイズを変更
 	Tools	ツール
 	Inspector	インスペクター
+	Scan and text recognition	スキャンと文字認識
+	Searchable Image	検索可能な画像
+	Corrected scan	補正済みスキャン
+	Scan correction	スキャン補正
+	Automatically rotate sideways and upside-down pages	横向きや上下逆のページを自動回転
+	Straighten skewed scans	スキャンの傾きを補正
+	Add searchable text	検索可能なテキストを追加
+	Uncertain orientations are left unchanged. Deskew fits the full image inside the page.	向きが不確かな場合は変更しません。傾き補正では画像全体をページ内に収めます。
+	Correct scans	スキャンを補正
+	Scan processing cancelled	スキャン処理をキャンセルしました
+	; 1 page skipped	; 1 ページをスキップ
+	; {n} pages skipped	; {n} ページをスキップ
+	; corrected {n} pages	; {n} ページを補正
+	Crop scanner borders to the paper edge	スキャンの余白を用紙の端まで切り抜く
+	Safety margin (pt)	安全余白（pt）
+	Only clear paper edges are cropped. Indistinguishable white borders are kept.	明確な用紙の端だけを切り抜きます。区別できない白い余白は保持します。
 
 # Architectural print controls (follow-up to #599).
 	PDF page: {size}	PDFページ: {size}
@@ -2437,6 +2453,7 @@ animation effects	Off	オフ
 	This document is trying to open a local file:	この文書はローカルファイルを開こうとしています：
 	Move tag earlier	タグを前へ移動
 	Move tag later	タグを後へ移動
+	Straighten scanned page	スキャンしたページの傾きを補正
 
 # Historical snapshot notice bar (View signed version / View revision).
 	You are viewing the signed version of “{from}” (revision {rev}). It is a snapshot: changes here won't affect the original.	「{from}」の署名済みバージョン（リビジョン {rev}）を表示しています。これはスナップショットであり、ここでの変更は元の文書に影響しません。
@@ -2489,6 +2506,31 @@ animation effects	Off	オフ
 	Make properties default	プロパティをデフォルトに設定
 	Pages selected	選択したページ
 	Page properties	ページのプロパティ
+# Encrypt with certificate.
+	Couldn't encrypt: {e}	暗号化できませんでした: {e}
+	Encrypt with certificate…	証明書で暗号化…
+	Encrypt with Certificate	証明書で暗号化
+	Only the recipients can open the document, each with the private key of their own certificate.	文書を開けるのは受信者だけで、各受信者は自分の証明書の秘密鍵を使います。
+	Recipients	受信者
+	No recipients yet.	受信者はまだいません。
+	{name} (you)	{name}（自分）
+	Expires {date}	有効期限 {date}
+	All permissions	すべての権限
+	Add certificate file…	証明書ファイルを追加…
+	Add your digital ID	自分のデジタル ID を追加
+	Certificate	証明書
+	None of the recipients is one of your digital IDs: you won't be able to open the saved document.	受信者に自分のデジタル ID が含まれていません。保存した文書を開けなくなります。
+	The restrictions apply to recipients without “All permissions”. It's applied when you save.	制限は「すべての権限」のない受信者に適用されます。保存時に適用されます。
+	Digital ID required	デジタル ID が必要です
+	Choose a digital ID file	デジタル ID ファイルを選択
+	“{name}” is encrypted for specific people. Choose your digital ID and enter its password to open it.	「{name}」は特定の人のために暗号化されています。開くには、自分のデジタル ID を選択してパスワードを入力してください。
+	Add at least one recipient.	受信者を 1 人以上追加してください。
+	Only certificates with RSA keys can be recipients.	受信者にできるのは RSA 鍵の証明書だけです。
+	None of your digital IDs can open this document.	どのデジタル ID でもこの文書を開けません。
+	Certificate encryption will be applied when you save	証明書による暗号化は保存時に適用されます
+	Encrypt for recipient	受信者用に暗号化
+	Encrypt for recipients	受信者用に暗号化
+	The password is incorrect.	パスワードが正しくありません。
 	Create & Edit	作成と編集
 	Review & Compare	レビューと比較
 	Forms & Signatures	フォームと署名

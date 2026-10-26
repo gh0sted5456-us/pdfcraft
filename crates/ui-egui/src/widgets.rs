@@ -190,7 +190,7 @@ pub(crate) fn dialog_scroll<R>(ui: &mut egui::Ui, id: &str, content: impl FnOnce
         .max_height(height)
         .auto_shrink([false, true])
         .show(ui, |ui| {
-            ui.set_width(width);
+            ui.set_width(ui.available_width().min(width));
             content(ui)
         })
         .inner
@@ -807,6 +807,37 @@ pub fn icon_pill(ui: &mut egui::Ui, icon: &str, label: &str, primary: bool) -> R
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dialog_scroll_leaves_room_for_the_vertical_bar() {
+        let ctx = egui::Context::default();
+        let mut actual = 0.0;
+        let mut expected = 0.0;
+        for frame in 0..4 {
+            ctx.run_ui(
+                egui::RawInput {
+                    screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(640.0, 480.0))),
+                    time: Some(f64::from(frame) * 0.25),
+                    ..Default::default()
+                },
+                |ui| {
+                    ui.set_width(300.0);
+                    ui.spacing_mut().scroll.floating = false;
+                    expected = ui.available_width() - ui.spacing().scroll.allocated_width();
+                    actual = dialog_scroll(ui, "scroll-width-regression", |ui| {
+                        let width = ui.available_width();
+                        for _ in 0..100 {
+                            ui.label("A setting");
+                        }
+                        width
+                    });
+                },
+            )
+            .drop_without_applying_deltas();
+        }
+        assert!(actual <= expected + 0.5, "content {actual} exceeds the space beside its scrollbar {expected}");
+    }
+
     use egui::Pos2;
 
     #[test]

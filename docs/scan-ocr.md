@@ -15,7 +15,7 @@ pages to be offered again. Viewing a file in Read mode does not trigger recognit
 Recognition runs locally in the existing background worker, using the language and
 resolution selected under **Scan & OCR → Recognize text**. The Windows preview
 includes the model files. Progress can be cancelled with the existing recognition
-control; completed pages are retained. The result is one undoable **Recognize text**
+control; completed pages are applied atomically when the worker finishes; stale results are refused. The result is one undoable **Recognize text**
 step. Undo does not immediately offer recognition again. Save to retain the text layer.
 
 Recognized text can be searched, selected and copied. Clicking a recognized phrase in
@@ -26,7 +26,7 @@ This does not reconstruct the original font or separate photographs from letteri
 The automatic prompt detects an image covering at least half the page. Vector-only
 outlined text, pages that already have a text layer, and small pictures are not
 automatically offered; use **Scan & OCR → Recognize text** explicitly when needed.
-The bundled recognizer currently handles English/Latin text without accents. OCR can
+The bundled recognizers support English and several Latin languages with accents; additional horizontal Japanese/Chinese models are included. Accuracy varies with language and scan quality. OCR can
 misread text, especially handwriting, tables, poor scans and patterned backgrounds.
 Review the result. Read-only documents are not changed, and results captured before
 an intervening edit, undo or reload are discarded.
@@ -39,3 +39,34 @@ The detection approach builds on [PR #1609](https://github.com/storytold/pdfcraf
 by @philip-tam. The stale-result safeguard is integrated from
 [PR #1876](https://github.com/storytold/pdfcraft/pull/1876) by @MarekSpodBiedry,
 with its original commit authorship retained.
+
+
+## Enhance and correct
+
+**Scan & OCR → Enhance scanned file** offers page scope, automatic quarter-turn
+orientation, deskew and conservative paper-edge cropping with a safety margin.
+Enable **Add searchable text** to recognize words as part of the same Undo step.
+Blank or uncertain page orientation is left alone. Deskew refuses annotated pages
+rather than misaligning their annotations. This does not remove every crease,
+background stain or speckle. Automatic Edit-mode recognition leaves scan geometry
+unchanged regardless of the last enhancement settings.
+
+**Correct recognized text** lists invisible OCR paragraphs on the chosen page.
+Edit the corrected text and press **Apply**. The searchable layer changes; the
+scanned artwork does not. Each correction has its own Undo step. Locked pages
+and documents that prohibit editing cannot be corrected. Ordinary Edit mode still
+paints visible replacement text, as described above.
+
+Automation: `ocr_enhance` applies scan corrections; `text_paragraphs` reports
+paragraph IDs and whether text is invisible; `ocr_correct` takes `doc`, `page`,
+`paragraph` (all page/paragraph numbers one-based) and `text`.
+
+Enhancement and optional multilingual models build on
+[PR #1012](https://github.com/storytold/pdfcraft/pull/1012) by @lukashold
+(`d9d2b50d8cf39ad369f07aa7eddeda01203e6884`), retaining this fork's existing
+Latin recognition and bounded Unicode OCR writer. Certificate encryption is
+adapted from [PR #2014](https://github.com/storytold/pdfcraft/pull/2014) by
+@regendorf-ux (`83c91842c21af0ec8e5ad5e3bdb482bb727add0e`). It currently opens
+with RSA digital-ID files, not CAC/Windows-store keys. Private-key operations use
+AWS-LC on the desktop; browser decryption is unavailable. Other-reader certificate
+interoperability and native Linux runtime still need qualification.

@@ -1689,6 +1689,20 @@ fn organize_pages_from_the_edit_panel_opens_its_panel() {
 /// Header and footer, Watermark and Background keep their Add / Update / Remove menu in the Edit
 /// panel, as under All tools: Update and Remove wait for the document to have that kind of mark.
 #[test]
+fn background_is_visible_first_under_add_content_without_expanding_more() {
+    let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens"));
+    h.get_by_label("Edit").click();
+    h.run_steps(3);
+    let background = h.get_by_label("Background").rect();
+    assert!(background.top() < h.get_by_label("Image").rect().top());
+    h.get_by_label("Link");
+    h.get_by_label("Background").click();
+    h.run_steps(3);
+    assert_eq!(enabled(&h, "Add background…"), Some(true));
+    assert_eq!(enabled(&h, "Remove background"), Some(false));
+}
+
+#[test]
 fn the_edit_panel_keeps_the_add_update_remove_menu() {
     let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens"));
     h.get_by_label("Edit").click();

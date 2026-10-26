@@ -211,6 +211,22 @@ key	Space	Mezerník
 	Resize panel window	Změnit velikost okna panelu
 	Tools	Nástroje
 	Inspector	Inspektor
+	Scan and text recognition	Skenování a rozpoznávání textu
+	Searchable Image	Prohledávatelný obrázek
+	Corrected scan	Opravený sken
+	Scan correction	Oprava skenu
+	Automatically rotate sideways and upside-down pages	Automaticky otáčet stránky na boku a vzhůru nohama
+	Straighten skewed scans	Narovnat šikmé skeny
+	Add searchable text	Přidat prohledávatelný text
+	Uncertain orientations are left unchanged. Deskew fits the full image inside the page.	Nejistá orientace zůstane beze změny. Narovnání zachová celý obrázek uvnitř stránky.
+	Correct scans	Opravit skeny
+	Scan processing cancelled	Zpracování skenů zrušeno
+	; 1 page skipped	; přeskočena 1 stránka
+	; {n} pages skipped	; přeskočeno stránek: {n}
+	; corrected {n} pages	; opraveno stránek: {n}
+	Crop scanner borders to the paper edge	Oříznout okraje skenu k hraně papíru
+	Safety margin (pt)	Ochranný okraj (b.)
+	Only clear paper edges are cropped. Indistinguishable white borders are kept.	Oříznou se pouze zřetelné hrany papíru. Nerozlišitelné bílé okraje zůstanou zachovány.
 
 # The rest of the interface: Home, All tools, panels, dialogs, notices and history labels.
 	Folders	Složky
@@ -2511,6 +2527,7 @@ animation effects	Off	Vypnuto
 	This document is trying to open a local file:	Tento dokument se pokouší otevřít místní soubor:
 	Move tag earlier	Přesunout tag dříve
 	Move tag later	Přesunout tag později
+	Straighten scanned page	Narovnat naskenovanou stránku
 
 # Historical snapshot notice bar (View signed version / View revision).
 	You are viewing the signed version of “{from}” (revision {rev}). It is a snapshot: changes here won't affect the original.	Prohlížíte si podepsanou verzi dokumentu „{from}“ (revize {rev}). Je to snímek: změny zde neovlivní originál.
@@ -2563,6 +2580,30 @@ animation effects	Off	Vypnuto
 	Make properties default	Nastavit vlastnosti jako výchozí
 	Pages selected	Vybrané stránky
 	Page properties	Vlastnosti stránky
+# Encrypt with certificate.
+	Couldn't encrypt: {e}	Nelze zašifrovat: {e}
+	Encrypt with certificate…	Šifrovat certifikátem…
+	Encrypt with Certificate	Šifrovat certifikátem
+	Only the recipients can open the document, each with the private key of their own certificate.	Dokument mohou otevřít jen příjemci, každý soukromým klíčem svého certifikátu.
+	Recipients	Příjemci
+	No recipients yet.	Zatím žádní příjemci.
+	{name} (you)	{name} (vy)
+	Expires {date}	Platnost do {date}
+	All permissions	Všechna oprávnění
+	Add certificate file…	Přidat soubor certifikátu…
+	Add your digital ID	Přidat vaše digitální ID
+	Certificate	Certifikát
+	None of the recipients is one of your digital IDs: you won't be able to open the saved document.	Žádný z příjemců není vaším digitálním ID: uložený dokument nebudete moci otevřít.
+	The restrictions apply to recipients without “All permissions”. It's applied when you save.	Omezení platí pro příjemce bez „Všechna oprávnění“. Použije se při uložení.
+	Digital ID required	Je vyžadováno digitální ID
+	Choose a digital ID file	Vyberte soubor digitálního ID
+	“{name}” is encrypted for specific people. Choose your digital ID and enter its password to open it.	Soubor „{name}“ je šifrovaný pro konkrétní osoby. Vyberte své digitální ID a zadejte jeho heslo pro otevření.
+	Add at least one recipient.	Přidejte alespoň jednoho příjemce.
+	Only certificates with RSA keys can be recipients.	Příjemci mohou být jen certifikáty s klíči RSA.
+	None of your digital IDs can open this document.	Žádné z vašich digitálních ID tento dokument neotevře.
+	Certificate encryption will be applied when you save	Šifrování certifikátem se použije při uložení
+	Encrypt for recipient	Šifrovat pro jednoho příjemce
+	Encrypt for recipients	Šifrovat pro příjemce
 	Create & Edit	Vytváření a úpravy
 	Review & Compare	Revize a porovnání
 	Forms & Signatures	Formuláře a podpisy

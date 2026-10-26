@@ -184,6 +184,37 @@ fn recognize_text_dialog_adds_searchable_text() {
     h.run_steps(2);
     h.get_by_label("Document language");
     h.get_by_label("Output");
+    h.get_by_label("Automatically rotate sideways and upside-down pages");
+    h.get_by_label("Straighten skewed scans");
+    assert!(h.state().ocr_draft.auto_rotate && h.state().ocr_draft.deskew);
+    let expected = pdfcraft_engine::ocr::language_for_locale(sys_locale::get_locale().as_deref());
+    assert_eq!(h.state().ocr_draft.language, expected, "OCR follows the system even when the interface is English");
+    let label = pdfcraft_engine::ocr::LANGUAGES.iter().find(|(code, _)| *code == expected).unwrap().1;
+    h.get_by_value(label).click();
+    h.run_steps(2);
+    for label in ["Nederlands", "Dansk", "Norsk bokmål", "Svenska", "Suomi", "Português", "Català", "繁體中文", "简体中文"] {
+        h.get_by_label(label);
+    }
+    // The expanded language list scrolls when the popup reaches the window edge.
+    h.get_by_label("简体中文").scroll_to_me();
+    h.run_steps(4);
+    h.get_by_label("简体中文").click();
+    h.run_steps(2);
+    assert_eq!(h.state().ocr_draft.language, "zh-Hans", "the last language in the list can be chosen");
+    h.get_by_value("简体中文").click();
+    h.run_steps(2);
+    h.get_by_label("Català").scroll_to_me();
+    h.run_steps(4);
+    h.get_by_label("Català").click();
+    h.run_steps(2);
+    assert_eq!(h.state().ocr_draft.language, "ca");
+    h.get_by_value("Català").click();
+    h.run_steps(2);
+    h.get_by_label("Italiano").scroll_to_me();
+    h.run_steps(4);
+    h.get_by_label("Italiano").click();
+    h.run_steps(2);
+    assert_eq!(h.state().ocr_draft.language, "it");
     if !pdfcraft_engine::ocr::available() {
         eprintln!("skipped: OCR models not installed");
         return;
@@ -196,6 +227,52 @@ fn recognize_text_dialog_adds_searchable_text() {
     let app = h.state();
     let id = app.active_ids().unwrap().1;
     assert_eq!(app.session.get(id).unwrap().can_undo(), Some("Recognize text"));
+}
+
+#[test]
+fn scan_settings_preserve_corrections_and_existing_text_choice() {
+    let mut draft = PdfCraftApp::new().ocr_draft;
+    assert!(draft.settings().skip_text_pages);
+    draft.text_pages = true;
+    draft.language = "fr".into();
+    draft.auto_rotate = false;
+    draft.deskew = false;
+    draft.auto_crop = true;
+    draft.crop_margin = 7.0;
+    let settings = draft.settings();
+    assert!(!settings.skip_text_pages);
+    assert_eq!(settings.language, "fr");
+    assert!(!settings.auto_rotate && !settings.deskew);
+    assert!(settings.auto_crop);
+    assert_eq!(settings.crop_margin, 7.0);
+    draft.text_pages = false;
+    draft.recognize = false;
+    assert!(!draft.settings().skip_text_pages, "enhancement retains existing OCR pages");
+    assert!(!draft.settings().recognize);
+}
+
+#[test]
+fn enhance_scan_dialog_offers_correction_without_recognition() {
+    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.open_bytes("scan.pdf", None, scan()).unwrap();
+        app
+    });
+    h.run_steps(4);
+    assert!(h.state_mut().execute("ocr.enhance"));
+    h.run_steps(2);
+    h.get_by_label("Correct scans");
+    assert!(!h.state().ocr_draft.recognize);
+    assert!(h.state().ocr_draft.auto_crop);
+    assert_eq!(h.state().ocr_draft.language, pdfcraft_engine::ocr::language_for_locale(sys_locale::get_locale().as_deref()));
+    h.get_by_label("Safety margin (pt)");
+    h.get_by_label("Crop scanner borders to the paper edge").click();
+    h.run_steps(2);
+    assert!(!h.state().ocr_draft.auto_crop);
+    h.get_by_label("Add searchable text").click();
+    h.run_steps(2);
+    assert!(h.state().ocr_draft.recognize);
 }
 
 #[test]
@@ -526,4 +603,61 @@ fn only_the_edit_tool_recognizes_a_scanned_page() {
     let id = h.state().active_ids().unwrap().1;
     h.run_steps(6);
     assert_eq!(h.state().session.get(id).unwrap().can_undo(), None);
+}
+
+#[test]
+fn recognized_text_correction_keeps_scan_pixels() {
+    let mut h = scan_harness(scan());
+    h.run_steps(3);
+    let id = h.state().views[0].id;
+    let word = pdfcraft_engine::ocr::PlacedWord { text: "Mistkae".into(), origin: [25.0, 40.0], across: [80.0, 0.0], up: [0.0, 12.0] };
+    h.state_mut().apply_edit(Edit::AddOcrText { page: 0, words: vec![word] });
+    let before = export::Exporter::new(h.state().session.get(id).unwrap()).png(0, 144.0).unwrap();
+    assert!(h.state_mut().execute("ocr.correct"));
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, Some(pdfcraft_ui_egui::Dialog::CorrectOcrText));
+    h.get_by_label("Corrected text");
+    if let Ok(dir) = std::env::var("PDFCRAFT_FEATURE_SHOTS") {
+        std::fs::create_dir_all(&dir).unwrap();
+        h.render().unwrap().save(std::path::Path::new(&dir).join("correct-recognized-text.png")).unwrap();
+    }
+    h.state_mut().ocr_correction.text = "Mistake".into();
+    h.run_steps(2);
+    h.get_by_label("Apply").click();
+    h.run_steps(3);
+    let doc = h.state().session.get(id).unwrap();
+    assert!(doc.text_blocks(0).iter().any(|b| b.invisible && b.text == "Mistake"));
+    assert_eq!(export::Exporter::new(doc).png(0, 144.0).unwrap(), before);
+    assert_eq!(doc.can_undo(), Some("Correct recognized text"));
+    h.get_by_label("Close").click();
+    h.run_steps(2);
+    assert_eq!(h.state().dialog, None);
+}
+
+#[test]
+fn enhance_scan_dialog_corrects_without_adding_searchable_text() {
+    if !pdfcraft_engine::ocr::available() {
+        return;
+    }
+    let mut h = scan_harness(scan());
+    h.run_steps(3);
+    let id = h.state().views[0].id;
+    let generation = h.state().session.get(id).unwrap().edit_generation();
+    assert!(h.state_mut().execute("ocr.enhance"));
+    h.run_steps(3);
+    h.get_by_label("Enhance scanned file");
+    assert!(!h.state().ocr_draft.recognize);
+    if let Ok(dir) = std::env::var("PDFCRAFT_FEATURE_SHOTS") {
+        std::fs::create_dir_all(&dir).unwrap();
+        h.render().unwrap().save(std::path::Path::new(&dir).join("enhance-scanned-file.png")).unwrap();
+    }
+    h.state_mut().ocr_draft.auto_rotate = false;
+    h.state_mut().ocr_draft.deskew = false;
+    h.state_mut().ocr_draft.auto_crop = false;
+    h.get_by_label("Correct scans").click();
+    h.run_steps(3);
+    assert!(h.state().ocr_run.is_none());
+    assert!(h.state().session.get(id).unwrap().text_blocks(0).is_empty());
+    assert_eq!(h.state().session.get(id).unwrap().edit_generation(), generation, "no corrections means no edit");
+    assert!(h.state().toast.as_ref().unwrap().0.starts_with("Enhanced "));
 }

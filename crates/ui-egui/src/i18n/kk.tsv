@@ -2436,6 +2436,24 @@ animation effects	Off	Өшірулі
 	Move tag earlier	Тегті ертерек жылжыту
 	Move tag later	Тегті кейінірек жылжыту
 
+# Scan correction and multilingual OCR (#1012).
+	Scan and text recognition	Сканерлеу және мәтінді тану
+	Searchable Image	Іздеуге болатын сурет
+	Corrected scan	Түзетілген скан
+	Scan correction	Сканды түзету
+	Automatically rotate sideways and upside-down pages	Бүйіріне немесе төңкеріліп сканерленген беттерді автоматты түрде бұру
+	Straighten skewed scans	Қиғаш скандарды түзету
+	Add searchable text	Іздеуге болатын мәтінді қосу
+	Uncertain orientations are left unchanged. Deskew fits the full image inside the page.	Бағыт анық болмаса, ол өзгеріссіз қалады. Қиғаштықты түзету бүкіл суретті бетке сыйғызады.
+	Correct scans	Скандарды түзету
+	Scan processing cancelled	Сканды өңдеу тоқтатылды
+	; 1 page skipped	; 1 бет өткізіліп жіберілді
+	; {n} pages skipped	; {n} бет өткізіліп жіберілді
+	; corrected {n} pages	; {n} бет түзетілді
+	Crop scanner borders to the paper edge	Сканерленген суретті қағаз шетіне дейін қию
+	Safety margin (pt)	Қорғаныш жиегі (пт)
+	Only clear paper edges are cropped. Indistinguishable white borders are kept.	Тек анық қағаз шеттері қиылады. Ажыратылмайтын ақ жиектер сақталады.
+	Straighten scanned page	Сканерленген бетті түзету
 # Historical snapshot notice bar (View signed version / View revision).
 	You are viewing the signed version of “{from}” (revision {rev}). It is a snapshot: changes here won't affect the original.	Сіз „{from}“ құжатының қол қойылған нұсқасын ({rev} нұсқа) қарап отырсыз. Бұл сақталған көшірме: мұндағы өзгерістер түпнұсқаға әсер етпейді.
 	You are viewing revision {rev} of “{from}”. It is a snapshot: changes here won't affect the original.	Сіз „{from}“ құжатының {rev} нұсқасын қарап отырсыз. Бұл сақталған көшірме: мұндағы өзгерістер түпнұсқаға әсер етпейді.
@@ -2487,6 +2505,31 @@ animation effects	Off	Өшірулі
 	Make properties default	Қасиеттерді әдепкі ету
 	Pages selected	Таңдалған беттер
 	Page properties	Бет қасиеттері
+# Encrypt with certificate.
+	Couldn't encrypt: {e}	Шифрлау мүмкін болмады: {e}
+	Encrypt with certificate…	Сертификатпен шифрлау…
+	Encrypt with Certificate	Сертификатпен шифрлау
+	Only the recipients can open the document, each with the private key of their own certificate.	Құжатты тек алушылар ғана аша алады, әрқайсысы өз сертификатының жеке кілтімен.
+	Recipients	Алушылар
+	No recipients yet.	Әзірге алушылар жоқ.
+	{name} (you)	{name} (сіз)
+	Expires {date}	Мерзімі: {date} дейін
+	All permissions	Барлық рұқсаттар
+	Add certificate file…	Сертификат файлын қосу…
+	Add your digital ID	Цифрлық ID-іңізді қосу
+	Certificate	Сертификат
+	None of the recipients is one of your digital IDs: you won't be able to open the saved document.	Алушылардың ешқайсысы сіздің цифрлық ID-іңіз емес: сақталған құжатты аша алмайсыз.
+	The restrictions apply to recipients without “All permissions”. It's applied when you save.	Шектеулер «Барлық рұқсаттар» жоқ алушыларға қолданылады. Сақтау кезінде қолданылады.
+	Digital ID required	Цифрлық ID қажет
+	Choose a digital ID file	Цифрлық ID файлын таңдаңыз
+	“{name}” is encrypted for specific people. Choose your digital ID and enter its password to open it.	«{name}» белгілі бір адамдар үшін шифрланған. Ашу үшін цифрлық ID-іңізді таңдап, оның құпиясөзін енгізіңіз.
+	Add at least one recipient.	Кемінде бір алушы қосыңыз.
+	Only certificates with RSA keys can be recipients.	Алушы тек RSA кілттері бар сертификаттар бола алады.
+	None of your digital IDs can open this document.	Цифрлық ID-іңіздің ешқайсысы бұл құжатты аша алмайды.
+	Certificate encryption will be applied when you save	Сертификатпен шифрлау сақтау кезінде қолданылады
+	Encrypt for recipient	Алушы үшін шифрлау
+	Encrypt for recipients	Алушылар үшін шифрлау
+	The password is incorrect.	Құпиясөз қате.
 	Create & Edit	Жасау және өңдеу
 	Review & Compare	Шолу және салыстыру
 	Forms & Signatures	Пішіндер және қолтаңбалар

@@ -866,3 +866,16 @@ fn toolbar_search_and_actions_fit_narrow_english_and_german_windows() {
         }
     }
 }
+
+#[test]
+fn audit_space_command_opens_the_read_only_audit() {
+    let mut h = harness();
+    let id = h.state().views[0].id;
+    let generation = h.state().session.get(id).unwrap().edit_generation();
+    assert!(h.state_mut().execute("optimize.audit"));
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, Some(Dialog::Properties(pdfcraft_ui_egui::PropsTab::SpaceAudit)));
+    assert!(!h.state().space_audit.is_empty());
+    assert_eq!(h.state().session.get(id).unwrap().edit_generation(), generation);
+    h.get_by_label("Space Audit");
+}

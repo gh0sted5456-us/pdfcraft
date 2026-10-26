@@ -198,14 +198,24 @@ impl PdfCraftApp {
             "ai.setup" | "ai.summary" | "ai.ask" | "ai.suggest" | "ai.translate" => crate::assistant_ui::open(self, id),
             "protect.properties" => self.dialog = Some(Dialog::Properties(PropsTab::Security)),
             // A restricted document's security changes once its permissions password is entered.
-            "protect.password" | "protect.remove" if self.active_ids().and_then(|(_, id)| self.session.get(id)).is_some_and(|d| d.can_unlock()) => {
-                let then = if id == "protect.password" { "protect.password" } else { "protect.remove" };
+            "protect.password" | "protect.certificate" | "protect.remove"
+                if self.active_ids().and_then(|(_, id)| self.session.get(id)).is_some_and(|d| d.can_unlock()) =>
+            {
+                let then = match id {
+                    "protect.password" => "protect.password",
+                    "protect.certificate" => "protect.certificate",
+                    _ => "protect.remove",
+                };
                 self.request_unlock(Some(then));
             }
             "protect.unlock" => self.request_unlock(None),
             "protect.password" => {
                 self.protect_draft = Default::default();
                 self.dialog = Some(Dialog::Protect);
+            }
+            "protect.certificate" => {
+                self.certificate_draft = Default::default();
+                self.dialog = Some(Dialog::EncryptCertificate);
             }
             "edit.attach" => self.attach_file_dialog(),
             "protect.remove" => {
@@ -428,7 +438,25 @@ impl PdfCraftApp {
             "export.text" => self.dialog = Some(Dialog::Export(crate::export_ui::ExportKind::Text)),
             "a11y.check" => self.start_accessibility_check(),
             "a11y.find_untagged" => self.find_untagged_content(),
-            "ocr.recognize" => self.dialog = Some(Dialog::RecognizeText),
+            "ocr.correct" => {
+                if let Some((view, doc)) = self.active_ids() {
+                    if !self.commit_typing_in(doc) {
+                        return false;
+                    }
+                    self.ocr_correction = Default::default();
+                    self.ocr_correction.page = self.views[view].current;
+                    self.dialog = Some(Dialog::CorrectOcrText);
+                }
+            }
+            "ocr.recognize" => {
+                self.ocr_draft.recognize = true;
+                self.dialog = Some(Dialog::RecognizeText);
+            }
+            "ocr.enhance" => {
+                self.ocr_draft.recognize = false;
+                self.ocr_draft.auto_crop = true;
+                self.dialog = Some(Dialog::RecognizeText);
+            }
             "tools.js_console" => self.dialog = Some(Dialog::JsConsole),
             "tools.document_actions" => {
                 self.doc_js = crate::js_ui::DocJsDraft {
@@ -454,7 +482,10 @@ impl PdfCraftApp {
                 self.preferences_category = crate::PreferencesCategory::Language;
                 self.dialog = Some(Dialog::Preferences);
             }
-            "ocr.recognize_batch" => self.ocr_files_dialog(),
+            "ocr.recognize_batch" => {
+                self.ocr_draft.recognize = true;
+                self.ocr_files_dialog();
+            }
             "edit.edit_text" => {
                 self.quick_tool = crate::QuickTool::EditText;
                 self.left = crate::LeftPanel::Tool("edit");
@@ -574,6 +605,7 @@ impl PdfCraftApp {
             "sign.remove" => self.start_remove_signature(None),
             "sign.panel" => self.choose_right_panel(Some(RightPanel::Signatures)),
             "optimize.advanced" => self.dialog = Some(Dialog::Optimize),
+            "optimize.audit" => self.dialog = Some(Dialog::Properties(crate::PropsTab::SpaceAudit)),
             "view.fit_visible" => {
                 if let Some(i) = self.active
                     && let Err(e) = self.fit_visible(i)

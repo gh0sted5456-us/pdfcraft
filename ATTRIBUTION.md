@@ -301,7 +301,7 @@ Every asset PdfCraft includes, bundles or uses to build its published material, 
 | `epaint_default_fonts` 0.36.2 | `fonts/emoji-icon-font.ttf` | emoji-icon-font | John Slegers | MIT | https://github.com/jslegers/emoji-icon-font | egui fallback fonts (eframe feature default_fonts) |
 | `hayro-interpret` 0.7.0 | `src/font/generated/metrics.rs` | Standard-14 font metrics and encodings (as Rust tables) (non-visual data, AGENTS.md §1.1) | Adobe (Core 14 AFM metrics, PDF specification encodings); tables by The Hayro Authors | MIT OR Apache-2.0 | ISO 32000-2 Annex D; Adobe Core14 AFM files (via vendored hayro-interpret) | Glyph widths and encodings for non-embedded standard fonts. Non-visual data, allowed by AGENTS.md §1.1 |
 
-## Downloaded at build time (24)
+## Downloaded at build time (27)
 
 Fonts are fetched by `cargo xtask demo-pdf` into `target/demo-fonts/`, OCR models by `cargo xtask models` into `assets/models/`; each is verified by SHA-256 and never committed.
 
@@ -331,6 +331,9 @@ Fonts are fetched by `cargo xtask demo-pdf` into `target/demo-fonts/`, OCR model
 | `text-recognition.rten` | Ocrs text recognition model | Robert Knight (ocrs-models; trained on HierText, CC-BY-SA-4.0) | CC-BY-SA-4.0 | https://github.com/robertknight/ocrs-models (the models ocrs downloads; model card: https://huggingface.co/robertknight/ocrs, cc-by-sa-4.0) | Scan & OCR: reads the words it finds (cargo xtask models) |
 | `latin-recognition.onnx` | PP-OCRv5 mobile Latin recognition model (ONNX) | PaddlePaddle Authors; RapidAI contributors (ONNX conversion) | Apache-2.0 | https://github.com/RapidAI/RapidOCR/tree/v3.9.2; PaddleOCR PP-OCRv5 Latin recognition model, converted to ONNX by RapidAI | Scan & OCR: accented European languages, German French Czech Polish Nordic (cargo xtask models) |
 | `latin-keys.txt` | PaddleOCR PP-OCRv5 Latin character dictionary | PaddlePaddle Authors | Apache-2.0 | https://github.com/PaddlePaddle/PaddleOCR/blob/v3.1.1/ppocr/utils/dict/ppocrv5_latin_dict.txt | Scan & OCR: character classes for the Latin recogniser (cargo xtask models) |
+| `multilingual-recognition.onnx` | PP-OCRv6 small multilingual text recognition model | PaddlePaddle / PaddleOCR contributors | Apache-2.0 | https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx/resolve/b8f84f0b80c529de40b4fbb3544b84fa7233a513/inference.onnx | Offline multilingual OCR and scan orientation correction (cargo xtask models) |
+| `document-orientation.onnx` | PP-LCNet document orientation model | PaddlePaddle / PaddleOCR contributors | Apache-2.0 | https://huggingface.co/PaddlePaddle/PP-LCNet_x1_0_doc_ori_onnx/resolve/7330ab7039123e46af2dc03154b9969aa412c61d/inference.onnx | Offline multilingual OCR and scan orientation correction (cargo xtask models) |
+| `multilingual-dictionary.txt` | PP-OCRv6 recognition dictionary | PaddlePaddle / PaddleOCR contributors | Apache-2.0 | https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/dab3fe35379033fdcb2d0e9572fac0b36c9a9ebf/ppocr/utils/dict/ppocrv6_dict.txt | Offline multilingual OCR and scan orientation correction (cargo xtask models) |
 
 ## Optional build inputs (1)
 

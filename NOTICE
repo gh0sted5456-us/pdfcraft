@@ -111,3 +111,6 @@ PP-OCRv5 Latin recognition model and character dictionary
 Copyright PaddlePaddle Authors; ONNX conversion by RapidAI contributors.
 Licensed under the Apache License, Version 2.0. Exact sources and hashes are in
 ATTRIBUTION.toml; each downloaded file ships with its corresponding LICENCE.txt.
+PaddleOCR PP-OCRv6 and PP-LCNet model weights and recognition dictionary
+Copyright PaddlePaddle / PaddleOCR contributors. Licensed under Apache-2.0.
+Fetched from the authors' pinned releases; see ATTRIBUTION.toml.

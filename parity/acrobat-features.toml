@@ -3181,10 +3181,10 @@ area = "D"
 tier = "P1"
 milestone = "M4"
 status = "shipped"
-commands = ["page.boxes"]
-tools = ["page_set_box"]
-evidence = ["crates/ui-egui/tests/it/pageboxes.rs::set_page_boxes_dialog_applies_margins_to_the_chosen_pages", "crates/organize/src/tests.rs::page_boxes_default_inherit_and_set"]
-notes = "crop/trim/bleed/art/media, margins in pt/in/mm, page ranges, preview; no Remove white margins yet"
+commands = ["page.boxes", "ocr.enhance"]
+tools = ["page_set_box", "ocr_enhance"]
+evidence = ["crates/ui-egui/tests/it/pageboxes.rs::set_page_boxes_dialog_applies_margins_to_the_chosen_pages", "crates/organize/src/tests.rs::page_boxes_default_inherit_and_set", "crates/engine/tests/it/scan_ocr.rs::crop_scanner_borders_preserves_pixels_rotation_text_and_undo", "crates/automation/tests/it/automation.rs::ocr_enhance_crops_paper_edges_with_margin_and_undo", "crates/ui-egui/tests/it/ocr.rs::enhance_scan_dialog_offers_correction_without_recognition"]
+notes = "crop/trim/bleed/art/media, margins in pt/in/mm, page ranges, preview. Enhance scanned file automatically crops black/white scanner borders to clear paper edges with adjustable safety padding; retains blank paper and colored covers, supports existing page rotation and OCR layers, and undoes together with scan corrections. Indistinguishable white-on-white edges stay unchanged; no text-bounds Remove white margins or perspective crop. Original pixels remain in the PDF."
 
 [[feature]]
 id = "organize.crop-tool"
@@ -5549,11 +5549,11 @@ title = "Encrypt with certificates for recipients"
 area = "G"
 tier = "P1"
 milestone = "M8"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["protect.certificate"]
+tools = ["doc_protect_certificates", "identity_add"]
+evidence = ["crates/ui-egui/tests/it/protect.rs::encrypting_with_certificates_and_opening_with_a_digital_id", "crates/automation/tests/it/automation.rs::encrypting_with_certificates_through_the_tools", "crates/cos/tests/it/encryption.rs::public_key_security_round_trips_through_a_file", "crates/sign/src/envelope.rs::an_envelope_opens_only_for_its_recipient"]
+notes = "Encrypt with Certificate dialog (Protect ▸ Encrypt with certificate): recipients from certificate files (.cer, .crt, .pem, .der) or the person's own digital ID files, compatibility AES-256 or AES-128, everything or all but metadata. Writes /Adobe.PubSec with adbe.pkcs7.s5 envelopes (CMS EnvelopedData, RSA PKCS #1 v1.5 key transport, AES-128-CBC content; AES-192/256 and 3DES envelopes are read too), AESV2 or AESV3. Opening such a file asks for a digital ID file and its password; the renderer reads a decrypted copy while saves stay encrypted. Native private-key operations use AWS-LC; 2048–8192-bit RSA recipients with bounded exponents. Browser decryption requires the desktop app. Not yet: EC recipients (key agreement), RSA-OAEP, opening with a Keychain or Windows store identity (their keys can't decrypt through PdfCraft yet), picking recipients from a directory or address book."
 
 [[feature]]
 id = "protect.recipient-permissions"
@@ -5561,11 +5561,11 @@ title = "Per-recipient permissions for certificate security"
 area = "G"
 tier = "P1"
 milestone = "M8"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["protect.certificate"]
+tools = ["doc_protect_certificates"]
+evidence = ["crates/ui-egui/src/certificate_ui.rs::drafts_need_a_recipient_and_give_each_their_permissions", "crates/ui-egui/tests/it/protect.rs::encrypting_with_certificates_and_opening_with_a_digital_id"]
+notes = "Each recipient's envelope carries its own permissions, and the engine takes any per recipient. The dialog offers two levels: All permissions (the default for your own digital IDs) or the shared restrictions (printing, changes, copying, screen readers). Not yet: a different set of restrictions for each recipient in the dialog."
 
 [[feature]]
 id = "protect.recipient-ldap"
@@ -6580,8 +6580,8 @@ milestone = "M10"
 status = "partial"
 commands = ["ocr.recognize"]
 tools = ["ocr_recognize"]
-evidence = ["crates/ui-egui/tests/it/ocr.rs::recognize_text_dialog_adds_searchable_text", "crates/engine/src/tests.rs::german_document_language_keeps_umlauts_and_eszett", "crates/engine/src/tests.rs::latin_ocr_keeps_french_cedilla_and_grave", "crates/engine/src/tests.rs::latin_ocr_keeps_french_on_a_jpeg_scan", "crates/engine/src/tests.rs::latin_ocr_keeps_spanish_names_and_amounts", "crates/engine/src/tests.rs::unicode_ocr_layer_preserves_pixels_copy_save_and_undo", "crates/automation/tests/it/automation.rs::accented_ocr_is_available_through_the_tools_and_searches_saved_text", "crates/ui-egui/tests/it/ocr.rs::ocr_preferences_survive_restart_and_reject_damaged_values"]
-notes = "Personal build adapts the Latin-only portion of community PR #2520: local PP-OCRv5 recognition, pinned Apache-2.0 model/dictionary and named European language preferences. Settings and scan recognition share persisted language/resolution choices; new GUI profiles default to accented Latin when installed, while API defaults remain English. Unicode search layers preserve text outside WinAnsi without changing pixels. Still partial: accented segments are line-sized, letter recognition can be wrong, and scripts beyond Latin are not included."
+evidence = ["crates/engine/tests/it/scan_ocr.rs::scan_recognizes_accents_in_requested_languages", "crates/engine/tests/it/scan_ocr.rs::scan_recognizes_japanese_with_release_fonts", "crates/engine/tests/it/scan_ocr.rs::additional_latin_languages_keep_accented_words_after_save", "crates/engine/tests/it/scan_ocr.rs::catalan_ocr_keeps_accents_after_save", "crates/ocr/src/lib.rs::system_locale_selects_ocr_language_with_english_fallback", "crates/ui-egui/tests/it/ocr.rs::recognize_text_dialog_adds_searchable_text"]
+notes = "English, German, French, Spanish, Catalan, Italian, Dutch, Danish, Norwegian Bokmål, Swedish, Finnish, Portuguese and horizontal Japanese run offline. The UI initially selects the primary system/browser locale, with English fallback when unavailable or unsupported; manual choices remain available. CLI/MCP language arguments retain their deterministic English default. Chinese zh-Hant/zh-Hans choices share the unmasked dictionary, with locale/script mapping, decoder, UI selection, automation dispatch and Unicode save/reopen coverage; real Chinese scan accuracy is not yet measured. Close/overlapping horizontal Chinese fragments are joined before recognition, tested with original centred-punctuation geometry/model checks; general column/layout accuracy and thin numeral recall remain limited. No script conversion or speculative Catalan spelling substitution. Existing calibrated PP-OCRv5 Latin recognition and its language-specific accent preferences are retained, including Icelandic and Polish. Optional multilingual models serve Japanese and Chinese; installed model coverage varies. Vertical Japanese/Chinese and general layout accuracy remain unclaimed."
 
 [[feature]]
 id = "ocr.searchable-image"
@@ -6589,11 +6589,11 @@ title = "Searchable image output (invisible text layer)"
 area = "I"
 tier = "P0"
 milestone = "M10"
-status = "partial"
+status = "shipped"
 commands = ["ocr.recognize"]
 tools = ["ocr_recognize"]
-evidence = ["crates/engine/src/tests.rs::recognize_text_makes_a_scanned_page_searchable"]
-notes = "Invisible text (Tr 3) fitted to each word box; the image is not deskewed or downsampled (exact mode only)."
+evidence = ["crates/engine/tests/it/scan_ocr.rs::unicode_ocr_survives_save_search_and_undo_without_changing_pixels"]
+notes = "Unicode invisible text with ToUnicode mappings; optional orientation and deskew correction preserves original image streams."
 
 [[feature]]
 id = "ocr.searchable-image-exact"
@@ -6604,8 +6604,8 @@ milestone = "M10"
 status = "shipped"
 commands = ["ocr.recognize"]
 tools = ["ocr_recognize"]
-evidence = ["crates/engine/src/tests.rs::recognize_text_makes_a_scanned_page_searchable"]
-notes = "The image is left untouched."
+evidence = ["crates/engine/tests/it/scan_ocr.rs::unicode_ocr_survives_save_search_and_undo_without_changing_pixels"]
+notes = "Disable auto_rotate, deskew and auto_crop for unchanged page pixels; OCR does not recompress the original image."
 
 [[feature]]
 id = "ocr.editable-text-output"
@@ -6649,11 +6649,11 @@ title = "Detect and fix page rotation"
 area = "I"
 tier = "P1"
 milestone = "M10"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "shipped"
+commands = ["ocr.recognize", "ocr.enhance"]
+tools = ["ocr_recognize", "ocr_enhance"]
+evidence = ["crates/engine/tests/it/scan_ocr.rs::scan_correction_handles_all_quarter_turns_and_stale_results", "crates/automation/tests/it/automation.rs::ocr_enhance_corrects_rotation_without_adding_text"]
+notes = "Confidence-gated 90/180/270 degree correction using PP-LCNet. Blank and uncertain pages stay unchanged; correction alone or before OCR, undoable."
 
 [[feature]]
 id = "ocr.deskew"
@@ -6661,11 +6661,11 @@ title = "Deskew"
 area = "I"
 tier = "P1"
 milestone = "M10"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["ocr.recognize", "ocr.enhance"]
+tools = ["ocr_recognize", "ocr_enhance"]
+evidence = ["crates/engine/tests/it/scan_ocr.rs::scan_deskew_without_ocr_persists_and_is_undoable"]
+notes = "Projection-profile deskew up to 12 degrees, fitting the whole scan inside the page. Preserves original image streams; pages with annotations are refused to avoid misalignment. No perspective or camera dewarping."
 
 [[feature]]
 id = "ocr.despeckle"
@@ -6757,11 +6757,11 @@ title = "Correct recognized text (low-confidence suspects)"
 area = "I"
 tier = "P2"
 milestone = "M10"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["ocr.correct"]
+tools = ["ocr_correct", "text_paragraphs"]
+evidence = ["crates/engine/tests/it/ocr_edit.rs::correcting_ocr_text_preserves_scan_pixels_and_undo", "crates/ui-egui/tests/it/ocr.rs::recognized_text_correction_keeps_scan_pixels", "crates/automation/tests/it/automation.rs::ocr_correction_through_tools_preserves_scan_artwork"]
+notes = "Review and edit invisible OCR paragraphs by page; saves remain searchable, preserve scan pixels and support Undo. Respects page locks and document permissions. No confidence-based suspect navigation or reconstruction of scanned typography."
 
 [[feature]]
 id = "ocr.adaptive-compression"
@@ -7670,9 +7670,9 @@ area = "K"
 tier = "P1"
 milestone = "M11"
 status = "shipped"
-commands = ["optimize.advanced"]
+commands = ["optimize.audit", "optimize.advanced"]
 tools = ["doc_audit_space"]
-evidence = ["crates/optimize/tests/optimize.rs::space_audit_shares_the_file_out_by_kind", "crates/optimize/tests/optimize.rs::space_audit_counts_what_fields_and_comments_draw_with_by_kind", "crates/optimize/tests/optimize.rs::space_audit_survives_deeply_nested_forms", "crates/automation/tests/it/automation.rs::auditing_space_through_tools", "crates/ui-egui/tests/it/viewer.rs::optimizer_audits_space_usage", "crates/ui-egui/tests/it/viewer.rs::space_audit_numbers_line_up_under_their_headers"]
+evidence = ["crates/ui-egui/tests/it/commands.rs::audit_space_command_opens_the_read_only_audit", "crates/optimize/tests/optimize.rs::space_audit_shares_the_file_out_by_kind", "crates/optimize/tests/optimize.rs::space_audit_counts_what_fields_and_comments_draw_with_by_kind", "crates/optimize/tests/optimize.rs::space_audit_survives_deeply_nested_forms", "crates/automation/tests/it/automation.rs::auditing_space_through_tools", "crates/ui-egui/tests/it/viewer.rs::optimizer_audits_space_usage", "crates/ui-egui/tests/it/viewer.rs::space_audit_numbers_line_up_under_their_headers"]
 notes = "PDF Optimizer ▸ Audit space usage, and Document Properties ▸ Space Audit: what the file's bytes are spent on now (not what optimizing would save), in 16 categories (images, content streams, fonts, X Object forms, structure, bookmarks, thumbnails, comments, forms, named destinations, colour spaces, shadings, patterns, graphics states, embedded files, overhead) with bytes and percentages. Resources are counted by kind wherever they are used, so the fonts and images form fields and comments draw with count as fonts and images. Still missing: sizes are each object as it would be written uncompressed, so objects packed in compressed object streams count larger than they take on disk (overhead, the rest of the file, shrinks to match)"
 
 [[feature]]

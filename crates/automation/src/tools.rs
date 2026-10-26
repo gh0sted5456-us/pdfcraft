@@ -30,6 +30,11 @@ fn pages(what: &str) -> Value {
     json!({ "type": "array", "items": { "type": "integer", "minimum": 1 }, "minItems": 1, "description": format!("1-based page numbers {what}.") })
 }
 
+fn ocr_language() -> Value {
+    let codes: Vec<&str> = pdfcraft_engine::ocr::LANGUAGES.iter().map(|language| language.0).collect();
+    json!({ "type": "string", "enum": codes, "description": "Document language (default en)." })
+}
+
 fn path(what: &str) -> Value {
     json!({ "type": "array", "items": { "type": "integer", "minimum": 1 }, "description": format!("{what}: 1-based positions from the top level, e.g. [2, 1] = the first child of the second bookmark.") })
 }
@@ -151,6 +156,25 @@ pub fn tools() -> Vec<ToolDef> {
         t("attachment_delete", "Delete an attachment", "Remove the document-level attachment with this name (as doc_info lists it). Undoable.")
             .destructive()
             .with(schema(json!({"doc": doc(), "name": {"type": "string"}}), &["doc", "name"])),
+        t("doc_protect_certificates", "Encrypt with certificates", "Encrypt the document for the holders of certificates (Acrobat: Protect ▸ Encrypt with certificate): `certificates` are files (.cer/.crt/.pem/.der, or the certificates in a .p12 with `password`), RSA ones; every holder gets the same permissions (printing none/low/high, changes none/pages/fill-sign/comment-fill-sign/any-except-extract, copy, accessibility; omit all for everything). `owners` are certificate files whose holders get everything whatever the restrictions (yourself, so you can still open and change the file). Takes effect on the next save (a full rewrite); the open session keeps everything. compatibility aes-256 (default) or aes-128.")
+            .cmd("protect.certificate")
+            .with(schema(
+                json!({
+                    "doc": doc(),
+                    "certificates": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+                    "owners": { "type": "array", "items": { "type": "string" } },
+                    "password": { "type": "string", "description": "For a .p12 among the certificates." },
+                    "printing": { "type": "string", "enum": ["none", "low", "high"], "description": "Default high when another restriction is given; omit all four for everything allowed." },
+                    "changes": { "type": "string", "enum": ["none", "pages", "fill-sign", "comment-fill-sign", "any-except-extract"], "description": "Default none when another restriction is given; omit all four for everything allowed." },
+                    "copy": { "type": "boolean", "description": "Allow copying text and images (default false when another restriction is given; omit all four for everything allowed)." },
+                    "accessibility": { "type": "boolean", "description": "Allow screen readers to read the text (default true when another restriction is given; omit all four for everything allowed)." },
+                    "compatibility": { "type": "string", "enum": ["aes-256", "aes-128"], "description": "Default aes-256." },
+                    "encrypt_metadata": { "type": "boolean" },
+                }),
+                &["doc", "certificates"],
+            )),
+        t("identity_add", "Add a digital identity", "Add a digital ID (.p12/.pfx with its password) to the session's identities, which open documents encrypted with certificates (doc_open tries them on the file's envelopes). Returns the identities' certificates.")
+            .with(schema(json!({ "path": { "type": "string" }, "password": { "type": "string" }, "clear": { "type": "boolean" } }), &[])),
         t("doc_open", "Open a PDF", "Open a PDF file and return its document id, page count and whether it can be edited.")
             .cmd("file.open")
             .with(schema(json!({ "path": { "type": "string" }, "password": { "type": "string", "description": "User or owner password for encrypted files." } }), &["path"])),
@@ -1275,14 +1299,17 @@ pub fn tools() -> Vec<ToolDef> {
             )),
         t("js_enabled", "JavaScript on or off", "Preferences ▸ JavaScript ▸ Enable Acrobat JavaScript: set it with `enabled`, or read it. With JavaScript off, field scripts other than Acrobat's AF calls don't run.")
             .with(schema(json!({ "enabled": { "type": "boolean" } }), &[])),
-        t("ocr_recognize", "Recognize text (OCR)", "Scan & OCR ▸ Recognize text: render pages, read the words in them and add them as invisible text over the page image, so scanned pages become searchable and selectable (a searchable image; the image is not changed). Pages that already have text are skipped unless skip_text_pages is false; then pictures on those pages are read too, and recognised words that the page's own text already has (an earlier OCR layer included) are left out and counted as already_on_page. Returns each page's recognised text (left out when the document's security doesn't allow copying), word count or why it was skipped. Needs the OCR models (ocr_status). Undoable as one step.")
+        t("ocr_correct", "Correct recognized text", "Correct an invisible OCR paragraph from text_paragraphs without changing the scan pixels. Visible page text is refused. Undoable; page locks and document permissions apply.")
+            .cmd("ocr.correct")
+            .with(schema(json!({ "doc": doc(), "page": { "type": "integer", "minimum": 1 }, "paragraph": { "type": "integer", "minimum": 1 }, "text": { "type": "string", "maxLength": 1000000 } }), &["doc", "page", "paragraph", "text"])),
+        t("ocr_recognize", "Recognize text (OCR)", "Scan & OCR ▸ Recognize text: render pages, read the words in them and add them as invisible text over the page image, so scanned pages become searchable and selectable (a searchable image). Automatically corrects orientation and skew by default. Optionally auto_crop detected scanner borders, with crop_margin padding (0..20 pt, default 2). Set auto_rotate, deskew and auto_crop to false for an exact image, or recognize to false for correction only. Pages that already have text are skipped unless skip_text_pages is false; then pictures on those pages are read too, and recognised words that the page's own text already has (an earlier OCR layer included) are left out and counted as already_on_page. Returns each page's recognised text (omitted when copying is forbidden), word count or why it was skipped. Needs the OCR models (ocr_status). Undoable as one step.")
             .cmd("ocr.recognize")
             .with(schema(
                 json!({
                     "doc": doc(),
                     "pages": pages("to recognise (default: all)"),
                     "dpi": { "type": "number", "minimum": 72, "maximum": 600, "description": "Resolution pages are read at (default 300; a scanned page is read at most at its own resolution)." },
-                    "language": { "type": "string", "enum": ["en", "la", "fr", "de", "es", "pt", "it", "nl", "da", "no", "sv", "is", "fi", "cs", "pl"], "description": "Document language (default en). la reads accented Latin; named European languages use the same model with language preferences. Recognition may still misread individual letters." },
+                    "auto_rotate": { "type": "boolean", "default": true }, "deskew": { "type": "boolean", "default": true }, "auto_crop": { "type": "boolean", "default": false }, "crop_margin": { "type": "number", "minimum": 0, "maximum": 20, "default": 2 }, "recognize": { "type": "boolean", "default": true }, "language": ocr_language(),
                     "skip_text_pages": { "type": "boolean", "description": "Leave pages that already contain text alone (default true). false also reads pictures on such pages, without adding their text again." },
                 }),
                 &["doc"],
@@ -1294,11 +1321,14 @@ pub fn tools() -> Vec<ToolDef> {
                     "paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
                     "folder": { "type": "string" },
                     "dpi": { "type": "number", "minimum": 72, "maximum": 600 },
-                    "language": { "type": "string", "enum": ["en", "la", "fr", "de", "es", "pt", "it", "nl", "da", "no", "sv", "is", "fi", "cs", "pl"] },
+                    "auto_rotate": { "type": "boolean", "default": true }, "deskew": { "type": "boolean", "default": true }, "auto_crop": { "type": "boolean", "default": false }, "crop_margin": { "type": "number", "minimum": 0, "maximum": 20, "default": 2 }, "recognize": { "type": "boolean", "default": true }, "language": ocr_language(),
                     "skip_text_pages": { "type": "boolean", "description": "Leave pages that already contain text alone (default true); see ocr_recognize." },
                 }),
                 &["paths", "folder"],
             )),
+        t("ocr_enhance", "Correct scanned pages", "Crop clear black/white scanner borders to the paper edge, correct sideways/upside-down scans and straighten skew up to 12 degrees without adding text. auto_crop defaults to true, crop_margin to 2 pt (0..20). Uncertain paper edges are kept; crop_box reports the rectangle in original PDF user space. Existing text is preserved and processed unless skip_text_pages is true. Original image data is preserved. Low-confidence rotations are left unchanged. Deskew refuses pages with annotations to avoid misalignment. Undoable as one step.")
+            .cmd("ocr.enhance")
+            .with(schema(json!({"doc":doc(),"pages":pages("to correct (default all)"),"dpi":{"type":"number","minimum":72,"maximum":600},"auto_rotate":{"type":"boolean","default":true},"deskew":{"type":"boolean","default":true},"auto_crop":{"type":"boolean","default":true},"crop_margin":{"type":"number","minimum":0,"maximum":20,"default":2},"skip_text_pages":{"type":"boolean","default":false}}), &["doc"])),
         t("ocr_status", "OCR status", "Whether text recognition is available (its models are installed: release packages include them; a source build fetches them with `cargo xtask models`; PDFCRAFT_MODELS overrides), where it looks for them, and the languages it reads.")
             .ro()
             .cmd("ocr.recognize")
@@ -1389,7 +1419,7 @@ pub fn tools() -> Vec<ToolDef> {
         )),
         t("doc_audit_space", "Audit space usage", "How many bytes each kind of content takes and its share of the file (PDF Optimizer ▸ Audit space usage): images, content streams, fonts, forms, comments, structure, bookmarks, … and document overhead.")
             .ro()
-            .cmd("optimize.advanced")
+            .cmd("optimize.audit")
             .with(schema(json!({ "doc": doc() }), &["doc"])),
         t("text_lines", "List text lines", "The lines of existing text on a page (Edit a PDF ▸ Edit text): number, text, box (top-left-origin points), font and size. Use the number with text_edit.")
             .ro()

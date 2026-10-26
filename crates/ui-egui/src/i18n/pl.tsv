@@ -2304,6 +2304,22 @@ key	Space	Spacja
 	Text used as a clipping path cannot be moved with this selection.	Tekstu używanego jako ścieżka przycinania nie można przenieść razem z tym zaznaczeniem.
 	These objects could not be moved. Select them again and try a smaller move.	Nie udało się przenieść tych obiektów. Zaznacz je ponownie i spróbuj mniejszego przesunięcia.
 	This page contains objects that cannot be selected together.	Ta strona zawiera obiekty, których nie można zaznaczyć razem.
+	Scan and text recognition	Skanowanie i rozpoznawanie tekstu
+	Searchable Image	Obraz z możliwością wyszukiwania
+	Corrected scan	Poprawiony skan
+	Scan correction	Korekcja skanu
+	Automatically rotate sideways and upside-down pages	Automatycznie obracaj strony boczne i odwrócone
+	Straighten skewed scans	Prostuj przekrzywione skany
+	Add searchable text	Dodaj tekst do wyszukiwania
+	Uncertain orientations are left unchanged. Deskew fits the full image inside the page.	Niepewna orientacja pozostaje bez zmian. Prostowanie mieści cały obraz na stronie.
+	Correct scans	Popraw skany
+	Scan processing cancelled	Przetwarzanie skanów anulowane
+	; 1 page skipped	; pominięto 1 stronę
+	; {n} pages skipped	; pominięto stron: {n}
+	; corrected {n} pages	; poprawiono stron: {n}
+	Crop scanner borders to the paper edge	Przytnij obramowanie skanu do krawędzi papieru
+	Safety margin (pt)	Margines bezpieczeństwa (pkt)
+	Only clear paper edges are cropped. Indistinguishable white borders are kept.	Przycinane są tylko wyraźne krawędzie papieru. Nierozróżnialne białe marginesy zostają zachowane.
 	Reload documents when their files change on disk	Wczytuj ponownie dokumenty, gdy ich pliki zmienią się na dysku
 	Don't show again	Nie pokazuj ponownie
 	Show a notice when a document is secured	Pokazuj powiadomienie, gdy dokument jest zabezpieczony
@@ -2417,6 +2433,7 @@ animation effects	Off	Wyłączone
 	This document is trying to open a local file:	Ten dokument próbuje otworzyć plik lokalny:
 	Move tag earlier	Przenieś znacznik wcześniej
 	Move tag later	Przenieś znacznik później
+	Straighten scanned page	Wyprostuj zeskanowaną stronę
 	Turn upside down (180°)	Obróć do góry nogami (180°)
 	4 x 6 in label (101.6 x 152.4 mm)	Etykieta 4 × 6 cali (101,6 × 152,4 mm)
 	Cuts each page to its printed area, turns it upright and fits it to the sheet without stretching. One label per sheet.	Przycina każdą stronę do zadrukowanego obszaru, obraca ją pionowo i dopasowuje do arkusza bez rozciągania. Jedna etykieta na arkusz.
@@ -2465,6 +2482,31 @@ animation effects	Off	Wyłączone
 	Make properties default	Ustaw właściwości jako domyślne
 	Pages selected	Zaznaczone strony
 	Page properties	Właściwości strony
+# Encrypt with certificate.
+	Couldn't encrypt: {e}	Nie można zaszyfrować: {e}
+	Encrypt with certificate…	Szyfruj certyfikatem…
+	Encrypt with Certificate	Szyfruj certyfikatem
+	Only the recipients can open the document, each with the private key of their own certificate.	Dokument mogą otworzyć tylko odbiorcy, każdy kluczem prywatnym własnego certyfikatu.
+	Recipients	Odbiorcy
+	No recipients yet.	Nie ma jeszcze odbiorców.
+	{name} (you)	{name} (ty)
+	Expires {date}	Wygasa {date}
+	All permissions	Wszystkie uprawnienia
+	Add certificate file…	Dodaj plik certyfikatu…
+	Add your digital ID	Dodaj swój identyfikator cyfrowy
+	Certificate	Certyfikat
+	None of the recipients is one of your digital IDs: you won't be able to open the saved document.	Żaden z odbiorców nie jest Twoim identyfikatorem cyfrowym: nie otworzysz zapisanego dokumentu.
+	The restrictions apply to recipients without “All permissions”. It's applied when you save.	Ograniczenia dotyczą odbiorców bez „Wszystkie uprawnienia”. Zostanie zastosowane podczas zapisu.
+	Digital ID required	Wymagany identyfikator cyfrowy
+	Choose a digital ID file	Wybierz plik identyfikatora cyfrowego
+	“{name}” is encrypted for specific people. Choose your digital ID and enter its password to open it.	Plik „{name}” jest zaszyfrowany dla określonych osób. Wybierz swój identyfikator cyfrowy i wpisz jego hasło, aby go otworzyć.
+	Add at least one recipient.	Dodaj co najmniej jednego odbiorcę.
+	Only certificates with RSA keys can be recipients.	Odbiorcami mogą być tylko certyfikaty z kluczami RSA.
+	None of your digital IDs can open this document.	Żaden z Twoich identyfikatorów cyfrowych nie może otworzyć tego dokumentu.
+	Certificate encryption will be applied when you save	Szyfrowanie certyfikatem zostanie zastosowane podczas zapisu
+	Encrypt for recipient	Szyfruj dla odbiorcy
+	Encrypt for recipients	Szyfruj dla odbiorców
+	The password is incorrect.	Hasło jest nieprawidłowe.
 	Create & Edit	Tworzenie i edycja
 	Review & Compare	Recenzja i porównanie
 	Forms & Signatures	Formularze i podpisy

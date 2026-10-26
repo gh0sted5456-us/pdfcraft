@@ -293,7 +293,7 @@ fn tool_detail(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens, g: &'static
 /// The page operations Edit shows as a row of icon buttons, as Acrobat's Edit panel does.
 const EDIT_PAGE_BUTTONS: [&str; 4] = ["page.rotate", "page.insert", "page.delete", "page.extract"];
 /// Add content items shown before More.
-const EDIT_CONTENT_SHOWN: usize = 5;
+const EDIT_CONTENT_SHOWN: usize = 6;
 /// Other options: the tools Acrobat's Edit panel links to.
 const EDIT_OTHER_TOOLS: [&str; 3] = ["combine", "redact", "form"];
 

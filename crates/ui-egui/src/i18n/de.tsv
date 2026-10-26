@@ -2322,6 +2322,22 @@ key	Space	Leertaste
 	Resize panel window	Größe des Bereichsfensters ändern
 	Tools	Werkzeuge
 	Inspector	Inspektor
+	Scan and text recognition	Scan und Texterkennung
+	Searchable Image	Durchsuchbares Bild
+	Corrected scan	Korrigierter Scan
+	Scan correction	Scan korrigieren
+	Automatically rotate sideways and upside-down pages	Seitlich oder kopfstehend gescannte Seiten automatisch drehen
+	Straighten skewed scans	Schief eingescannte Seiten geraderichten
+	Add searchable text	Durchsuchbaren Text hinzufügen
+	Uncertain orientations are left unchanged. Deskew fits the full image inside the page.	Unsichere Ausrichtungen bleiben unverändert. Beim Geraderichten bleibt das gesamte Bild innerhalb der Seite.
+	Correct scans	Scans korrigieren
+	Scan processing cancelled	Scan-Verarbeitung abgebrochen
+	; 1 page skipped	; 1 Seite übersprungen
+	; {n} pages skipped	; {n} Seiten übersprungen
+	; corrected {n} pages	; {n} Seiten korrigiert
+	Crop scanner borders to the paper edge	Scanränder bis zur Papierkante beschneiden
+	Safety margin (pt)	Sicherheitsrand (pt)
+	Only clear paper edges are cropped. Indistinguishable white borders are kept.	Nur erkennbare Papierkanten werden beschnitten. Nicht unterscheidbare weiße Ränder bleiben erhalten.
 
 # Architectural print controls (follow-up to #599).
 	PDF page: {size}	PDF-Seite: {size}
@@ -2438,6 +2454,7 @@ animation effects	Off	Aus
 	This document is trying to open a local file:	Dieses Dokument versucht, eine lokale Datei zu öffnen:
 	Move tag earlier	Tag früher verschieben
 	Move tag later	Tag später verschieben
+	Straighten scanned page	Gescannte Seite geraderichten
 
 # Historical snapshot notice bar (View signed version / View revision).
 	You are viewing the signed version of “{from}” (revision {rev}). It is a snapshot: changes here won't affect the original.	Sie sehen die signierte Version von „{from}“ (Revision {rev}). Es handelt sich um eine Momentaufnahme: Änderungen hier wirken sich nicht auf das Original aus.
@@ -2490,6 +2507,31 @@ animation effects	Off	Aus
 	Make properties default	Eigenschaften als Standard festlegen
 	Pages selected	Ausgewählte Seiten
 	Page properties	Seiteneigenschaften
+# Encrypt with certificate.
+	Couldn't encrypt: {e}	Verschlüsseln fehlgeschlagen: {e}
+	Encrypt with certificate…	Mit Zertifikat verschlüsseln…
+	Encrypt with Certificate	Mit Zertifikat verschlüsseln
+	Only the recipients can open the document, each with the private key of their own certificate.	Nur die Empfänger können das Dokument öffnen, jeder mit dem privaten Schlüssel seines eigenen Zertifikats.
+	Recipients	Empfänger
+	No recipients yet.	Noch keine Empfänger.
+	{name} (you)	{name} (du)
+	Expires {date}	Läuft am {date} ab
+	All permissions	Alle Berechtigungen
+	Add certificate file…	Zertifikatsdatei hinzufügen…
+	Add your digital ID	Deine digitale ID hinzufügen
+	Certificate	Zertifikat
+	None of the recipients is one of your digital IDs: you won't be able to open the saved document.	Keiner der Empfänger ist eine deiner digitalen IDs: Du wirst das gespeicherte Dokument nicht öffnen können.
+	The restrictions apply to recipients without “All permissions”. It's applied when you save.	Die Einschränkungen gelten für Empfänger ohne „Alle Berechtigungen“. Wird beim Speichern angewendet.
+	Digital ID required	Digitale ID erforderlich
+	Choose a digital ID file	Datei mit digitaler ID auswählen
+	“{name}” is encrypted for specific people. Choose your digital ID and enter its password to open it.	„{name}“ ist für bestimmte Personen verschlüsselt. Wähle deine digitale ID und gib ihr Passwort ein, um es zu öffnen.
+	Add at least one recipient.	Füge mindestens einen Empfänger hinzu.
+	Only certificates with RSA keys can be recipients.	Nur Zertifikate mit RSA-Schlüsseln können Empfänger sein.
+	None of your digital IDs can open this document.	Keine deiner digitalen IDs kann dieses Dokument öffnen.
+	Certificate encryption will be applied when you save	Die Zertifikatsverschlüsselung wird beim Speichern angewendet
+	Encrypt for recipient	Für einen Empfänger verschlüsseln
+	Encrypt for recipients	Für Empfänger verschlüsseln
+	The password is incorrect.	Das Passwort ist falsch.
 	Create & Edit	Erstellen & Bearbeiten
 	Review & Compare	Prüfen & Vergleichen
 	Forms & Signatures	Formulare & Signaturen
