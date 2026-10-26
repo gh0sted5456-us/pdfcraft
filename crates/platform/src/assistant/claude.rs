@@ -56,6 +56,9 @@ fn read_limited(mut pipe: impl Read, limit: usize, too_large: Arc<AtomicBool>) -
     Ok(bytes)
 }
 fn capture(command: &mut Command, input: &str, cancel: &AtomicBool, timeout: Duration) -> Result<Vec<u8>, String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err("Claude request canceled before starting the CLI".into());
+    }
     let mut child = Running(
         command
             .stdin(Stdio::piped())
@@ -67,6 +70,9 @@ fn capture(command: &mut Command, input: &str, cancel: &AtomicBool, timeout: Dur
     let mut stdin = child.0.stdin.take().ok_or("Claude Code did not open its input pipe")?;
     let stdout = child.0.stdout.take().ok_or("Claude Code did not open its output pipe")?;
     let stderr = child.0.stderr.take().ok_or("Claude Code did not open its error pipe")?;
+    if cancel.load(Ordering::Relaxed) {
+        return Err("Claude request canceled before sending PDF text".into());
+    }
     let input = input.as_bytes().to_vec();
     let writer = std::thread::Builder::new()
         .name("assistant-input".into())
@@ -178,5 +184,11 @@ mod tests {
         assert!(args.contains(&"--strict-mcp-config") && args.contains(&"--safe-mode") && args.contains(&"--restricted"));
         assert!(args.contains(&"--no-session-persistence"));
         assert!(!args.iter().any(|a| a.contains("bypass") || a.contains("skip-permissions")));
+    }
+    #[test]
+    fn canceled_requests_never_start_a_cli_process() {
+        let mut command = Command::new("pdfcraft-synthetic-never-executed");
+        let error = capture(&mut command, "private words", &AtomicBool::new(true), Duration::from_secs(1)).unwrap_err();
+        assert!(error.contains("canceled before starting"));
     }
 }

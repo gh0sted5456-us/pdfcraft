@@ -95,7 +95,7 @@ fn revert_after_confirming() {
     assert!(h.state_mut().execute("file.revert"));
     h.run_steps(2);
     assert_eq!(h.state().dialog, Some(Dialog::Revert));
-    h.get_all_by_label("Revert").last().expect("the button").click();
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Revert").click();
     h.run_steps(3);
     let s = h.state();
     let d = s.session.get(s.views[1].id).unwrap();

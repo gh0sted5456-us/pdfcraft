@@ -65,7 +65,7 @@ fn document_properties_fields_are_tall_and_inset() {
     });
     h.run_steps(4);
     let card = card(&h, "dialog");
-    let heading = h.get_by_label("Document Properties").rect();
+    let heading = h.get_by_label("Title: Document Properties").rect();
     assert!(heading.left() - card.left() >= 16.0, "heading inset {heading:?} in {card:?}");
     assert!(heading.top() - card.top() >= 12.0, "heading inset {heading:?} in {card:?}");
     let field = h.get_by_role_and_label(Role::TextInput, "Title").rect();
@@ -88,7 +88,7 @@ fn password_prompt_field_is_tall_and_inset() {
     assert!(field.height() >= 30.0, "password field {field:?}");
     assert!(field.left() - card.left() >= 16.0, "password field {field:?} in {card:?}");
     assert!(card.right() - field.right() >= 15.0, "password field {field:?} in {card:?}");
-    let heading = h.get_by_label("Password required").rect();
+    let heading = h.get_by_label("Title: Password required").rect();
     assert!(heading.top() - card.top() >= 12.0, "heading inset {heading:?} in {card:?}");
 }
 
@@ -110,6 +110,7 @@ fn document_properties_long_filename_does_not_overflow_card() {
 #[test]
 fn shared_dialogs_remain_centered_and_fit_small_and_large_windows() {
     let _gpu = super::gpu();
+    let mut failures = Vec::new();
     for size in [egui::vec2(640.0, 480.0), egui::vec2(1200.0, 800.0)] {
         for theme in ["light", "dark"] {
             for dialog in [
@@ -170,16 +171,26 @@ fn shared_dialogs_remain_centered_and_fit_small_and_large_windows() {
                 h.run_steps(8);
                 let card = card(&h, "dialog");
                 let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, size);
-                assert!(screen.contains_rect(card), "{dialog} {theme} {size:?}: {card:?}");
-                assert!((card.center() - screen.center()).length() < 2.0, "{dialog} off centre: {card:?}");
+                if !(screen.contains_rect(card)) {
+                    failures.push(format!("{dialog} {theme} {size:?}: {card:?}"));
+                }
+                if (card.center() - screen.center()).length().partial_cmp(&2.0) != Some(std::cmp::Ordering::Less) {
+                    failures.push(format!("{dialog} off centre: {card:?}"));
+                }
                 let actions = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog-action-bounds")));
                 if let Some(actions) = actions {
-                    assert!(card.contains_rect(actions), "{dialog} {theme} {size:?}: footer {actions:?} outside {card:?}");
-                    assert!((actions.center().x - card.center().x).abs() < 2.0, "{dialog} {theme}: footer {actions:?} off center in {card:?}");
+                    if !(card.contains_rect(actions)) {
+                        failures.push(format!("{dialog} {theme} {size:?}: footer {actions:?} outside {card:?}"));
+                    }
+                    if (actions.center().x - card.center().x).abs().partial_cmp(&2.0) != Some(std::cmp::Ordering::Less) {
+                        failures.push(format!("{dialog} {theme}: footer {actions:?} off center in {card:?}"));
+                    }
                 }
                 if dialog == "templates" {
                     for label in ["Custom page...", "Import template...", "Export template..."] {
-                        assert!(card.contains_rect(h.get_by_label(label).rect()), "{label} clipped in {size:?}");
+                        if !(card.contains_rect(h.get_by_label(label).rect())) {
+                            failures.push(format!("{label} clipped in {size:?}"));
+                        }
                     }
                 }
                 let title = match dialog {
@@ -190,8 +201,11 @@ fn shared_dialogs_remain_centered_and_fit_small_and_large_windows() {
                     "print-production" | "output-inspection" => Some("Print Production"),
                     _ => None,
                 };
-                if let Some(title) = title {
-                    assert!((h.get_by_label(title).rect().center().x - card.center().x).abs() < 2.0, "{dialog} title is off center");
+                if let Some(title) = title
+                    && (h.get_by_label(&format!("Title: {title}")).rect().center().x - card.center().x).abs().partial_cmp(&2.0)
+                        != Some(std::cmp::Ordering::Less)
+                {
+                    failures.push(format!("{dialog} title is off center"));
                 }
 
                 if (size.x < 800.0 || matches!(dialog, "print-production" | "output-inspection" | "document-actions"))
@@ -202,6 +216,7 @@ fn shared_dialogs_remain_centered_and_fit_small_and_large_windows() {
             }
         }
     }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
 
 #[test]

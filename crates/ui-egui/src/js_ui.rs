@@ -379,19 +379,21 @@ pub(crate) fn document_js_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
 
 pub(crate) fn document_actions_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     crate::widgets::dialog_heading(ui, "Document actions");
-    ui.label("Scripts share this PDF's isolated JavaScript state. File and network access are unavailable.");
-    let actions = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.document_actions()).unwrap_or_default();
-    let old = app.doc_js.name.clone();
-    egui::ComboBox::from_id_salt("document-action-event").selected_text(&old).show_ui(ui, |ui| {
-        for event in pdfcraft_engine::js::DOCUMENT_EVENTS {
-            ui.selectable_value(&mut app.doc_js.name, event.into(), event);
+    widgets::dialog_scroll(ui, "document-actions-body", |ui| {
+        ui.label("Scripts share this PDF's isolated JavaScript state. File and network access are unavailable.");
+        let actions = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.document_actions()).unwrap_or_default();
+        let old = app.doc_js.name.clone();
+        egui::ComboBox::from_id_salt("document-action-event").selected_text(&old).show_ui(ui, |ui| {
+            for event in pdfcraft_engine::js::DOCUMENT_EVENTS {
+                ui.selectable_value(&mut app.doc_js.name, event.into(), event);
+            }
+        });
+        if app.doc_js.name != old {
+            app.doc_js.script = actions.iter().find(|(e, _)| *e == app.doc_js.name).map(|(_, s)| s.clone()).unwrap_or_default();
         }
+        ui.add(crate::widgets::block(&mut app.doc_js.script).code_editor().desired_rows(10).desired_width(f32::INFINITY));
+        ui.label("Open runs on opening; WillSave runs before serialization; WillPrint runs before print layout. Other lifecycle events are preserved but do not run yet.");
     });
-    if app.doc_js.name != old {
-        app.doc_js.script = actions.iter().find(|(e, _)| *e == app.doc_js.name).map(|(_, s)| s.clone()).unwrap_or_default();
-    }
-    ui.add(crate::widgets::block(&mut app.doc_js.script).code_editor().desired_rows(10).desired_width(f32::INFINITY));
-    ui.label("Open runs on opening; WillSave runs before serialization; WillPrint runs before print layout. Other lifecycle events are preserved but do not run yet.");
     let mut close = false;
     let mut save = false;
     widgets::dialog_footer(ui, |ui| {

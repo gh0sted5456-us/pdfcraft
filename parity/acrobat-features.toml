@@ -10262,7 +10262,7 @@ tier = "P2"
 milestone = "M13"
 status = "partial"
 commands = ["ai.setup", "ai.summary", "ai.ask", "ai.suggest", "ai.translate"]
-tools = ["ai_prepare", "ai_assist", "ai_accounts", "ai_models", "ai_key_connect", "ai_disconnect", "ai_login_start", "ai_login_finish", "ai_claude_login"]
+tools = ["ai_prepare", "ai_assist", "ai_accounts", "ai_models", "ai_key_connect", "ai_disconnect", "ai_login_start", "ai_login_finish", "ai_claude_login", "ai_browser_prepare", "ai_copilot_login_start", "ai_copilot_login_finish"]
 evidence = ["crates/engine/src/assistant.rs::input_is_reviewed_bounded_and_never_an_edit", "crates/automation/tests/it/assistant.rs::assistant_prepares_real_text_without_network_or_edits_and_refuses_unapproved_network", "crates/ui-egui/src/assistant_ui.rs::setup_has_no_bundled_account_and_never_persists_a_key_or_document_text"]
 notes = "Personal build, off by default: independent ChatGPT native OAuth, isolated official Claude Code subscription profile, or personal API keys in the OS store; no implicit billing fallback. Local reviewed text only, read-only results, network-gated automation. Live provider sign-in/inference and native Linux/macOS credential stores are not verified; desktop only and labels English. See docs/assistant.md; upstream #4150/#3112."
 
@@ -10312,7 +10312,7 @@ milestone = "M6"
 status = "partial"
 commands = ["tools.js_console", "tools.document_js", "tools.document_actions"]
 tools = ["js_run", "js_document_scripts", "js_set_document_script"]
-evidence = ["crates/js/src/tests.rs::document_runtime_preserves_globals_and_refreshes_host_snapshots", "crates/js/src/tests.rs::persistent_realms_keep_sandbox_hooks_and_isolate_error_writes", "crates/ui-egui/src/assistant_ui.rs::assistant_tabs_are_compact_centered_and_keep_their_footer_visible", "crates/ui-egui/tests/it/dialog_chrome.rs::shared_dialogs_remain_centered_and_fit_small_and_large_windows", "crates/engine/src/commands.rs::menus_follow_create_open_save_export_print_and_page_workflows", "crates/ui-egui/src/widgets.rs::dialog_button_outline_stays_inside_its_hit_box", "crates/ui-egui/src/widgets.rs::confirmation_groups_stay_centered_when_actions_change"]
+evidence = ["crates/js/src/tests.rs::document_runtime_preserves_globals_and_refreshes_host_snapshots", "crates/js/src/tests.rs::persistent_realms_keep_sandbox_hooks_and_isolate_error_writes", "crates/ui-egui/src/assistant_ui.rs::assistant_workspace_is_readable_with_pinned_composer_and_taskbar", "crates/ui-egui/tests/it/dialog_chrome.rs::shared_dialogs_remain_centered_and_fit_small_and_large_windows", "crates/engine/src/commands.rs::menus_follow_create_open_save_export_print_and_page_workflows", "crates/ui-egui/src/widgets.rs::dialog_button_outline_stays_inside_its_hit_box", "crates/ui-egui/src/widgets.rs::confirmation_groups_stay_centered_when_actions_change"]
 notes = "Console, document/field libraries and lifecycle actions share document-local state. Widget focus/blur/mouse actions, dynamic choices, border colour and actions are supported. Explicit sandbox errors, loop/recursion/source/buffer limits; no general file/network/eval access. Shared centered titles and confirmation groups, semantic matte actions and bounded scrolling tool settings; File/Edit/Pages workflow order. Cards fit tested 640x480 and 1200x800 light/dark viewports. Not all Adobe/Foxit JavaScript APIs or dialog states; native Linux/macOS/browser runtime unverified."
 
 [[feature]]
@@ -10375,3 +10375,39 @@ commands = ["file.detach_tab"]
 tools = []
 evidence = ["crates/ui-egui/src/tab_windows.rs::tear_off_preserves_working_bytes_undo_redo_view_and_recovery_identity", "crates/ui-egui/src/tab_windows.rs::tear_off_raw_drag_queues_only_outside_strip_and_escape_cancels", "crates/ui-egui/src/tab_windows.rs::tear_off_keeps_horizontal_reordering_and_strip_edge_scrolling", "crates/ui-egui/src/tab_windows.rs::tear_off_close_uses_save_discard_cancel_and_does_not_close_other_windows", "crates/ui-egui/src/tab_windows.rs::window_drop_tab_move_keeps_identity_view_recovery_and_target_order", "crates/ui-egui/src/tab_windows.rs::window_drop_organize_copies_current_pages_at_gap_and_undo_keeps_source"]
 notes = "Windows native viewport host; normal tab reordering retained. UI control: file.detach_tab. Moves the live document and view, preserving unsaved edits, Undo/Redo and recovery. Drops onto another managed window's tab bar move the live tab; Organize drops copy current PDF pages with Undo. Other hosts, separate processes, and restoring multi-window layout are not implemented. See docs/tab-windows.md."
+
+[[feature]]
+id = "personal.ai-confidential"
+title = "Saved document and page Confidential AI opt-out"
+area = "N"
+tier = "P2"
+milestone = "M13"
+status = "shipped"
+commands = ["ai.confidential", "ai.confidential_clear", "ai.confidential_pages", "ai.confidential_pages_clear"]
+tools = ["doc_set_confidential", "ai_prepare", "ai_browser_prepare", "ai_assist"]
+evidence = ["crates/engine/src/assistant.rs::confidentiality_blocks_ai_even_for_existing_pdf_flags", "crates/engine/src/assistant.rs::confidentiality_is_saved_undoable_and_inherited_by_extracted_pages", "crates/automation/tests/it/assistant.rs::confidential_pages_block_reviewed_text_bypasses_and_persist_after_save", "crates/ui-egui/src/assistant_ui.rs::confidential_changes_cancel_context_jobs_and_chat_never_persists_pdf_text"]
+notes = "Custom catalog/page PDF labels, Undo/Redo, saved/reopened and inherited by imported/extracted pages. Shared engine check refuses native and browser AI context, including supplied reviewed_text. Assistant and Organizer controls; source changes cancel workers and clear reviewed context/history. App-enforced opt-out only, not encryption or standardized classification; other readers can ignore/remove it and already-shared data cannot be recalled. Signed/certified page-edit constraints still apply."
+
+[[feature]]
+id = "personal.assistant-chat-browser"
+title = "Full-workspace personal AI chat, embedded provider websites and Copilot choices"
+area = "N"
+tier = "P2"
+milestone = "M13"
+status = "partial"
+commands = ["ai.setup", "ai.ask"]
+tools = ["ai_browser_prepare", "ai_copilot_login_start", "ai_copilot_login_finish", "ai_assist"]
+evidence = ["crates/ui-egui/src/assistant_ui.rs::assistant_workspace_is_readable_with_pinned_composer_and_taskbar", "crates/ui-egui/src/assistant_ui.rs::chat_requests_are_bounded_and_do_not_silently_include_pdf_context", "crates/platform/src/assistant.rs::browser_connections_are_fixed_https_origins_without_privileged_schemes", "crates/platform/src/assistant/copilot.rs::configurations_cannot_redirect_authentication_or_mix_clouds"]
+notes = "Full current-tab chat workspace, fixed composer, context pane and separate connection settings; opt-in PDF context, local review, bounded in-memory native history. Windows main-window Wry/WebView2 with isolated per-provider profiles, HTTPS origin allowlist, denied extra windows/permissions/downloads and no file/IPC bridge; other platforms/detached windows use external browser. Browser context needs explicit copy/paste, no automatic website submission or response scraping. Personal Copilot browser only; optional licensed work/school Microsoft Graph beta API, device-code login with IT-supplied client/tenant IDs and explicit broad delegated permission consent, separate government clouds and no API-billing fallback. Live subscription authentication/inference and native Linux/macOS browser/credential runtime unverified; labels English."
+
+[[feature]]
+id = "personal.application-dialog-taskbar"
+title = "Application popup taskbar and shared window controls"
+area = "N"
+tier = "P2"
+milestone = "M14"
+status = "partial"
+commands = ["app.dialog_minimize", "app.dialog_restore", "app.dialog_maximize", "app.dialog_minimize_all"]
+tools = []
+evidence = ["crates/ui-egui/src/dialog_windows.rs::taskbar_preserves_separate_dialog_drafts_and_restores_their_source", "crates/ui-egui/src/dialog_windows.rs::minimizing_a_save_confirmation_never_discards_or_approves_changes", "crates/ui-egui/src/dialog_windows.rs::stale_signing_and_save_requests_do_not_resume_against_changed_documents", "crates/ui-egui/src/assistant_ui.rs::minimized_ai_restores_to_the_current_tab_workspace_without_old_pdf_context"]
+notes = "Personal suite: internal popup shelf, shared title controls, moving/maximizing windows, preserved per-dialog drafts and full-current-tab AI chat restoration. Opt-in ui.command and ui.state.dialog_windows give headless UI control. Main dialog drafts remain in memory, max 16; document-specific dialogs stay with their native window, and stale save/signing snapshots cannot resume against changed source. Native OS file/security dialogs and provider UI remain outside this shell; context menus remain transient. No minimized-layout persistence or cross-native-window dialog transfer."

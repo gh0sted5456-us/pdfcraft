@@ -15,7 +15,7 @@ const FIELD_MIN_HEIGHT: f32 = 30.0;
 const DIALOG_PAD_X: i8 = 16;
 const DIALOG_PAD_Y: i8 = 12;
 
-fn dialog_frame(ctx: &egui::Context) -> egui::Frame {
+pub(crate) fn dialog_frame(ctx: &egui::Context) -> egui::Frame {
     let t = Tokens::get(ctx);
     let mut shadow = ctx.global_style().visuals.window_shadow;
     shadow.offset = [0, 3];
@@ -34,24 +34,8 @@ pub fn modal(ctx: &egui::Context, id: impl std::hash::Hash + std::fmt::Debug) ->
 }
 
 /// Show [`modal`], outline its controls, and remember the card rect for layout checks.
-pub fn show_modal<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut egui::Ui) -> R) -> egui::ModalResponse<R> {
-    let stored = egui::Id::new(id);
-    modal(ctx, id).show(ctx, |ui| {
-        begin_dialog(ui);
-        let available = (ctx.content_rect().size() - vec2(72.0, 64.0)).max(vec2(1.0, 1.0));
-        ui.set_max_size(available);
-        let inner = egui::ScrollArea::both()
-            .id_salt((id, "dialog-scroll"))
-            .max_width(available.x)
-            .max_height(available.y)
-            .auto_shrink([true, true])
-            .show(ui, content)
-            .inner;
-        // The frame's stroke sits outside this content rect; the stored card is the fill.
-        let card = ui.min_rect().expand2(egui::vec2(f32::from(DIALOG_PAD_X), f32::from(DIALOG_PAD_Y)));
-        ui.ctx().data_mut(|d| d.insert_temp(stored.with("card"), card));
-        inner
-    })
+pub(crate) fn show_modal<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut egui::Ui) -> R) -> crate::dialog_windows::Response {
+    crate::dialog_windows::show(ctx, id, content)
 }
 
 /// Outlined controls at a shared 30-point height, with a focus stroke and 4-point corners.
@@ -181,7 +165,7 @@ pub(crate) fn dialog_footer<R>(ui: &mut egui::Ui, content: impl FnOnce(&mut egui
 /// Scroll long tool settings while their confirmation row stays in view.
 pub(crate) fn dialog_scroll<R>(ui: &mut egui::Ui, id: &str, content: impl FnOnce(&mut egui::Ui) -> R) -> R {
     let header = ui.cursor().top() - ui.min_rect().top();
-    let height = (ui.ctx().content_rect().height() - header - 160.0).clamp(40.0, 620.0);
+    let height = (ui.ctx().content_rect().height() - header - 160.0).clamp(40.0, 620.0).min((ui.available_height() - 72.0).max(16.0));
     ui.spacing_mut().scroll.floating = false;
     let width = ui.available_width();
     egui::ScrollArea::both()
@@ -310,6 +294,10 @@ pub fn search_box(ui: &mut egui::Ui, placeholder: &str, width: f32) -> Response 
 
 /// Shared modal title: centered in the card, with the same type size in every tool.
 pub(crate) fn dialog_heading(ui: &mut egui::Ui, title: impl Into<String>) -> Response {
+    let title = title.into();
+    if let Some(response) = crate::dialog_windows::heading(ui, &title) {
+        return response;
+    }
     ui.vertical_centered(|ui| ui.label(egui::RichText::new(title).font(theme::semibold(18.0)))).inner
 }
 
@@ -658,69 +646,42 @@ const PROGRESS_HEIGHT: &str = "progress-notice-height";
 /// a light sweeping across it, the percentage and Cancel. Returns true when Cancel was clicked.
 /// With animation effects off ([`crate::motion`]) the bar steps to the fraction and has no sweep.
 pub fn progress_notice(app: &PdfCraftApp, ctx: &egui::Context) -> bool {
-    let Some(p) = &app.progress_notice else { return false };
-    let t = Tokens::get(ctx);
-    let screen = ctx.content_rect();
-    // The same inverted card as the toast.
-    let (fill, text) = if t.dark() {
-        (Color32::from_rgb(0xEC, 0xEC, 0xEF), Color32::from_rgb(0x22, 0x22, 0x26))
-    } else {
-        (Color32::from_rgb(0x2A, 0x2A, 0x2F), Color32::WHITE)
+    let Some(p) = &app.progress_notice else {
+        ctx.data_mut(|d| d.remove::<f32>(egui::Id::new(PROGRESS_HEIGHT)));
+        return false;
     };
+    let mut cancel = false;
     let fraction = if p.fraction.is_finite() { p.fraction.clamp(0.0, 1.0) } else { 0.0 };
     let animated = crate::motion::animated(ctx);
     let shown = ctx.animate_value_with_time(egui::Id::new("progress-notice-bar"), fraction, if animated { 0.3 } else { 0.0 });
-    let now = ctx.input(|i| i.time);
-    let mut cancel = false;
-    let area = egui::Area::new(egui::Id::new("progress-notice"))
-        .order(egui::Order::Tooltip)
-        .pivot(Align2::CENTER_BOTTOM)
-        .fixed_pos(screen.center_bottom() - vec2(0.0, 28.0))
-        .show(ctx, |ui| {
-            egui::Frame::NONE.fill(fill).corner_radius(CornerRadius::same(10)).inner_margin(egui::Margin::symmetric(16, 12)).show(ui, |ui| {
-                let width = 340.0_f32.min(screen.width() - 64.0).max(160.0);
-                ui.set_width(width);
-                ui.horizontal(|ui| {
-                    ui.label(egui::RichText::new(&p.label).color(text));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(egui::RichText::new(format!("{:.0}%", shown * 100.0)).font(theme::medium(12.0)).color(text.gamma_multiply(0.7)));
-                    });
-                });
-                ui.add_space(6.0);
-                let (track, resp) = ui.allocate_exact_size(vec2(width, 6.0), Sense::hover());
-                // The label above names the job; the bar carries the percentage.
-                resp.widget_info(|| {
-                    let mut info = egui::WidgetInfo::new(egui::WidgetType::ProgressIndicator);
-                    info.value = Some(f64::from(fraction) * 100.0);
-                    info
-                });
-                let painter = ui.painter();
-                painter.rect_filled(track, CornerRadius::same(3), text.gamma_multiply(0.18));
-                let done = Rect::from_min_size(track.min, vec2(track.width() * shown, track.height()));
-                if done.width() > 0.5 {
-                    painter.rect_filled(done, CornerRadius::same(3), t.accent);
-                    // A soft light sweeping along the filled part says the job is alive between
-                    // updates.
-                    if animated {
-                        let band = 48.0;
-                        let x = done.left() - band + ((now * 160.0) % f64::from(done.width() + band)) as f32;
-                        let clip = painter.with_clip_rect(done);
-                        for (i, a) in [0.10_f32, 0.22, 0.10].into_iter().enumerate() {
-                            let r = Rect::from_min_size(egui::pos2(x + i as f32 * band / 3.0, done.top()), vec2(band / 3.0, done.height()));
-                            clip.rect_filled(r, CornerRadius::ZERO, Color32::WHITE.gamma_multiply(a));
-                        }
-                    }
-                }
-                if p.cancellable {
-                    ui.add_space(4.0);
-                    crate::widgets::dialog_footer(ui, |ui| {
-                        cancel = dialog_button(ui, tl!("Cancel"), DialogAction::Cancel).clicked();
-                    });
-                }
-            });
+    let window = crate::dialog_windows::window(ctx, "background-progress", |ui| {
+        ui.set_width(360.0_f32.min((ctx.content_rect().width() - 104.0).max(1.0)));
+        dialog_heading(ui, &p.label);
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label(format!("{:.0}%", shown * 100.0));
         });
-    ctx.data_mut(|d| d.insert_temp(egui::Id::new(PROGRESS_HEIGHT), area.response.rect.height()));
-    ctx.request_repaint_after(std::time::Duration::from_millis(33));
+        ui.add(egui::ProgressBar::new(shown).desired_width(ui.available_width()));
+        if p.cancellable {
+            dialog_footer(ui, |ui| {
+                cancel = dialog_button(ui, tl!("Cancel"), DialogAction::Cancel).clicked();
+            });
+        }
+    });
+    if window.should_close() {
+        if p.cancellable {
+            cancel = true;
+        } else {
+            crate::dialog_windows::minimize_notice(ctx, "background-progress", &p.label);
+        }
+    }
+    let height = if crate::dialog_windows::minimized(ctx, "background-progress") {
+        0.0
+    } else {
+        ctx.data(|d| d.get_temp::<Rect>(egui::Id::new("background-progress").with("card"))).map_or(0.0, |r| r.height())
+    };
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new(PROGRESS_HEIGHT), height));
+    ctx.request_repaint_after(std::time::Duration::from_millis(100));
     cancel
 }
 

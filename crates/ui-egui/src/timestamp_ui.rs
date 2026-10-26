@@ -71,7 +71,7 @@ mod tests {
             h.state_mut().execute("sign.timestamp");
             h.run_steps(3);
             let cancel = h.get_by_label("Cancel").rect();
-            let confirm = h.get_all_by_label("Timestamp").last().unwrap().rect();
+            let confirm = h.get_by_role_and_label(egui::accesskit::Role::Button, "Timestamp").rect();
             let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap();
             assert!(cancel.right() < confirm.left());
             assert!((cancel.center().y - confirm.center().y).abs() < 0.5);
@@ -162,8 +162,18 @@ mod tests {
         std::fs::write(&path, b"preserve this existing file").unwrap();
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/", listener.local_addr().unwrap());
+        listener.set_nonblocking(true).unwrap();
         let server = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+            let mut stream = loop {
+                match listener.accept() {
+                    Ok((stream, _)) => break stream,
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock && std::time::Instant::now() < deadline => {
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                    }
+                    Err(error) => panic!("timestamp mock received no request: {error}"),
+                }
+            };
             stream.set_read_timeout(Some(std::time::Duration::from_secs(5))).unwrap();
             let mut bytes = [0; 4096];
             assert!(stream.read(&mut bytes).unwrap() > 0);
@@ -175,7 +185,7 @@ mod tests {
         h.state_mut().timestamp_server = url;
         h.state_mut().execute("sign.timestamp");
         h.run_steps(2);
-        h.get_all_by_label("Timestamp").last().unwrap().click();
+        h.get_by_role_and_label(egui::accesskit::Role::Button, "Timestamp").click();
         h.run_steps(2);
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(25);
         while h.state().timestamp_run.is_some() && std::time::Instant::now() < deadline {
@@ -229,7 +239,7 @@ pub(crate) fn progress(app: &mut PdfCraftApp, ctx: &egui::Context) {
         return;
     }
     let mut cancel = false;
-    widgets::show_modal(ctx, "timestamp-progress", |ui| {
+    let window = widgets::show_modal(ctx, "timestamp-progress", |ui| {
         crate::widgets::dialog_heading(ui, tl!("Timestamp"));
         ui.horizontal(|ui| {
             ui.spinner();
@@ -239,7 +249,7 @@ pub(crate) fn progress(app: &mut PdfCraftApp, ctx: &egui::Context) {
             cancel = widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked();
         });
     });
-    if cancel {
+    if cancel || window.should_close() {
         // Only the UI writes the result. Dropping the receiver makes cancellation non-destructive.
         app.timestamp_run = None;
     }

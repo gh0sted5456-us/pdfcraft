@@ -1144,6 +1144,7 @@ pub(crate) fn preview(app: &mut PdfCraftApp, ctx: &egui::Context, t: &Tokens) {
     let longest = ctx.input(|i| i.max_texture_side as f32).min(PREVIEW_SIDE);
     let thumbs = &mut app.combine_thumbs;
     let modal = crate::widgets::show_modal(ctx, "combine-preview", |ui| {
+        let width = width.min(ui.available_width());
         ui.set_width(width);
         ui.horizontal(|ui| {
             ui.label(egui::RichText::new(crate::bidi::visual(&f.name)).font(theme::semibold(15.0)));
@@ -1157,6 +1158,7 @@ pub(crate) fn preview(app: &mut PdfCraftApp, ctx: &egui::Context, t: &Tokens) {
         });
         ui.add_space(8.0);
         // The page, as large as fits.
+        let body_h = body_h.min((ui.available_height() - 46.0).max(16.0));
         let (area, _) = ui.allocate_exact_size(vec2(width, body_h), Sense::hover());
         let known = f.sizes.get(page).copied().filter(|(w, h)| paper_size(*w, *h, area.size()).is_some());
         let (w, h) = known.unwrap_or(FALLBACK_PAGE);

@@ -97,6 +97,9 @@ fn read_reply(mut response: ureq::http::Response<ureq::Body>) -> Result<Vec<u8>,
     response.body_mut().with_config().limit(MAX_REPLY).read_to_vec().map_err(|_| "The AI reply exceeded 4 MB or could not be read".into())
 }
 pub fn models(provider: Provider, account: &str) -> Result<Vec<Model>, String> {
+    if !provider.requires_model() {
+        return Ok(Vec::new());
+    }
     if provider == Provider::ClaudeSubscription {
         return Ok(vec![
             Model { id: "sonnet".into(), label: "Sonnet (Claude Code)".into() },
@@ -132,9 +135,17 @@ fn parse_models(value: &Value, subscription: bool) -> Result<Vec<Model>, String>
     Ok(out)
 }
 pub fn answer(provider: Provider, account: &str, model: &str, instructions: &str, prompt: &str, cancel: &AtomicBool) -> Result<String, String> {
-    check_model(model)?;
+    if provider.requires_model() {
+        check_model(model)?;
+    }
     if instructions.len() > 16000 || prompt.is_empty() || prompt.len() > 220000 {
         return Err("The Assistant request is empty or too large".into());
+    }
+    if provider == Provider::CopilotPersonal {
+        return Err("Personal Microsoft Copilot uses browser mode; its subscription has no supported third-party chat API".into());
+    }
+    if provider == Provider::CopilotWork {
+        return super::copilot::answer(account, instructions, prompt, cancel);
     }
     if provider == Provider::ClaudeSubscription {
         return super::claude::answer(model, instructions, prompt, cancel);
@@ -143,7 +154,7 @@ pub fn answer(provider: Provider, account: &str, model: &str, instructions: &str
         return Err("Assistant request canceled".into());
     }
     let key = credential(provider, account)?;
-    let (endpoint, body) = request(provider, model, instructions, prompt);
+    let (endpoint, body) = request(provider, model, instructions, prompt)?;
     let body = serde_json::to_vec(&body).map_err(|_| "Couldn't encode the Assistant request")?;
     let agent = agent();
     let request = agent.post(endpoint).header("Content-Type", "application/json");
@@ -152,6 +163,9 @@ pub fn answer(provider: Provider, account: &str, model: &str, instructions: &str
     } else {
         request.header("Authorization", &format!("Bearer {}", key.as_str()))
     };
+    if cancel.load(std::sync::atomic::Ordering::Relaxed) {
+        return Err("Assistant request canceled before sending PDF text".into());
+    }
     let response = request.send(body).map_err(|_| "Couldn't reach the selected AI provider. The document was kept.")?;
     let bytes = read_reply(response)?;
     if cancel.load(std::sync::atomic::Ordering::Relaxed) {
@@ -171,8 +185,11 @@ pub fn answer(provider: Provider, account: &str, model: &str, instructions: &str
         parse_stream(&bytes)
     }
 }
-fn request(provider: Provider, model: &str, instructions: &str, prompt: &str) -> (&'static str, Value) {
-    if provider == Provider::Anthropic {
+fn request(provider: Provider, model: &str, instructions: &str, prompt: &str) -> Result<(&'static str, Value), String> {
+    if !matches!(provider, Provider::ChatGpt | Provider::OpenAi | Provider::Anthropic) {
+        return Err("This subscription uses its own connection; no API billing fallback is available".into());
+    }
+    Ok(if provider == Provider::Anthropic {
         (
             "https://api.anthropic.com/v1/messages",
             json!({"model":model,"max_tokens":4096,"system":instructions,"messages":[{"role":"user","content":prompt}]}),
@@ -182,7 +199,7 @@ fn request(provider: Provider, model: &str, instructions: &str, prompt: &str) ->
             "https://api.openai.com/v1/responses",
             json!({"model":model,"instructions":instructions,"input":[{"role":"user","content":prompt}],"store":false,"stream":true,"tools":[]}),
         )
-    }
+    })
 }
 pub(super) fn nonempty(text: String) -> Result<String, String> {
     if text.trim().is_empty() { Err("The AI provider returned no text".into()) } else { Ok(text) }
@@ -223,7 +240,10 @@ mod tests {
     use super::*;
     #[test]
     fn subscriptions_are_explicit_and_never_fall_back_to_api_billing() {
-        let (endpoint, body) = request(Provider::ChatGpt, "model", "rules", "reviewed text");
+        let (endpoint, body) = request(Provider::ChatGpt, "model", "rules", "reviewed text").unwrap();
+        for p in [Provider::CopilotPersonal, Provider::CopilotWork, Provider::ClaudeSubscription] {
+            assert!(request(p, "model", "rules", "text").is_err());
+        }
         assert_eq!(endpoint, "https://api.openai.com/v1/responses");
         assert_eq!(body["store"], false);
         assert_eq!(body["stream"], true);
@@ -242,5 +262,13 @@ mod tests {
         full.extend_from_slice(b"data: {\"type\":\"response.failed\"}\n\n");
         assert!(parse_stream(&full).is_err());
         assert!(parse_stream(b"data: broken\n\n").is_err());
+    }
+    #[test]
+    fn canceled_native_requests_do_not_read_credentials_or_contact_a_provider() {
+        let cancel = AtomicBool::new(true);
+        for provider in [Provider::ChatGpt, Provider::OpenAi, Provider::Anthropic, Provider::CopilotWork] {
+            let error = answer(provider, "not-a-saved-account", "model", "rules", "private words", &cancel).unwrap_err();
+            assert!(error.to_lowercase().contains("cancel"), "{provider:?}: {error}");
+        }
     }
 }

@@ -43,7 +43,7 @@ pub struct Source {
 }
 impl Source {
     pub fn new(doc: &Document, pages: &[usize]) -> Result<Self, String> {
-        doc.check_copying().map_err(|e| e.to_string())?;
+        doc.check_ai_pages(pages).map_err(|e| e.to_string())?;
         if pages.is_empty() || pages.len() > MAX_PAGES || pages.iter().any(|p| *p >= doc.info.pages.len()) {
             return Err(format!("Select 1–{MAX_PAGES} existing pages for the Assistant"));
         }
@@ -115,4 +115,55 @@ mod tests {
         assert!(prompt(Task::Suggestions, "", &text).unwrap().contains("suggestions only"));
         assert!(!session.get(id).unwrap().dirty);
     }
+}
+
+#[cfg(test)]
+#[test]
+fn confidentiality_blocks_ai_even_for_existing_pdf_flags() {
+    use pdfcraft_cos::{Document as CosDocument, Object, write_full};
+    let mut session = crate::Session::new();
+    let mut pdf = CosDocument::open(session.create_blank(200.0, 300.0, 2).unwrap()).unwrap();
+    let root = pdf.root().unwrap();
+    pdf.update_dict(root, |d| {
+        d.set("PdfCraftAIConfidential", Object::Bool(true));
+    })
+    .unwrap();
+    let bytes = std::sync::Arc::new(write_full(&pdf, &Default::default()).unwrap());
+    let id = session.open("confidential.pdf", None, bytes, None).unwrap();
+    assert!(Source::new(session.get(id).unwrap(), &[0]).is_err(), "a saved document-level Confidential label must block AI context");
+    for value in [Object::Null, Object::name("FuturePolicy"), Object::Int(0)] {
+        pdf.update_dict(root, |d| d.set("PdfCraftAIConfidential", value.clone())).unwrap();
+        let bytes = std::sync::Arc::new(write_full(&pdf, &Default::default()).unwrap());
+        let id = session.open("unknown-policy.pdf", None, bytes, None).unwrap();
+        assert!(Source::new(session.get(id).unwrap(), &[0]).is_err(), "unknown policy values must fail closed");
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn confidentiality_is_saved_undoable_and_inherited_by_extracted_pages() {
+    let mut s = crate::Session::new();
+    let bytes = s.create_blank(200.0, 300.0, 3).unwrap();
+    let id = s.open("privacy.pdf", None, bytes, None).unwrap();
+    let before = crate::export::Exporter::new(s.get(id).unwrap()).png(0, 72.0).unwrap();
+    s.apply(id, crate::Edit::SetAiConfidential { pages: Some(vec![1]), confidential: true }).unwrap();
+    assert!(Source::new(s.get(id).unwrap(), &[0]).is_ok());
+    assert!(Source::new(s.get(id).unwrap(), &[1]).is_err());
+    s.apply(id, crate::Edit::SetAiConfidential { pages: None, confidential: true }).unwrap();
+    assert!(Source::new(s.get(id).unwrap(), &[0]).is_err());
+    let copied = s.extract(id, &[0]).unwrap();
+    let copy = s.open("copied.pdf", None, copied, None).unwrap();
+    assert!(Source::new(s.get(copy).unwrap(), &[0]).is_err(), "document-level labels follow copied pages");
+    let saved = s.save_bytes(id).unwrap();
+    let reopened = s.open("saved.pdf", None, saved, None).unwrap();
+    assert!(Source::new(s.get(reopened).unwrap(), &[2]).is_err());
+    s.undo(id).unwrap();
+    assert!(Source::new(s.get(id).unwrap(), &[0]).is_ok());
+    assert!(Source::new(s.get(id).unwrap(), &[1]).is_err(), "page labels remain independent of the document label");
+    s.redo(id).unwrap();
+    assert!(Source::new(s.get(id).unwrap(), &[0]).is_err());
+    assert_eq!(crate::export::Exporter::new(s.get(id).unwrap()).png(0, 72.0).unwrap(), before, "labels do not alter page pixels");
+    let bytes = s.get(id).unwrap().bytes.clone();
+    assert!(s.apply(id, crate::Edit::SetAiConfidential { pages: Some(vec![0, usize::MAX]), confidential: false }).is_err());
+    assert_eq!(s.get(id).unwrap().bytes, bytes, "a refused label edit is atomic");
 }

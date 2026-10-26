@@ -118,6 +118,7 @@ const FIND_MAX_WARNING_BYTES: usize = 1024;
 pub struct Automation {
     network: bool,
     ai_login: Option<pdfcraft_platform::assistant::Login>,
+    copilot_login: Option<pdfcraft_platform::assistant::CopilotLogin>,
     session: Session,
     root: Option<PathBuf>,
     /// The read and write folders of `--automation-read-root` / `--automation-write-root`.
@@ -145,6 +146,7 @@ impl Automation {
         Self {
             network: false,
             ai_login: None,
+            copilot_login: None,
             session: {
                 let mut session = Session::new();
                 session.set_timestamp_certificates(pdfcraft_platform::timestamp::trusted_certificates());
@@ -237,7 +239,11 @@ impl Automation {
         tools::check_args(def, args)?;
         let a = Args(args);
         let out = match name {
+            "doc_set_confidential" => self.ai_confidential(&a)?,
             "ai_prepare" => self.ai_prepare(&a)?,
+            "ai_browser_prepare" => self.ai_browser_prepare(&a)?,
+            "ai_copilot_login_start" => self.ai_copilot_login_start(&a)?,
+            "ai_copilot_login_finish" => self.ai_copilot_login_finish(&a)?,
             "ai_assist" => self.ai_assist(&a)?,
             "ai_accounts" => self.ai_accounts()?,
             "ai_models" => self.ai_models(&a)?,
@@ -2935,6 +2941,10 @@ fn summary(d: &Document) -> Value {
         "path": d.path,
         "pages": d.info.pages.len(),
         "dirty": d.dirty,
+        "ai_privacy": match d.confidentiality(){
+            Ok(policy)=>json!({"confidential":policy.document,"pages":policy.pages.iter().map(|p|p.saturating_add(1)).collect::<Vec<_>>()}),
+            Err(error)=>json!({"error":error.to_string()}),
+        },
         "editable": d.read_only_reason.is_none(),
         "read_only_reason": d.read_only_reason,
         "encrypted": d.info.encrypted,

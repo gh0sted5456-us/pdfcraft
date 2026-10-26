@@ -156,6 +156,15 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         } else {
             return;
         }
+        widgets::section_title(ui, "AI privacy");
+        ui.horizontal_wrapped(|ui| {
+            if ui.button("Confidential").on_hover_text("Save an AI opt-out label on selected pages").clicked() {
+                act = Some(Act::Edit(Box::new(Edit::SetAiConfidential { pages: Some(targets.clone()), confidential: true })));
+            }
+            if ui.button("Allow AI").on_hover_text("Clear selected page labels; a document-level Confidential label still applies").clicked() {
+                act = Some(Act::Edit(Box::new(Edit::SetAiConfidential { pages: Some(targets.clone()), confidential: false })));
+            }
+        });
         widgets::section_title(ui, tl!("Page options"));
         ui.add_enabled_ui(editable, |ui| {
             ui.horizontal(|ui| {

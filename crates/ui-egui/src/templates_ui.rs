@@ -233,7 +233,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> Action {
         }
     });
     ui.add_space(6.0);
-    let height = (ui.ctx().content_rect().height() - 264.0).clamp(100.0, 540.0);
+    let height = (ui.ctx().content_rect().height() - 264.0).clamp(100.0, 540.0).min((ui.available_height() - 120.0).max(16.0));
     let compact = ui.ctx().content_rect().height() < 650.0;
     let query = draft.search.to_lowercase();
     let mut shown = 0usize;

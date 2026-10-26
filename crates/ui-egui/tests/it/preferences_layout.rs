@@ -83,7 +83,7 @@ fn ok_is_on_screen_without_scrolling_at_any_window_height() {
         let h = harness(height);
         let ok = h.get_by_label("OK").rect();
         assert!(on_screen(ok, height), "{height}: OK at {ok:?} is off the {height} pt window");
-        let title = h.get_by_label("Preferences").rect();
+        let title = h.get_by_label("Title: Preferences").rect();
         assert!(on_screen(title, height), "{height}: the title at {title:?} is off the window");
         // The OK row sits below the scrolled settings, never over them: the settings' last visible
         // row ends above it. The title is above everything.
@@ -97,7 +97,7 @@ fn ok_closes_the_dialog_in_a_short_window_and_the_settings_still_scroll() {
     // A setting far down the list starts out below the visible settings; scrolling brings it in
     // between the title and the OK row, and OK did not move.
     let ok_before = h.get_by_label("OK").rect();
-    let title = h.get_by_label("Preferences").rect();
+    let title = h.get_by_label("Title: Preferences").rect();
     let far = h.get_by_label("Highlight fields").rect();
     assert!(far.min.y >= ok_before.min.y, "Highlight fields starts out of sight: {far:?} vs OK {ok_before:?}");
     h.get_by_label("Highlight fields").scroll_to_me();
@@ -118,9 +118,9 @@ fn the_dialog_opens_at_its_full_size_and_does_not_grow_afterwards() {
     // in its first frames landed on controls that were still moving.
     for height in [260.0, 560.0, 900.0] {
         let mut h = harness(height);
-        let settled = (h.get_by_label("Preferences").rect(), h.get_by_label("OK").rect());
+        let settled = (h.get_by_label("Title: Preferences").rect(), h.get_by_label("OK").rect());
         h.run_steps(8);
-        let later = (h.get_by_label("Preferences").rect(), h.get_by_label("OK").rect());
+        let later = (h.get_by_label("Title: Preferences").rect(), h.get_by_label("OK").rect());
         assert_eq!(settled, later, "{height}: the dialog moved after it had been shown for six frames");
     }
     // And it is in place within a few frames of opening, for the first click: a frame or two of

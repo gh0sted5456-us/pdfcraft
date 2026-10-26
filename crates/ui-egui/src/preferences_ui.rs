@@ -122,7 +122,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     let mut close_requested = false;
     crate::widgets::dialog_heading(ui, tl!("Preferences"));
     ui.add_space(10.0);
-    let height = (ui.ctx().content_rect().height() - 176.0).clamp(16.0, 380.0);
+    let height = (ui.ctx().content_rect().height() - 176.0).clamp(16.0, 380.0).min((ui.available_height() - 72.0).max(16.0));
     let width = ui.available_width();
     let rail = (width * 0.26).clamp(144.0, 180.0);
     let pane = (width - rail - 12.0).max(1.0);

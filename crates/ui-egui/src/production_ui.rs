@@ -70,7 +70,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     }
     let mut show_page = None;
     let mut page_boxes = false;
-    let height = (ui.ctx().content_rect().height() - 270.0).clamp(40.0, 380.0);
+    let height = (ui.available_height() - 64.0).clamp(16.0, 380.0);
     egui::ScrollArea::vertical().id_salt("production-content").scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible).max_height(height).min_scrolled_height(height).auto_shrink([false, false]).show(ui, |ui| {
         ui.set_width(ui.available_width());
         if app.production.output_tab {

@@ -442,138 +442,140 @@ pub(crate) fn props_body(ui: &mut egui::Ui, d: &mut RedactPrefs, _t: &Tokens) ->
     // Two columns, so three colour grids fit a short window: the redacted result and its
     // overlay text on the left, the mark's own look (Acrobat's third group) on
     // the right.
-    ui.horizontal_top(|ui| {
-        ui.vertical(|ui| {
-            ui.set_width(380.0);
-            egui::Grid::new("redact-props").num_columns(2).spacing([12.0, 10.0]).show(ui, |ui| {
-                ui.label(tl!("Redacted area fill colour:"));
-                ui.horizontal(|ui| {
-                    let mut none = d.fill.is_none();
-                    if ui.add(widgets::checkbox(&mut none, tl!("No colour"))).changed() {
-                        d.fill = if none { None } else { Some([0.0, 0.0, 0.0]) };
-                    }
-                });
-                ui.end_row();
-                ui.label("");
-                if let Some(c) = crate::comments::swatch_grid(ui, d.fill) {
-                    d.fill = Some(c);
-                }
-                ui.end_row();
-                ui.label("");
-                ui.add(widgets::checkbox(&mut d.use_overlay, tl!("Use overlay text")));
-                ui.end_row();
-                let on = d.use_overlay;
-                let l = ui.add_enabled(on, widgets::radio(!d.use_code, tl!("Custom text:")));
-                if l.clicked() {
-                    d.use_code = false;
-                }
-                ui.add_enabled(on && !d.use_code, crate::widgets::line(&mut d.overlay).desired_width(220.0)).labelled_by(l.id);
-                ui.end_row();
-                if ui.add_enabled(on, widgets::radio(d.use_code, tl!("Redaction code:"))).clicked() {
-                    d.use_code = true;
-                }
-                let codes_on = on && d.use_code;
-                ui.add_enabled_ui(codes_on, |ui| {
-                    egui::ComboBox::from_id_salt("redaction-code-set").selected_text(d.code_set.name).show_ui(ui, |ui| {
-                        for set in REDACTION_CODE_SETS {
-                            if ui.selectable_label(d.code_set == set, set.name).clicked() && d.code_set != set {
-                                d.code_set = set;
-                                d.codes.clear();
-                            }
+    widgets::dialog_scroll(ui, "redaction-properties-body", |ui| {
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.set_width(380.0);
+                egui::Grid::new("redact-props").num_columns(2).spacing([12.0, 10.0]).show(ui, |ui| {
+                    ui.label(tl!("Redacted area fill colour:"));
+                    ui.horizontal(|ui| {
+                        let mut none = d.fill.is_none();
+                        if ui.add(widgets::checkbox(&mut none, tl!("No colour"))).changed() {
+                            d.fill = if none { None } else { Some([0.0, 0.0, 0.0]) };
                         }
                     });
-                });
-                ui.end_row();
-                for row in d.code_set.codes.chunks(4) {
+                    ui.end_row();
                     ui.label("");
+                    if let Some(c) = crate::comments::swatch_grid(ui, d.fill) {
+                        d.fill = Some(c);
+                    }
+                    ui.end_row();
+                    ui.label("");
+                    ui.add(widgets::checkbox(&mut d.use_overlay, tl!("Use overlay text")));
+                    ui.end_row();
+                    let on = d.use_overlay;
+                    let l = ui.add_enabled(on, widgets::radio(!d.use_code, tl!("Custom text:")));
+                    if l.clicked() {
+                        d.use_code = false;
+                    }
+                    ui.add_enabled(on && !d.use_code, crate::widgets::line(&mut d.overlay).desired_width(220.0)).labelled_by(l.id);
+                    ui.end_row();
+                    if ui.add_enabled(on, widgets::radio(d.use_code, tl!("Redaction code:"))).clicked() {
+                        d.use_code = true;
+                    }
+                    let codes_on = on && d.use_code;
                     ui.add_enabled_ui(codes_on, |ui| {
-                        ui.horizontal(|ui| {
-                            for &code in row {
-                                let mut picked = d.codes.contains(&code);
-                                if ui.add_sized([62.0, 18.0], widgets::checkbox(&mut picked, code)).changed() {
-                                    d.codes.retain(|c| *c != code);
-                                    if picked {
-                                        d.codes.push(code);
-                                    }
+                        egui::ComboBox::from_id_salt("redaction-code-set").selected_text(d.code_set.name).show_ui(ui, |ui| {
+                            for set in REDACTION_CODE_SETS {
+                                if ui.selectable_label(d.code_set == set, set.name).clicked() && d.code_set != set {
+                                    d.code_set = set;
+                                    d.codes.clear();
                                 }
                             }
                         });
                     });
                     ui.end_row();
-                }
-                let look = &mut d.look;
-                ui.label(tl!("Font:"));
-                ui.add_enabled_ui(on, |ui| {
-                    egui::ComboBox::from_id_salt("overlay-font").selected_text(look.font.name()).show_ui(ui, |ui| {
-                        for f in pdfcraft_engine::OverlayFont::ALL {
-                            ui.selectable_value(&mut look.font, f, f.name());
-                        }
-                    });
-                });
-                ui.end_row();
-                ui.label(tl!("Font size:"));
-                ui.add_enabled_ui(on, |ui| {
-                    ui.horizontal(|ui| {
-                        let mut auto = look.size <= 0.0;
-                        if ui.add(widgets::checkbox(&mut auto, tl!("Auto-size text to fit redaction region"))).changed() {
-                            look.size = if auto { 0.0 } else { 10.0 };
-                        }
-                        if !auto {
-                            ui.add(egui::DragValue::new(&mut look.size).range(2.0..=144.0).suffix(" pt"));
-                        }
-                    });
-                });
-                ui.end_row();
-                ui.label(tl!("Font colour:"));
-                ui.add_enabled_ui(on, |ui| {
-                    if let Some(c) = crate::comments::swatch_grid(ui, Some(look.color)) {
-                        look.color = c;
+                    for row in d.code_set.codes.chunks(4) {
+                        ui.label("");
+                        ui.add_enabled_ui(codes_on, |ui| {
+                            ui.horizontal(|ui| {
+                                for &code in row {
+                                    let mut picked = d.codes.contains(&code);
+                                    if ui.add_sized([62.0, 18.0], widgets::checkbox(&mut picked, code)).changed() {
+                                        d.codes.retain(|c| *c != code);
+                                        if picked {
+                                            d.codes.push(code);
+                                        }
+                                    }
+                                }
+                            });
+                        });
+                        ui.end_row();
                     }
-                });
-                ui.end_row();
-                ui.label("");
-                ui.add_enabled(on, widgets::checkbox(&mut look.repeat, tl!("Repeat overlay text")));
-                ui.end_row();
-                ui.label(tl!("Text alignment:"));
-                ui.add_enabled_ui(on, |ui| {
-                    ui.horizontal(|ui| {
-                        for (a, label) in [(0u8, tl!("Left")), (1, tl!("Center")), (2, tl!("Right"))] {
-                            widgets::radio_value(ui, &mut look.align, a, label);
+                    let look = &mut d.look;
+                    ui.label(tl!("Font:"));
+                    ui.add_enabled_ui(on, |ui| {
+                        egui::ComboBox::from_id_salt("overlay-font").selected_text(look.font.name()).show_ui(ui, |ui| {
+                            for f in pdfcraft_engine::OverlayFont::ALL {
+                                ui.selectable_value(&mut look.font, f, f.name());
+                            }
+                        });
+                    });
+                    ui.end_row();
+                    ui.label(tl!("Font size:"));
+                    ui.add_enabled_ui(on, |ui| {
+                        ui.horizontal(|ui| {
+                            let mut auto = look.size <= 0.0;
+                            if ui.add(widgets::checkbox(&mut auto, tl!("Auto-size text to fit redaction region"))).changed() {
+                                look.size = if auto { 0.0 } else { 10.0 };
+                            }
+                            if !auto {
+                                ui.add(egui::DragValue::new(&mut look.size).range(2.0..=144.0).suffix(" pt"));
+                            }
+                        });
+                    });
+                    ui.end_row();
+                    ui.label(tl!("Font colour:"));
+                    ui.add_enabled_ui(on, |ui| {
+                        if let Some(c) = crate::comments::swatch_grid(ui, Some(look.color)) {
+                            look.color = c;
                         }
                     });
+                    ui.end_row();
+                    ui.label("");
+                    ui.add_enabled(on, widgets::checkbox(&mut look.repeat, tl!("Repeat overlay text")));
+                    ui.end_row();
+                    ui.label(tl!("Text alignment:"));
+                    ui.add_enabled_ui(on, |ui| {
+                        ui.horizontal(|ui| {
+                            for (a, label) in [(0u8, tl!("Left")), (1, tl!("Center")), (2, tl!("Right"))] {
+                                widgets::radio_value(ui, &mut look.align, a, label);
+                            }
+                        });
+                    });
+                    ui.end_row();
                 });
-                ui.end_row();
             });
-        });
-        // No separator here: in a horizontal layout it would stretch to the window's bottom.
-        ui.add_space(28.0);
-        ui.vertical(|ui| {
-            ui.set_width(340.0);
-            ui.label(egui::RichText::new(tl!("Redaction mark appearance")).strong());
-            ui.add_space(6.0);
-            egui::Grid::new("redact-mark").num_columns(2).spacing([12.0, 10.0]).show(ui, |ui| {
-                ui.label(tl!("Outline colour:"));
-                if let Some(c) = crate::comments::swatch_grid(ui, Some(d.outline)) {
-                    d.outline = c;
-                }
-                ui.end_row();
-                ui.label(tl!("Fill colour:"));
-                ui.vertical(|ui| {
-                    if let Some(c) = crate::comments::swatch_grid(ui, Some(d.hover_fill)) {
-                        d.hover_fill = c;
+            // No separator here: in a horizontal layout it would stretch to the window's bottom.
+            ui.add_space(28.0);
+            ui.vertical(|ui| {
+                ui.set_width(340.0);
+                ui.label(egui::RichText::new(tl!("Redaction mark appearance")).strong());
+                ui.add_space(6.0);
+                egui::Grid::new("redact-mark").num_columns(2).spacing([12.0, 10.0]).show(ui, |ui| {
+                    ui.label(tl!("Outline colour:"));
+                    if let Some(c) = crate::comments::swatch_grid(ui, Some(d.outline)) {
+                        d.outline = c;
                     }
-                    ui.label(egui::RichText::new(tl!("Shown while the pointer is over a mark.")).weak().size(11.5));
+                    ui.end_row();
+                    ui.label(tl!("Fill colour:"));
+                    ui.vertical(|ui| {
+                        if let Some(c) = crate::comments::swatch_grid(ui, Some(d.hover_fill)) {
+                            d.hover_fill = c;
+                        }
+                        ui.label(egui::RichText::new(tl!("Shown while the pointer is over a mark.")).weak().size(11.5));
+                    });
+                    ui.end_row();
+                    ui.label(tl!("Opacity:"));
+                    let mut pct = d.opacity * 100.0;
+                    if ui.add(egui::Slider::new(&mut pct, 10.0..=100.0).suffix("%")).changed() {
+                        d.opacity = (pct / 100.0).clamp(0.1, 1.0);
+                    }
+                    ui.end_row();
+                    ui.label("");
+                    ui.add(widgets::checkbox(&mut d.remember, tl!("Make properties default")));
+                    ui.end_row();
                 });
-                ui.end_row();
-                ui.label(tl!("Opacity:"));
-                let mut pct = d.opacity * 100.0;
-                if ui.add(egui::Slider::new(&mut pct, 10.0..=100.0).suffix("%")).changed() {
-                    d.opacity = (pct / 100.0).clamp(0.1, 1.0);
-                }
-                ui.end_row();
-                ui.label("");
-                ui.add(widgets::checkbox(&mut d.remember, tl!("Make properties default")));
-                ui.end_row();
             });
         });
     });

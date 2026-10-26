@@ -20,6 +20,7 @@ mod import;
 mod labels;
 mod outline;
 mod pdfx;
+pub mod privacy;
 mod prune;
 mod transition;
 pub mod view;

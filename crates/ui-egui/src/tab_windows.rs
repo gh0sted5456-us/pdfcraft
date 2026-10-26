@@ -126,8 +126,16 @@ impl PdfCraftApp {
 
     /// Queue a move by document identity, so reordering cannot transfer the wrong tab.
     pub fn request_detach_tab(&mut self, id: DocId, position: Option<egui::Pos2>) -> bool {
+        // shortcut: parked document dialogs stay with their native window; finish them before tearing off the PDF.
+        if self.dialog_shelf.binds(id) {
+            self.notify("Restore or close this PDF's minimized dialogs before moving it to another window.");
+            return false;
+        }
         if !self.can_detach_tab(id) {
             return false;
+        }
+        if self.dialog == Some(crate::Dialog::Assistant) {
+            crate::assistant_ui::suspend(&mut self.assistant);
         }
         self.detach_request = Some((id, position.filter(|p| p.x.is_finite() && p.y.is_finite() && p.x.abs() <= 100_000.0 && p.y.abs() <= 100_000.0)));
         if let Some(ctx) = &self.ctx {
@@ -142,6 +150,13 @@ impl PdfCraftApp {
             return false;
         }
         let Some(index) = self.views.iter().position(|v| v.id == id) else { return false };
+        if self.dialog_shelf.binds(id) {
+            self.notify("Restore or close this PDF's minimized dialogs before moving it to another window.");
+            return false;
+        }
+        if self.dialog == Some(crate::Dialog::Assistant) {
+            crate::assistant_ui::suspend(&mut self.assistant);
+        }
         let Some(new_id) = self.session.transfer_document(id, &mut target.session) else { return false };
         let mut view = self.views.remove(index);
         view.id = new_id;

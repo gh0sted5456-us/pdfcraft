@@ -890,6 +890,12 @@ impl PdfCraftApp {
 
     /// Close a tab, asking first if it has unsaved changes.
     pub fn request_close_tab(&mut self, index: usize) {
+        if let Some(doc) = self.views.get(index).map(|v| v.id)
+            && self.dialog_shelf.binds(doc)
+        {
+            self.notify("Restore or close this PDF's minimized dialogs before closing the tab.");
+            return;
+        }
         // Text typed into a field counts as an unsaved change.
         if self.has_unsaved_work(index)
             && let Some(id) = self.views.get(index).map(|v| v.id)
@@ -902,6 +908,10 @@ impl PdfCraftApp {
 
     /// File ▸ Close all: clean documents close at once; each one with unsaved changes asks.
     pub fn close_all(&mut self) {
+        if self.dialog_shelf.holds_document_drafts() {
+            self.notify("Restore or close minimized document dialogs before closing all tabs.");
+            return;
+        }
         for i in (0..self.views.len()).rev() {
             if !self.has_unsaved_work(i) {
                 self.close_tab(i);
@@ -1022,6 +1032,10 @@ impl PdfCraftApp {
     }
 
     fn quit(&mut self, ctx: &egui::Context) {
+        if self.dialog_shelf.holds_document_drafts() {
+            self.notify("Restore or close minimized document dialogs before exiting.");
+            return;
+        }
         self.allow_quit = true;
         if self.managed_windows {
             self.window_close_ready = true;
@@ -1056,6 +1070,11 @@ impl PdfCraftApp {
         // A native multi-window host removes only this viewport after the usual save guard.
         if self.managed_windows {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        }
+        if self.dialog_shelf.holds_document_drafts() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.notify("Restore or close minimized document dialogs before exiting.");
+            return;
         }
         // `first_dirty` counts text typed into a field as an unsaved change.
         if !self.allow_quit && self.first_dirty().is_some() {

@@ -250,15 +250,15 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (boo
     });
     ui.add_space(12.0);
     let (mut ok, mut cancel) = (false, false);
-    if widgets::pill_button(ui, tl!("Audit space usage…"), false).clicked() {
-        d.audit = true;
-    }
     widgets::dialog_footer(ui, |ui| {
         if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
             ok = true;
         }
         if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             cancel = true;
+        }
+        if widgets::dialog_button(ui, tl!("Audit space usage…"), widgets::DialogAction::Back).clicked() {
+            d.audit = true;
         }
     });
     (ok, cancel)

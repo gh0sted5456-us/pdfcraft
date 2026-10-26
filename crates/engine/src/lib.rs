@@ -352,7 +352,7 @@ fn uses_scripts(edit: &Edit) -> bool {
 fn scope_of(edit: &Edit) -> Scope {
     match edit {
         Edit::ApplyScriptChanges { changes } if js::structural_changes(changes) => Scope::Full,
-        Edit::SetInfo { .. } => Scope::Metadata,
+        Edit::SetInfo { .. } | Edit::SetAiConfidential { pages: None, .. } => Scope::Metadata,
         // The Attachments list is read from the whole document.
         Edit::AddAttachment { .. } | Edit::DeleteAttachment { .. } => Scope::Full,
         // A file attachment also changes the Attachments list.
@@ -905,6 +905,24 @@ impl Document {
     /// [`Self::allows_copying`], as the error to report when it isn't.
     pub fn check_copying(&self) -> Result<(), EditError> {
         if self.allows_copying() { Ok(()) } else { Err(EditError::NotPermitted("copying text and images")) }
+    }
+
+    pub fn confidentiality(&self) -> Result<pdfcraft_organize::privacy::Confidentiality, EditError> {
+        let editor = self
+            .editor
+            .as_ref()
+            .ok_or_else(|| EditError::Invalid("Cannot verify this document's Confidential labels; AI access is disabled".into()))?;
+        Ok(pdfcraft_organize::privacy::confidentiality(&editor.cos)?)
+    }
+
+    /// One boundary shared by native AI, browser context and automation, including supplied text.
+    pub fn check_ai_pages(&self, pages: &[usize]) -> Result<(), EditError> {
+        self.check_copying()?;
+        let editor = self
+            .editor
+            .as_ref()
+            .ok_or_else(|| EditError::Invalid("Cannot verify this document's Confidential labels; AI access is disabled".into()))?;
+        Ok(pdfcraft_organize::privacy::check_ai_pages(&editor.cos, pages)?)
     }
 
     /// Page changes (insert, delete, rotate, move, extract) are allowed.
@@ -1647,6 +1665,11 @@ pub enum Edit {
     SetTransition {
         pages: Vec<usize>,
         spec: TransitionSpec,
+    },
+    /// Save PdfCraft AI exclusion in the catalog or selected page dictionaries.
+    SetAiConfidential {
+        pages: Option<Vec<usize>>,
+        confidential: bool,
     },
     SetInfo {
         key: String,
@@ -2432,6 +2455,7 @@ impl Edit {
             Edit::SetTransition { .. } => Label::of("Set page transitions"),
             // The four `/Info` keys PdfCraft itself offers get a wording of their own, so each can
             // be said in another language; any other key is the document's and goes in as it stands.
+            Edit::SetAiConfidential { confidential, .. } => Label::of(if *confidential { "Mark confidential" } else { "Allow AI access" }),
             Edit::SetInfo { key, .. } => match key.as_str() {
                 "Title" => Label::of("Change Title"),
                 "Author" => Label::of("Change Author"),
@@ -2726,6 +2750,7 @@ fn check_permission(edit: &Edit, p: &pdfcraft_cos::Permissions) -> Result<(), Ed
             }
         }
         Edit::SetInfo { .. }
+        | Edit::SetAiConfidential { .. }
         | Edit::AddHeaderFooter { .. }
         | Edit::AddWatermark { .. }
         | Edit::AddBackground { .. }
@@ -2902,6 +2927,7 @@ fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut EditCtx) -> 
             pdfcraft_organize::insert_blank_page(doc, *at, *width, *height)?;
         }
         Edit::SetInfo { key, value } => pdfcraft_organize::set_info(doc, key, value)?,
+        Edit::SetAiConfidential { pages, confidential } => pdfcraft_organize::privacy::set_confidential(doc, pages.as_deref(), *confidential)?,
         Edit::DuplicatePages { pages, at, field_conflicts } => {
             // Added to, not replaced: a batch can duplicate (or insert) more than once.
             cx.renamed_fields.extend(pdfcraft_organize::duplicate_pages_with(doc, pages, *at, *field_conflicts)?);

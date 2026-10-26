@@ -45,6 +45,8 @@ mod tags_ui;
 pub use combine_grid::ThumbState as CombineThumb;
 mod combine_ui;
 pub use combine_ui::{Columns as CombineColumns, CombineView, Lock as CombineLock, SortKey};
+#[cfg(target_os = "windows")]
+mod assistant_browser;
 mod assistant_ui;
 mod camera_ui;
 mod commands;
@@ -57,6 +59,7 @@ mod create_multiple_ui;
 mod create_ui;
 mod credits;
 mod crop;
+mod dialog_windows;
 mod drag_pointer;
 mod export_ui;
 mod js_ui;
@@ -1030,6 +1033,7 @@ pub struct PdfCraftApp {
     pub number_draft: NumberDraft,
     pub(crate) word_count_draft: word_count_ui::Draft,
     pub(crate) assistant: assistant_ui::Draft,
+    pub(crate) dialog_shelf: dialog_windows::Shelf,
     /// Protect Using Password dialog state.
     pub protect_draft: protect::ProtectDraft,
     pub certificate_draft: certificate_ui::CertificateDraft,
@@ -1429,6 +1433,7 @@ impl PdfCraftApp {
             number_draft: NumberDraft { from: 1, to: 1, style: pdfcraft_engine::LabelStyle::Decimal, prefix: String::new(), start: 1 },
             word_count_draft: word_count_ui::Draft::default(),
             assistant: assistant_ui::Draft::default(),
+            dialog_shelf: Default::default(),
         }
     }
 
@@ -2427,6 +2432,12 @@ impl PdfCraftApp {
         if index >= self.views.len() {
             return;
         }
+        if let Some(doc) = self.views.get(index).map(|v| v.id)
+            && self.dialog_shelf.binds(doc)
+        {
+            self.notify("Restore or close this PDF's minimized dialogs before closing the tab.");
+            return;
+        }
         self.remember_view(index);
         let id = self.views.remove(index).id;
         #[cfg(not(target_arch = "wasm32"))]
@@ -2467,14 +2478,15 @@ impl PdfCraftApp {
     /// A dialog or prompt is open over the window: the keyboard is its own, and nothing may act
     /// on the document underneath it.
     pub(crate) fn modal_open(&self) -> bool {
-        self.dialog.is_some()
-            || self.close_request.is_some()
-            || self.password_prompt.is_some()
-            || self.unlock_prompt.is_some()
-            || self.pending_link.is_some()
-            || self.pending_remote_link.is_some()
-            || self.updates.open
-            || self.timestamp_run.is_some()
+        let showing = |id: &str| self.ctx.as_ref().is_none_or(|ctx| !dialog_windows::minimized(ctx, id));
+        self.dialog.is_some_and(|dialog| dialog != Dialog::Assistant || self.ctx.as_ref().is_none_or(|ctx| !dialog_windows::maximized(ctx, "dialog")))
+            || (self.close_request.is_some() && showing("save_prompt"))
+            || (self.password_prompt.is_some() && showing("password"))
+            || (self.unlock_prompt.is_some() && showing("unlock"))
+            || (self.pending_link.is_some() && showing("link_prompt"))
+            || (self.pending_remote_link.is_some() && showing("remote_link_prompt"))
+            || (self.updates.open && showing("updates"))
+            || (self.timestamp_run.is_some() && showing("timestamp-progress"))
     }
 
     /// Enable the UI control channel on `ctx` (opt-in; see [`control`]). Returns a client that
@@ -3706,7 +3718,7 @@ impl PdfCraftApp {
         }
         // The other dialogs and prompts are modal too (⌘W closed the file behind Preferences,
         // #870).
-        if self.modal_open() {
+        if self.modal_open() || self.dialog == Some(Dialog::Assistant) {
             return;
         }
         if let Some(view) = self.active.and_then(|i| self.views.get_mut(i))
@@ -4147,6 +4159,8 @@ impl eframe::App for PdfCraftApp {
                 }
             });
             dialogs::show(self, &ctx);
+            #[cfg(target_os = "windows")]
+            assistant_ui::sync_browser(self, &ctx, _frame);
             // Notices too: a refused field value or a failed save must be seen in full screen.
             self.show_progress(&ctx);
             widgets::toast(self, &ctx);
@@ -4159,11 +4173,15 @@ impl eframe::App for PdfCraftApp {
         }
         chrome::tab_strip(self, ui);
         chrome::mode_bar(self, ui);
+        dialog_windows::taskbar(self, ui);
         // Whichever way another tab came to the front, it shows instead of the expanded view.
         if self.all_tools_full && self.all_tools_tab != self.shown_tab() {
             self.all_tools_full = false;
         }
-        if self.mode == Mode::Read || (self.mode == Mode::AllTools && self.all_tools_full) {
+        let assistant_workspace = self.dialog == Some(Dialog::Assistant) && dialog_windows::maximized(&ctx, "dialog");
+        if assistant_workspace {
+            // Chat owns this tab's workspace, not a floating setup form.
+        } else if self.mode == Mode::Read || (self.mode == Mode::AllTools && self.all_tools_full) {
             side_panels::show(self, ui);
         } else if self.active.is_some() {
             chrome::right_rail(self, ui);
@@ -4171,7 +4189,9 @@ impl eframe::App for PdfCraftApp {
         let t = theme::Tokens::get(&ctx);
         let background = t.pasteboard;
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(background)).show(ui, |ui| {
-            if self.mode == Mode::AllTools && self.all_tools_full {
+            if assistant_workspace {
+                assistant_ui::workspace(ui, self);
+            } else if self.mode == Mode::AllTools && self.all_tools_full {
                 all_tools_ui::show(self, ui);
             } else if self.mode == Mode::Read {
                 match self.active {
@@ -4190,6 +4210,8 @@ impl eframe::App for PdfCraftApp {
         self.finish_page_transfer(&ctx);
         palette::show(self, &ctx);
         dialogs::show(self, &ctx);
+        #[cfg(target_os = "windows")]
+        assistant_ui::sync_browser(self, &ctx, _frame);
         self.show_progress(&ctx);
         widgets::toast(self, &ctx);
         self.finish_render_frame(&ctx);

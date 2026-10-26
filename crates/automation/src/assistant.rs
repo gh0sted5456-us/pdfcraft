@@ -28,6 +28,16 @@ impl Automation {
         }
         Ok((0..count).collect())
     }
+    pub(crate) fn ai_confidential(&mut self, a: &Args) -> Result<Value> {
+        let pages = if a.opt_ints("pages")?.is_some() { Some(self.pages(a, "pages")?) } else { None };
+        self.apply(
+            a,
+            pdfcraft_engine::Edit::SetAiConfidential {
+                pages,
+                confidential: a.opt_bool("confidential")?.ok_or_else(|| bad("confidential must be true or false"))?,
+            },
+        )
+    }
     pub(crate) fn ai_prepare(&mut self, a: &Args) -> Result<Value> {
         let pages = self.ai_pages(a)?;
         let source = assistant::Source::new(self.doc(a)?, &pages).map_err(failed)?;
@@ -36,7 +46,8 @@ impl Automation {
     }
     pub(crate) fn ai_assist(&mut self, a: &Args) -> Result<Value> {
         self.ai_network()?;
-        self.doc(a)?.check_copying().map_err(failed)?;
+        let pages = self.ai_pages(a)?;
+        self.doc(a)?.check_ai_pages(&pages).map_err(failed)?;
         let provider = provider(a)?;
         let task = Task::parse(a.opt_str("task")?.unwrap_or("summary")).map_err(bad)?;
         let question = a.opt_str("question")?.unwrap_or("").to_string();
@@ -48,9 +59,61 @@ impl Automation {
         };
         let prompt = assistant::prompt(task, &question, &text).map_err(bad)?;
         let cancel = std::sync::atomic::AtomicBool::new(false);
-        let answer = platform::answer(provider, a.opt_str("account")?.unwrap_or(""), a.str("model")?, assistant::INSTRUCTIONS, &prompt, &cancel)
-            .map_err(failed)?;
+        let answer = platform::answer(
+            provider,
+            a.opt_str("account")?.unwrap_or(""),
+            a.opt_str("model")?.unwrap_or(""),
+            assistant::INSTRUCTIONS,
+            &prompt,
+            &cancel,
+        )
+        .map_err(failed)?;
         Ok(json!({"answer":answer,"provider":provider.key(),"document_changed":false}))
+    }
+    pub(crate) fn ai_browser_prepare(&mut self, a: &Args) -> Result<Value> {
+        let provider = provider(a)?;
+        let url = provider.browser_url().ok_or_else(|| bad("Choose a subscription provider for browser chat"))?;
+        let pages = self.ai_pages(a)?;
+        self.doc(a)?.check_ai_pages(&pages).map_err(failed)?;
+        let text = match a.opt_str("reviewed_text")? {
+            Some(text) => text.to_string(),
+            None => assistant::Source::new(self.doc(a)?, &pages).map_err(failed)?.prepare(|| false).map_err(failed)?,
+        };
+        let task = Task::parse(a.opt_str("task")?.unwrap_or("summary")).map_err(bad)?;
+        let prompt = assistant::prompt(task, a.opt_str("question")?.unwrap_or(""), &text).map_err(bad)?;
+        Ok(
+            json!({"url":url,"text":format!("{}\n\n{prompt}",assistant::INSTRUCTIONS),"sent":false,"next":"Review, then explicitly paste into your provider chat. No file access or automatic website submission."}),
+        )
+    }
+    pub(crate) fn ai_copilot_login_start(&mut self, a: &Args) -> Result<Value> {
+        self.ai_network()?;
+        if self.copilot_login.is_some() {
+            return Err(bad("Finish or cancel the pending Microsoft sign-in first"));
+        }
+        let config = platform::Microsoft365Config {
+            client_id: a.str("client_id")?.into(),
+            tenant_id: a.str("tenant_id")?.into(),
+            cloud: platform::CopilotCloud::parse(a.opt_str("cloud")?.unwrap_or("global")).map_err(bad)?,
+        };
+        let login = platform::CopilotLogin::begin(&config).map_err(failed)?;
+        let result = json!({"authorization_url":login.url,"user_code":login.code,"next":"Sign in yourself to the official Microsoft page, then poll ai_copilot_login_finish. Requires an eligible work/school Copilot license and IT-approved delegated Graph permissions. No PDF text is sent."});
+        self.copilot_login = Some(login);
+        Ok(result)
+    }
+    pub(crate) fn ai_copilot_login_finish(&mut self, a: &Args) -> Result<Value> {
+        if a.opt_bool("cancel")?.unwrap_or(false) {
+            self.copilot_login = None;
+            return Ok(json!({"canceled":true}));
+        }
+        self.ai_network()?;
+        let mut login = self.copilot_login.take().ok_or_else(|| bad("Call ai_copilot_login_start first"))?;
+        match login.poll(&std::sync::atomic::AtomicBool::new(false)).map_err(failed)? {
+            Some(account) => Ok(json!({"connected":true,"account":account})),
+            None => {
+                self.copilot_login = Some(login);
+                Ok(json!({"connected":false,"pending":true}))
+            }
+        }
     }
     pub(crate) fn ai_accounts(&self) -> Result<Value> {
         Ok(json!({"accounts":platform::accounts().map_err(failed)?}))
@@ -82,6 +145,11 @@ impl Automation {
                 platform::claude_logout(&std::sync::atomic::AtomicBool::new(false)).map_err(failed)?;
                 true
             }
+            Provider::CopilotWork => {
+                platform::copilot_disconnect(a.str("account")?).map_err(failed)?;
+                false
+            }
+            Provider::CopilotPersonal => return Err(bad("Sign out inside the Copilot browser profile; no native connection exists")),
             _ => {
                 platform::forget_api_key(provider).map_err(failed)?;
                 false

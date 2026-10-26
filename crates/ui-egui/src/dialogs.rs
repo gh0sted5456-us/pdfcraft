@@ -10,6 +10,7 @@ use crate::{CloseRequest, Dialog, PdfCraftApp, PropsTab, panels::human_size, wid
 const INFO_KEYS: [&str; 4] = ["Title", "Author", "Subject", "Keywords"];
 
 pub fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
+    crate::dialog_windows::prepare(app, ctx);
     // The page sets hover cursors from the raw pointer position (form fields, links, comments)
     // before any dialog is drawn, and nothing under a modal's backdrop takes clicks. Start from
     // the arrow; the modal's own widgets set theirs as they are drawn.
@@ -19,6 +20,7 @@ pub fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
     dialogs(app, ctx);
     // Last, so it sits above Document Properties when Security's Unlock… asked for it.
     unlock(app, ctx);
+    crate::dialog_windows::capture(app, ctx);
 }
 
 fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
@@ -29,7 +31,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     full_screen_prompt(app, ctx);
     crate::updates::dialog(app, ctx);
     crate::timestamp_ui::progress(app, ctx);
-    crate::assistant_ui::poll(app, ctx);
+    if !(app.dialog == Some(Dialog::Assistant) && crate::dialog_windows::maximized(ctx, "dialog")) {
+        crate::assistant_ui::poll(app, ctx);
+    }
     if app.dialog != Some(Dialog::WordCount) {
         app.word_count_draft.cancel();
     }
@@ -38,6 +42,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     }
     if app.dialog != Some(Dialog::FieldTable) {
         app.field_table_draft = None;
+    }
+    if app.dialog == Some(Dialog::Assistant) && crate::dialog_windows::maximized(ctx, "dialog") {
+        return;
     }
     // A movable window, not this modal: the page under it shows the table as it changes.
     if app.dialog == Some(Dialog::FieldTable) {
@@ -116,12 +123,23 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
             Dialog::Print => 820.0,
             Dialog::FieldProps | Dialog::BulkFieldProps => 600.0,
             Dialog::About => 780.0,
-            Dialog::Assistant => 660.0,
+            Dialog::Assistant => {
+                if app.assistant.settings.browser || app.assistant.settings.provider == pdfcraft_platform::assistant::Provider::CopilotPersonal {
+                    920.0
+                } else {
+                    660.0
+                }
+            }
             Dialog::Templates => (ctx.content_rect().width() - 104.0).clamp(1.0, 1120.0),
             Dialog::Preferences => (ctx.content_rect().width() - 104.0).clamp(1.0, 760.0),
             _ => 520.0,
         };
-        ui.set_width(width.min((ctx.content_rect().width() - 104.0).max(1.0)));
+        let width = if crate::dialog_windows::maximized(ctx, "dialog") {
+            ui.available_width()
+        } else {
+            width.min((ctx.content_rect().width() - 104.0).max(1.0))
+        };
+        ui.set_width(width);
         match dialog {
             Dialog::NewPaper => {
                 let (go, cancel) = crate::paper_ui::new_body(ui, app);
@@ -131,23 +149,25 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
             }
             Dialog::ExportTo => {
                 crate::widgets::dialog_heading(ui, tl!("Export to"));
-                ui.label("Choose an editable document, a presentation or an image. Scans need OCR before editable text export.");
-                ui.add_space(10.0);
-                for (label, command) in [
-                    ("WordCraft / Microsoft Word (.docx)", "export.docx"),
-                    ("PowerPoint (.pptx)", "export.pptx"),
-                    ("Rich Text (.rtf)", "export.rtf"),
-                    ("Web page (.html)", "export.html"),
-                    ("Plain text (.txt)", "export.text"),
-                    ("Images (.png / .jpg / .tiff)", "export.image"),
-                    ("Reusable PdfCraft template", "create.save_template"),
-                ] {
-                    if ui.add_sized([ui.available_width(), 34.0], egui::Button::new(label)).clicked() {
-                        export_command = Some(command);
-                        close = true;
+                widgets::dialog_scroll(ui, "export-choice-body", |ui| {
+                    ui.label("Choose an editable document, a presentation or an image. Scans need OCR before editable text export.");
+                    ui.add_space(10.0);
+                    for (label, command) in [
+                        ("WordCraft / Microsoft Word (.docx)", "export.docx"),
+                        ("PowerPoint (.pptx)", "export.pptx"),
+                        ("Rich Text (.rtf)", "export.rtf"),
+                        ("Web page (.html)", "export.html"),
+                        ("Plain text (.txt)", "export.text"),
+                        ("Images (.png / .jpg / .tiff)", "export.image"),
+                        ("Reusable PdfCraft template", "create.save_template"),
+                    ] {
+                        if ui.add_sized([ui.available_width(), 34.0], egui::Button::new(label)).clicked() {
+                            export_command = Some(command);
+                            close = true;
+                        }
                     }
-                }
-                ui.label(egui::RichText::new("WordCraft uses DOCX. Complex layouts and fonts may change during conversion.").small());
+                    ui.label(egui::RichText::new("WordCraft uses DOCX. Complex layouts and fonts may change during conversion.").small());
+                });
                 widgets::dialog_footer(ui, |ui| {
                     close |= widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked();
                 });
@@ -1370,7 +1390,8 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 ] {
                     rows.push((k, v));
                 }
-                egui::ScrollArea::vertical().max_height((ctx.content_rect().height() - 208.0).clamp(40.0, 460.0)).show(ui, |ui| {
+                let height = (ui.available_height() - 72.0).clamp(16.0, 460.0);
+                egui::ScrollArea::vertical().max_height(height).show(ui, |ui| {
                     egui::Grid::new("keys").num_columns(2).spacing([24.0, 6.0]).show(ui, |ui| {
                         for (k, v) in &rows {
                             ui.label(egui::RichText::new(k).font(egui::FontId::monospace(12.5)));
@@ -1655,6 +1676,11 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     // Protect / Remove security replace the Properties dialog.
     let replaces = link_command.is_some_and(|c| c.starts_with("protect.")) || open_revision.is_some();
     if modal.should_close() || close || replaces {
+        if dialog == Dialog::RedactProps
+            && let Some(before) = app.redact_before.take()
+        {
+            app.redact_prefs = before;
+        }
         app.dialog = None;
         app.props_draft = None;
         app.view_draft = None;

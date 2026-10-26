@@ -1,3 +1,7 @@
+> **Last updated:** 2026-10-26 · Personal suite: application popup taskbar with shared minimize/maximize/close controls and retained drafts; AI chat restores across the current tab with a pinned composer and separate document/privacy pane. Source-bound save/signing safeguards retained; strict checks, unit/integration tests, WASM compilation and native current-tab/taskbar smoke checks passed. Live provider sign-in and native Linux/macOS runtime remain unverified; estimates unchanged.
+
+> **Last updated:** 2026-10-25 · Personal Assistant: compact chat, separate connections, isolated Windows browser profiles, personal/work Copilot choices and persisted document/page Confidential AI opt-out. Browser context sharing is explicit copy/paste; licensed Microsoft preview API and native Linux/macOS runtime remain unverified. Estimates unchanged.
+
 > **Last updated:** 2026-10-25 · Personal Glass theme: independent application, popup and tool-pane opacity; visible slider tracks, live updates and persisted/shared settings. PDF content stays opaque; estimates unchanged.
 
 > **Last updated:** 2026-10-25 · Personal Windows fork: live tab tear-off and cross-window joining, preserving unsaved edits, Undo/Redo, recovery and shared Glass/preferences; adapted from @durtyrobbin’s PR #3753. Separate-process transfers and Linux/macOS tear-off remain outside this change; estimates unchanged.

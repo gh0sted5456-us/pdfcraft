@@ -155,25 +155,17 @@ pub(crate) fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let Some(draft) = app.field_table_draft.as_mut() else { return };
     let Some((info, form)) = app.session.get(draft.doc).and_then(|doc| Some((doc.info.pages.get(draft.page)?, &doc.form))) else { return };
     let t = theme::Tokens::get(ctx);
-    let mut open = true;
     let mut choice = None;
     let mut laid = None;
-    egui::Window::new(tl!("Text Field Table"))
-        .id(egui::Id::new("field_table_window"))
-        .open(&mut open)
-        .collapsible(false)
-        .resizable(false)
-        .order(egui::Order::Foreground)
-        .min_width(440.0)
-        .max_width(440.0)
-        .pivot(egui::Align2::CENTER_CENTER)
-        .default_pos(ctx.content_rect().center())
-        .show(ctx, |ui| {
-            widgets::begin_dialog(ui);
-            let (c, l) = body(ui, draft, info, form, &t);
-            choice = c;
-            laid = Some(l);
-        });
+    let window = crate::dialog_windows::window(ctx, "field_table_window", |ui| {
+        ui.set_width(440.0_f32.min((ctx.content_rect().width() - 104.0).max(1.0)));
+        widgets::dialog_heading(ui, tl!("Text Field Table"));
+        widgets::begin_dialog(ui);
+        let (c, l) = body(ui, draft, info, form, &t);
+        choice = c;
+        laid = Some(l);
+    });
+    let open = !window.should_close();
     // Escape closes it, as it closes a modal dialog, unless a field had the keyboard: then Escape
     // only leaves the field, and what was set up stays. Enter is left to the field being typed in.
     let escape = !draft.typing && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));

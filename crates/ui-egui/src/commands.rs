@@ -201,7 +201,14 @@ impl PdfCraftApp {
             "file.revert" => self.dialog = Some(Dialog::Revert),
             "file.properties" => self.dialog = Some(Dialog::Properties(PropsTab::Description)),
             "file.word_count" => self.dialog = Some(Dialog::WordCount),
+            "app.dialog_minimize" | "app.dialog_restore" | "app.dialog_maximize" | "app.dialog_minimize_all" => {
+                crate::dialog_windows::command(self, id)
+            }
             "ai.setup" | "ai.summary" | "ai.ask" | "ai.suggest" | "ai.translate" => crate::assistant_ui::open(self, id),
+            "ai.confidential" | "ai.confidential_clear" | "ai.confidential_pages" | "ai.confidential_pages_clear" => {
+                let pages = id.contains("pages").then(|| self.active.and_then(|i| self.views.get(i)).map(|v| v.target_pages()).unwrap_or_default());
+                self.apply_edit(pdfcraft_engine::Edit::SetAiConfidential { pages, confidential: !id.ends_with("clear") });
+            }
             "protect.properties" => self.dialog = Some(Dialog::Properties(PropsTab::Security)),
             // A restricted document's security changes once its permissions password is entered.
             "protect.password" | "protect.certificate" | "protect.remove"

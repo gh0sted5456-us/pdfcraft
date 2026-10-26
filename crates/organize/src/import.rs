@@ -382,6 +382,7 @@ fn import_pages_mapped(
     conflicts: FieldConflicts,
 ) -> Result<Imported, OrganizeError> {
     let source = walk(src)?;
+    let source_confidential = crate::privacy::document_confidential(src)?;
     if let Some(bad) = src_pages.iter().find(|i| **i >= source.len()) {
         return Err(OrganizeError::NoSuchPage(*bad));
     }
@@ -412,6 +413,7 @@ fn import_pages_mapped(
         let new = if repeat { dst.add(Object::Null) } else { new };
         let mut own = repeat.then(|| Copier::new(src, HashMap::new(), copier.pages.clone()));
         let src_dict = src.get(page).as_dict().cloned().unwrap_or_default();
+        let page_confidential = crate::privacy::marked(src, &src_dict);
         let resources = resources_with_ancestors(src, &src_dict);
         let mut d = Dict::new();
         for (k, v) in src_dict.iter() {
@@ -500,6 +502,7 @@ fn import_pages_mapped(
         }
         d.set(b"Type".to_vec(), Object::name("Page"));
         d.set(b"Parent".to_vec(), Object::Ref(root));
+        crate::privacy::inherit_confidential(source_confidential, page_confidential, &mut d);
         dst.set(new, Object::Dict(d));
         // The repeat's own annotations are fixed up, its fields and layers registered, with the rest.
         if let Some(own) = own {
