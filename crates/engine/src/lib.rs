@@ -3631,7 +3631,8 @@ impl From<pdfcraft_sign::SignError> for EditError {
 #[derive(Default)]
 pub struct Session {
     docs: Vec<Document>,
-    next_id: u64,
+    // Detached sibling windows share IDs; unrelated CLI sessions still start at one.
+    next_id: Arc<std::sync::atomic::AtomicU64>,
     /// Seconds since the Unix epoch, injected so saves are deterministic in tests.
     clock: Option<fn() -> i64>,
     /// Seconds to add to UTC for local time, read from whoever knows the zone (a browser, say).
@@ -4101,8 +4102,7 @@ impl Session {
 
     /// Register a prepared document. This is the only open step that mutates the session.
     pub fn commit_open(&mut self, prepared: PreparedDocument) -> DocId {
-        self.next_id += 1;
-        let id = DocId(self.next_id);
+        let id = DocId(self.next_id.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1);
         let mut document = prepared.document;
         document.id = id;
         self.docs.push(document);
@@ -6020,6 +6020,43 @@ impl Session {
             e.redo.clear();
         }
         Ok(())
+    }
+
+    /// An empty sibling session sharing document identities and user preferences.
+    pub fn new_peer(&self) -> Self {
+        Self {
+            docs: Vec::new(),
+            next_id: self.next_id.clone(),
+            clock: self.clock,
+            utc_offset: self.utc_offset,
+            trust: self.trust.clone(),
+            js_off: self.js_off,
+            date_format: self.date_format.clone(),
+            date_language: self.date_language.clone(),
+            xfa_time_scale: self.xfa_time_scale,
+            identities: self.identities.clone(),
+        }
+    }
+
+    /// Move a document to a sibling session without saving or reparsing it.
+    /// Its identity, password, editor, Undo/Redo and autosave generations are preserved.
+    /// A missing id leaves this session unchanged.
+    pub fn detach_document(&mut self, id: DocId) -> Option<Self> {
+        let index = self.docs.iter().position(|d| d.id == id)?;
+        let mut peer = self.new_peer();
+        peer.docs.push(self.docs.remove(index));
+        Some(peer)
+    }
+
+    /// Move a live document between sibling sessions, preserving its identity.
+    /// Missing, unrelated or colliding destinations leave both sessions unchanged.
+    pub fn transfer_document(&mut self, id: DocId, target: &mut Self) -> Option<DocId> {
+        let index = self.docs.iter().position(|d| d.id == id)?;
+        if !Arc::ptr_eq(&self.next_id, &target.next_id) || target.get(id).is_some() {
+            return None;
+        }
+        target.docs.push(self.docs.remove(index));
+        Some(id)
     }
 
     pub fn close(&mut self, id: DocId) {

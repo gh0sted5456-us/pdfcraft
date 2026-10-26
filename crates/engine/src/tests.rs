@@ -9123,3 +9123,70 @@ fn need_appearances_buttons_are_displayed_from_their_captions() {
         assert!(ink(&shown, inside(x, 100)) > 700, "the file's square at {x}");
     }
 }
+
+#[test]
+fn detach_document_moves_live_history_without_reopening_or_saving() {
+    let mut source = Session::default();
+    let id = source.open("edited.pdf", Some("original.pdf".into()), Arc::new(fixture(2)), None).unwrap();
+    source.apply(id, Edit::SetInfo { key: "Title".into(), value: "keep".into() }).unwrap();
+    let edited = source.get(id).unwrap().bytes.clone();
+    assert!(source.detach_document(DocId(u64::MAX)).is_none());
+    assert_eq!(source.docs().len(), 1);
+    let mut target = source.detach_document(id).unwrap();
+    assert!(source.docs().is_empty());
+    let document = target.get(id).unwrap();
+    assert!(Arc::ptr_eq(&edited, &document.bytes));
+    assert!(document.dirty);
+    assert_eq!(document.path.as_deref(), Some("original.pdf"));
+    target.undo(id).unwrap();
+    assert!(target.get(id).unwrap().can_redo().is_some());
+    target.redo(id).unwrap();
+    assert_eq!(target.get(id).unwrap().bytes, edited);
+    let next = target.open("second.pdf", None, Arc::new(fixture(1)), None).unwrap();
+    assert_ne!(next, id);
+}
+
+#[test]
+fn transfer_document_preserves_sibling_ids_and_both_histories() {
+    let mut a = Session::default();
+    let mut b = a.new_peer();
+    let x = a.open("source.pdf", Some("source.pdf".into()), Arc::new(fixture(2)), None).unwrap();
+    let y = b.open("target.pdf", None, Arc::new(fixture(1)), None).unwrap();
+    assert_ne!(x, y);
+    a.apply(x, Edit::RotatePages { pages: vec![0], degrees: 90 }).unwrap();
+    let before = a.get(x).unwrap().bytes.clone();
+    let target_before = b.get(y).unwrap().bytes.clone();
+    let moved = a.transfer_document(x, &mut b).unwrap();
+    assert_ne!(moved, y);
+    assert_eq!(moved, x);
+    assert!(Arc::ptr_eq(&b.get(moved).unwrap().bytes, &before));
+    assert_eq!(b.get(y).unwrap().bytes, target_before);
+    assert_eq!(b.get(moved).unwrap().path.as_deref(), Some("source.pdf"));
+    b.undo(moved).unwrap();
+    assert_eq!(b.get(moved).unwrap().info.pages[0].rotation, 0);
+    b.redo(moved).unwrap();
+    assert_eq!(b.get(moved).unwrap().info.pages[0].rotation, 90);
+    let back = b.transfer_document(moved, &mut a).unwrap();
+    assert_eq!(a.get(back).unwrap().bytes, before);
+    assert_eq!(b.docs().len(), 1);
+    assert!(a.transfer_document(DocId(u64::MAX), &mut b).is_none());
+    // Defensively reject a corrupt/colliding destination without removing the source.
+    b.docs[0].id = back;
+    assert!(a.transfer_document(back, &mut b).is_none());
+    assert_eq!(a.get(back).unwrap().bytes, before);
+}
+
+#[test]
+fn unrelated_sessions_keep_local_ids_and_cannot_transfer_documents() {
+    let mut a = Session::new();
+    let mut b = Session::new();
+    let x = a.open("a.pdf", None, Arc::new(fixture(1)), None).unwrap();
+    let y = b.open("b.pdf", None, Arc::new(fixture(1)), None).unwrap();
+    assert_eq!(x, DocId(1));
+    assert_eq!(y, DocId(1));
+    assert!(a.transfer_document(x, &mut b).is_none());
+    assert_eq!(a.docs().len(), 1);
+    assert_eq!(b.docs().len(), 1);
+    b.close(y);
+    assert!(a.transfer_document(x, &mut b).is_none(), "unrelated allocators could collide on a later open");
+}

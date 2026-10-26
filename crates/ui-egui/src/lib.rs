@@ -164,6 +164,7 @@ pub mod scroll_speed;
 #[cfg(not(target_arch = "wasm32"))]
 mod system_fonts;
 mod tab_context;
+pub mod tab_windows;
 pub mod theme;
 pub mod ui_scale;
 pub mod updates;
@@ -171,6 +172,7 @@ mod wheel_boost;
 mod wheel_pager;
 mod widgets;
 pub mod window_controls;
+mod window_drop;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod window_state;
 
@@ -654,7 +656,7 @@ impl UnlockPrompt {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct RecentFile {
     pub name: String,
     pub path: String,
@@ -997,6 +999,11 @@ pub struct PdfCraftApp {
     recovered_paths: std::collections::HashSet<DocId>,
     last_autosave: f64,
     allow_quit: bool,
+    /// Native window host owns close decisions and tab transfers (false in browser/embedders).
+    pub(crate) managed_windows: bool,
+    pub(crate) window_close_ready: bool,
+    pub(crate) detach_request: Option<(DocId, Option<egui::Pos2>)>,
+    pub(crate) tab_drag_cancelled: bool,
     /// Shortcuts pressed while a text field had the keyboard, run on the next frame (see
     /// `registry_shortcuts`).
     deferred_commands: Vec<(&'static str, Option<DocId>)>,
@@ -1368,6 +1375,10 @@ impl PdfCraftApp {
             recovered_paths: Default::default(),
             last_autosave: 0.0,
             allow_quit: false,
+            managed_windows: false,
+            window_close_ready: false,
+            detach_request: None,
+            tab_drag_cancelled: false,
             deferred_commands: Vec::new(),
             dialog_seen: None,
             dialog_epoch: 0,
@@ -3896,6 +3907,10 @@ impl eframe::App for PdfCraftApp {
         self.ctx = Some(ctx.clone());
         #[cfg(not(target_arch = "wasm32"))]
         self.window_state.repair(ctx);
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+            self.tab_drag_cancelled = true;
+            crate::window_drop::drag(ctx, None);
+        }
         self.dialog_epoch();
         // Notices raised outside `ui` (opened files, OS events, the control channel) translate too.
         let lang = i18n::Lang::from_pref(&self.language);
@@ -3926,7 +3941,7 @@ impl eframe::App for PdfCraftApp {
         }
         self.sync_theme(ctx);
         #[cfg(target_os = "windows")]
-        if self.native_frame_theme != Some(self.theme) {
+        if ctx.viewport_id() == egui::ViewportId::ROOT && self.native_frame_theme != Some(self.theme) {
             use winit::platform::windows::{Color, WindowExtWindows};
             if let Some(window) = _frame.winit_window() {
                 let t = theme::Tokens::for_kind(self.theme);
@@ -4028,7 +4043,9 @@ impl eframe::App for PdfCraftApp {
         }
         self.guard_quit(ctx);
         // macOS: quit through `terminate:` instead of dropping the window (Touch Bar crash, #1136).
-        craft_quit::on_close_request(ctx);
+        if !self.managed_windows {
+            craft_quit::on_close_request(ctx);
+        }
         let now = ctx.input(|i| i.time);
         self.autosave_tick(ctx, now);
         // Reload documents whose files a build rewrote (#431).
@@ -4083,6 +4100,7 @@ impl eframe::App for PdfCraftApp {
         if self.theme_preference == ThemePreference::Glass {
             self.glass_background.paint(ui);
         }
+        crate::window_drop::begin(&ctx, self.managed_windows && !self.window_close_ready);
         i18n::set_current(i18n::Lang::from_pref(&self.language));
         spelling_ui::begin_frame(&ctx, &mut self.spelling, i18n::Lang::from_pref(&self.language).code());
         // Fonts registered via set_fonts only take effect next frame; named families would panic now.

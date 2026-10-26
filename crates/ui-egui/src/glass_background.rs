@@ -14,6 +14,7 @@ fn texture_image(image: &SignatureImage, limit: usize) -> Option<egui::ColorImag
     Some(egui::ColorImage::from_rgba_unmultiplied([small.width() as usize, small.height() as usize], small.as_raw()))
 }
 
+#[derive(Clone)]
 pub struct GlassBackground {
     image: Option<SignatureImage>,
     texture: Option<egui::TextureHandle>,
