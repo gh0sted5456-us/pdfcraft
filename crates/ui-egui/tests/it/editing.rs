@@ -641,6 +641,26 @@ fn save_as_to_a_new_file_drops_earlier_revisions() {
 }
 
 #[test]
+fn organize_cut_then_normal_save_removes_page_content_and_keeps_clipboard() {
+    let out = temp_path("cut-save.pdf");
+    let mut h = organize(4);
+    h.state_mut().save_override = Some(out.to_string_lossy().into_owned());
+    assert!(h.state_mut().save_active(pdfcraft_ui_egui::SaveTarget::As));
+    let original = std::fs::read(&out).unwrap();
+    h.state_mut().views[0].select_pages(&[1, 2, 3]);
+    assert!(h.state_mut().execute("page.cut"));
+    assert!(h.state_mut().save_active(pdfcraft_ui_egui::SaveTarget::InPlace));
+    let saved = std::fs::read(&out).unwrap();
+    assert!(saved.len() < original.len());
+    assert!(!saved.windows(b"(Page 2)".len()).any(|w| w == b"(Page 2)"));
+    assert_eq!(page_texts(h.state()), ["Page 1"]);
+    assert!(!dirty(&h));
+    assert!(h.state_mut().execute("page.paste"));
+    assert_eq!(page_texts(h.state()), ["Page 1", "Page 2", "Page 3", "Page 4"]);
+    let _ = std::fs::remove_file(out);
+}
+
+#[test]
 fn closing_a_dirty_tab_asks_and_cancel_keeps_it() {
     let mut h = organize(2);
     h.get_by_label("Rotate clockwise").click();

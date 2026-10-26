@@ -78,12 +78,19 @@ pub(crate) mod tests {
 
     /// A one-page PDF of `w` × `h` points whose content is `content`, with a correct xref table.
     pub(crate) fn pdf(w: u32, h: u32, content: &str) -> Vec<u8> {
-        let objects = [
+        pdf_with_unused_stream(w, h, content, 0)
+    }
+
+    pub(crate) fn pdf_with_unused_stream(w: u32, h: u32, content: &str, padding: usize) -> Vec<u8> {
+        let mut objects = vec![
             "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
             "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
             format!("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {w} {h}] /Contents 4 0 R >>"),
             format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len() + 1),
         ];
+        if padding > 0 {
+            objects.push(format!("<< /Length {padding} >>\nstream\n{}\nendstream", "x".repeat(padding)));
+        }
         let mut out = b"%PDF-1.7\n".to_vec();
         let mut offsets = Vec::new();
         for (i, o) in objects.iter().enumerate() {

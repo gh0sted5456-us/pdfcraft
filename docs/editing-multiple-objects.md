@@ -145,3 +145,18 @@ Regression coverage: `crates/edit/src/tests.rs` (glyph bytes, neighbours, split 
 rotated/cropped/UserUnit pages and refusal), `crates/engine/src/tests.rs` (permissions, history,
 rendering and save/reopen), `crates/automation/tests/it/automation.rs` (generation guards and hostile
 references), and `crates/ui-egui/tests/it/object_selection.rs` (real-shell selection and gestures).
+
+
+## Saving after cutting pages
+
+Cut or Delete in Organize Pages removes the chosen pages. For an unsigned PDF, ordinary Save
+rewrites the remaining document and reclaims unreachable page content and unused shared image
+resources, without downsampling or rasterizing the retained pages. Undo history and the page
+clipboard remain available in the current session. The saved file has one current revision.
+
+Signed PDFs retain incremental saving to preserve their signed bytes; older signed revisions can
+still contain removed pages. Cutting pages is not secure redaction: text may also occur in retained
+bookmarks, metadata or attachments. Existing shared resources are kept when their use is uncertain.
+
+The full-save policy builds on @srt8hellcat2-ui’s upstream PR #4279. Regression coverage includes
+ordinary Cut → Save, shared-image reclamation, undo/save/reopen, and preservation of signatures.

@@ -99,7 +99,7 @@ fn install(args: &[String]) -> Result<(), String> {
         let status = std::process::Command::new(std::path::PathBuf::from(system).join("System32/msiexec.exe"))
             .arg("/i")
             .arg(&path)
-            .args(["/passive", "/norestart", "/l*v"])
+            .args(msi_ui_args(args.iter().any(|a| a == "--quiet")))
             .arg(&log_path)
             .status()
             .map_err(|e| format!("Could not start Windows Installer: {e}. Setup log: {}", log_path.display()))?;
@@ -188,9 +188,20 @@ fn restore_default(previous: Option<&str>) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(any(feature = "bundle", test))]
+fn msi_ui_args(quiet: bool) -> &'static [&'static str] {
+    if quiet { &["/passive", "/norestart", "/l*v"] } else { &["/norestart", "/l*v"] }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn interactive_setup_shows_the_standard_finish_screen() {
+        assert_eq!(msi_ui_args(false), ["/norestart", "/l*v"]);
+        assert_eq!(msi_ui_args(true), ["/passive", "/norestart", "/l*v"]);
+    }
 
     #[test]
     fn extracted_msi_preserves_its_registered_source_filename() {

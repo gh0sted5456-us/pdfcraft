@@ -9250,3 +9250,66 @@ fn unrelated_sessions_keep_local_ids_and_cannot_transfer_documents() {
     b.close(y);
     assert!(a.transfer_document(x, &mut b).is_none(), "unrelated allocators could collide on a later open");
 }
+
+#[test]
+fn page_cut_save_reclaims_shared_images_and_undo_can_restore_them() {
+    use pdfcraft_cos::{Dict, Document, ObjRef, Object, Stream};
+    let mut cos = Document::open(Arc::new(fixture(2))).unwrap();
+    let mut image = Dict::new();
+    image.set(b"Type".to_vec(), Object::name("XObject"));
+    image.set(b"Subtype".to_vec(), Object::name("Image"));
+    image.set(b"Width".to_vec(), Object::Int(300));
+    image.set(b"Height".to_vec(), Object::Int(300));
+    image.set(b"ColorSpace".to_vec(), Object::name("DeviceRGB"));
+    image.set(b"BitsPerComponent".to_vec(), Object::Int(8));
+    let picture = cos.add(Object::Stream(Stream::from_raw(image, vec![173; 300 * 300 * 3])));
+    let mut xobjects = Dict::new();
+    xobjects.set(b"CutPicture".to_vec(), Object::Ref(picture));
+    let mut resources = cos.get(ObjRef::new(4, 0)).as_dict().unwrap().get(b"Resources").unwrap().as_dict().unwrap().clone();
+    resources.set(b"XObject".to_vec(), Object::Dict(xobjects));
+    let shared = cos.add(Object::Dict(resources));
+    for page in [4, 6] {
+        cos.update_dict(ObjRef::new(page, 0), |d| d.set(b"Resources".to_vec(), Object::Ref(shared))).unwrap();
+    }
+    cos.set(ObjRef::new(7, 0), Object::Stream(Stream::from_raw(Dict::new(), b"q 100 0 0 100 0 0 cm /CutPicture Do Q".to_vec())));
+    let original = Arc::new(write_full(&cos, &SaveOptions::default()).unwrap());
+    let mut s = Session::new().with_clock(|| 1_700_000_000);
+    let id = s.open("cut.pdf", None, original.clone(), None).unwrap();
+    s.apply(id, Edit::DeletePages { pages: vec![1] }).unwrap();
+    let saved = s.save_bytes(id).unwrap();
+    assert!(saved.len() < original.len() / 10, "the shared resource must not retain the deleted page's image");
+    s.check_save(id, &saved).unwrap();
+    s.mark_saved(id, saved.clone(), None).unwrap();
+    assert_eq!(page_texts(&s, id), ["Page 1"]);
+    s.undo(id).unwrap();
+    let restored = s.save_bytes(id).unwrap();
+    let reopened = Document::open(restored.clone()).unwrap();
+    assert_eq!(pdfcraft_organize::page_count(&reopened).unwrap(), 2);
+    let pages = pdfcraft_annot::page_refs(&reopened).unwrap();
+    let page = reopened.get(pages[1]);
+    let resources = reopened.resolve(page.as_dict().unwrap().get(b"Resources").unwrap());
+    let xobjects = reopened.resolve(resources.as_dict().unwrap().get(b"XObject").unwrap());
+    let restored_image = reopened.resolve(xobjects.as_dict().unwrap().get(b"CutPicture").unwrap());
+    let Object::Stream(restored_image) = &*restored_image else { panic!("Undo did not restore the image") };
+    assert_eq!(restored_image.decoded().unwrap(), vec![173; 300 * 300 * 3]);
+    s.redo(id).unwrap();
+    assert_eq!(s.save_bytes(id).unwrap(), saved);
+}
+
+#[test]
+fn saving_after_cutting_pages_preserves_password_security() {
+    let original = protected("pw", "owner", -1);
+    let mut s = Session::new();
+    let id = s.open("protected.pdf", None, original.clone(), Some("pw")).unwrap();
+    s.apply(id, Edit::DeletePages { pages: vec![1] }).unwrap();
+    let saved = s.save_bytes(id).unwrap();
+    assert!(!saved.starts_with(original.as_slice()));
+    assert!(pdfcraft_cos::Document::open(saved.clone()).is_err());
+    s.check_save(id, &saved).unwrap();
+    for password in ["pw", "owner"] {
+        let mut reopened = Session::new();
+        let id = reopened.open("saved.pdf", None, saved.clone(), Some(password)).unwrap();
+        assert_eq!(page_texts(&reopened, id), ["Page 1"]);
+        assert!(reopened.get(id).unwrap().info.encrypted);
+    }
+}

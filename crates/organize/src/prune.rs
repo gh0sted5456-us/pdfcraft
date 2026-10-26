@@ -1,4 +1,4 @@
-//! Keeps only the XObjects a part's pages actually draw (Split / Extract Pages, #204).
+//! Keeps only the XObjects surviving pages actually draw (Split / Extract / Delete Pages).
 //!
 //! In a real book all pages share one `/Resources` dictionary, so every split part carried all
 //! ~2,900 image XObjects while its 1,500 pages drew ~300 of them, and the part saved out at the
@@ -181,6 +181,12 @@ impl Pruner<'_> {
     /// Record every XObject name `data` draws with `Do`, descending into form XObjects.
     fn content(&mut self, data: &[u8], resources: &Dict, owner: Owner, depth: u8) {
         self.protect_type3_resources(resources, owner);
+        // Patterns and soft masks can draw through a shared resource owner too.
+        for name in [b"Pattern".as_slice(), b"ExtGState"] {
+            if let Some(object) = resources.get(name) {
+                self.protect_glyph_object(object);
+            }
+        }
         let Some((xobjects, key)) = self.xobjects(resources, owner) else {
             return;
         };
@@ -188,7 +194,13 @@ impl Pruner<'_> {
             self.unsure.insert(key);
             return;
         }
-        for op in pdfcraft_content::parse(data).ops {
+        let parsed = pdfcraft_content::parse(data);
+        if parsed.skipped > 0 || parsed.ambiguous_images > 0 {
+            self.unsure.insert(key);
+            return;
+        }
+        self.used.entry(key).or_default();
+        for op in parsed.ops {
             if op.op.as_slice() != b"Do" {
                 continue;
             }
@@ -321,9 +333,18 @@ pub(crate) fn prune_unused_xobjects(doc: &mut Document) -> Result<usize, Organiz
         let Some(res) = attrs.get(b"Resources") else { continue };
         let Some((res_dict, owner)) = resolve_resources(pruner.doc, res, *page) else { continue };
         let Some(pd) = pruner.doc.get(*page).as_dict().cloned() else { continue };
+        // A retained annotation may share the page's XObjects with its appearance.
+        if let Some(annots) = pd.get(b"Annots").map(|a| pruner.doc.resolve(a)).and_then(|a| a.as_array().cloned()) {
+            for annot in annots {
+                if let Some(ap) = pruner.doc.resolve(&annot).as_dict().and_then(|d| d.get(b"AP").cloned()) {
+                    // Legacy appearances can inherit the page's resources instead of declaring their own.
+                    pruner.distrust(&res_dict, owner);
+                    pruner.protect_glyph_object(&ap);
+                }
+            }
+        }
         let Some(contents) = pd.get(b"Contents").cloned() else { continue };
         match content_bytes(pruner.doc, &contents) {
-            Ok(data) if data.is_empty() => {}
             Ok(data) => pruner.content(&data, &res_dict, owner, 0),
             Err(_) => {
                 pruner.protect_type3_resources(&res_dict, owner);

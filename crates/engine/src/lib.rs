@@ -5042,8 +5042,9 @@ impl Session {
         Ok(())
     }
 
-    /// The bytes to write for Save: an incremental update of the file as opened/last saved,
-    /// with `/ModDate` stamped. Call `mark_saved` after writing them successfully.
+    /// The bytes to write for Save: normally an incremental update of the file as opened/last saved,
+    /// with `/ModDate` stamped. Unsigned page deletion requires a compact rewrite instead.
+    /// Call `mark_saved` after writing them successfully.
     ///
     /// A file whose cross-reference data had to be rebuilt is written in full even when nothing
     /// was edited: its bytes as opened are the damaged file, and this save is how the repair the

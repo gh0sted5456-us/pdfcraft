@@ -193,7 +193,7 @@ pub fn tools() -> Vec<ToolDef> {
         t(
             "doc_save",
             "Save a document",
-            "Save to its own file (an incremental update, which keeps signatures valid) or to a new path (a full rewrite, or an incremental update when the document is signed: a rewrite would break the signatures). The write is atomic. flatten_fill_sign bakes Fill & Sign text, marks and signatures into the page first and removes those annotations; other comments and form fields stay. Omit it, or pass false, to leave them editable.",
+            "Save to its own file (normally incremental; deleting pages from an unsigned PDF triggers a compact rewrite to reclaim their data) or to a new path (a full rewrite, or an incremental update when the document is signed: a rewrite would break the signatures). The write is atomic. flatten_fill_sign bakes Fill & Sign text, marks and signatures into the page first and removes those annotations; other comments and form fields stay. Omit it, or pass false, to leave them editable.",
         )
         .destructive()
         .cmd("file.save")
@@ -201,7 +201,7 @@ pub fn tools() -> Vec<ToolDef> {
             json!({
                 "doc": doc(),
                 "path": { "type": "string", "description": "Save as this file. Omit to save in place." },
-                "full": { "type": "boolean", "description": "Force a full rewrite (or, with false, an incremental update)." },
+                "full": { "type": "boolean", "description": "Force a full rewrite. False uses normal Save behavior, including required rewrites after unsigned page deletion." },
                 "flatten_fill_sign": { "type": "boolean", "description": "Bake Fill & Sign marks into the page before writing. Default false." }
             }),
             &["doc"],

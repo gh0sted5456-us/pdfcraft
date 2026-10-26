@@ -29,7 +29,7 @@ use crate::{Thumbnail, render_thumbnail};
 pub const CLSID: GUID = GUID::from_u128(0x68e114f4_eb01_42a6_bd92_1695f3711cd1);
 
 /// Files larger than this aren't read for a thumbnail (the whole file is parsed in memory).
-pub const MAX_FILE_BYTES: u64 = 64 << 20;
+pub const MAX_FILE_BYTES: u64 = 256 << 20;
 
 /// The document's bytes, read when Explorer initializes the handler.
 #[implement(IInitializeWithStream, IThumbnailProvider)]
@@ -232,6 +232,12 @@ mod tests {
     #[test]
     fn explorer_gets_the_first_page_as_a_bitmap() {
         let pdf = crate::tests::pdf(200, 100, "1 0 0 rg 0 0 100 100 re f");
+        assert_eq!(thumbnail_through_com(&pdf, 256).unwrap(), (256, 128));
+    }
+
+    #[test]
+    fn explorer_thumbnails_work_above_the_old_64_mib_limit() {
+        let pdf = crate::tests::pdf_with_unused_stream(200, 100, "1 0 0 rg 0 0 100 100 re f", 64 << 20);
         assert_eq!(thumbnail_through_com(&pdf, 256).unwrap(), (256, 128));
     }
 

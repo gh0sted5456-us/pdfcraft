@@ -290,6 +290,9 @@ pub fn delete_pages(doc: &mut Document, indices: &[usize]) -> Result<(), Organiz
     for r in gone {
         doc.free(r);
     }
+    if !indices.is_empty() {
+        prune::prune_unused_xobjects(doc)?;
+    }
     Ok(())
 }
 

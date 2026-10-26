@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-26 · Integrate @srt8hellcat2-ui’s unsigned page-deletion Save fix (#4279 / #3407); reclaim unused shared images, extend Windows thumbnails to 256 MiB and show the standard installer completion UI on interactive launches. Estimates unchanged.
+
 > **Last updated:** 2026-10-26 · AI Assistant now opens/restores as a bounded floating popup over the PDF, with no workspace replacement or dimming layer. Preserve the live theme, tint and independent opacity values; 13 focused regressions, strict checks, WASM compilation and native open/restore background-pixel checks passed. Estimates unchanged.
 
 > **Last updated:** 2026-10-26 · Personal suite: application popup taskbar with shared minimize/maximize/close controls and retained drafts; AI chat restores across the current tab with a pinned composer and separate document/privacy pane. Source-bound save/signing safeguards retained; strict checks, unit/integration tests, WASM compilation and native current-tab/taskbar smoke checks passed. Live provider sign-in and native Linux/macOS runtime remain unverified; estimates unchanged.

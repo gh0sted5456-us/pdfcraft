@@ -3829,3 +3829,28 @@ fn bookmark_style_and_colour_are_set_as_the_table_says() {
     let got: Vec<_> = bookmarks(&saved).into_iter().map(|b| (b.color, b.bold, b.italic)).collect();
     assert_eq!(got, [(Some([0.0, 0.0, 1.0]), true, true), (None, false, false)]);
 }
+
+#[test]
+fn extracting_and_deleting_pages_keep_shared_annotation_appearance_images() {
+    for own_resources in [true, false] {
+        let mut src = doc_images_with(&raw("/ImB Do"), "");
+        let mut appearance = pdfcraft_cos::Dict::new();
+        appearance.set(b"Subtype".to_vec(), Object::name("Form"));
+        if own_resources {
+            appearance.set(b"Resources".to_vec(), Object::Ref(ObjRef::new(7, 0)));
+        }
+        let ap = src.add(Object::Stream(pdfcraft_cos::Stream::from_raw(appearance, b"/ImB Do".to_vec())));
+        let mut states = pdfcraft_cos::Dict::new();
+        states.set(b"N".to_vec(), Object::Ref(ap));
+        let mut annot = pdfcraft_cos::Dict::new();
+        annot.set(b"Subtype".to_vec(), Object::name("Stamp"));
+        annot.set(b"AP".to_vec(), Object::Dict(states));
+        let annot = src.add(Object::Dict(annot));
+        src.update_dict(ObjRef::new(3, 0), |d| d.set(b"Annots".to_vec(), Object::Array(vec![Object::Ref(annot)]))).unwrap();
+        let part = full_roundtrip(&extract_pages(&src, &[0]).unwrap());
+        assert!(xobject_names(&part, 0).iter().any(|n| n.as_slice() == b"ImB"), "the annotation still draws this image");
+        delete_pages(&mut src, &[1]).unwrap();
+        let saved = full_roundtrip(&src);
+        assert!(xobject_names(&saved, 0).iter().any(|n| n.as_slice() == b"ImB"));
+    }
+}
