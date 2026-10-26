@@ -31,9 +31,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     full_screen_prompt(app, ctx);
     crate::updates::dialog(app, ctx);
     crate::timestamp_ui::progress(app, ctx);
-    if !(app.dialog == Some(Dialog::Assistant) && crate::dialog_windows::maximized(ctx, "dialog")) {
-        crate::assistant_ui::poll(app, ctx);
-    }
+    crate::assistant_ui::poll(app, ctx);
     if app.dialog != Some(Dialog::WordCount) {
         app.word_count_draft.cancel();
     }
@@ -42,9 +40,6 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     }
     if app.dialog != Some(Dialog::FieldTable) {
         app.field_table_draft = None;
-    }
-    if app.dialog == Some(Dialog::Assistant) && crate::dialog_windows::maximized(ctx, "dialog") {
-        return;
     }
     // A movable window, not this modal: the page under it shows the table as it changes.
     if app.dialog == Some(Dialog::FieldTable) {
@@ -117,19 +112,13 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let t = Tokens::get(ctx);
     let mut close = false;
     let mut next = dialog;
-    let modal = widgets::show_modal(ctx, "dialog", |ui| {
+    let content = |ui: &mut egui::Ui| {
         let width = match dialog {
             Dialog::Properties(_) => 640.0,
             Dialog::Print => 820.0,
             Dialog::FieldProps | Dialog::BulkFieldProps => 600.0,
             Dialog::About => 780.0,
-            Dialog::Assistant => {
-                if app.assistant.settings.browser || app.assistant.settings.provider == pdfcraft_platform::assistant::Provider::CopilotPersonal {
-                    920.0
-                } else {
-                    660.0
-                }
-            }
+            Dialog::Assistant => 900.0,
             Dialog::Templates => (ctx.content_rect().width() - 104.0).clamp(1.0, 1120.0),
             Dialog::Preferences => (ctx.content_rect().width() - 104.0).clamp(1.0, 760.0),
             _ => 520.0,
@@ -140,6 +129,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
             width.min((ctx.content_rect().width() - 104.0).max(1.0))
         };
         ui.set_width(width);
+        if dialog == Dialog::Assistant && !crate::dialog_windows::maximized(ctx, "dialog") {
+            ui.set_max_height(ui.available_height().min(560.0));
+        }
         match dialog {
             Dialog::NewPaper => {
                 let (go, cancel) = crate::paper_ui::new_body(ui, app);
@@ -1491,7 +1483,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 close = true;
             }
         });
-    });
+    };
+    let modal =
+        if dialog == Dialog::Assistant { crate::dialog_windows::window(ctx, "dialog", content) } else { widgets::show_modal(ctx, "dialog", content) };
     if let Some(yes) = recover {
         let keys: Vec<String> = app.recoverable.iter().map(|m| m.key.clone()).collect();
         if yes {

@@ -2479,7 +2479,7 @@ impl PdfCraftApp {
     /// on the document underneath it.
     pub(crate) fn modal_open(&self) -> bool {
         let showing = |id: &str| self.ctx.as_ref().is_none_or(|ctx| !dialog_windows::minimized(ctx, id));
-        self.dialog.is_some_and(|dialog| dialog != Dialog::Assistant || self.ctx.as_ref().is_none_or(|ctx| !dialog_windows::maximized(ctx, "dialog")))
+        self.dialog.is_some()
             || (self.close_request.is_some() && showing("save_prompt"))
             || (self.password_prompt.is_some() && showing("password"))
             || (self.unlock_prompt.is_some() && showing("unlock"))
@@ -4178,10 +4178,7 @@ impl eframe::App for PdfCraftApp {
         if self.all_tools_full && self.all_tools_tab != self.shown_tab() {
             self.all_tools_full = false;
         }
-        let assistant_workspace = self.dialog == Some(Dialog::Assistant) && dialog_windows::maximized(&ctx, "dialog");
-        if assistant_workspace {
-            // Chat owns this tab's workspace, not a floating setup form.
-        } else if self.mode == Mode::Read || (self.mode == Mode::AllTools && self.all_tools_full) {
+        if self.mode == Mode::Read || (self.mode == Mode::AllTools && self.all_tools_full) {
             side_panels::show(self, ui);
         } else if self.active.is_some() {
             chrome::right_rail(self, ui);
@@ -4189,9 +4186,7 @@ impl eframe::App for PdfCraftApp {
         let t = theme::Tokens::get(&ctx);
         let background = t.pasteboard;
         egui::CentralPanel::default().frame(egui::Frame::NONE.fill(background)).show(ui, |ui| {
-            if assistant_workspace {
-                assistant_ui::workspace(ui, self);
-            } else if self.mode == Mode::AllTools && self.all_tools_full {
+            if self.mode == Mode::AllTools && self.all_tools_full {
                 all_tools_ui::show(self, ui);
             } else if self.mode == Mode::Read {
                 match self.active {

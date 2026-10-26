@@ -185,8 +185,10 @@ pub(crate) fn open(app: &mut PdfCraftApp, command: &str) {
         "ai.translate" => Task::Translate,
         _ => Task::Summary,
     };
-    app.full_screen = false;
     app.dialog = Some(crate::Dialog::Assistant);
+    if let Some(ctx) = &app.ctx {
+        app.apply_theme(ctx);
+    }
 }
 pub(crate) fn suspend(d: &mut Draft) {
     #[cfg(not(target_arch = "wasm32"))]
@@ -561,7 +563,6 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     }
     let mut privacy_edit = None;
     let mut external = None;
-    let mut close = false;
     ui.horizontal_wrapped(|ui| {
         ui.add_enabled_ui(d.job.is_none(), |ui| {
             egui::ComboBox::from_id_salt("assistant-provider").selected_text(provider_name(d.settings.provider)).width(220.0).show_ui(ui, |ui| {
@@ -751,15 +752,6 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
         forget_context(d);
         d.browser_open = false;
     }
-    // A floating chat retains the house footer; the full workspace has its own window controls.
-    if !crate::dialog_windows::maximized(&ctx, "dialog") {
-        widgets::dialog_footer(ui, |ui| {
-            if widgets::dialog_button(ui, "Close", widgets::DialogAction::Cancel).clicked() {
-                d.cancel();
-                close = true;
-            }
-        });
-    }
     if let Some(url) = external {
         app.open_url(url);
     }
@@ -767,7 +759,7 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
         app.assistant.cancel();
         app.apply_edit(edit);
     }
-    close
+    false
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -895,23 +887,6 @@ fn send_message(d: &mut Draft, ctx: &egui::Context) {
     }
 }
 
-pub(crate) fn workspace(ui: &mut egui::Ui, app: &mut PdfCraftApp) {
-    let ctx = ui.ctx().clone();
-    poll(app, &ctx);
-    if crate::dialog_windows::workspace_header(app, ui) || app.dialog != Some(crate::Dialog::Assistant) {
-        return;
-    }
-    ui.separator();
-    #[cfg(not(target_arch = "wasm32"))]
-    if native_body(ui, app) {
-        app.dialog = None;
-    }
-    #[cfg(target_arch = "wasm32")]
-    {
-        ui.label("Connect your own AI account in the desktop app.");
-    }
-}
-
 #[cfg(not(target_arch = "wasm32"))]
 fn chat_prompt(d: &Draft) -> Result<String, String> {
     let mut prompt = if d.context_enabled {
@@ -939,7 +914,15 @@ fn chat_prompt(d: &Draft) -> Result<String, String> {
 #[cfg(target_os = "windows")]
 pub(crate) fn sync_browser(app: &mut PdfCraftApp, ctx: &egui::Context, frame: &eframe::Frame) {
     // Native child windows otherwise paint over egui menus and pending confirmation prompts.
-    let covered = egui::Popup::is_any_open(ctx) || (crate::dialog_windows::maximized(ctx, "dialog") && app.modal_open());
+    let covered = egui::Popup::is_any_open(ctx)
+        || app.close_request.is_some()
+        || app.password_prompt.is_some()
+        || app.unlock_prompt.is_some()
+        || app.pending_link.is_some()
+        || app.pending_remote_link.is_some()
+        || app.pending_full_screen.is_some()
+        || app.updates.open
+        || app.timestamp_run.is_some();
     let d = &mut app.assistant;
     if app.dialog == Some(crate::Dialog::Assistant) && (d.setup || covered) {
         if let Some(host) = &d.browser_host {
@@ -991,7 +974,7 @@ mod tests {
     use super::*;
     use egui_kittest::{Harness, kittest::Queryable};
     #[test]
-    fn assistant_workspace_is_readable_with_pinned_composer_and_taskbar() {
+    fn assistant_popup_is_readable_with_pinned_composer_and_taskbar() {
         for size in [egui::vec2(1200.0, 800.0), egui::vec2(640.0, 480.0)] {
             for theme in ["light", "dark"] {
                 for setup in [false, true] {
@@ -1006,8 +989,10 @@ mod tests {
                         app
                     });
                     h.run_steps(8);
-                    assert!(crate::dialog_windows::maximized(&h.ctx, "dialog"));
-                    assert!(!h.state().modal_open(), "chat uses a workspace rather than blocking the tab");
+                    assert!(!crate::dialog_windows::maximized(&h.ctx, "dialog"));
+                    let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+                    assert!(card.width() < size.x && card.height() < size.y, "chat stays inside a popup: {card:?}");
+                    assert!(h.ctx.memory(|m| m.top_modal_layer().is_none()), "chat must not add a full-window dimming layer");
                     h.get_by_label("Minimize AI Assistant");
                     if !setup {
                         let message = h.get_by_role_and_label(egui::accesskit::Role::MultilineTextInput, "Message").rect();
@@ -1018,11 +1003,48 @@ mod tests {
                         h.get_by_label("Continue with ChatGPT");
                     }
                     if let Ok(dir) = std::env::var("PDFCRAFT_POPUP_SHOTS") {
-                        h.render().unwrap().save(format!("{dir}/assistant-workspace-{theme}-{}-{setup}.png", size.x)).unwrap();
+                        h.render().unwrap().save(format!("{dir}/assistant-popup-{theme}-{}-{setup}.png", size.x)).unwrap();
                     }
                     assert!(h.state().assistant.job.is_none(), "layout cannot contact a provider");
                 }
             }
+        }
+    }
+    #[test]
+    fn assistant_open_and_restore_keep_the_live_appearance() {
+        for theme in ["light", "dark", "glass"] {
+            let mut h = Harness::builder().with_size(egui::vec2(1280.0, 900.0)).build_eframe(move |_| {
+                let mut app = PdfCraftApp::new();
+                app.set_option("language", "en").unwrap();
+                app.set_option("theme", theme).unwrap();
+                app.set_glass_settings(crate::theme::GlassSettings { tint: [48, 127, 154], opacity: 47, popup_opacity: 83, tool_opacity: 29 });
+                let bytes = app.session.create_blank(612.0, 792.0, 1).unwrap();
+                app.open_bytes("Behind-chat.pdf", None, bytes.as_ref().clone()).unwrap();
+                app
+            });
+            h.run_steps(5);
+            let preference = h.state().theme_preference;
+            let glass = h.state().glass;
+            let fill = h.ctx.global_style().visuals.window_fill;
+            h.ctx.set_visuals(egui::Visuals::light());
+            h.state_mut().execute("ai.ask");
+            h.run_steps(4);
+            assert_eq!(h.ctx.global_style().visuals.window_fill, fill);
+            assert_eq!(h.state().theme_preference, preference);
+            assert_eq!(h.state().glass, glass);
+            assert!(h.state().views[0].page_screen_rect(0).is_some());
+            h.state_mut().execute("app.dialog_minimize");
+            h.run_steps(3);
+            h.ctx.set_visuals(egui::Visuals::light());
+            h.state_mut().execute("app.dialog_restore");
+            h.run_steps(4);
+            assert_eq!(h.ctx.global_style().visuals.window_fill, fill);
+            assert_eq!(h.state().theme_preference, preference);
+            assert_eq!(h.state().glass, glass);
+            let mut restored = PdfCraftApp::new();
+            restored.restore(&h.state().persist());
+            assert_eq!(restored.theme_preference, preference);
+            assert_eq!(restored.glass, glass);
         }
     }
     #[test]
@@ -1156,7 +1178,7 @@ mod tests {
         assert!(h.ctx.output(|o| o.commands.is_empty()), "layout must not copy text or open a browser");
     }
     #[test]
-    fn minimized_ai_restores_to_the_current_tab_workspace_without_old_pdf_context() {
+    fn minimized_ai_restores_as_a_popup_without_old_pdf_context() {
         let mut h = Harness::builder().with_size(egui::vec2(1280.0, 900.0)).build_eframe(|_| {
             let mut app = PdfCraftApp::new();
             app.set_option("language", "en").unwrap();
@@ -1177,9 +1199,9 @@ mod tests {
         h.run_steps(6);
         assert_eq!(h.state().active_ids().unwrap().1, current);
         assert_eq!(h.state().dialog, Some(crate::Dialog::Assistant));
-        assert!(crate::dialog_windows::maximized(&h.ctx, "dialog"));
+        assert!(!crate::dialog_windows::maximized(&h.ctx, "dialog"));
         assert!(h.state().assistant.text.is_empty());
-        assert!(!h.state().modal_open());
+        assert!(h.ctx.memory(|m| m.top_modal_layer().is_none()));
         h.get_by_label("Send");
     }
 }

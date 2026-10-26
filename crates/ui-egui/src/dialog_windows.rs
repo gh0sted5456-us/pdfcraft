@@ -491,13 +491,13 @@ pub(crate) fn prepare(app: &mut PdfCraftApp, ctx: &egui::Context) {
         && app.dialog_shelf.active.is_none()
     {
         let key = format!("dialog-window-{}", NEXT.fetch_add(1, Ordering::Relaxed));
-        touch(ctx, &key, &title(dialog), dialog == Dialog::Assistant);
+        touch(ctx, &key, &title(dialog), false);
         app.dialog_shelf.active = Some(Slot { key, dialog });
     }
     if let Some(slot) = &app.dialog_shelf.active {
         let alias = registry_id(ctx).with("main");
         ctx.data_mut(|d| d.insert_temp(alias, slot.key.clone()));
-        touch(ctx, &slot.key, &title(slot.dialog), slot.dialog == Dialog::Assistant);
+        touch(ctx, &slot.key, &title(slot.dialog), false);
     }
     if app.dialog_shelf.active.is_none() {
         let alias = registry_id(ctx).with("main");
@@ -553,7 +553,7 @@ fn restore(app: &mut PdfCraftApp, ctx: &egui::Context, key: &str) {
     swap_drafts(app, &mut parked.drafts, parked.slot.dialog);
     app.dialog = Some(parked.slot.dialog);
     if parked.slot.dialog == Dialog::Assistant {
-        parked.maximized = true;
+        app.apply_theme(ctx);
     }
     registry(ctx, |r| {
         if let Some(e) = r.entries.iter_mut().find(|e| e.key == key) {
@@ -688,19 +688,6 @@ pub(crate) fn command(app: &mut PdfCraftApp, id: &str) {
     }
     ctx.request_repaint();
 }
-pub(crate) fn workspace_header(app: &mut PdfCraftApp, ui: &mut egui::Ui) -> bool {
-    let Some(slot) = app.dialog_shelf.active.clone() else { return false };
-    let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), 32.0), egui::Sense::hover());
-    chrome(ui, rect, &slot.key);
-    let close = registry(ui.ctx(), |r| r.entries.iter().any(|e| e.key == slot.key && e.close));
-    if close {
-        app.dialog = None;
-        remove(ui.ctx(), &slot.key);
-    }
-    capture(app, ui.ctx());
-    close
-}
-
 pub(crate) fn describe(ctx: Option<&egui::Context>) -> serde_json::Value {
     ctx.map_or_else(
         || serde_json::json!([]),
