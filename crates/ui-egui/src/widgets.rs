@@ -64,7 +64,7 @@ pub fn begin_dialog(ui: &mut egui::Ui) {
     w.inactive.bg_stroke = Stroke::new(1.0, t.border);
     w.inactive.weak_bg_fill = t.field;
     // Slider rails and check-box interiors use the plain fill.
-    w.inactive.bg_fill = t.hover;
+    w.inactive.bg_fill = if t.glass_surface.is_some() { t.border.lerp_to_gamma(t.text_muted, 0.4) } else { t.hover };
     w.hovered.bg_stroke = Stroke::new(1.0, t.text_muted);
     for state in [&mut w.inactive, &mut w.hovered, &mut w.active, &mut w.open] {
         state.corner_radius = CornerRadius::same(4);

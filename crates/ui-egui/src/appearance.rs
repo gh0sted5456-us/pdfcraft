@@ -121,18 +121,28 @@ pub fn preferences_section(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     ui.add_space(4.0);
     if app.theme_preference == ThemePreference::Glass {
         let mut glass = app.glass;
-        egui::Grid::new("glass-settings").num_columns(2).spacing([16.0, 8.0]).show(ui, |ui| {
-            let label = ui.add(egui::Label::new(tl!("Colour")).extend());
-            ui.color_edit_button_srgb(&mut glass.tint).labelled_by(label.id);
-            ui.end_row();
-            let label = ui.add(egui::Label::new("Window opacity").extend());
-            ui.add(egui::Slider::new(&mut glass.opacity, 35..=100).suffix("%")).labelled_by(label.id);
-            ui.end_row();
+        ui.scope(|ui| {
+            ui.spacing_mut().slider_width = 150.0;
+            ui.visuals_mut().slider_trailing_fill = true;
+            egui::Grid::new("glass-settings").num_columns(2).spacing([16.0, 8.0]).show(ui, |ui| {
+                let label = ui.add(egui::Label::new(tl!("Colour")).extend());
+                ui.color_edit_button_srgb(&mut glass.tint).labelled_by(label.id);
+                ui.end_row();
+                for (label, value, range) in [
+                    ("Application opacity", &mut glass.opacity, 35..=100),
+                    ("Popup opacity", &mut glass.popup_opacity, 35..=100),
+                    ("Tool panes opacity", &mut glass.tool_opacity, 0..=100),
+                ] {
+                    let label = ui.add(egui::Label::new(tl!(label)).extend());
+                    ui.add(egui::Slider::new(value, range).suffix("%")).labelled_by(label.id);
+                    ui.end_row();
+                }
+            });
         });
         if glass != app.glass {
             app.set_glass_settings(glass);
         }
-        ui.small("Shared tint and window opacity for panes. Popups use a darker backing for readability; PDF pages stay opaque. Desktop compositing is required.");
+        ui.small("Application opacity controls the desktop backdrop. Popups and tool panes have their own backing strength. Higher values are more opaque; PDF pages stay opaque.");
         ui.add_space(8.0);
         ui.label(RichText::new("Background image").font(theme::semibold(12.5)));
         ui.horizontal_wrapped(|ui| {

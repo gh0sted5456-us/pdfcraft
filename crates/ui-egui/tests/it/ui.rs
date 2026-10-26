@@ -1826,7 +1826,7 @@ fn glass_theme_settings_validate_persist_and_keep_documents_opaque() {
     app.set_option("glass-opacity", "63").unwrap();
     assert_eq!(app.theme_preference, ThemePreference::Glass);
     assert_eq!(app.theme, ThemeKind::Dark);
-    assert_eq!(app.glass, GlassSettings { tint: [42, 157, 204], opacity: 63 });
+    assert_eq!(app.glass, GlassSettings { tint: [42, 157, 204], opacity: 63, ..Default::default() });
     for bad in ["NaN", "-1", "0", "34", "101", "256"] {
         assert!(app.set_option("glass-opacity", bad).is_err());
     }
@@ -1883,11 +1883,11 @@ fn glass_controls_are_visible_above_the_preview_cards_in_small_preferences() {
         app
     });
     h.run_steps(8);
-    let opacity = h.get_by_role_and_label(Role::Slider, "Window opacity").rect();
+    let opacity = h.get_by_role_and_label(Role::Slider, "Application opacity").rect();
     let footer = h.get_by_label("OK").rect();
     assert!(opacity.top() > 0.0 && opacity.bottom() < footer.top(), "{opacity:?} vs {footer:?}");
     let before = h.state().glass.opacity;
-    h.get_by_role_and_label(Role::Slider, "Window opacity").click();
+    h.get_by_role_and_label(Role::Slider, "Application opacity").click();
     h.run_steps(3);
     assert_ne!(h.state().glass.opacity, before);
     assert!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a() < 255);
@@ -2072,4 +2072,85 @@ fn full_screen_neither_is_remembered_nor_hides_the_last_view() {
     let view = &mut h.state_mut().views[0];
     view.leave_presentation();
     assert_eq!((view.fit, view.zoom, view.layout, view.continuous), (Fit::None, 0.5, PageLayout::TwoUp, false), "the remembered view");
+}
+
+#[test]
+fn glass_opacity_track_is_visible_at_full_opacity() {
+    let mut h = harness(|app| {
+        app.set_option("theme", "glass").unwrap();
+        app.set_option("glass-opacity", "100").unwrap();
+        app.set_option("preferences-category", "appearance").unwrap();
+        app.set_option("dialog", "preferences").unwrap();
+    });
+    h.run_steps(8);
+    let rect = h.get_by_role_and_label(egui::accesskit::Role::Slider, "Application opacity").rect();
+    let visible = h.output().shapes.iter().any(|s| {
+        matches!(&s.shape, egui::Shape::Rect(r) if r.rect.contains(rect.center())
+            && r.rect.width() <= rect.width() + 1.0 && r.rect.height() < rect.height() && r.fill.a() >= 160)
+    });
+    assert!(visible, "the slider needs a visible rail, not just a floating thumb and percentage");
+}
+
+#[test]
+fn glass_opacity_sliders_update_three_backdrops_independently() {
+    let mut h = harness(|app| {
+        app.set_option("theme", "glass").unwrap();
+        app.set_option("preferences-category", "appearance").unwrap();
+        app.set_option("dialog", "preferences").unwrap();
+    });
+    h.run_steps(8);
+    for (label, key) in [("Application opacity", "opacity"), ("Popup opacity", "popup_opacity"), ("Tool panes opacity", "tool_opacity")] {
+        let before = serde_json::to_value(h.state().glass).unwrap();
+        let rect = h.get_by_role_and_label(egui::accesskit::Role::Slider, label).rect();
+        assert!(rect.width() >= 140.0, "{label} needs room to drag: {rect:?}");
+        let from = rect.center();
+        let to = egui::pos2(rect.left() + 12.0, rect.center().y);
+        h.event(egui::Event::PointerMoved(from));
+        h.event(egui::Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::NONE });
+        h.run_steps(1);
+        h.event(egui::Event::PointerMoved(to));
+        h.run_steps(1);
+        h.event(egui::Event::PointerButton { pos: to, button: egui::PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::NONE });
+        h.run_steps(4);
+        let after = serde_json::to_value(h.state().glass).unwrap();
+        assert_ne!(before[key], after[key], "{label} must update live");
+        for other in ["opacity", "popup_opacity", "tool_opacity"] {
+            if other != key {
+                assert_eq!(before[other], after[other], "{label} changed {other}");
+            }
+        }
+        let t = pdfcraft_ui_egui::theme::Tokens::get(&h.ctx);
+        assert_eq!(t.glass_surface.unwrap(), h.state().glass.surface());
+        assert_eq!(h.ctx.global_style().visuals.window_fill, t.glass_popup_surface().unwrap());
+    }
+}
+
+#[test]
+fn glass_backdrop_preferences_restore_validate_and_leave_other_surfaces_alone() {
+    let mut app = PdfCraftApp::new();
+    app.set_option("theme", "glass").unwrap();
+    let original = app.glass;
+    app.set_option("glass-popup-opacity", "55").unwrap();
+    app.set_option("glass-tool-opacity", "15").unwrap();
+    assert_eq!(app.glass.opacity, original.opacity);
+    let t = app.glass.tokens();
+    assert_eq!(t.glass_popup_surface().unwrap().a(), 140);
+    assert_eq!(t.glass_toolbar_shade().unwrap().a(), 38);
+    let before = app.glass;
+    for key in ["glass-popup-opacity", "glass-tool-opacity"] {
+        for bad in ["NaN", "-1", "101", "256"] {
+            assert!(app.set_option(key, bad).is_err());
+            assert_eq!(app.glass, before);
+        }
+    }
+    assert!(app.set_option("glass-popup-opacity", "34").is_err());
+    app.set_option("glass-tool-opacity", "0").unwrap();
+    assert_eq!(app.glass.tokens().glass_toolbar_shade().unwrap().a(), 0);
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&app.persist());
+    assert_eq!(restored.glass, app.glass);
+    restored.restore(r#"{"glass":{"opacity":57}}"#);
+    assert_eq!(restored.glass.opacity, 57);
+    assert_eq!(restored.glass.popup_opacity, original.popup_opacity);
+    assert_eq!(restored.glass.tool_opacity, original.tool_opacity);
 }

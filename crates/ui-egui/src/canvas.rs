@@ -5236,7 +5236,7 @@ fn quick_bar(app: &mut PdfCraftApp, area: Rect, ui: &mut egui::Ui) {
     let pos = area.left_top() + vec2(14.0, 14.0);
     egui::Area::new(egui::Id::new("quick-bar")).order(egui::Order::Middle).fixed_pos(pos).show(ui.ctx(), |ui| {
         egui::Frame::NONE
-            .fill(t.card)
+            .fill(t.glass_toolbar_shade().unwrap_or(t.card))
             .stroke(Stroke::new(1.0, t.border))
             .corner_radius(CornerRadius::same(12))
             .shadow(egui::Shadow { offset: [0, 4], blur: 16, spread: 0, color: Color32::from_black_alpha(if t.dark() { 100 } else { 28 }) })

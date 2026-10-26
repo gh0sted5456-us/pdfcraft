@@ -40,35 +40,45 @@ impl ThemePreference {
     }
 }
 
-/// All Glass UI surfaces share one tint and opacity; document pixels stay opaque.
+/// Glass backdrops share a tint, with independent window, popup and tool opacity.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct GlassSettings {
     pub tint: [u8; 3],
     pub opacity: u8,
+    pub popup_opacity: u8,
+    pub tool_opacity: u8,
 }
 
 impl Default for GlassSettings {
     fn default() -> Self {
-        Self { tint: [48, 112, 156], opacity: 80 }
+        Self { tint: [48, 112, 156], opacity: 80, popup_opacity: 88, tool_opacity: 38 }
     }
 }
 
 impl GlassSettings {
     pub fn normalized(mut self) -> Self {
         self.opacity = self.opacity.clamp(35, 100);
+        self.popup_opacity = self.popup_opacity.clamp(35, 100);
+        self.tool_opacity = self.tool_opacity.min(100);
         self
     }
 
     pub fn surface(self) -> Color32 {
+        self.backdrop(self.normalized().opacity)
+    }
+
+    fn backdrop(self, opacity: u8) -> Color32 {
         let rgb = self.tint.map(|channel| 18 + channel / 5);
-        let alpha = (u16::from(self.normalized().opacity) * 255 / 100) as u8;
-        Color32::from_rgba_unmultiplied(rgb[0], rgb[1], rgb[2], alpha)
+        Color32::from_rgba_unmultiplied(rgb[0], rgb[1], rgb[2], (u16::from(opacity) * 255 / 100) as u8)
     }
 
     pub fn tokens(self) -> Tokens {
         let mut t = Tokens::for_kind(ThemeKind::Dark);
-        t.glass_surface = Some(self.surface());
+        let settings = self.normalized();
+        t.glass_surface = Some(settings.surface());
+        t.glass_popup = Some(settings.backdrop(settings.popup_opacity));
+        t.glass_tools = Some(Color32::from_black_alpha((u16::from(settings.tool_opacity) * 255 / 100) as u8));
         // Paint the main tint once in clear_color; nested cards must not accumulate opacity.
         t.titlebar = Color32::TRANSPARENT;
         t.chrome = Color32::TRANSPARENT;
@@ -91,6 +101,8 @@ pub struct Tokens {
     pub kind: ThemeKind,
     /// Backing tint for Glass windows; ordinary nested surfaces remain clear.
     pub glass_surface: Option<Color32>,
+    pub glass_popup: Option<Color32>,
+    pub glass_tools: Option<Color32>,
     /// Title/tab strip.
     pub titlebar: Color32,
     /// Mode bar, panels.
@@ -120,15 +132,12 @@ pub struct Tokens {
 impl Tokens {
     /// One neutral shade over Glass tool panes; the central canvas stays clear.
     pub fn glass_toolbar_shade(self) -> Option<Color32> {
-        self.glass_surface.map(|_| Color32::from_black_alpha(96))
+        self.glass_tools
     }
 
     /// Raised Glass surfaces stay legible above document content and the desktop.
     pub fn glass_popup_surface(self) -> Option<Color32> {
-        self.glass_surface.map(|surface| {
-            let [r, g, b, a] = surface.to_srgba_unmultiplied();
-            Color32::from_rgba_unmultiplied(r, g, b, a.max(224))
-        })
+        self.glass_popup
     }
 
     pub fn for_kind(kind: ThemeKind) -> Self {
@@ -136,6 +145,8 @@ impl Tokens {
             ThemeKind::Light => Self {
                 kind,
                 glass_surface: None,
+                glass_popup: None,
+                glass_tools: None,
                 titlebar: Color32::from_rgb(0xE9, 0xE9, 0xEB),
                 chrome: Color32::from_rgb(0xFF, 0xFF, 0xFF),
                 panel: Color32::from_rgb(0xFF, 0xFF, 0xFF),
@@ -161,6 +172,8 @@ impl Tokens {
             ThemeKind::Dark => Self {
                 kind,
                 glass_surface: None,
+                glass_popup: None,
+                glass_tools: None,
                 titlebar: Color32::from_rgb(0x1B, 0x1B, 0x1E),
                 chrome: Color32::from_rgb(0x26, 0x26, 0x2A),
                 panel: Color32::from_rgb(0x26, 0x26, 0x2A),

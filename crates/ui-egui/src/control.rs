@@ -43,7 +43,8 @@
 //! - `ui.open {path}`: open a file. A file whose tab is already open focuses it
 //!   (`"focused": true`) instead of adding a tab; native opens report `pending: true` until
 //!   they complete and are listed in `ui.state.pending_opens`; only a failed open replies `Err`.
-//!   `glass-tint=#rrggbb` and `glass-opacity=35..100` configure Glass surfaces; `ui.state.glass` reports both.
+//!   `glass-tint=#rrggbb`, `glass-opacity=35..100`, `glass-popup-opacity=35..100` and
+//!   `glass-tool-opacity=0..100` independently configure Glass backdrops; `ui.state.glass` reports them.
 //!   `glass-background=<base64 PNG/JPEG>` (empty to remove) and `glass-background-opacity=0..100`
 //!   configure the optional local wallpaper; `ui.state.glass_background` reports presence and opacity.
 //! - `ui.screenshot {region?}`: PNG of the window (base64), optionally cropped to a rect.

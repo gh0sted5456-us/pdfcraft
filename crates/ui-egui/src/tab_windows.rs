@@ -538,6 +538,8 @@ mod tests {
         assert_eq!(child.spelling.words, ["pdfcraft"]);
         assert_eq!(child.assistant.settings.model, "test-model");
         child.set_option("glass-opacity", "55").unwrap();
+        child.set_option("glass-popup-opacity", "72").unwrap();
+        child.set_option("glass-tool-opacity", "29").unwrap();
         child.glass_background.clear();
         child.glass_background.opacity = 19;
         host.root.copy_shared_settings_from(&child);

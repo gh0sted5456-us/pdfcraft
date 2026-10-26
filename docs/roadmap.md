@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-25 · Personal Glass theme: independent application, popup and tool-pane opacity; visible slider tracks, live updates and persisted/shared settings. PDF content stays opaque; estimates unchanged.
+
 > **Last updated:** 2026-10-25 · Personal Windows fork: live tab tear-off and cross-window joining, preserving unsaved edits, Undo/Redo, recovery and shared Glass/preferences; adapted from @durtyrobbin’s PR #3753. Separate-process transfers and Linux/macOS tear-off remain outside this change; estimates unchanged.
 
 > **Last updated:** 2026-10-25 · Personal Windows setup: preserve the embedded MSI source filename for repair/reinstallation after direct MSI installs; retain verbose setup logs and show their paths on failure. No application or printer payload changes.

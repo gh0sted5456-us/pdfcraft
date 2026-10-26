@@ -3228,9 +3228,20 @@ impl PdfCraftApp {
                 self.glass_background.opacity =
                     value.parse::<u8>().ok().filter(|v| *v <= 100).ok_or("glass-background-opacity must be 0 to 100 percent")?;
             }
-            ("glass-opacity", _) => {
-                let opacity = value.parse::<u8>().ok().filter(|v| (35..=100).contains(v)).ok_or("glass-opacity must be 35 to 100 percent")?;
-                self.set_glass_settings(theme::GlassSettings { opacity, ..self.glass });
+            ("glass-opacity" | "glass-popup-opacity" | "glass-tool-opacity", _) => {
+                let minimum = if key == "glass-tool-opacity" { 0 } else { 35 };
+                let opacity = value
+                    .parse::<u8>()
+                    .ok()
+                    .filter(|v| (minimum..=100).contains(v))
+                    .ok_or_else(|| format!("{key} must be {minimum} to 100 percent"))?;
+                let mut glass = self.glass;
+                match key {
+                    "glass-popup-opacity" => glass.popup_opacity = opacity,
+                    "glass-tool-opacity" => glass.tool_opacity = opacity,
+                    _ => glass.opacity = opacity,
+                }
+                self.set_glass_settings(glass);
             }
             ("glass-tint", _) => {
                 let hex = value.strip_prefix('#').unwrap_or(value);

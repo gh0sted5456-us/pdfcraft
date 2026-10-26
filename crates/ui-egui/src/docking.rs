@@ -430,7 +430,8 @@ pub fn show(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
     style.resize_window_label = crate::i18n::t("Resize panel window").into();
     style.background = if app.theme_preference == crate::theme::ThemePreference::Glass { egui::Color32::TRANSPARENT } else { t.panel };
     style.tab_background = t.glass_toolbar_shade().unwrap_or(t.chrome);
-    style.floating_background = t.glass_popup_surface().unwrap_or(t.panel);
+    // The tool body paints its own shade; do not stack a popup backing underneath it.
+    style.floating_background = t.panel;
     style.active_background = t.selected;
     style.text = t.text;
     style.inactive_text = t.text_muted;
