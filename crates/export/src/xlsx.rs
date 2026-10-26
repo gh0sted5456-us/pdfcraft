@@ -163,8 +163,11 @@ fn xlsx_bounded(pages: &[Page], title: &str, layout: XlsxSheets, max_rows: usize
         let row = sheet.rows.len() + 1;
         match it {
             Item::Para(b, _) => {
-                let font = styles.font(b.size, b.bold, b.italic, b.color);
-                let xml = cell(&mut styles, 0, row, font, &b.text);
+                // One cell per paragraph: the runs' text joined, in the first run's font.
+                let Some(first) = b.first().map(|r| r.block) else { continue };
+                let text: String = b.iter().map(|r| r.text.as_str()).collect();
+                let font = styles.font(first.size, first.bold, first.italic, first.color);
+                let xml = cell(&mut styles, 0, row, font, &text);
                 sheet.rows.push(format!("<row r=\"{row}\">{xml}</row>"));
             }
             Item::Table(t) => {
@@ -336,6 +339,7 @@ mod tests {
                     italic: false,
                     color: [0.0; 3],
                     rotation: 0.0,
+                    space_around: [false; 2],
                 })
                 .collect(),
             images: Vec::new(),
