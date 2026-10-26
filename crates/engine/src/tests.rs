@@ -2293,6 +2293,12 @@ fn passwords_that_encryption_would_make_empty_or_equal_are_refused() {
 
 #[test]
 fn fresh_sessions_protecting_identical_documents_produce_different_salts() {
+    // Characterization only: two sessions' salts differ. A per-call RandomState already did
+    // that before Protect drew from the platform CSPRNG, so this does not prove the source.
+    // `protect_fails_closed_when_randomness_is_unavailable` is the guard. It does not compile
+    // against a Protect with no CSPRNG hook, and it fails closed when that hook errors or
+    // returns zeros. Comparing the stored function with `getrandom::fill` is not reliable:
+    // one function can have different addresses in different codegen units.
     let raw = Arc::new(fixture(1));
     let encrypt_bytes = |saved: Arc<Vec<u8>>, key: &[u8]| -> Vec<u8> {
         let doc = pdfcraft_cos::Document::open_with_password(saved, Some("secret")).unwrap();

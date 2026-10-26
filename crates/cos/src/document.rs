@@ -855,8 +855,7 @@ impl Document {
         let id0 = match self.trailer.get(b"ID") {
             Some(Object::Array(a)) if a.len() == 2 => a[0].as_string().map(|s| s.bytes.clone()).unwrap_or_default(),
             _ => {
-                let mut id = generated_id(&params.seed);
-                id.truncate(16);
+                let id = pdfcraft_crypt::file_id(&params.seed);
                 let s = Object::String(crate::PdfString { bytes: id.clone(), hex: true });
                 self.trailer.set(b"ID".to_vec(), Object::Array(vec![s.clone(), s]));
                 id
@@ -2337,18 +2336,6 @@ fn rfind(hay: &[u8], needle: &[u8], from: usize) -> Option<usize> {
     (from..=hay.len() - needle.len()).rev().find(|&i| &hay[i..i + needle.len()] == needle)
 }
 
-/// A file identifier derived from entropy supplied by the caller.
-fn generated_id(seed: &[u8; 32]) -> Vec<u8> {
-    use std::hash::{Hash, Hasher};
-    let mut out = Vec::new();
-    for i in 0..2u8 {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        (seed, i, b"pdfcraft id").hash(&mut h);
-        out.extend_from_slice(&h.finish().to_be_bytes());
-    }
-    out
-}
-
 /// The object number a classic xref subsection really starts at. A common producer bug heads the
 /// table `1 n` and then writes object 0's free entry (`0000000000 65535 f`) as its first row, so
 /// every row would be read one number too high and object 1 as free. Such a subsection is read
@@ -2395,6 +2382,38 @@ const MAX_XREF_OBJECTS: usize = 8_388_607;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_missing_file_id_is_derived_from_the_encryption_seed() {
+        let mut doc = Document::new_empty();
+        let seed = [9u8; 32];
+        doc.set_encryption(&pdfcraft_crypt::NewEncryption {
+            algorithm: pdfcraft_crypt::Algorithm::Aes256,
+            user_password: "user",
+            owner_password: "owner",
+            permissions: -4,
+            encrypt_metadata: true,
+            seed,
+        })
+        .unwrap();
+        let id = doc.trailer().get(b"ID").and_then(|o| o.as_array()).and_then(|a| a.first()).and_then(|o| o.as_string()).map(|s| s.bytes.clone());
+        assert_eq!(id.as_deref(), Some(pdfcraft_crypt::file_id(&seed).as_slice()));
+
+        let mut kept = Document::new_empty();
+        let fixed = Object::String(crate::PdfString { bytes: b"0123456789abcdef".to_vec(), hex: true });
+        kept.trailer_mut().set(b"ID".to_vec(), Object::Array(vec![fixed.clone(), fixed]));
+        kept.set_encryption(&pdfcraft_crypt::NewEncryption {
+            algorithm: pdfcraft_crypt::Algorithm::Aes256,
+            user_password: "user",
+            owner_password: "owner",
+            permissions: -4,
+            encrypt_metadata: true,
+            seed,
+        })
+        .unwrap();
+        let still = kept.trailer().get(b"ID").and_then(|o| o.as_array()).and_then(|a| a.first()).and_then(|o| o.as_string()).map(|s| s.bytes.clone());
+        assert_eq!(still.as_deref(), Some(b"0123456789abcdef".as_slice()));
+    }
 
     #[test]
     fn a_read_state_matches_a_clone_and_no_changed_document() {
