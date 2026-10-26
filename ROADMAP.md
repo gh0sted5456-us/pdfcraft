@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-26 · Windows integrated headers now remember the last normal physical window bounds across maximized/full-screen restarts, repair legacy off-screen restore bounds against the monitor work area, and retain independent Glass appearance values. Native Linux/macOS window restoration is unchanged. Estimates unchanged.
+
 > **Last updated:** 2026-10-26 · Invalidate old Windows thumbnail caches after install/repair and suppress Explorer’s own frame with a PdfCraft-only Treatment registration; retain page margins and the lion badge. Integrate community fixes #4013 (secure protection entropy and file IDs), #4842 (Latin OCR copy spacing) and #4854 (non-Unicode launch arguments), with original authorship retained. Estimates unchanged.
 
 > **Last updated:** 2026-10-26 · Integrate @srt8hellcat2-ui’s unsigned page-deletion Save fix (#4279 / #3407); reclaim unused shared images, extend Windows thumbnails to 256 MiB and show the standard installer completion UI on interactive launches. Estimates unchanged.

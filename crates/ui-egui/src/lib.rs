@@ -3929,7 +3929,10 @@ impl eframe::App for PdfCraftApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.ctx = Some(ctx.clone());
         #[cfg(not(target_arch = "wasm32"))]
-        self.window_state.repair(ctx);
+        {
+            let app_frame = self.draws_window_frame();
+            self.window_state.repair(ctx, app_frame);
+        }
         if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
             self.tab_drag_cancelled = true;
             crate::window_drop::drag(ctx, None);

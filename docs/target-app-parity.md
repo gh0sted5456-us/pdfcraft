@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-26 · Windows integrated headers now remember the last normal physical window bounds across maximized/full-screen restarts, repair legacy off-screen restore bounds against the monitor work area, and retain independent Glass appearance values. Native Linux/macOS window restoration is unchanged. Estimates unchanged.
+
 # PdfCraft parity with Adobe Acrobat Pro
 
 **2026-10-26:** Windows thumbnail registration disables Explorer’s extra frame/shadow for
