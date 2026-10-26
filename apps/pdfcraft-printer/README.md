@@ -68,3 +68,15 @@ interleaved package parts, private output and cancellation. A native Linux smoke
 Linux GUI and CLI. Cross-target compilation alone does not verify Linux queue operation.
 Only synthetic private Word jobs may be used for the ignored native capture test; never
 commit their source fonts, captured spool files or output.
+
+### Windows setup diagnostics
+
+The combined setup preserves the embedded MSI's original filename when extracting
+it. Windows repair uses that registered filename; renaming it to `PdfCraft.msi`
+can produce error 1316 followed by 1603 after a direct MSI installation. The legacy
+`PdfCraft.msi` name is staged alongside it so installations made by older combined
+setups can also be repaired.
+A verbose MSI log is retained in `%LOCALAPPDATA%\PdfCraft\setup`, including on
+failure. The error dialog reports its path and the numeric installer result.
+The desktop application must install successfully before printer registration runs.
+No extra success popup is shown.

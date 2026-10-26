@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-25 · Personal Windows setup: preserve the embedded MSI source filename for repair/reinstallation after direct MSI installs; retain verbose setup logs and show their paths on failure. No application or printer payload changes.
+
 > **Last updated:** 2026-10-25 · Personal fork: scan orientation/deskew/paper-edge crop (adapted from #1012), invisible OCR-text correction, RSA certificate-file encryption (adapted from #2014), direct Space Audit, and foreground-only marquee path selection. CAC decryption and native Linux runtime remain unverified; readiness estimates unchanged.
 
 > **Last updated:** 2026-10-25 · M14 personal fork: shade Glass tool panes and the icon rail for legibility while keeping the central canvas clear. Estimates unchanged.

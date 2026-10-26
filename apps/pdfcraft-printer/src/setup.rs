@@ -55,6 +55,22 @@ fn status(remove: bool) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(any(feature = "bundle", test))]
+fn stage_msi(folder: &std::path::Path, source: &std::path::Path, bytes: &[u8]) -> Result<std::path::PathBuf, String> {
+    use std::io::Write as _;
+    // Windows repair looks for the filename registered by the earlier installation.
+    let name = source.file_name().ok_or("The embedded installer has no source filename")?;
+    let path = folder.join(name);
+    let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).map_err(|e| e.to_string())?;
+    file.write_all(bytes).and_then(|_| file.sync_all()).map_err(|e| e.to_string())?;
+    drop(file);
+    // Older combined setups registered this name; stage both names in our fresh private folder.
+    if !name.to_string_lossy().eq_ignore_ascii_case("PdfCraft.msi") {
+        std::fs::copy(&path, folder.join("PdfCraft.msi")).map_err(|e| e.to_string())?;
+    }
+    Ok(path)
+}
+
 #[cfg(feature = "bundle")]
 fn install(args: &[String]) -> Result<(), String> {
     use std::io::Write as _;
@@ -67,21 +83,31 @@ fn install(args: &[String]) -> Result<(), String> {
     }
     let temporary = tempfile::Builder::new().prefix("craftpdf-setup-").tempdir().map_err(|e| e.to_string())?;
     if !args.iter().any(|a| a == "--printer-only") {
-        let path = temporary.path().join("PdfCraft.msi");
-        let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).map_err(|e| e.to_string())?;
-        file.write_all(include_bytes!(env!("PDFCRAFT_SETUP_MSI"))).and_then(|_| file.sync_all()).map_err(|e| e.to_string())?;
+        let path = stage_msi(temporary.path(), std::path::Path::new(env!("PDFCRAFT_SETUP_MSI")), include_bytes!(env!("PDFCRAFT_SETUP_MSI")))?;
+        let log_folder = std::path::PathBuf::from(std::env::var_os("LOCALAPPDATA").ok_or("Windows local application data is unavailable")?)
+            .join("PdfCraft")
+            .join("setup");
+        std::fs::create_dir_all(&log_folder).map_err(|e| format!("Could not create the setup log folder: {e}"))?;
+        let log = tempfile::Builder::new()
+            .prefix("PdfCraft-install-")
+            .suffix(".log")
+            .tempfile_in(&log_folder)
+            .map_err(|e| format!("Could not create the setup log: {e}"))?;
+        let (file, log_path) = log.keep().map_err(|e| e.to_string())?;
         drop(file);
         let system = std::env::var_os("SystemRoot").ok_or("Windows system directory is unavailable")?;
         let status = std::process::Command::new(std::path::PathBuf::from(system).join("System32/msiexec.exe"))
             .arg("/i")
             .arg(&path)
-            .args(["/passive", "/norestart"])
+            .args(["/passive", "/norestart", "/l*v"])
+            .arg(&log_path)
             .status()
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("Could not start Windows Installer: {e}. Setup log: {}", log_path.display()))?;
         if !matches!(status.code(), Some(0 | 3010)) {
             return Err(format!(
-                "PdfCraft installation did not finish (Windows Installer result {:?}); the printer was not installed",
-                status.code()
+                "PdfCraft installation did not finish (Windows Installer result {}). Printer setup did not run. Setup log: {}",
+                status.code().map_or_else(|| "unavailable".to_string(), |code| code.to_string()),
+                log_path.display()
             ));
         }
     }
@@ -165,6 +191,21 @@ fn restore_default(previous: Option<&str>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn extracted_msi_preserves_its_registered_source_filename() {
+        let bytes = b"synthetic MSI payload";
+        for name in ["pdfcraft-0.14.0-scan-security-update-x64.msi", "PdfCraft release x64.msi", "PdfCraft.msi", "pdfcraft.MSI"] {
+            let folder = tempfile::tempdir().unwrap();
+            let source = std::path::Path::new(r"D:\build").join(name);
+            let extracted = stage_msi(folder.path(), &source, bytes).unwrap();
+            assert_eq!(extracted, folder.path().join(name), "Windows repair needs the original MSI filename");
+            assert_eq!(std::fs::read(extracted).unwrap(), bytes);
+            assert_eq!(std::fs::read(folder.path().join("PdfCraft.msi")).unwrap(), bytes, "old combined setup source names remain usable");
+        }
+        let folder = tempfile::tempdir().unwrap();
+        assert!(stage_msi(folder.path(), std::path::Path::new(""), bytes).is_err());
+    }
     #[test]
     fn default_printer_names_keep_commas_and_unicode() {
         assert_eq!(default_device_name("Office, étage,winspool,Ne01:"), Some("Office, étage".into()));
