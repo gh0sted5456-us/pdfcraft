@@ -84,21 +84,22 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
         ui.add(widgets::checkbox(&mut d.settings.page_info, tl!("Page information")));
     });
     ui.horizontal(|ui| {
-        ui.label(tl!("Line weight"));
+        let weight_label = ui.label(tl!("Line weight"));
         let weights = [(0.25, "0.25 pt"), (0.5, "0.50 pt"), (1.0, "1.00 pt")];
         let shown = weights.iter().find(|(w, _)| (*w - d.settings.line_weight).abs() < 1e-6).map_or("0.25 pt", |(_, l)| l);
-        egui::ComboBox::from_id_salt("marks-weight").selected_text(shown).width(100.0).show_ui(ui, |ui| {
+        let combo = egui::ComboBox::from_id_salt("marks-weight").selected_text(shown).width(100.0).show_ui(ui, |ui| {
             for (w, l) in weights {
                 ui.selectable_value(&mut d.settings.line_weight, w, l);
             }
         });
+        combo.response.labelled_by(weight_label.id);
     });
     widgets::section_title(ui, tl!("Page"));
     ui.horizontal(|ui| {
         ui.add(widgets::checkbox(&mut d.make_room, tl!("Widen the page to make room")));
         ui.add_enabled_ui(d.make_room, |ui| {
-            ui.label(tl!("Room on each side"));
-            ui.add(egui::DragValue::new(&mut d.room).range(0.0..=288.0).suffix(" pt"));
+            let room_label = ui.label(tl!("Room on each side"));
+            ui.add(egui::DragValue::new(&mut d.room).range(0.0..=288.0).suffix(" pt")).labelled_by(room_label.id);
         });
     });
     ui.label(egui::RichText::new(tl!("The trim box is kept where it is, so the printed page cuts the same.")).small().color(t.text_muted));
