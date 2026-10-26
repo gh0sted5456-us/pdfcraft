@@ -55,6 +55,8 @@ pollster = "1.0"
 winit = { version = "0.30", default-features = false, features = ["wayland"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
+# Reuse the approved Shell integration for installer-driven cache invalidation.
+pdfcraft-thumbnails = { path = "../../crates/thumbnails" }
 # Which GPU drives which display (EnumDisplayDevices), so the window is drawn on the GPU that
 # shows it (issue #378). Safe wrappers over Win32; only the `user` feature (which brings `kernel` with it),
 # and `advapi` for the session id that names the single-instance socket (#3338).

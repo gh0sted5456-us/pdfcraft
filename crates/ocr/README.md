@@ -108,3 +108,9 @@ unchanged pixels. Community checks still report missing `ï` and `l·l` read as 
 There is no automatic separator substitution: names, addresses and literal text
 must remain intact. The current model dictionary also lacks Spanish `¡`; a decoder
 filter cannot recover a class the model does not have.
+
+
+Copied Latin OCR text keeps word separators: the invisible layer places a narrow space after
+neighbouring words without changing their detected boxes. This adapts @0xPyAI’s #4842; words
+on different lines or in distant table cells stay separate. The generated Unicode-font layer
+retains its existing spacing behavior.

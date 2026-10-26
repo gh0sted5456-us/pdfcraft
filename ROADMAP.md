@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-26 · Invalidate old Windows thumbnail caches after install/repair and suppress Explorer’s own frame with a PdfCraft-only Treatment registration; retain page margins and the lion badge. Integrate community fixes #4013 (secure protection entropy and file IDs), #4842 (Latin OCR copy spacing) and #4854 (non-Unicode launch arguments), with original authorship retained. Estimates unchanged.
+
 > **Last updated:** 2026-10-26 · Integrate @srt8hellcat2-ui’s unsigned page-deletion Save fix (#4279 / #3407); reclaim unused shared images, extend Windows thumbnails to 256 MiB and show the standard installer completion UI on interactive launches. Estimates unchanged.
 
 > **Last updated:** 2026-10-26 · AI Assistant now opens/restores as a bounded floating popup over the PDF, with no workspace replacement or dimming layer. Preserve the live theme, tint and independent opacity values; 13 focused regressions, strict checks, WASM compilation and native open/restore background-pixel checks passed. Estimates unchanged.

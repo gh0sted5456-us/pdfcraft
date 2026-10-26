@@ -31,6 +31,13 @@
     <MajorUpgrade AllowSameVersionUpgrades="yes"
         DowngradeErrorMessage="A newer version of PdfCraft is already installed." />
     <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <!-- Refresh old cached thumbnails after the new handler is installed. The trailing value
+         and version flag make an older binary exit too when a replacement awaits reboot. -->
+    <CustomAction Id="RefreshPdfcraftThumbnails" FileRef="PdfcraftExe"
+        ExeCommand="--refresh-thumbnails compatibility --version" Execute="immediate" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="RefreshPdfcraftThumbnails" After="InstallFinalize" Condition="NOT REMOVE~=&quot;ALL&quot;" />
+    </InstallExecuteSequence>
 
     <!-- Windows Installer requires an Icon id ending in .ico or .exe, or advertised shortcuts and
          Add/Remove Programs show a blank icon (#57). -->
@@ -115,6 +122,8 @@
         <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document\shell\open\command" Value="&quot;[#PdfcraftExe]&quot; &quot;%1&quot;" Type="string" />
         <!-- A versioned icon path prevents Explorer retaining the previous release's lion. -->
         <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document" Name="TypeOverlay" Value="&quot;[#PdfcraftBadge]&quot;,0" Type="string" />
+        <!-- Explorer decoration is separate from the page bitmap; suppress its white border. -->
+        <RegistryValue Root="HKLM" Key="Software\Classes\PdfCraft.Document" Name="Treatment" Value="0" Type="integer" />
         <RegistryValue Root="HKLM" Key="Software\Classes\.pdf\OpenWithProgids" Name="PdfCraft.Document" Value="" Type="string" />
         <RegistryValue Root="HKLM" Key="Software\Classes\Applications\pdfcraft.exe" Name="FriendlyAppName" Value="PdfCraft" Type="string" />
         <RegistryValue Root="HKLM" Key="Software\Classes\Applications\pdfcraft.exe\DefaultIcon" Value="&quot;[#PdfcraftExe]&quot;,-2" Type="string" />

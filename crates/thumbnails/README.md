@@ -21,6 +21,13 @@ First-page thumbnails of PDF files for the operating system's file manager.
   Explorer adds the installed PdfCraft lion as its native lower-right thumbnail badge
   (`PdfCraft.Document\TypeOverlay`). The MSI gives its ICO a versioned filename so updates
   do not reuse an old cached badge; the page renderer and PDF content stay unchanged.
+  `PdfCraft.Document\Treatment=0` disables Explorer’s extra border/shadow; the PDF’s own
+  margins remain intact. The MSI database test verifies both registrations and excludes a
+  global `.pdf` decoration override. After installation/repair, the MSI runs
+  `pdfcraft.exe --refresh-thumbnails` to send Windows its supported association-change
+  notification and invalidate stale icon/thumbnail caches. This exits before loading settings
+  or creating a window. Its compatibility arguments also let an older binary exit if Windows
+  has deferred replacing it until reboot. No cache databases or PDF files are deleted.
 
 macOS draws PDF thumbnails itself (Quick Look), and Linux file managers use their own
 thumbnailers, so there the crate is only the shared rendering function.

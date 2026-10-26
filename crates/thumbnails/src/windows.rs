@@ -31,6 +31,13 @@ pub const CLSID: GUID = GUID::from_u128(0x68e114f4_eb01_42a6_bd92_1695f3711cd1);
 /// Files larger than this aren't read for a thumbnail (the whole file is parsed in memory).
 pub const MAX_FILE_BYTES: u64 = 256 << 20;
 
+/// Invalidate Shell icon/thumbnail caches after updating this provider, without touching PDFs.
+pub fn refresh_shell_cache() {
+    use windows::Win32::UI::Shell::{SHCNE_ASSOCCHANGED, SHCNF_FLUSHNOWAIT, SHCNF_IDLIST, SHChangeNotify};
+    // SAFETY: association notifications take no item pointers; both are None.
+    unsafe { SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST | SHCNF_FLUSHNOWAIT, None, None) };
+}
+
 /// The document's bytes, read when Explorer initializes the handler.
 #[implement(IInitializeWithStream, IThumbnailProvider)]
 #[derive(Default)]

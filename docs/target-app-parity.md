@@ -1,5 +1,18 @@
 # PdfCraft parity with Adobe Acrobat Pro
 
+**2026-10-26:** Windows thumbnail registration disables Explorer’s extra frame/shadow for
+PdfCraft.Document only (`Treatment=0`); rendered page margins, the native lion badge and the
+user’s PDF association remain unchanged. The MSI database regression checks this metadata and a post-install cache-refresh action.
+The GUI app exits headlessly after the Windows association-change notification; no PDF or
+thumbnail-cache database is deleted.
+Community fixes integrated with original commit authorship: [#4013](https://github.com/storytold/pdfcraft/pull/4013)
+by @jonathanwxh-cell (OS CSPRNG for password protection; SHA-256-derived new file IDs),
+[#4842](https://github.com/storytold/pdfcraft/pull/4842) by @0xPyAI (explicit spaces between
+neighbouring Latin OCR words), and [#4854](https://github.com/storytold/pdfcraft/pull/4854)
+by @Ridzzz0Alam (skip non-Unicode arguments without shifting flag values). Windows regression
+coverage includes an unpaired UTF-16 surrogate; Unicode OCR spacing and native Linux/macOS
+runtime remain separate. Framework migrations, the updater and unrelated proposals were not imported.
+
 **2026-10-25 Glass refinement:** Shared tint/opacity now covers dialogs, cards, fields, settings rails and floating panes. Redundant dock backgrounds are removed so desktop transparency is preserved. Windows Glass reuses the app header and window controls; leaving Glass restores the normal frame. Installer behavior is unchanged. Native Linux/macOS transparency remains unverified.
 
 **2026-10-25:** Glass is a PdfCraft-specific appearance choice, available through `view.theme.glass` and UI control `theme`, `glass-tint`, `glass-opacity`. Thumbnail raster padding is removed geometrically, preserving actual white margins. Named opening optimization fix and its modern/legacy, name/string, direct/indirect save/reopen tests adapt [@KyleKassen’s PR #4678](https://github.com/storytold/pdfcraft/pull/4678), commit `f2a155237cb31203fe738ac1580852e4017c8ebc`, under this repository’s MIT/Apache-2.0 licenses. No unrelated PR changes were imported.

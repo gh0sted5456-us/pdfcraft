@@ -146,6 +146,19 @@ $overlay = Read-Row 'SELECT `Root`, `Component_`, `Value` FROM `Registry` WHERE 
 Assert-Equal $overlay[0] '2' 'Thumbnail badge machine scope'
 Assert-Equal $overlay[1] 'PdfcraftApp' 'Thumbnail badge follows the app installation'
 Assert-Equal $overlay[2] '"[#PdfcraftBadge]",0' 'Thumbnail badge uses the cache-independent PdfCraft lion file'
+$refresh = Read-Row 'SELECT `Type`, `Source`, `Target` FROM `CustomAction` WHERE `Action` = ''RefreshPdfcraftThumbnails''' 3
+Assert-Equal $refresh[0] '82' 'Thumbnail refresh is a non-fatal installed GUI executable action'
+Assert-Equal $refresh[1] 'PdfcraftExe' 'Thumbnail refresh uses the installed app'
+Assert-Equal $refresh[2] '--refresh-thumbnails compatibility --version' 'Thumbnail refresh command exits on old binaries too'
+$refreshSequence = Read-Row 'SELECT `Condition`, `Sequence` FROM `InstallExecuteSequence` WHERE `Action` = ''RefreshPdfcraftThumbnails''' 2
+$finalize = Read-Row 'SELECT `Sequence` FROM `InstallExecuteSequence` WHERE `Action` = ''InstallFinalize''' 1
+Assert-Equal $refreshSequence[0] 'NOT REMOVE~="ALL"' 'Thumbnail refresh skips uninstall'
+if ([int]$refreshSequence[1] -le [int]$finalize[0]) { throw 'Thumbnail cache must refresh only after successful installation' }
+$treatment = Read-Row 'SELECT `Root`, `Component_`, `Value` FROM `Registry` WHERE `Key` = ''Software\Classes\PdfCraft.Document'' AND `Name` = ''Treatment''' 3
+Assert-Equal $treatment[0] '2' 'Thumbnail decoration machine scope'
+Assert-Equal $treatment[1] 'PdfcraftApp' 'Thumbnail decoration follows the app installation'
+Assert-Equal $treatment[2] '#0' 'Thumbnail has no Windows border or shadow'
+Assert-NoRow 'SELECT `Registry` FROM `Registry` WHERE `Key` = ''Software\Classes\.pdf'' AND `Name` = ''Treatment''' 'global PDF thumbnail decoration override'
 $badge = Read-Row 'SELECT `FileName` FROM `File` WHERE `File` = ''PdfcraftBadge''' 1
 $version = Read-Row 'SELECT `Value` FROM `Property` WHERE `Property` = ''ProductVersion''' 1
 if ($badge[0] -notlike ('*pdfcraft-badge-' + $version[0] + '.ico')) { throw 'Thumbnail badge filename must include the product version' }

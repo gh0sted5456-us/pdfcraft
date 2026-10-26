@@ -63,6 +63,7 @@ Opens the files in the PdfCraft desktop app.
 
 Options:
   --new-window                open a window of its own instead of passing the files to a running PdfCraft
+  --refresh-thumbnails        refresh Windows thumbnail caches and exit (no-op elsewhere)
   --create-images [images…]   put the images in one PDF and ask for the page DPI
   --control <file>            enable the UI control channel (pdfcraft-cli ui --control <file> …)
   --page N, --zoom 150, --layout continuous, --theme dark, …
@@ -235,6 +236,11 @@ fn main() -> eframe::Result {
             "--control" => control_file = args.next().flatten(),
             "--create-images" => create_images = true,
             "--new-window" => new_window = true,
+            "--refresh-thumbnails" => {
+                #[cfg(windows)]
+                pdfcraft_thumbnails::windows::refresh_shell_cache();
+                return Ok(());
+            }
             flag if flag.starts_with("--") => {
                 let value = args.next().flatten().unwrap_or_default();
                 options.push((flag.trim_start_matches("--").to_string(), value));

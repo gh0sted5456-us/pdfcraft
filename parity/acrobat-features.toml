@@ -6545,7 +6545,7 @@ status = "shipped"
 commands = ["ocr.recognize"]
 tools = ["ocr_recognize", "ocr_status"]
 evidence = ["crates/engine/src/tests.rs::recognize_text_makes_a_scanned_page_searchable", "crates/automation/tests/it/automation.rs::ocr_tools_make_a_scan_searchable", "crates/ui-egui/tests/it/ocr.rs::recognize_text_dialog_adds_searchable_text", "crates/engine/tests/it/ocr_edit.rs::copied_ocr_text_keeps_the_spaces_between_words"]
-notes = "ocrs engine (MIT/Apache) with CC-BY-SA models fetched by `cargo xtask models`; the desktop release packages ship them (#103; packaging/env.sh stage_models), the web build does not yet; runs on a worker thread with progress; one undoable step; pages with text are skipped unless asked (ocr.skip-renderable-text). The text layer writes a space between neighbouring words on a line, so copied text keeps its word breaks (#2306)."
+notes = "ocrs engine (MIT/Apache) with CC-BY-SA models fetched by `cargo xtask models`; the desktop release packages ship them (#103; packaging/env.sh stage_models), the web build does not yet; runs on a worker thread with progress; one undoable step; pages with text are skipped unless asked (ocr.skip-renderable-text). The calibrated Latin text layer writes a space between neighbouring words on a line, so copied text keeps its word breaks (#2306). The separate Unicode layer retains its existing spacing behavior."
 
 [[feature]]
 id = "ocr.recognize-range"
@@ -10362,7 +10362,7 @@ status = "shipped"
 commands = []
 tools = []
 evidence = ["crates/thumbnails/src/lib.rs::the_first_page_is_fitted_into_the_square_on_white_paper", "crates/thumbnails/src/lib.rs::fractional_page_edges_do_not_gain_a_white_strip"]
-notes = "Local Windows COM provider renders the first page for PdfCraft.Document; Explorer adds its native PdfCraft badge. Fractional raster padding is excluded without trimming document margins. The existing unsafe COM module has owner approval for the local fork. Explorer may retain older cached thumbnails; native macOS/Linux thumbnail handlers are provided by those desktops."
+notes = "Local Windows COM provider renders the first page for PdfCraft.Document up to 256 MiB; Explorer adds its native PdfCraft badge. The MSI sets Treatment=0 only on PdfCraft.Document to suppress Windows-added frames/shadows, verified by packaging/windows/test-msi.ps1. After install/repair the app sends Windows an association-change notification and exits headlessly to refresh old cached images. Fractional raster padding is excluded without trimming document margins. The existing unsafe COM module has owner approval for the local fork. Explorer may retain older cached thumbnails; native macOS/Linux thumbnail handlers are provided by those desktops."
 
 [[feature]]
 id = "core.tab-tear-off"
