@@ -2994,7 +2994,12 @@ impl PdfCraftApp {
                         self.execute("page.number");
                         Some(Dialog::NumberPages)
                     }
-                    "fix-hairlines" => Some(Dialog::FixHairlines),
+                    "fix-hairlines" => {
+                        // Through the command, so it is refused with no document or none that
+                        // can be modified, as the menu is.
+                        self.execute("prepress.hairlines");
+                        return Ok(());
+                    }
                     "none" => None,
                     _ => Some(Dialog::About),
                 }

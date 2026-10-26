@@ -113,7 +113,13 @@ impl PdfCraftApp {
             return;
         }
         if self.apply_edit(Edit::FixHairlines { pages, settings }) {
-            self.notify_fmt("Fixed {n} hairlines on {p} pages", &[("n", &found.lines.to_string()), ("p", &found.pages.to_string())]);
+            let (n, p) = (found.lines.to_string(), found.pages.to_string());
+            match (found.lines, found.pages) {
+                // One stroke can only be on one page.
+                (1, _) => self.notify_tr("Fixed 1 hairline on 1 page"),
+                (_, 1) => self.notify_fmt("Fixed {n} hairlines on 1 page", &[("n", &n)]),
+                _ => self.notify_fmt("Fixed {n} hairlines on {p} pages", &[("n", &n), ("p", &p)]),
+            }
         }
     }
 }
