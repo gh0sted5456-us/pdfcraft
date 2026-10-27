@@ -2619,3 +2619,18 @@ animation effects	Off	Выкл
 	One sheet per page	По листу на страницу
 	Each page on its own sheet, named Page 1, Page 2…	Каждая страница на своём листе с именем Page 1, Page 2…
 	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Таблицы становятся ячейками; числа, суммы, проценты и даты становятся значениями, с которыми Excel может считать, и выглядят как на странице.
+	Add printer marks…	Добавить типографские метки…
+	Remove printer marks	Удалить типографские метки
+	Marks	Метки
+	All marks	Все метки
+	Trim marks	Метки обреза
+	Bleed marks	Метки выпуска под обрез
+	Registration marks	Приводные метки
+	Colour bars	Цветовые шкалы
+	Page information	Сведения о странице
+	Line weight	Толщина линии
+	Widen the page to make room	Расширить страницу, чтобы освободить место
+	Room on each side	Место с каждой стороны
+	The trim box is kept where it is, so the printed page cuts the same.	Рамка обреза остаётся на месте, поэтому напечатанная страница режется так же.
+	Printer marks added	Типографские метки добавлены
+	printer marks	типографские метки

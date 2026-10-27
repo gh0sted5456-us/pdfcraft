@@ -6186,6 +6186,51 @@ fn removing_marks_strips_wrappers_that_closed_open_state() {
     assert_eq!(streams(&doc, 0), ["q 2 0 0 2 0 0 cm"]);
 }
 
+/// Printer marks: drawn outside the trim box as a removable page mark; the page
+/// is widened to make room when asked and the trim box stays; running again replaces them.
+#[test]
+fn printer_marks_are_drawn_outside_the_trim_box_and_removable() {
+    use crate::printer_marks::PrinterMarks;
+    let mut doc = fixture();
+    let page_content_text = |doc: &Document, page: usize| String::from_utf8_lossy(&page_content_bytes(doc, page)).into_owned();
+    let page = page_list(&doc)[0].clone();
+    // A trim box inside a letter-size page, 36 pt in: room for the marks, bleed marks included
+    // (the bleed box is 9 pt out, so they reach 33 pt beyond the trim box), without widening.
+    doc.update_dict(page.obj, |d| {
+        d.set(b"MediaBox".to_vec(), Object::Array([0.0, 0.0, 612.0, 792.0].iter().map(|v| Object::Real(*v)).collect()));
+        d.set(b"TrimBox".to_vec(), Object::Array([36.0, 36.0, 576.0, 756.0].iter().map(|v| Object::Real(*v)).collect()));
+        d.set(b"BleedBox".to_vec(), Object::Array([27.0, 27.0, 585.0, 765.0].iter().map(|v| Object::Real(*v)).collect()));
+    })
+    .unwrap();
+    let marks = PrinterMarks { label: "Quote 1042.pdf".into(), date: "2026-10-13".into(), ..PrinterMarks::default() };
+    let widened = add_printer_marks(&mut doc, &[0, 1], &marks, false).unwrap();
+    assert_eq!(widened, vec![1], "page 2 has no trim box inside its media box, so it was widened");
+    assert_eq!(marks_present(&doc), vec![MarkKind::PrinterMarks]);
+    let text = page_content_text(&doc, 0);
+    assert!(text.contains("/PCMark /PrinterMarks"), "{text}");
+    // A trim mark at the lower-left corner: vertical below the box, horizontal to its left.
+    assert!(text.contains("36 30 m 36 12 l S") && text.contains("30 36 m 12 36 l S"), "{text}");
+    assert!(text.contains("1 1 1 1 K"), "registration colour");
+    assert!(text.contains("[1 1] 0 d") && text.contains("27 21 m 27 3 l S"), "dashed bleed marks: {text}");
+    assert!(text.contains("1 0 0 0 k") && text.contains("0 0 0 0.25 k"), "colour bars: {text}");
+    assert!(text.contains("(Quote 1042.pdf  1 of 3  2026-10-13) Tj"), "page information: {text}");
+    // Page 2: the media box grew by 36 pt a side around its (whole-page) trim box.
+    let p2 = page_list(&doc)[1].clone();
+    let media: Vec<f64> = p2.dict.get(b"MediaBox").and_then(|m| m.as_array()).unwrap().iter().filter_map(|v| v.as_f64()).collect();
+    assert_eq!(media, vec![-36.0, -36.0, 636.0, 836.0]);
+    // Again with replace: still one set of marks per page; without replace, two.
+    add_printer_marks(&mut doc, &[0], &marks, true).unwrap();
+    assert_eq!(page_content_text(&doc, 0).matches("/PCMark /PrinterMarks").count(), 1);
+    add_printer_marks(&mut doc, &[0], &marks, false).unwrap();
+    assert_eq!(page_content_text(&doc, 0).matches("/PCMark /PrinterMarks").count(), 2);
+    assert_eq!(remove_marks(&mut doc, &[0, 1], MarkKind::PrinterMarks).unwrap(), 3);
+    assert!(marks_present(&doc).is_empty());
+    // Nothing chosen, or a bad weight, is refused.
+    let none = PrinterMarks { trim: false, bleed: false, registration: false, color_bars: false, page_info: false, ..PrinterMarks::default() };
+    assert!(add_printer_marks(&mut doc, &[0], &none, false).is_err());
+    assert!(add_printer_marks(&mut doc, &[0], &PrinterMarks { line_weight: 0.0, ..PrinterMarks::default() }, false).is_err());
+}
+
 /// #3087: flattening comments leaves alone what isn't a comment: links, and the non-markup
 /// multimedia and print-production annotations (3D, Screen, Movie, RichMedia, PrinterMark,
 /// TrapNet, Watermark), which it used to bake into the page and delete with their data.
@@ -7616,4 +7661,54 @@ fn a_run_of_spaces_in_a_subset_without_a_space_glyph_keeps_its_width() {
     assert_eq!(text::replace_block(&mut doc, 0, 0, "ab  ba   ab").unwrap().substituted, None);
     let content = String::from_utf8_lossy(&page_content_bytes(&reopen(&doc), 0)).into_owned();
     assert_eq!(content.matches("[-330] TJ").count(), 5, "{content}");
+}
+
+#[test]
+fn printer_marks_refuse_invalid_room_before_replacing_existing_marks() {
+    for room in [f64::NAN, f64::INFINITY, -1.0, f64::MAX] {
+        let mut doc = fixture();
+        add_printer_marks(&mut doc, &[0], &PrinterMarks::default(), false).unwrap();
+        let before = page_content_bytes(&doc, 0);
+        let bad = PrinterMarks { make_room: Some(room), ..PrinterMarks::default() };
+        assert!(add_printer_marks(&mut doc, &[0], &bad, true).is_err(), "room {room} must be refused");
+        assert_eq!(page_content_bytes(&doc, 0), before);
+    }
+}
+
+#[test]
+fn printer_marks_preserve_an_existing_font_resource() {
+    let mut doc = fixture();
+    let page = page_list(&doc)[0].clone();
+    let mut font = Dict::new();
+    font.set(b"Type".to_vec(), Object::name("Font"));
+    font.set(b"Subtype".to_vec(), Object::name("Type1"));
+    font.set(b"BaseFont".to_vec(), Object::name("Courier"));
+    let old = Object::Dict(font);
+    let mut fonts = Dict::new();
+    fonts.set(b"PCHelv".to_vec(), old.clone());
+    let mut res = Dict::new();
+    res.set(b"Font".to_vec(), Object::Dict(fonts));
+    doc.update_dict(page.obj, |d| d.set(b"Resources".to_vec(), Object::Dict(res))).unwrap();
+    add_printer_marks(&mut doc, &[0], &PrinterMarks::default(), false).unwrap();
+    let page = page_list(&doc)[0].clone();
+    let resources = doc.resolve(page.dict.get(b"Resources").unwrap());
+    let fonts = doc.resolve(resources.as_dict().unwrap().get(b"Font").unwrap());
+    assert_eq!(fonts.as_dict().unwrap().get(b"PCHelv"), Some(&old));
+    assert!(String::from_utf8_lossy(&page_content_bytes(&doc, 0)).contains("/PCHelv_1 "));
+}
+
+#[test]
+fn printer_marks_refuse_bad_boxes_and_unsupported_information_without_changing_the_document() {
+    for bad in [Object::Array(vec![Object::Int(0); 5]), Object::Array(vec![Object::Real(f64::MAX); 4]), Object::name("not-a-box")] {
+        let mut doc = fixture();
+        let page = page_list(&doc)[1].clone();
+        doc.update_dict(page.obj, |d| d.set(b"TrimBox".to_vec(), bad)).unwrap();
+        let before = pdfcraft_cos::write_full(&doc, &Default::default()).unwrap();
+        assert!(add_printer_marks(&mut doc, &[0, 1], &PrinterMarks::default(), true).is_err());
+        assert_eq!(pdfcraft_cos::write_full(&doc, &Default::default()).unwrap(), before);
+    }
+    let mut doc = fixture();
+    let marks = PrinterMarks { label: "日本語.pdf".into(), ..Default::default() };
+    assert!(add_printer_marks(&mut doc, &[0], &marks, false).is_err());
+    add_printer_marks(&mut doc, &[0], &PrinterMarks { page_info: false, ..marks }, false).unwrap();
 }

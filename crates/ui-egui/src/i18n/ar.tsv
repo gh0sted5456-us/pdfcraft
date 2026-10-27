@@ -2981,3 +2981,18 @@ certificate	Version	الإصدار
 	One sheet per page	ورقة لكل صفحة
 	Each page on its own sheet, named Page 1, Page 2…	كل صفحة في ورقة خاصة بها، باسم Page 1 وPage 2…
 	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	تصبح الجداول خلايا؛ وتصبح الأرقام والمبالغ والنسب المئوية والتواريخ قيمًا يمكن لـ Excel الحساب بها، وتظهر كما في الصفحة.
+	Add printer marks…	إضافة علامات الطباعة…
+	Remove printer marks	إزالة علامات الطباعة
+	Marks	العلامات
+	All marks	كل العلامات
+	Trim marks	علامات القص
+	Bleed marks	علامات النزيف
+	Registration marks	علامات التسجيل
+	Colour bars	أشرطة الألوان
+	Page information	معلومات الصفحة
+	Line weight	سُمك الخط
+	Widen the page to make room	توسيع الصفحة لإفساح المجال
+	Room on each side	المساحة على كل جانب
+	The trim box is kept where it is, so the printed page cuts the same.	يبقى مربع القص في مكانه، فتُقص الصفحة المطبوعة كما هي.
+	Printer marks added	تمت إضافة علامات الطباعة
+	printer marks	علامات الطباعة

@@ -2705,3 +2705,18 @@ animation effects	Off	Өшірулі
 	One sheet per page	Әр бетке бір парақ
 	Each page on its own sheet, named Page 1, Page 2…	Әр бет өз парағында, атауы Page 1, Page 2…
 	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Кестелер ұяшықтарға айналады; сандар, сомалар, пайыздар мен күндер Excel есептей алатын мәндерге айналады және бетте көрінгендей көрсетіледі.
+	Add printer marks…	Басып шығару белгілерін қосу…
+	Remove printer marks	Басып шығару белгілерін алып тастау
+	Marks	Белгілер
+	All marks	Барлық белгілер
+	Trim marks	Кесу белгілері
+	Bleed marks	Шығыңқы жиек белгілері
+	Registration marks	Тіркеу белгілері
+	Colour bars	Түс жолақтары
+	Page information	Бет туралы ақпарат
+	Line weight	Сызық қалыңдығы
+	Widen the page to make room	Орын босату үшін бетті кеңейту
+	Room on each side	Әр жақтағы орын
+	The trim box is kept where it is, so the printed page cuts the same.	Кесу жақтауы орнында қалады, сондықтан басылған бет сол күйінде кесіледі.
+	Printer marks added	Басып шығару белгілері қосылды
+	printer marks	басып шығару белгілері

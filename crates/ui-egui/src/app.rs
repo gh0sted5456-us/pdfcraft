@@ -290,6 +290,7 @@ impl PdfCraftApp {
             word_count_draft: word_count_ui::Draft::default(),
             assistant: assistant_ui::Draft::default(),
             dialog_shelf: Default::default(),
+            printer_marks_draft: Default::default(),
         }
     }
 

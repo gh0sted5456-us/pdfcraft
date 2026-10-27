@@ -90,6 +90,7 @@ use dialogs::credits;
 use dialogs::marks_ui;
 use dialogs::pageboxes;
 use dialogs::palette;
+use dialogs::printer_marks_ui;
 use dialogs::protect;
 use dialogs::standards_ui;
 use dialogs::word_count_ui;
@@ -607,6 +608,7 @@ pub struct PdfCraftApp {
     pub(crate) word_count_draft: word_count_ui::Draft,
     pub(crate) assistant: assistant_ui::Draft,
     pub(crate) dialog_shelf: dialog_windows::Shelf,
+    pub printer_marks_draft: printer_marks_ui::PrinterMarksDraft,
     /// Protect Using Password dialog state.
     pub protect_draft: protect::ProtectDraft,
     pub certificate_draft: certificate_ui::CertificateDraft,

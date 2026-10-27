@@ -13,6 +13,7 @@ pub(super) mod credits;
 pub(super) mod marks_ui;
 pub(super) mod pageboxes;
 pub(super) mod palette;
+pub(super) mod printer_marks_ui;
 mod prompts;
 pub(super) mod protect;
 pub(super) mod standards_ui;
@@ -97,6 +98,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut protect_now = false;
     let mut certificate_now = false;
     let mut boxes_now = false;
+    let mut printer_marks_now = false;
     let mut marks_now = false;
     let mut export_now = false;
     let mut props_now = false;
@@ -1314,6 +1316,12 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 close = apply || cancel;
                 return;
             }
+            Dialog::PrinterMarks => {
+                let (go, cancel) = crate::printer_marks_ui::body(ui, app, &t);
+                printer_marks_now = go;
+                close = go || cancel;
+                return;
+            }
             Dialog::NumberPages => {
                 use pdfcraft_engine::LabelStyle as L;
                 crate::widgets::dialog_heading(ui, tl!("Number pages"));
@@ -1711,6 +1719,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     }
     if certificate_now {
         app.apply_certificate_draft();
+    }
+    if printer_marks_now {
+        app.add_printer_marks();
     }
     if apply_number && let Some(edit) = number_now {
         app.apply_edit(edit);

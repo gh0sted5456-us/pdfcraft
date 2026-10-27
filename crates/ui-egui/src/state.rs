@@ -112,6 +112,8 @@ pub enum Dialog {
     Split,
     /// Pages ▸ Number pages… (page labels).
     NumberPages,
+    /// Print production ▸ Add printer marks.
+    PrinterMarks,
     /// Protect Using Password.
     Protect,
     /// Encrypt with Certificate.
