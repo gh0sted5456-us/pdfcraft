@@ -928,3 +928,10 @@ categories, so enabling Stamp and Preflight cannot list either command twice.
 All 7 catalog regressions pass. Strict desktop Clippy and the web compile passed;
 the web target retains its existing 11 desktop-only/dead-code warnings. Final-head
 menu interaction and lint reruns are included in PR qualification.
+
+The Linux printer runner exposed a separate infrastructure stall: its unbounded
+`apt-get update` spent over 25 minutes retrying `azure.archive.ubuntu.com` before
+trying the working Ubuntu archive. The workflow now prefers the official HTTPS
+archive and reuses the pinned, cached package installer with bounded connection
+waits and retries. Package signature verification is unchanged. Runtime source and
+all locally qualified tests are unchanged by this workflow-only follow-up.
