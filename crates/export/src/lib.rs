@@ -30,16 +30,16 @@ pub use as_docx::docx;
 pub(crate) use as_docx::hex;
 #[cfg(test)]
 use as_docx::{MAX_MEDIA, docx_table};
-pub(crate) use as_html::esc;
-pub use as_html::html;
 pub(crate) use as_html::allowed;
 #[cfg(test)]
 use as_html::base64;
+pub(crate) use as_html::esc;
+pub use as_html::html;
 pub use as_rtf::rtf;
 pub use layout::{Block, Cell, Image, Page, Table};
+pub(crate) use layout::{Item, Run, items, paragraphs, tables};
 #[cfg(test)]
 use layout::{LOOKUP_STEPS, MAX_COLS, body_size};
-pub(crate) use layout::{Item, Run, items, paragraphs, tables};
 
 #[cfg(test)]
 mod tests;
