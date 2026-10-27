@@ -75,7 +75,9 @@ use paths::{write_atomic_synced, write_atomic_with};
 /// A headless PdfCraft session driven by tool calls.
 pub struct Automation {
     pub(crate) network: bool,
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) ai_login: Option<pdfcraft_platform::assistant::Login>,
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) copilot_login: Option<pdfcraft_platform::assistant::CopilotLogin>,
     session: Session,
     root: Option<PathBuf>,
@@ -103,7 +105,9 @@ impl Automation {
     pub fn new() -> Self {
         Self {
             network: false,
+            #[cfg(not(target_arch = "wasm32"))]
             ai_login: None,
+            #[cfg(not(target_arch = "wasm32"))]
             copilot_login: None,
             session: {
                 let mut session = Session::new();

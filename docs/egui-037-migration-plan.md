@@ -935,3 +935,26 @@ trying the working Ubuntu archive. The workflow now prefers the official HTTPS
 archive and reuses the pinned, cached package installer with bounded connection
 waits and retries. Package signature verification is unchanged. Runtime source and
 all locally qualified tests are unchanged by this workflow-only follow-up.
+
+## Complete-gate follow-up
+
+Linux CI passed all 5,580 active tests (25 skipped), then the 32-crate WebAssembly
+check exposed desktop-only account types in automation. Target guards now keep
+native login/key operations on desktop while preserving document preparation,
+browser-handoff preparation and confidentiality tools in portable builds. The
+same complete 32-crate gate passes locally; the two automation privacy/network
+guard tests and strict automation Clippy pass. The narrower web-app check did not
+cover this automation target.
+
+Dependency auditing now checks each shipped target separately. A combined graph
+incorrectly linked Windows-only Wry to its Android/Linux dependencies. Matching
+version requirements were added to pinned git/path dependencies. Two reviewed
+advisory scopes are recorded in `deny.toml`: OpenID Connect uses old integer math
+only for public JWT verification, with no private client key or client secret;
+private PDF signing uses crypto-bigint 0.7.6. The unmaintained font parser is a
+dev-only rasterizer for the committed Inter OCR fixture, not a product font parser.
+
+The remaining license decision concerns the existing MPL-2.0 `spellbook` checker
+on Linux/FreeBSD. Windows/macOS use their native spelling service. The fork's
+permissive-only policy is retained pending the owner's choice of a replacement
+or a narrow, documented exception. Do not promote a failing dependency gate.

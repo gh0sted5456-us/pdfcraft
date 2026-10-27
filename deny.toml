@@ -45,6 +45,14 @@ allow-git = [
 [advisories]
 yanked = "warn"
 ignore = [
+    # crypto-bigint 0.5.5 reaches us only through openidconnect 4's public-key JWT
+    # verification. The public client has no client secret or private signing key
+    # (platform/assistant/auth.rs); PDF signing uses the fixed 0.7.6 chain. Revisit
+    # when openidconnect updates its elliptic-curve dependencies.
+    { id = "RUSTSEC-2026-0387", reason = "openidconnect public-key verification only; private PDF signing uses crypto-bigint >=0.7.6" },
+    # ab_glyph parses only the committed Inter font to draw synthetic OCR test
+    # fixtures (engine/src/tests.rs::inter_scan). Product text uses skrifa.
+    { id = "RUSTSEC-2026-0192", reason = "unmaintained parser in dev-only OCR fixture rasterizer; never parses user fonts in the application" },
     # Marvin (RSA private-key timing side channel, no fixed `rsa` release). pdfcraft-sign uses
     # `rsa` only for public-key signature verification, which the advisory does not affect; RSA
     # private-key operations use aws-lc-rs on native targets and are refused in the browser

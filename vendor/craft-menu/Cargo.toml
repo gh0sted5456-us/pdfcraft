@@ -8,8 +8,8 @@ rust-version = "1.95"
 repository = "https://github.com/storytold/craft-libs"
 
 [dependencies]
-craft-keymap = { git = "https://github.com/storytold/craft-libs", rev = "edc41f68fa24c46651c3b5117d10f0ead75ec9cb", default-features = false, features = ["egui"] }
-craft-quit = { git = "https://github.com/storytold/craft-libs", rev = "edc41f68fa24c46651c3b5117d10f0ead75ec9cb", features = ["egui"] }
+craft-keymap = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "edc41f68fa24c46651c3b5117d10f0ead75ec9cb", default-features = false, features = ["egui"] }
+craft-quit = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "edc41f68fa24c46651c3b5117d10f0ead75ec9cb", features = ["egui"] }
 egui = { version = "0.37", default-features = false }
 
 # Already in the apps' Cargo.lock: muda through craft-quit's `menu` feature, objc2 and objc2-app-kit

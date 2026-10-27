@@ -27,15 +27,40 @@ impl Automation {
             "doc_set_confidential" => self.ai_confidential(&a)?,
             "ai_prepare" => self.ai_prepare(&a)?,
             "ai_browser_prepare" => self.ai_browser_prepare(&a)?,
+            #[cfg(target_arch = "wasm32")]
+            "ai_copilot_login_start"
+            | "ai_copilot_login_finish"
+            | "ai_assist"
+            | "ai_accounts"
+            | "ai_models"
+            | "ai_key_connect"
+            | "ai_disconnect"
+            | "ai_login_start"
+            | "ai_login_finish"
+            | "ai_claude_login" => {
+                return Err(failed(
+                    "AI account connections require the desktop app. Document preparation and confidentiality tools remain available.",
+                ));
+            }
+            #[cfg(not(target_arch = "wasm32"))]
             "ai_copilot_login_start" => self.ai_copilot_login_start(&a)?,
+            #[cfg(not(target_arch = "wasm32"))]
             "ai_copilot_login_finish" => self.ai_copilot_login_finish(&a)?,
+            #[cfg(not(target_arch = "wasm32"))]
             "ai_assist" => self.ai_assist(&a)?,
+            #[cfg(not(target_arch = "wasm32"))]
             "ai_accounts" => self.ai_accounts()?,
+            #[cfg(not(target_arch = "wasm32"))]
             "ai_models" => self.ai_models(&a)?,
+            #[cfg(not(target_arch = "wasm32"))]
             "ai_key_connect" => self.ai_key_connect(&a)?,
+            #[cfg(not(target_arch = "wasm32"))]
             "ai_disconnect" => self.ai_disconnect(&a)?,
+            #[cfg(not(target_arch = "wasm32"))]
             "ai_login_start" => self.ai_login_start(&a)?,
+            #[cfg(not(target_arch = "wasm32"))]
             "ai_login_finish" => self.ai_login_finish(&a)?,
+            #[cfg(not(target_arch = "wasm32"))]
             "ai_claude_login" => self.ai_claude_login()?,
             "doc_open" => self.doc_open(&a)?,
             "doc_batch" => self.doc_batch(&a)?,

@@ -7,3 +7,6 @@ The upstream manifest disables inherited craft-keymap defaults while its workspa
 dependency enables them implicitly. Cargo 1.95 rejects that declaration. This copy
 spells out the same pinned dependencies so that disabling defaults is valid.
 Remove this copy when a corrected shared-library revision is published and qualified.
+
+Pinned git dependencies also carry their matching `0.1.0` version constraints,
+as required by the fork's dependency policy. Rust sources remain unchanged.
