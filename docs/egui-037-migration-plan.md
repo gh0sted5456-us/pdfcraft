@@ -954,7 +954,10 @@ only for public JWT verification, with no private client key or client secret;
 private PDF signing uses crypto-bigint 0.7.6. The unmaintained font parser is a
 dev-only rasterizer for the committed Inter OCR fixture, not a product font parser.
 
-The remaining license decision concerns the existing MPL-2.0 `spellbook` checker
-on Linux/FreeBSD. Windows/macOS use their native spelling service. The fork's
-permissive-only policy is retained pending the owner's choice of a replacement
-or a narrow, documented exception. Do not promote a failing dependency gate.
+On 2026-10-27 the owner approved retaining the existing, unmodified MPL-2.0
+`spellbook` checker on Linux/FreeBSD. Windows/macOS use their native spelling
+service. A license exception is restricted to spellbook 0.4.2; the general
+allowlist is unchanged. NOTICE includes the full MPL text and links to the exact
+published source archive and browsable source. Existing package scripts ship
+NOTICE in Linux, FreeBSD, Flatpak, macOS and Windows distributions. All nine
+actual-target dependency audits must pass before promotion.

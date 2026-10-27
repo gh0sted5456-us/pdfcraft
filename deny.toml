@@ -1,5 +1,5 @@
 # cargo-deny policy (M0.4). Run with `cargo xtask deny`; part of `cargo xtask ci`.
-# Code dependencies follow the same rule as assets (AGENTS.md): permissive licences only.
+# Code dependencies are permissive by default; owner-approved exceptions are scoped below.
 # Copyleft (GPL, AGPL, LGPL) is never linked; such tools run only as external oracle processes.
 
 [graph]
@@ -84,3 +84,9 @@ allow = ["OFL-1.1", "Ubuntu-font-1.0"]
 [[licenses.exceptions]]
 crate = "webpki-root-certs"
 allow = ["CDLA-Permissive-2.0"]
+
+# Owner-approved on 2026-10-27: retain the existing unmodified Hunspell-compatible
+# checker on Linux/FreeBSD. NOTICE ships its MPL text and exact source download.
+[[licenses.exceptions]]
+crate = "spellbook@=0.4.2"
+allow = ["MPL-2.0"]
