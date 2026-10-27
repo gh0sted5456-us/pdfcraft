@@ -49,7 +49,7 @@ impl Shelf {
     }
 }
 fn registry_id(ctx: &egui::Context) -> Id {
-    Id::new(("dialog-windows", ctx.viewport_id()))
+    Id::unique(("dialog-windows", ctx.viewport_id()))
 }
 fn registry<R>(ctx: &egui::Context, change: impl FnOnce(&mut Registry) -> R) -> R {
     let id = registry_id(ctx);
@@ -216,7 +216,7 @@ pub(crate) fn chrome(ui: &mut egui::Ui, rect: Rect, key: &str) {
     let t = theme::Tokens::get(&ctx);
     let drag = ui.interact(
         Rect::from_min_max(rect.min, egui::pos2((rect.right() - 92.0).max(rect.left()), rect.bottom())),
-        Id::new((key, "move")),
+        Id::unique((key, "move")),
         egui::Sense::click_and_drag(),
     );
     if drag.double_clicked() {
@@ -273,8 +273,8 @@ pub(crate) fn chrome(ui: &mut egui::Ui, rect: Rect, key: &str) {
     let font = theme::semibold(16.0);
     let shown = widgets::fit_line(&entry.title, title_rect.width(), |text| widgets::text_width(ui, text, &font));
     ui.painter().with_clip_rect(title_rect).text(title_rect.center(), Align2::CENTER_CENTER, shown, font, t.text);
-    let title_response = ui.interact(title_rect, Id::new((key, "title")), egui::Sense::hover()).on_hover_text(&entry.title);
-    title_response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, true, format!("Title: {}", entry.title)));
+    let title_response = ui.interact(title_rect, Id::unique((key, "title")), egui::Sense::hover()).on_hover_text(&entry.title);
+    title_response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, format!("Title: {}", entry.title)));
 }
 pub(crate) fn show<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut egui::Ui) -> R) -> Response {
     render(ctx, id, true, content)
@@ -297,13 +297,13 @@ fn render<R>(ctx: &egui::Context, id: &str, blocking: bool, content: impl FnOnce
     let shelf = registry(ctx, |r| r.entries.iter().any(|e| e.minimized));
     let usable = ctx.content_rect().shrink2(if full { vec2(12.0, 12.0) } else { vec2(36.0, 32.0) });
     let available = (usable.size() - vec2(32.0, 60.0)).max(vec2(1.0, 1.0));
-    let mut modal = widgets::modal(ctx, Id::new(&key));
+    let mut modal = widgets::modal(ctx, Id::unique(&key));
     if shelf {
-        modal = modal.area(egui::Modal::default_area(Id::new(&key)).anchor(Align2::CENTER_CENTER, vec2(0.0, -18.0)));
+        modal = modal.area(egui::Modal::default_area(Id::unique(&key)).anchor(Align2::CENTER_CENTER, vec2(0.0, -18.0)));
     }
     let offset = if full { Vec2::ZERO } else { state.as_ref().map_or(Vec2::ZERO, |e| e.offset) };
     let offset = offset + vec2(0.0, if shelf { -18.0 } else { 0.0 });
-    modal = modal.area(egui::Modal::default_area(Id::new(&key)).anchor(Align2::CENTER_CENTER, offset));
+    modal = modal.area(egui::Modal::default_area(Id::unique(&key)).anchor(Align2::CENTER_CENTER, offset));
     let draw = |ui: &mut egui::Ui| {
         widgets::begin_dialog(ui);
         ui.set_max_size(available);
@@ -340,7 +340,7 @@ fn render<R>(ctx: &egui::Context, id: &str, blocking: bool, content: impl FnOnce
         ui.set_min_width(width);
         chrome(ui, Rect::from_min_size(origin, vec2(width, 28.0)), &key);
         let card = ui.min_rect().expand2(vec2(16.0, 12.0));
-        ctx.data_mut(|d| d.insert_temp(Id::new(id).with("card"), card));
+        ctx.data_mut(|d| d.insert_temp(Id::unique(id).with("card"), card));
         registry(ctx, |r| {
             if let Some(e) = r.entries.iter_mut().find(|e| e.key == key) {
                 e.size = card.size();
@@ -352,7 +352,7 @@ fn render<R>(ctx: &egui::Context, id: &str, blocking: bool, content: impl FnOnce
         let dismissed = out.should_close();
         (out.response, dismissed)
     } else {
-        let response = egui::Area::new(Id::new(&key))
+        let response = egui::Area::new(Id::unique(&key))
             .order(egui::Order::Foreground)
             .anchor(Align2::CENTER_CENTER, offset)
             .show(ctx, |ui| {
@@ -363,7 +363,7 @@ fn render<R>(ctx: &egui::Context, id: &str, blocking: bool, content: impl FnOnce
         (response, dismissed)
     };
     let caption = registry(ctx, |r| r.entries.iter().find(|e| e.key == key).map(|e| e.title.clone())).unwrap_or_else(|| default_title(id).into());
-    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Window, true, &caption));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Window, true, &caption));
     let close = dismissed || registry(ctx, |r| r.entries.iter().any(|e| e.key == key && e.close));
     if close {
         remove(ctx, &key);
@@ -610,7 +610,7 @@ pub(crate) fn taskbar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                                 ui.horizontal(|ui| {
                                     let label = format!("Taskbar: {} {}", if entry.minimized { "Restore" } else { "Minimize" }, entry.title);
                                     let response = ui.add_sized([180.0, 24.0], egui::Button::new(&entry.title).selected(!entry.minimized).truncate());
-                                    response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &label));
+                                    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &label));
                                     if response.on_hover_text(&label).clicked() {
                                         action = Some((entry.key.clone(), entry.minimized));
                                     }

@@ -1,3 +1,11 @@
+> **Last updated:** 2026-10-27 · Owner-approved, version-scoped spellbook 0.4.2 license exception retains Linux/FreeBSD spelling; packaged NOTICE carries the MPL text and exact source links. Final platform CI qualification remains required before main promotion. Estimates unchanged.
+
+> **Last updated:** 2026-10-27 · Personal integration qualification: remove obsolete milestone UI for implemented tools, deduplicate shared menu commands, restore accessible dialog controls and reproducible OCR downloads. Windows full CI, ARM64 native install/run, FreeBSD, Nix and Linux printer checks passed. Linux passed 5,580 tests, then exposed desktop AI account calls in the full WASM gate; target guards now pass all 32 portable crates locally. Per-target dependency audits isolate the existing Linux/FreeBSD spellchecker license decision; main promotion remains pending. Estimates unchanged.
+
+> **Last updated:** 2026-10-27 · Personal egui 0.37 candidate: fix duplicate text when selecting words in an unchanged paragraph, preserving readable original ink, selection highlights, typed drafts and undo. The rendering regression failed before the fix; 187 editing tests passed (4 ignored), with strict lint and web/WASM checks. The owner confirmed native group selection, movement and arrow nudging; main and the installed build remain unchanged. Estimates unchanged.
+
+> **Last updated:** 2026-10-27 · Personal fork candidate on `codex/egui-037-integration`: integrate upstream egui 0.37, shared menus and the module-layout merge through `1dd2737b`, retaining the personal features and manual updater. 5,033 tests passed (25 ignored) across 20 affected packages; strict Clippy, formatting, assets, layering, parity and web/WASM compilation passed. Windows header bounds, repeated normal restart sizes, Assistant theme retention and organizer lock controls passed native checks. The owner confirmed native group dragging and arrow-key nudging in the synthetic preview; Linux/macOS runtime and hardware CAC checks remain open. Fork main and the installed build are unchanged. Estimates unchanged.
+
 > **Last updated:** 2026-10-27 · Personal fork: integrate upstream vector/Type 3 redaction cleanup, eleven dependency updates and nextest 0.9.150. Preserve Type 3 glyphs used by surviving annotation appearances; exercise print controls through the scroll viewport with a controlled empty printer list. Larger egui/menu/updater migrations are deferred. Estimates unchanged.
 
 > **Last updated:** 2026-10-26 · Personal fork: Preferences Updates checks the fork release feed, streams and verifies Windows x64 installers, and activates only after documents and other windows are closed. A guarded fork-only workflow packages desktop and printer installers after successful main CI; upstream merging remains deliberate. Estimates unchanged.
@@ -34,7 +42,7 @@
 
 **Stage: alpha** · next: beta, ~25% (ready for real work 50% → 75%) and ~400–700 h away
 
-> **Last reviewed:** 2026-10-23 | **Last updated:** 2026-10-23 | **Change:** minor (M8, #3205 follow-up: labelled Italian international phone numbers with a slash match whole; estimates unchanged)
+> **Last reviewed:** 2026-10-25 | **Last updated:** 2026-10-25 | **Change:** minor (M14 localization current state: Arabic logical catalog, explicit RTL label direction and mirrored stock chrome; native/browser RTL workflows unqualified. Native release Hans face via LXGW WenKai Lite; estimates unchanged)
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** minor (M7, #2636 partial: pasting added text boxes and images in the engine and through `content_copy`; estimates unchanged)
 > **Last reviewed:** 2026-10-23 · **Last updated:** 2026-10-23 · **Change:** minor (M11: image optimization accounts for page-local UserUnit; estimates unchanged)
 > **Last reviewed:** 2026-10-23 | **Last updated:** 2026-10-23 | **Change:** minor (M10: Word table cells use the widths of their own grid columns; estimates unchanged)
@@ -197,10 +205,10 @@ Portuguese and Spanish vs the current union). Detail and script notes: [localiza
 | Language | Code | Strings | Status |
 |---|---|---|---|
 | English | `en` | 100% | full |
-| Simplified Chinese | `zh-hans` | 97.4% | partial (no Hans UI face in releases, #826) |
+| Simplified Chinese | `zh-hans` | 97.4% | partial (native LXGW WenKai Lite; no Hans face in the web build, #826) |
 | Spanish | `es` | 100% of current union | partial (dialogs / tooltips; no help) |
 | Hindi | `hi` | 0% | none |
-| Arabic | `ar` | 100% | partial (layout not mirrored) |
+| Arabic | `ar` | 100% | partial (logical catalog, explicit RTL labels, mirrored stock chrome; native/browser/IME workflows unqualified) |
 | French | `fr` | 99.3% | partial |
 | Portuguese (Brazil) | `pt-br` | 100% of current union | partial |
 | Indonesian | `id` | 0% | none |
@@ -220,7 +228,7 @@ Ranked; detail and the full milestone table in [docs/roadmap.md](docs/roadmap.md
 | Rank | Milestone | Estimate (h) |
 |---|---|---|
 | 0 | Convert and share: Create PDF from Office, Word export that keeps layout (#773) | 32–55 |
-| 1 | Backlog and platform: crash and wrong-result reports, Chinese UI face (#826) | 50–90 |
+| 1 | Backlog and platform: crash and wrong-result reports, Chinese web UI face (#826) | 50–90 |
 | 2 | Fidelity harness against Acrobat and the renderer decision (M2; owner decision on #841) | 110–190 |
 | 3 | Editing existing content (M7) | 100–180 |
 | 4 | OCR languages and Office export/import (M10) | 95–175 |
@@ -727,6 +735,8 @@ Newest first: the date, what moved, and the new overall estimate.
 
 ## Revision history
 
+**2026-10-25 · minor:** M14 localization current state: Arabic catalogs stay logical, Arabic/Kurdish labels take an explicit RTL direction, and stock chrome mirrors; native/browser RTL input, IME and complex workflows remain unqualified. Native Simplified Chinese uses LXGW WenKai Lite; the web build has no Hans face. Estimates unchanged.
+
 **2026-10-15 · minor:** M14/#2383 candidate: GPU device requests clamp unsupported limits while retaining the adapter texture extent. Synthetic V3D/downlevel regressions and Windows GPU-required tests pass; Raspberry Pi hardware remains unverified. Estimates unchanged.
 
 | Date | Change | Summary |
@@ -847,3 +857,5 @@ raster fallback. The personal branch adds an experimental native printer. See [s
 | 2026-10-23 | minor | M14: console-free Windows app and printer setup; redundant completion popup removed; PE checks reject the prior console binaries. Estimates unchanged. |
 | 2026-10-23 | minor | M10 experimental XPS conversion core preserves supported text, vectors and pictures; native printer remains excluded from personal 0.13.1. Estimates unchanged. |
 - **2026-10-24 (personal M10):** Paper and print preferences with persistent physical dimensions, business-card sizes and manual actual-size calibration; Custom page creation and a unified Export to picker reuse engine creation and Office/text/image writers. See `docs/pdf-templates.md` for format and fidelity limits.
+
+- **2026-10-27 (personal M14 candidate):** egui 0.37, shared menus and upstream module layout integrated through `1dd2737b`; 5,033 tests, strict checks and Windows header/theme/lock smoke checks pass. Main unchanged; native drag and cross-platform runtime remain unqualified. Estimates unchanged.

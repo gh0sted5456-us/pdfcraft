@@ -1,5 +1,5 @@
 # cargo-deny policy (M0.4). Run with `cargo xtask deny`; part of `cargo xtask ci`.
-# Code dependencies follow the same rule as assets (AGENTS.md): permissive licences only.
+# Code dependencies are permissive by default; owner-approved exceptions are scoped below.
 # Copyleft (GPL, AGPL, LGPL) is never linked; such tools run only as external oracle processes.
 
 [graph]
@@ -34,11 +34,25 @@ unknown-registry = "deny"
 unknown-git = "deny"
 # Shared UI components and spooler; Cargo.toml pins the immutable revision. craft-print pins
 # storytold's winprint fork (Windows printing, #1107) to an immutable revision of its own.
-allow-git = ["https://github.com/storytold/craft-libs", "https://github.com/storytold/winprint.rs"]
+allow-git = [
+    "https://github.com/storytold/craft-libs",
+    "https://github.com/storytold/winprint.rs",
+    # The reviewed egui 0.37 and winit 0.30.13 fork revisions (immutable pins in Cargo.toml).
+    "https://github.com/storytold/egui",
+    "https://github.com/storytold/winit",
+]
 
 [advisories]
 yanked = "warn"
 ignore = [
+    # crypto-bigint 0.5.5 reaches us only through openidconnect 4's public-key JWT
+    # verification. The public client has no client secret or private signing key
+    # (platform/assistant/auth.rs); PDF signing uses the fixed 0.7.6 chain. Revisit
+    # when openidconnect updates its elliptic-curve dependencies.
+    { id = "RUSTSEC-2026-0387", reason = "openidconnect public-key verification only; private PDF signing uses crypto-bigint >=0.7.6" },
+    # ab_glyph parses only the committed Inter font to draw synthetic OCR test
+    # fixtures (engine/src/tests.rs::inter_scan). Product text uses skrifa.
+    { id = "RUSTSEC-2026-0192", reason = "unmaintained parser in dev-only OCR fixture rasterizer; never parses user fonts in the application" },
     # Marvin (RSA private-key timing side channel, no fixed `rsa` release). pdfcraft-sign uses
     # `rsa` only for public-key signature verification, which the advisory does not affect; RSA
     # private-key operations use aws-lc-rs on native targets and are refused in the browser
@@ -70,3 +84,9 @@ allow = ["OFL-1.1", "Ubuntu-font-1.0"]
 [[licenses.exceptions]]
 crate = "webpki-root-certs"
 allow = ["CDLA-Permissive-2.0"]
+
+# Owner-approved on 2026-10-27: retain the existing unmodified Hunspell-compatible
+# checker on Linux/FreeBSD. NOTICE ships its MPL text and exact source download.
+[[licenses.exceptions]]
+crate = "spellbook@=0.4.2"
+allow = ["MPL-2.0"]

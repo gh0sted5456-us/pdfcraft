@@ -16,11 +16,19 @@ jobs:
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-      - name: Install Linux app and CUPS test dependencies
+      - name: Prefer Ubuntu's HTTPS archive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cups cups-client cups-ppdc poppler-utils libxkbcommon-dev libwayland-dev libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libgtk-3-dev
-          sudo systemctl start cups
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          fi
+      - name: Install Linux app and CUPS test dependencies
+        uses: storytold/craft-common-actions/actions/install-apt-packages@86bc2ce420c548d7b171874b67814217532a1648
+        with:
+          packages: >-
+            cups cups-client cups-ppdc poppler-utils libxkbcommon-dev libwayland-dev
+            libx11-dev libxrandr-dev libxi-dev libgl1-mesa-dev libgtk-3-dev
+      - name: Start CUPS
+        run: sudo systemctl start cups
       - name: Build the Linux app and printer
         run: cargo build --locked -p pdfcraft -p pdfcraft-cli -p pdfcraft-printer -j2
       - name: Test the printer and converter

@@ -172,7 +172,22 @@ pub fn deny(_: &[String]) -> anyhow::Result<()> {
         eprintln!("deny: SKIPPED, cargo-deny is not installed (cargo install cargo-deny --locked)");
         return Ok(());
     }
-    run_args(&["deny", "--log-level", "error", "check"])
+    // Audit each build separately: the union graph invents paths from Windows-only
+    // wry through its Android/Linux dependencies, which the app never builds.
+    for target in [
+        "x86_64-pc-windows-msvc",
+        "aarch64-pc-windows-msvc",
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
+        "x86_64-unknown-freebsd",
+        "aarch64-unknown-freebsd",
+        "wasm32-unknown-unknown",
+    ] {
+        run_args(&["deny", "--target", target, "--log-level", "error", "check"])?;
+    }
+    Ok(())
 }
 
 fn run_args(args: &[&str]) -> anyhow::Result<()> {

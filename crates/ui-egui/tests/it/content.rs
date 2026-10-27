@@ -410,6 +410,9 @@ fn a_picture_on_the_clipboard_is_pasted_onto_the_page() {
 /// written to the page as `?` (or lost).
 #[test]
 fn text_the_standard_fonts_cant_draw_stays_in_the_editor() {
+    if crate::support::skip_without_glyphs("text_the_standard_fonts_cant_draw_stays_in_the_editor", "en", "Hello 世界") {
+        return;
+    }
     let _gpu = gpu();
     let mut h = harness();
     assert!(h.state_mut().execute("edit.text"));
@@ -447,6 +450,9 @@ fn text_the_standard_fonts_cant_draw_stays_in_the_editor() {
 /// is left blocking Save out of sight.
 #[test]
 fn a_kept_draft_goes_with_its_deleted_page() {
+    if crate::support::skip_without_glyphs("a_kept_draft_goes_with_its_deleted_page", "en", "日本語") {
+        return;
+    }
     let mut h = harness();
     assert!(h.state_mut().apply_edit(pdfcraft_engine::Edit::InsertBlankPage { at: 1, width: 612.0, height: 792.0 }));
     h.run_steps(2);
@@ -879,6 +885,8 @@ fn group_tool_finishes_added_text_and_keeps_a_refused_draft() {
     h.state_mut().execute("edit.text");
     h.run_steps(3);
     click(&mut h, point);
+    // This case deliberately draws an unsupported character while preserving the refused draft.
+    h.ctx.set_missing_glyph_policy(egui::MissingGlyphPolicy::Tofu);
     h.state_mut().views[0].content.draft.as_mut().unwrap().text = "Keep unsupported \u{10FFFF}".into();
     let generation = h.state().session.get(h.state().views[0].id).unwrap().edit_generation();
     assert!(h.state_mut().set_option("quick", "group-select").is_err());

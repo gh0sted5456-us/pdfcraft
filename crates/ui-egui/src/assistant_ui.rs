@@ -318,15 +318,19 @@ fn connections(ui: &mut egui::Ui, d: &mut Draft) {
                         .find(|p| p.client_id == d.settings.account)
                         .map_or("Choose an account", |p| if p.email.is_empty() { p.subject.as_str() } else { p.email.as_str() });
                     let before = d.settings.account.clone();
-                    egui::ComboBox::from_id_salt("assistant-account").selected_text(selected).show_ui(ui, |ui| {
-                        for p in &d.profiles {
-                            ui.selectable_value(
-                                &mut d.settings.account,
-                                p.client_id.clone(),
-                                if p.email.is_empty() { p.subject.as_str() } else { p.email.as_str() },
-                            );
-                        }
-                    });
+                    egui::ComboBox::from_id_salt("assistant-account")
+                        .selected_text(selected)
+                        .show_ui(ui, |ui| {
+                            for p in &d.profiles {
+                                ui.selectable_value(
+                                    &mut d.settings.account,
+                                    p.client_id.clone(),
+                                    if p.email.is_empty() { p.subject.as_str() } else { p.email.as_str() },
+                                );
+                            }
+                        })
+                        .response
+                        .accessible_name("AI account");
                     if before != d.settings.account {
                         d.models.clear();
                         d.settings.model.clear();
@@ -457,11 +461,16 @@ fn connections(ui: &mut egui::Ui, d: &mut Draft) {
                 d.connect(&ctx, move |_, _| Ok(Update::Models(platform::models(p, &account)?)));
             }
             if !d.models.is_empty() {
-                egui::ComboBox::from_id_salt("assistant-model").selected_text("Choose a model").width(ui.available_width()).show_ui(ui, |ui| {
-                    for model in &d.models {
-                        ui.selectable_value(&mut d.settings.model, model.id.clone(), &model.label);
-                    }
-                });
+                egui::ComboBox::from_id_salt("assistant-model")
+                    .selected_text("Choose a model")
+                    .width(ui.available_width())
+                    .show_ui(ui, |ui| {
+                        for model in &d.models {
+                            ui.selectable_value(&mut d.settings.model, model.id.clone(), &model.label);
+                        }
+                    })
+                    .response
+                    .accessible_name("AI model");
             }
         }
     }
@@ -476,11 +485,15 @@ fn microsoft_connection(ui: &mut egui::Ui, d: &mut Draft, ctx: &egui::Context) {
     ui.add(widgets::line(&mut d.settings.microsoft.client_id).char_limit(36).desired_width(ui.available_width())).labelled_by(label.id);
     let label = ui.label("Directory (tenant) ID");
     ui.add(widgets::line(&mut d.settings.microsoft.tenant_id).char_limit(36).desired_width(ui.available_width())).labelled_by(label.id);
-    egui::ComboBox::from_id_salt("copilot-cloud").selected_text(d.settings.microsoft.cloud.label()).show_ui(ui, |ui| {
-        for cloud in [platform::CopilotCloud::Global, platform::CopilotCloud::Government, platform::CopilotCloud::Defense] {
-            ui.selectable_value(&mut d.settings.microsoft.cloud, cloud, cloud.label());
-        }
-    });
+    egui::ComboBox::from_id_salt("copilot-cloud")
+        .selected_text(d.settings.microsoft.cloud.label())
+        .show_ui(ui, |ui| {
+            for cloud in [platform::CopilotCloud::Global, platform::CopilotCloud::Government, platform::CopilotCloud::Defense] {
+                ui.selectable_value(&mut d.settings.microsoft.cloud, cloud, cloud.label());
+            }
+        })
+        .response
+        .accessible_name("Microsoft cloud");
     ui.horizontal_wrapped(|ui| {
         if widgets::dialog_button(ui, "Continue with Microsoft 365", widgets::DialogAction::Confirm).clicked() {
             let config = d.settings.microsoft.clone();
@@ -565,18 +578,23 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     let mut external = None;
     ui.horizontal_wrapped(|ui| {
         ui.add_enabled_ui(d.job.is_none(), |ui| {
-            egui::ComboBox::from_id_salt("assistant-provider").selected_text(provider_name(d.settings.provider)).width(220.0).show_ui(ui, |ui| {
-                for p in [
-                    Provider::ChatGpt,
-                    Provider::ClaudeSubscription,
-                    Provider::CopilotPersonal,
-                    Provider::CopilotWork,
-                    Provider::OpenAi,
-                    Provider::Anthropic,
-                ] {
-                    ui.selectable_value(&mut d.settings.provider, p, provider_name(p));
-                }
-            });
+            egui::ComboBox::from_id_salt("assistant-provider")
+                .selected_text(provider_name(d.settings.provider))
+                .width(220.0)
+                .show_ui(ui, |ui| {
+                    for p in [
+                        Provider::ChatGpt,
+                        Provider::ClaudeSubscription,
+                        Provider::CopilotPersonal,
+                        Provider::CopilotWork,
+                        Provider::OpenAi,
+                        Provider::Anthropic,
+                    ] {
+                        ui.selectable_value(&mut d.settings.provider, p, provider_name(p));
+                    }
+                })
+                .response
+                .accessible_name("AI connection");
         });
         ui.label(
             egui::RichText::new(if browser_mode(d) {
@@ -795,7 +813,9 @@ fn context_pane(
             for (value, label) in [(0, "Current page"), (1, "All pages"), (2, "Selected pages")] {
                 ui.selectable_value(&mut d.scope, value, label);
             }
-        });
+        })
+        .response
+        .accessible_name("Document pages");
     if d.context_enabled {
         if let Err(error) = allowed {
             ui.label(egui::RichText::new(error).small().color(t.text_muted));
@@ -990,7 +1010,7 @@ mod tests {
                     });
                     h.run_steps(8);
                     assert!(!crate::dialog_windows::maximized(&h.ctx, "dialog"));
-                    let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+                    let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::unique("dialog").with("card"))).unwrap();
                     assert!(card.width() < size.x && card.height() < size.y, "chat stays inside a popup: {card:?}");
                     assert!(h.ctx.memory(|m| m.top_modal_layer().is_none()), "chat must not add a full-window dimming layer");
                     h.get_by_label("Minimize AI Assistant");

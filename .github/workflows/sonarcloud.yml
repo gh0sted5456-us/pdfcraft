@@ -18,5 +18,5 @@ jobs:
   sonarcloud:
     if: github.repository == 'storytold/pdfcraft'
     # Tracked at @main so org-wide CI improvements propagate without PR churn.
-    uses: storytold/craft-common-actions/.github/workflows/sonarcloud.yml@main
+    uses: storytold/craft-common-actions/.github/workflows/sonarcloud.yml@86bc2ce420c548d7b171874b67814217532a1648
     secrets: inherit

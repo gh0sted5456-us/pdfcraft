@@ -36,8 +36,9 @@ fn fixture_with_info(info: Option<&str>) -> Vec<u8> {
     out
 }
 
+/// Return the rectangle recorded for a dialog card, failing the test when the card is missing.
 fn card(h: &Harness<'_, PdfCraftApp>, id: &str) -> egui::Rect {
-    h.ctx.data(|d| d.get_temp(egui::Id::new(id).with("card"))).unwrap_or_else(|| panic!("missing dialog card {id}"))
+    h.ctx.data(|d| d.get_temp(egui::Id::unique(id).with("card"))).unwrap_or_else(|| panic!("missing dialog card {id}"))
 }
 
 fn protected() -> Vec<u8> {
@@ -137,6 +138,9 @@ fn shared_dialogs_remain_centered_and_fit_small_and_large_windows() {
                 "action-wizard",
                 "pdfa",
                 "signature",
+                "signature-draw",
+                "signature-image",
+                "signature-scan",
                 "optimize",
                 "number-pages",
                 "print-production",
@@ -148,70 +152,87 @@ fn shared_dialogs_remain_centered_and_fit_small_and_large_windows() {
                 "save-template",
                 "word-count",
             ] {
-                let mut h = Harness::builder().with_size(size).build_eframe(move |_| {
-                    let mut app = PdfCraftApp::new();
-                    app.set_option("language", "en").unwrap();
-                    app.set_option("theme", theme).unwrap();
-                    app.open_bytes("Synthetic.pdf", None, fixture()).unwrap();
-                    match dialog {
-                        "print" => app.dialog = Some(pdfcraft_ui_egui::Dialog::Print),
-                        "custom-page" => {
-                            assert!(app.execute("create.custom"));
+                eprintln!("dialog layout: {dialog}, {theme}, {size:?}");
+                let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let mut h = Harness::builder().with_size(size).build_eframe(move |_| {
+                        let mut app = PdfCraftApp::new();
+                        app.set_option("language", "en").unwrap();
+                        app.set_option("theme", theme).unwrap();
+                        app.open_bytes("Synthetic.pdf", None, fixture()).unwrap();
+                        match dialog {
+                            "print" => app.dialog = Some(pdfcraft_ui_egui::Dialog::Print),
+                            "custom-page" => {
+                                assert!(app.execute("create.custom"));
+                            }
+                            "export-to" => {
+                                assert!(app.execute("export.choose"));
+                            }
+                            "save-template" => {
+                                assert!(app.execute("create.save_template"));
+                            }
+                            "signature-draw" | "signature-image" | "signature-scan" => {
+                                app.set_option("dialog", "signature").unwrap();
+                                app.signature_draft.drawing = dialog == "signature-draw";
+                                app.signature_draft.image_mode = dialog == "signature-image";
+                                app.signature_draft.scan_mode = dialog == "signature-scan";
+                            }
+                            _ => app.set_option("dialog", dialog).unwrap(),
                         }
-                        "export-to" => {
-                            assert!(app.execute("export.choose"));
+                        app
+                    });
+                    h.run_steps(8);
+                    let card = card(&h, "dialog");
+                    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, size);
+                    if !(screen.contains_rect(card)) {
+                        failures.push(format!("{dialog} {theme} {size:?}: {card:?}"));
+                    }
+                    if (card.center() - screen.center()).length().partial_cmp(&2.0) != Some(std::cmp::Ordering::Less) {
+                        failures.push(format!("{dialog} off centre: {card:?}"));
+                    }
+                    let actions = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::unique("dialog-action-bounds")));
+                    if let Some(actions) = actions {
+                        if !(card.contains_rect(actions)) {
+                            failures.push(format!("{dialog} {theme} {size:?}: footer {actions:?} outside {card:?}"));
                         }
-                        "save-template" => {
-                            assert!(app.execute("create.save_template"));
-                        }
-                        _ => app.set_option("dialog", dialog).unwrap(),
-                    }
-                    app
-                });
-                h.run_steps(8);
-                let card = card(&h, "dialog");
-                let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, size);
-                if !(screen.contains_rect(card)) {
-                    failures.push(format!("{dialog} {theme} {size:?}: {card:?}"));
-                }
-                if (card.center() - screen.center()).length().partial_cmp(&2.0) != Some(std::cmp::Ordering::Less) {
-                    failures.push(format!("{dialog} off centre: {card:?}"));
-                }
-                let actions = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog-action-bounds")));
-                if let Some(actions) = actions {
-                    if !(card.contains_rect(actions)) {
-                        failures.push(format!("{dialog} {theme} {size:?}: footer {actions:?} outside {card:?}"));
-                    }
-                    if (actions.center().x - card.center().x).abs().partial_cmp(&2.0) != Some(std::cmp::Ordering::Less) {
-                        failures.push(format!("{dialog} {theme}: footer {actions:?} off center in {card:?}"));
-                    }
-                }
-                if dialog == "templates" {
-                    for label in ["Custom page...", "Import template...", "Export template..."] {
-                        if !(card.contains_rect(h.get_by_label(label).rect())) {
-                            failures.push(format!("{label} clipped in {size:?}"));
+                        if (actions.center().x - card.center().x).abs().partial_cmp(&2.0) != Some(std::cmp::Ordering::Less) {
+                            failures.push(format!("{dialog} {theme}: footer {actions:?} off center in {card:?}"));
                         }
                     }
-                }
-                let title = match dialog {
-                    "properties" => Some("Document Properties"),
-                    "js-console" => Some("JavaScript Console"),
-                    "document-js" => Some("Document JavaScripts"),
-                    "document-actions" => Some("Document actions"),
-                    "print-production" | "output-inspection" => Some("Print Production"),
-                    _ => None,
-                };
-                if let Some(title) = title
-                    && (h.get_by_label(&format!("Title: {title}")).rect().center().x - card.center().x).abs().partial_cmp(&2.0)
-                        != Some(std::cmp::Ordering::Less)
-                {
-                    failures.push(format!("{dialog} title is off center"));
-                }
+                    if dialog == "templates" {
+                        for label in ["Custom page...", "Import template...", "Export template..."] {
+                            if !(card.contains_rect(h.get_by_label(label).rect())) {
+                                failures.push(format!("{label} clipped in {size:?}"));
+                            }
+                        }
+                    }
+                    let title = match dialog {
+                        "properties" => Some("Document Properties"),
+                        "js-console" => Some("JavaScript Console"),
+                        "document-js" => Some("Document JavaScripts"),
+                        "document-actions" => Some("Document actions"),
+                        "print-production" | "output-inspection" => Some("Print Production"),
+                        _ => None,
+                    };
+                    if let Some(title) = title
+                        && (h.get_by_label(&format!("Title: {title}")).rect().center().x - card.center().x).abs().partial_cmp(&2.0)
+                            != Some(std::cmp::Ordering::Less)
+                    {
+                        failures.push(format!("{dialog} title is off center"));
+                    }
 
-                if (size.x < 800.0 || matches!(dialog, "print-production" | "output-inspection" | "document-actions"))
-                    && let Ok(dir) = std::env::var("PDFCRAFT_POPUP_SHOTS")
-                {
-                    h.render().unwrap().save(format!("{dir}/{dialog}-{theme}-{}.png", size.x)).unwrap();
+                    if (size.x < 800.0 || matches!(dialog, "print-production" | "output-inspection" | "document-actions"))
+                        && let Ok(dir) = std::env::var("PDFCRAFT_POPUP_SHOTS")
+                    {
+                        h.render().unwrap().save(format!("{dir}/{dialog}-{theme}-{}.png", size.x)).unwrap();
+                    }
+                }));
+                if let Err(error) = result {
+                    let message = error
+                        .downcast_ref::<String>()
+                        .map(String::as_str)
+                        .or_else(|| error.downcast_ref::<&str>().copied())
+                        .unwrap_or("dialog audit panicked");
+                    failures.push(format!("{dialog} {theme} {size:?}: {message}"));
                 }
             }
         }
@@ -317,6 +338,7 @@ fn space_audit_tab_measures_again_after_an_edit() {
     assert!(h.query_all_by_label("Bookmarks").any(|n| card.contains_rect(n.rect())), "a Bookmarks row in {card:?}");
 }
 
+/// Check that a dialog's Close button follows the content when switching from a taller tab to a shorter one.
 #[test]
 fn dialog_buttons_follow_the_content_after_a_taller_tab() {
     use pdfcraft_ui_egui::{Dialog, PropsTab};
@@ -328,6 +350,10 @@ fn dialog_buttons_follow_the_content_after_a_taller_tab() {
         app
     });
     h.run_steps(4);
+    for name in ["Navigation tab", "Page layout", "Magnification"] {
+        h.get_by_role_and_label(Role::ComboBox, name);
+    }
+    h.get_by_role_and_label(Role::SpinButton, "Open to page");
     h.state_mut().dialog = Some(Dialog::Properties(PropsTab::Description));
     h.run_steps(4);
     // The card shrinks back to the shorter tab: Close sits under the last row, not halfway

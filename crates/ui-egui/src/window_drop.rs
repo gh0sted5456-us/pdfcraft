@@ -66,7 +66,7 @@ struct State {
 }
 /// Use one shared egui context key for cross-viewport drag geometry.
 fn key() -> egui::Id {
-    egui::Id::new("pdfcraft-window-drop-state")
+    egui::Id::unique("pdfcraft-window-drop-state")
 }
 /// Read the current drag snapshot, defaulting to an empty registry before the first frame.
 fn state(ctx: &egui::Context) -> State {

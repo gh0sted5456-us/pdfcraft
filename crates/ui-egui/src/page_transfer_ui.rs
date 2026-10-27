@@ -12,7 +12,7 @@ struct Drag {
 }
 
 fn key() -> egui::Id {
-    egui::Id::new("cross-document-pages")
+    egui::Id::unique("cross-document-pages")
 }
 
 pub(crate) fn incoming(ctx: &egui::Context, target: DocId) -> bool {

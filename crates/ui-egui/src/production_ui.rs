@@ -56,8 +56,8 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     let pages = app.session.get(id).map_or(1, |d| d.info.pages.len()).max(1);
     let mut refresh = false;
     ui.horizontal_wrapped(|ui| {
-        ui.label("Page");
-        refresh |= ui.add(egui::DragValue::new(&mut page).range(1..=pages)).changed();
+        let label = ui.label("Page");
+        refresh |= ui.add(egui::DragValue::new(&mut page).range(1..=pages)).labelled_by(label.id).changed();
         ui.label(format!("of {pages}"));
         refresh |= widgets::dialog_button(ui, "Refresh checks", widgets::DialogAction::Back).clicked();
     });

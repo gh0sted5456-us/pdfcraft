@@ -4,7 +4,13 @@
 .EXAMPLE
   pwsh packaging/windows/test-msi.ps1 dist/release/pdfcraft-0.2.1-windows-x64.msi
 #>
-param([Parameter(Mandatory)] [string] $Path)
+param(
+  [Parameter(Mandatory)] [string] $Path,
+  # 1 when package.ps1 staged craft-fonts OFL notices, 0 when the binaries embed no craft-fonts.
+  # -1 (the default) skips the check when the MSI is inspected by hand.
+  [int] $CraftFontLicences = -1,
+  [string] $ExpectedFontNoticesDirectory
+)
 $ErrorActionPreference = 'Stop'
 $Installer = New-Object -ComObject WindowsInstaller.Installer
 $Database = $Installer.OpenDatabase((Resolve-Path -LiteralPath $Path).Path, 0)

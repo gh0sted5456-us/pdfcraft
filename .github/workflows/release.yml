@@ -20,12 +20,12 @@ concurrency:
 jobs:
   release:
     if: github.repository == 'storytold/pdfcraft'
-    # Intentionally tracked at @main (not SHA-pinned) so org-wide CI improvements, security fixes, and build optimizations propagate without PR churn across all craftapp repos.
-    uses: storytold/craft-common-actions/.github/workflows/release.yml@main
+    # Pin shared workflows; review suite-wide changes with each fork integration.
+    uses: storytold/craft-common-actions/.github/workflows/release.yml@86bc2ce420c548d7b171874b67814217532a1648
     with:
       app-name: pdfcraft
       app-title: PdfCraft
-      craft-fonts-ref: 3d9ab3a132ed0eff457e424226a435a901da30d3
+      craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83
       version: ${{ inputs.version }}
     secrets:
       APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}

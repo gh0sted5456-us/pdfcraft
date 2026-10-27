@@ -41,20 +41,28 @@ impl Paper {
 pub(crate) fn controls(ui: &mut egui::Ui, paper: &mut Paper, unit: &mut Unit) {
     ui.horizontal_wrapped(|ui| {
         ui.label("Paper size");
-        egui::ComboBox::from_id_salt("physical-paper").selected_text(tl!(paper.label())).show_ui(ui, |ui| {
-            for name in Paper::names() {
-                if ui.selectable_label(paper.label() == name, tl!(name)).clicked()
-                    && let Some(value) = Paper::preset(name)
-                {
-                    *paper = value;
+        egui::ComboBox::from_id_salt("physical-paper")
+            .selected_text(tl!(paper.label()))
+            .show_ui(ui, |ui| {
+                for name in Paper::names() {
+                    if ui.selectable_label(paper.label() == name, tl!(name)).clicked()
+                        && let Some(value) = Paper::preset(name)
+                    {
+                        *paper = value;
+                    }
                 }
-            }
-        });
-        egui::ComboBox::from_id_salt("physical-units").selected_text(unit.label()).show_ui(ui, |ui| {
-            for value in Unit::ALL {
-                ui.selectable_value(unit, value, value.label());
-            }
-        });
+            })
+            .response
+            .accessible_name(tl!("Paper size"));
+        egui::ComboBox::from_id_salt("physical-units")
+            .selected_text(unit.label())
+            .show_ui(ui, |ui| {
+                for value in Unit::ALL {
+                    ui.selectable_value(unit, value, value.label());
+                }
+            })
+            .response
+            .accessible_name(tl!("Units"));
     });
     egui::Grid::new("physical-dimensions").num_columns(2).show(ui, |ui| {
         for (label, side) in [("Width", &mut paper.width), ("Height", &mut paper.height)] {
@@ -96,11 +104,15 @@ pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     ui.horizontal_wrapped(|ui| {
         ui.label("Default print paper");
         let label = pdfcraft_engine::print::PAPERS.get(app.print_draft.paper).map_or("US Letter", |p| p.0);
-        egui::ComboBox::from_id_salt("default-print-paper").selected_text(tl!(label)).show_ui(ui, |ui| {
-            for (i, (name, _)) in pdfcraft_engine::print::PAPERS.iter().enumerate() {
-                ui.selectable_value(&mut app.print_draft.paper, i, tl!(*name));
-            }
-        });
+        egui::ComboBox::from_id_salt("default-print-paper")
+            .selected_text(tl!(label))
+            .show_ui(ui, |ui| {
+                for (i, (name, _)) in pdfcraft_engine::print::PAPERS.iter().enumerate() {
+                    ui.selectable_value(&mut app.print_draft.paper, i, tl!(*name));
+                }
+            })
+            .response
+            .accessible_name(tl!("Default paper size"));
     });
     ui.label("Actual size in Print preserves physical dimensions. Fit and Shrink can change them; the printer must support the selected paper.");
     widgets::section_title(ui, "Calibrate actual-size viewing");

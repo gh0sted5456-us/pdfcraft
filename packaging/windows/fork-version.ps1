@@ -10,6 +10,8 @@ $Tags=gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --paginate --j
 if ($LASTEXITCODE -ne 0) { throw 'Could not read fork releases' }
 foreach ($Latest in @($Tags)) {
   if (-not $Latest -or $Latest -eq 'null') { continue }
+  # Versioned OCR inputs are build dependencies, not installable application releases.
+  if ($Latest -cmatch '^build-inputs-v[1-9][0-9]*$') { continue }
   if ($Latest -notmatch '^(?:fork-)?v([0-9]+)\.([0-9]+)\.([0-9]+)$') { throw 'A fork release has a nonnumeric version tag' }
   if ([int]$Matches[1] -gt $Major -or ([int]$Matches[1] -eq $Major -and [int]$Matches[2] -gt $Minor)) { throw 'Source version is older than the latest release series' }
   if ([int]$Matches[1] -eq $Major -and [int]$Matches[2] -eq $Minor) { $Patch=[Math]::Max($Patch,[int]$Matches[3]) }

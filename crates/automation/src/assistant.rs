@@ -11,6 +11,7 @@ fn provider(a: &Args) -> Result<Provider> {
     Provider::parse(a.str("provider")?).map_err(bad)
 }
 impl Automation {
+    #[cfg(not(target_arch = "wasm32"))]
     fn ai_network(&self) -> Result<()> {
         if self.network {
             Ok(())
@@ -44,6 +45,7 @@ impl Automation {
         let text = source.prepare(|| false).map_err(failed)?;
         Ok(json!({"text":text,"pages":pages.iter().map(|p|p.saturating_add(1)).collect::<Vec<_>>(),"sent":false}))
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn ai_assist(&mut self, a: &Args) -> Result<Value> {
         self.ai_network()?;
         let pages = self.ai_pages(a)?;
@@ -85,6 +87,7 @@ impl Automation {
             json!({"url":url,"text":format!("{}\n\n{prompt}",assistant::INSTRUCTIONS),"sent":false,"next":"Review, then explicitly paste into your provider chat. No file access or automatic website submission."}),
         )
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn ai_copilot_login_start(&mut self, a: &Args) -> Result<Value> {
         self.ai_network()?;
         if self.copilot_login.is_some() {
@@ -100,6 +103,7 @@ impl Automation {
         self.copilot_login = Some(login);
         Ok(result)
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn ai_copilot_login_finish(&mut self, a: &Args) -> Result<Value> {
         if a.opt_bool("cancel")?.unwrap_or(false) {
             self.copilot_login = None;
@@ -115,13 +119,16 @@ impl Automation {
             }
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn ai_accounts(&self) -> Result<Value> {
         Ok(json!({"accounts":platform::accounts().map_err(failed)?}))
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn ai_models(&self, a: &Args) -> Result<Value> {
         self.ai_network()?;
         Ok(json!({"models":platform::models(provider(a)?,a.opt_str("account")?.unwrap_or("")).map_err(failed)?}))
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn ai_key_connect(&self, a: &Args) -> Result<Value> {
         let provider = provider(a)?;
         let expected = match provider {
@@ -136,6 +143,7 @@ impl Automation {
         platform::save_api_key(provider, &key).map_err(failed)?;
         Ok(json!({"provider":provider.key(),"saved_in_os_store":true}))
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn ai_disconnect(&self, a: &Args) -> Result<Value> {
         let provider = provider(a)?;
         let revoked = match provider {
@@ -157,6 +165,7 @@ impl Automation {
         };
         Ok(json!({"disconnected_locally":true,"remote_revocation_confirmed":revoked}))
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn ai_login_start(&mut self, a: &Args) -> Result<Value> {
         self.ai_network()?;
         if self.ai_login.is_some() {
@@ -169,6 +178,7 @@ impl Automation {
             json!({"authorization_url":url,"next":"Open this official OpenAI URL in your browser, then call ai_login_finish. No PDF text is sent during login."}),
         )
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn ai_login_finish(&mut self, a: &Args) -> Result<Value> {
         if a.opt_bool("cancel")?.unwrap_or(false) {
             self.ai_login = None;
@@ -184,6 +194,7 @@ impl Automation {
             }
         }
     }
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) fn ai_claude_login(&self) -> Result<Value> {
         self.ai_network()?;
         platform::claude_login(&std::sync::atomic::AtomicBool::new(false)).map_err(failed)?;
