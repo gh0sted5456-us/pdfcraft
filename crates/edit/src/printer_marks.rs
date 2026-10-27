@@ -84,7 +84,7 @@ impl PrinterMarks {
     }
 
     /// The marks' content for a page whose trim box is `trim` and bleed box `bleed` (user
-    /// space), `page` of `count` (1-based).
+    /// space measured in physical points), `page` of `count` (1-based).
     pub fn content(&self, trim: [f64; 4], bleed: [f64; 4], page: usize, count: usize) -> String {
         let w = self.line_weight.clamp(0.1, 4.0);
         // Registration colour: every ink.
@@ -251,13 +251,17 @@ pub fn add_printer_marks(doc: &mut Document, pages: &[usize], marks: &PrinterMar
     let mut widened = Vec::new();
     for &i in pages {
         let ([media, crop, bleed, trim, art], given) = pdfcraft_organize_boxes(doc, i)?;
-        let side = side_reach(marks, trim, bleed);
+        let unit = all.get(i).ok_or(EditError::NoSuchPage(i))?.user_unit(doc);
+        let trim_points = trim.map(|v| v * unit);
+        let bleed_points = bleed.map(|v| v * unit);
+        let side = side_reach(marks, trim_points, bleed_points).map(|v| v / unit);
         let needed = [trim[0] - side[0], trim[1] - side[1], trim[2] + side[2], trim[3] + side[3]];
         let within = |b: [f64; 4]| b[0] <= needed[0] && b[1] <= needed[1] && b[2] >= needed[2] && b[3] >= needed[3];
         // The crop box is what shows, so the marks need room inside it, not only inside the media box.
         if !within(crop)
             && let Some(room) = marks.make_room
         {
+            let room = room / unit;
             let new_media = if within(media) {
                 None
             } else {
@@ -298,13 +302,13 @@ pub fn add_printer_marks(doc: &mut Document, pages: &[usize], marks: &PrinterMar
             widened.push(i);
         }
         let page = page_list(doc).get(i).cloned().ok_or(EditError::NoSuchPage(i))?;
-        let mut content = marks.content(trim, bleed, i + 1, count);
+        let mut content = marks.content(trim_points, bleed_points, i + 1, count);
         if marks.page_info {
             let name = free_font_name(doc, &page_fonts(doc, &page), "PCHelv", "Helvetica");
             content = content.replace("/PCHelv ", &format!("/{name} "));
             add_page_resources(doc, &page, None, &[(name.into_bytes(), "Helvetica")])?;
         }
-        let body = format!("{}{}{}", begin(MarkKind::PrinterMarks, "PrinterMarks", [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]), content, END);
+        let body = format!("{}{}{}", begin(MarkKind::PrinterMarks, "PrinterMarks", [1.0 / unit, 0.0, 0.0, 1.0 / unit, 0.0, 0.0]), content, END);
         let page = page_list(doc).get(i).cloned().ok_or(EditError::NoSuchPage(i))?;
         place(doc, &page, MarkKind::PrinterMarks, body.into_bytes(), false)?;
     }

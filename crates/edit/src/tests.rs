@@ -7712,3 +7712,29 @@ fn printer_marks_refuse_bad_boxes_and_unsupported_information_without_changing_t
     assert!(add_printer_marks(&mut doc, &[0], &marks, false).is_err());
     add_printer_marks(&mut doc, &[0], &PrinterMarks { page_info: false, ..marks }, false).unwrap();
 }
+
+#[test]
+fn printer_marks_keep_their_physical_size_on_pages_with_enlarged_units() {
+    for unit in [2.0, pdfcraft_model::MAX_USER_UNIT] {
+        let mut doc = fixture();
+        let page = page_list(&doc)[0].clone();
+        doc.update_dict(page.obj, |d| {
+            d.set(b"MediaBox".to_vec(), Object::Array(vec![Object::Int(0), Object::Int(0), Object::Int(612), Object::Int(792)]));
+            d.set(b"UserUnit".to_vec(), Object::Real(unit));
+        })
+        .unwrap();
+        let before = page_list(&doc)[0].display_size(&doc);
+        add_printer_marks(&mut doc, &[0], &PrinterMarks::default(), false).unwrap();
+        let after = page_list(&doc)[0].display_size(&doc);
+        assert!((after.0 - before.0 - 72.0).abs() < 0.001, "{before:?} -> {after:?}: room is 36 physical points per side");
+        let content = String::from_utf8_lossy(&page_content_bytes(&doc, 0)).into_owned();
+        let (_, marks) = content.split_once("/PCMark /PrinterMarks>> BDC\n").unwrap();
+        let parsed = pdfcraft_content::parse(marks.as_bytes());
+        let matrix = parsed.ops.iter().find(|op| op.op == b"cm").unwrap().nums::<6>().unwrap();
+        assert!((matrix[0] * unit - 1.0).abs() < 1e-10 && (matrix[3] * unit - 1.0).abs() < 1e-10);
+        assert!(marks.contains("0.25 w"), "the stroke stays a quarter point after the page's UserUnit is applied");
+        let widened = add_printer_marks(&mut doc, &[0], &PrinterMarks::default(), true).unwrap();
+        assert!(widened.is_empty());
+        assert_eq!(page_list(&doc)[0].display_size(&doc), after);
+    }
+}
