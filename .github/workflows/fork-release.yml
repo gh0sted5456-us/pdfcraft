@@ -30,7 +30,7 @@ jobs:
       CARGO_BUILD_JOBS: '2'
       CARGO_INCREMENTAL: '0'
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
-      CRAFT_FONTS_DIR: ${{ runner.temp }}/craft-fonts
+      CRAFT_FONTS_DIR: ${{ github.workspace }}/../craft-fonts
       CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: '-C target-feature=+crt-static'
       PDFCRAFT_REQUIRE_WINRES: '1'
     steps:
