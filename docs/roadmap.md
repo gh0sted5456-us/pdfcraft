@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-27 · Personal fork: integrate upstream vector/Type 3 redaction cleanup, eleven dependency updates and nextest 0.9.150. Preserve Type 3 glyphs used by surviving annotation appearances; exercise print controls through the scroll viewport with a controlled empty printer list. Larger egui/menu/updater migrations are deferred. Estimates unchanged.
+
 > **Last updated:** 2026-10-26 · Personal fork: Preferences Updates checks the fork release feed, streams and verifies Windows x64 installers, and activates only after documents and other windows are closed. A guarded fork-only workflow packages desktop and printer installers after successful main CI; upstream merging remains deliberate. Estimates unchanged.
 
 > **Last updated:** 2026-10-26 · Windows integrated headers now remember the last normal physical window bounds across maximized/full-screen restarts, repair legacy off-screen restore bounds against the monitor work area, and retain independent Glass appearance values. Native Linux/macOS window restoration is unchanged. Estimates unchanged.

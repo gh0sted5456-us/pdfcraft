@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-27 · Personal fork: integrate upstream vector/Type 3 redaction cleanup, eleven dependency updates and nextest 0.9.150. Preserve Type 3 glyphs used by surviving annotation appearances; exercise print controls through the scroll viewport with a controlled empty printer list. Larger egui/menu/updater migrations are deferred. Estimates unchanged.
+
 > **Last updated:** 2026-10-25 · Personal fork: scan orientation/deskew/paper-edge crop (adapted from #1012), invisible OCR-text correction, RSA certificate-file encryption (adapted from #2014), direct Space Audit, and foreground-only marquee path selection. CAC decryption and native Linux runtime remain unverified; readiness estimates unchanged.
 
 # Where PdfCraft falls short of Acrobat Pro

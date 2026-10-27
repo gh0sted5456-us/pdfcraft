@@ -211,3 +211,17 @@ and wait for **Fork installer release** to publish. The app then offers that
 release from Preferences. This workflow never merges upstream automatically and
 never publishes from a pull request. Existing Linux/macOS build and release paths
 are retained; automatic installer activation currently targets Windows x64.
+
+### Targeted upstream refresh (2026-10-27)
+
+This fork imports upstream commits `833cd63c` (vector redaction), `32a9af4d`
+(Type 3 resource cleanup), `fc578a0b` (dependency updates) and `2a3cb9dc`
+(nextest security update). The dependency lock is resolved against our egui 0.36
+stack. It does not import upstream's egui 0.37, menu framework, startup updater or
+UI directory reorganization. Both redaction regressions were observed failing
+against the prior implementation before the fixes were restored.
+
+The imported Type 3 cleanup is extended to scan surviving annotation appearance
+states, including inherited page resources, before removing glyph programs.
+Print UI checks explicitly use an empty printer list and scroll Advanced and
+sheet navigation into view before clicking, reproducing the headless CI layout.

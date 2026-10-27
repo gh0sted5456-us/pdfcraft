@@ -5768,8 +5768,8 @@ milestone = "M8"
 status = "shipped"
 commands = ["redact.apply"]
 tools = ["redact_apply"]
-evidence = ["crates/redact/src/tests.rs::glyphs_under_a_mark_go_and_the_rest_stays_put", "crates/redact/src/tests.rs::kerning_spacing_scaling_and_line_operators_are_honoured", "crates/redact/src/tests.rs::rotated_text_and_composite_fonts", "crates/redact/src/tests.rs::shared_form_xobjects_are_copied_not_changed"]
-notes = "TJ displacement keeps the rest in place; simple, composite (CMaps), Type 3 fonts"
+evidence = ["crates/redact/src/tests/surviving_references.rs::redacted_type3_glyph_and_exclusive_resources_do_not_survive_full_save", "crates/redact/src/tests/surviving_references.rs::type3_cleanup_preserves_glyphs_drawn_by_a_surviving_annotation", "crates/redact/src/tests.rs::glyphs_under_a_mark_go_and_the_rest_stays_put", "crates/redact/src/tests.rs::kerning_spacing_scaling_and_line_operators_are_honoured", "crates/redact/src/tests.rs::rotated_text_and_composite_fonts", "crates/redact/src/tests.rs::shared_form_xobjects_are_copied_not_changed"]
+notes = "TJ displacement keeps the rest in place; simple, composite (CMaps), Type 3 fonts. Unused Type 3 glyph programs and exclusive resources are unlinked, preserving glyphs used on other pages, forms and surviving annotation appearance states; unsafe encodings fail closed."
 
 [[feature]]
 id = "protect.redact-image-pixels"
@@ -5792,8 +5792,8 @@ milestone = "M8"
 status = "shipped"
 commands = ["redact.apply"]
 tools = ["redact_apply"]
-evidence = ["crates/redact/src/tests.rs::vectors_are_removed_or_clipped_and_inline_images_go"]
-notes = "covered paths removed, others clipped; shadings clipped"
+evidence = ["crates/redact/src/tests.rs::partially_covered_vector_paths_do_not_leak_drawing_commands", "crates/redact/src/tests.rs::vectors_are_removed_or_clipped_and_inline_images_go"]
+notes = "partially intersecting paths removed rather than retained behind clipping; fully covered clip-and-paint paths retain clipping geometry; shadings clipped"
 
 [[feature]]
 id = "protect.redact-annots-fields"

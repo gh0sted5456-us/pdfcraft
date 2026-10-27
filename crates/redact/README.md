@@ -23,8 +23,12 @@ clear_marks(&mut doc, None)?;                        // remove marks without app
   area are removed. Images with separate `/SMask` or `/Mask` data, and images whose data decodes
   to more than twice their declared raster (plus a byte per row and 4 KiB), are removed whole;
   cleared copies drop `/Alternates` so alternate pixels cannot survive;
-- **vectors**: covered paths are removed; partly covered paths and shadings are clipped so
-  nothing paints inside the areas;
+- **vectors**: partially intersecting paths are removed whole rather than retained behind
+  clipping. A fully covered path that also establishes a clip retains its clipping geometry;
+  shadings remain clipped;
+- **Type 3 fonts**: unused glyph programs and their exclusive resources are unlinked;
+  glyphs still used by another page or Form XObject are preserved. An encoding that cannot
+  be inspected safely refuses the operation;
 - **form XObjects**: rewritten recursively into new objects (pages sharing the original keep it);
 - **annotations** whose rectangle overlaps (with their pop-ups and their replies, `/IRT`), and **form fields** with a
   widget under a mark;

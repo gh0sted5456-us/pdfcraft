@@ -169,6 +169,7 @@ fn invalid_ranges_are_explained_in_the_preview() {
 fn cut_stack_dialog_previews_saves_and_refuses_duplex() {
     use pdfcraft_engine::print::{PageOrder, spool::Duplex};
     let mut h = harness();
+    h.state_mut().printer_source = Some(std::sync::Arc::new(Vec::new));
     // Ten source pages, generated using the headless engine.
     let bytes = h.state().session.create_blank(200.0, 300.0, 10).unwrap();
     h.state_mut().open_bytes("numbered.pdf", None, bytes.as_ref().clone()).unwrap();
@@ -186,6 +187,8 @@ fn cut_stack_dialog_previews_saves_and_refuses_duplex() {
     h.run_steps(2);
     h.get_by_label("Sheet 1 of 3");
     h.get_by_label_contains("Keep the sheets in order");
+    h.get_by_label("›").scroll_to_me();
+    h.run_steps(4);
     h.get_by_label("›").click();
     h.run_steps(2);
     h.get_by_label("Sheet 2 of 3");
@@ -445,8 +448,11 @@ fn a_printer_without_two_sided_printing_points_to_its_properties() {
 #[test]
 fn print_as_image_is_an_advanced_choice_that_saves_pictures() {
     let mut h = harness();
+    h.state_mut().printer_source = Some(std::sync::Arc::new(Vec::new));
     assert!(h.state_mut().execute("print.dialog"));
     h.run_steps(3);
+    h.get_by_label("Advanced".to_uppercase().as_str()).scroll_to_me();
+    h.run_steps(4);
     h.get_by_label("Advanced".to_uppercase().as_str()).click();
     h.run_steps(2);
     h.get_by_label("Print as image").scroll_to_me();
