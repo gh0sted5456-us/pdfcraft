@@ -1,7 +1,7 @@
 use super::*;
 
 impl PdfCraftApp {
-    /// Run a catalogue command. Commands that aren't implemented yet say which milestone ships them.
+    /// Run a catalogue command, explaining when it is unavailable in this build.
     pub fn run_command(&mut self, command: &str) {
         if let Some(spec) = pdfcraft_engine::commands::command(command) {
             use pdfcraft_engine::commands::Needs;
@@ -19,15 +19,14 @@ impl PdfCraftApp {
             self.execute(command);
             return;
         }
-        // Not implemented yet: say which milestone ships it.
+        // Keep development roadmap details out of the application.
         let when = pdfcraft_engine::catalog::TOOL_GROUPS
             .iter()
             .flat_map(|g| g.sections.iter().flat_map(|s| s.items.iter()))
             .find(|i| i.command == command)
             .map(|i| match i.availability {
-                pdfcraft_engine::catalog::Availability::Planned(m) => crate::i18n::fmt(tl!("ships in milestone {m}"), &[("m", m)]),
                 pdfcraft_engine::catalog::Availability::Provider => tl!("needs an AI provider (off by default)").to_string(),
-                pdfcraft_engine::catalog::Availability::Ready => tl!("is available").to_string(),
+                _ => tl!("is not available yet").to_string(),
             })
             .unwrap_or_else(|| tl!("is not available yet").to_string());
         self.notify_fmt("`{command}` {when}", &[("command", command), ("when", &when)]);

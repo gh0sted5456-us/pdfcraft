@@ -2,7 +2,7 @@
 
 The isolated `codex/egui-037-integration` branch starts from fork `6ca60e50` and
 integrates upstream history through `1dd2737b`, including egui/eframe 0.37, shared
-menus and the module-layout merge (#4889). Fork main remains unchanged. Dependencies
+menus and the module-layout merge (#4889). Promotion is tracked in fork PR #1. Dependencies
 pin the published egui and winit forks and craft-ui/quit/keymap `edc41f68`;
 craft-print remains at `42e30cd5`.
 
@@ -897,3 +897,27 @@ The complete static delta review and exact old/new object identities are retaine
 The font contract now includes the native-only Simplified Chinese face: the pinned craft-fonts input supplies `fonts/simplified-chinese-manifest.txt` (LXGW WenKai Lite, OFL-1.1), `crates/fonts/build.rs` embeds it on native builds only under a 16 MiB cap, and a `CRAFT_FONTS_REQUIRED` build fails rather than skipping an absent or over-cap required Chinese face. Traditional Chinese is served by an installed `Hant` face placed before the Japanese faces even when LXGW is embedded. CI, release and FreeBSD keep an immutable craft-fonts commit pin; the current candidate is recorded in the task evidence and the pin must be updated only to a published central commit.
 
 Fallback faces now use egui 0.37's `FontTweak::fallback_align = FallbackAlign::Baseline` for the existing one-baseline intent (the metric-derived `y_offset_factor` compensation is gone). Control-channel synthetic input that times out after a press keeps one bounded release batch, so a key, pointer button or modifier cannot stay held when the window resumes. Accepted-frame counting remains one count per presented frame, verified at `max_passes` above two.
+
+## Dependability cleanup — 2026-10-27
+
+The Japanese menu regression now targets the actual menu item, including its
+mnemonic, rather than the similarly named Edit mode tab. Translated dialogs wait
+for their font/layout passes and preserve custom action names. Page marks, export,
+comparison and PDF/A controls have explicit accessible names; role-specific tests
+keep the slider, number field and range radio distinct.
+
+All 1,260 active UI interaction tests are covered with the release font input:
+1,259 passed in the full run and the remaining corrected menu regression passed
+separately; 10 tests remain explicitly ignored. The dialog audit also renders the
+small-window cards for visual review. No OCR model upgrade is included: the author's
+alternate models failed the mixed text/picture recognition regression and were
+rejected. The existing, byte-identical models were mirrored to the fork's
+`build-inputs-v1` prerelease with original licences. Fresh downloader checks matched
+both original SHA-256 values.
+
+Implemented tools no longer advertise milestones: Edit, Protect, cloud annotations,
+stamps and preflight are available. Unimplemented commands retain honest availability
+messages. Field-action tooltips no longer promise JavaScript in a future milestone.
+Shared workflow dependencies are pinned; the release font input matches CI. Main
+promotion still requires fresh platform checks on the final PR head. Runtime limits
+for CAC, IME, Linux/macOS compositing and browser behavior remain as recorded above.

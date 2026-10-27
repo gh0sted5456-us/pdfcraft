@@ -110,7 +110,7 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
 }
 
 /// One tool's tile: its icon and name, then the `items` the search found it by or, when there are
-/// none, its availability (a planned tool is greyed out with its milestone). A name or note cut
+/// none, its availability (an unfinished tool is greyed out). A name or note cut
 /// short shows in full on hover.
 fn tile(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup, items: &[&'static str]) -> egui::Response {
     let (rect, resp) = ui.allocate_exact_size(TILE, Sense::click());
@@ -134,7 +134,7 @@ fn tile(ui: &mut egui::Ui, t: &Tokens, g: &ToolGroup, items: &[&'static str]) ->
     let note = if items.is_empty() {
         match g.availability {
             Availability::Ready => String::new(),
-            Availability::Planned(m) => format!("{} · {m}", tl!("Planned")),
+            Availability::Planned(_) => tl!("is not available yet").into(),
             Availability::Provider => g.badge.map(|b| tl!(b).to_owned()).unwrap_or_default(),
         }
     } else {

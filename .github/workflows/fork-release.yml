@@ -49,7 +49,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'WiX installation failed' }
           git clone https://github.com/storytold/craft-fonts.git $env:CRAFT_FONTS_DIR
           if ($LASTEXITCODE -ne 0) { throw 'Font input clone failed' }
-          git -C $env:CRAFT_FONTS_DIR checkout 3d9ab3a132ed0eff457e424226a435a901da30d3
+          git -C $env:CRAFT_FONTS_DIR checkout b076417b5880bd4154bd22f00695b1d28c6bea83
           if ($LASTEXITCODE -ne 0) { throw 'Pinned font input checkout failed' }
           cargo fetch --locked
           if ($LASTEXITCODE -ne 0) { throw 'Pinned dependency fetch failed' }

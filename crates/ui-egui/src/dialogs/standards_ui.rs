@@ -71,12 +71,16 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     ui.add_space(6.0);
     let before = app.pdfa.level;
     ui.horizontal(|ui| {
-        ui.label(tl!("Conformance level:"));
-        egui::ComboBox::from_id_salt("pdfa-level").selected_text(app.pdfa.level.label()).show_ui(ui, |ui| {
-            for l in [Level::A2b, Level::A3b] {
-                ui.selectable_value(&mut app.pdfa.level, l, l.label());
-            }
-        });
+        let level = ui.label(tl!("Conformance level:"));
+        egui::ComboBox::from_id_salt("pdfa-level")
+            .selected_text(app.pdfa.level.label())
+            .show_ui(ui, |ui| {
+                for l in [Level::A2b, Level::A3b] {
+                    ui.selectable_value(&mut app.pdfa.level, l, l.label());
+                }
+            })
+            .response
+            .labelled_by(level.id);
     });
     if app.pdfa.level != before {
         app.pdfa.issues = None;

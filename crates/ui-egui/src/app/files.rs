@@ -429,7 +429,10 @@ impl PdfCraftApp {
                     },
                 );
                 #[cfg(target_arch = "wasm32")]
-                self.notify_fmt("Downloading attachments on the web arrives with M3.10 ({n} bytes ready)", &[("n", &bytes.len().to_string())]);
+                {
+                    let _ = bytes;
+                    self.notify("Saving attachments is not available in this web build.");
+                }
             }
         }
     }

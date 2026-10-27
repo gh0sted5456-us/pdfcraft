@@ -136,7 +136,7 @@ fn backgrounds_and_watermarks_from_a_file() {
     h.state_mut().marks_draft.file = Some(("letterhead.pdf".into(), std::sync::Arc::new(FIXTURE.to_vec())));
     h.run_steps(2);
     h.get_by_label("Page number");
-    h.get_by_label("Scale relative to target page");
+    h.get_by_role_and_label(egui::accesskit::Role::Slider, "Scale relative to target page");
     h.get_by_label("OK").click();
     h.run_steps(3);
     assert_eq!(marks(&h), vec![MarkKind::Background]);
@@ -304,7 +304,7 @@ fn page_range_from_one_to_one_selects_only_the_first_page() {
     h.state_mut().execute("edit.background");
     h.run_steps(2);
     assert_eq!(h.state().marks_draft.range.pages(3), [0, 1, 2]);
-    h.get_by_label("Pages from").click();
+    h.get_by_role_and_label(egui::accesskit::Role::RadioButton, "Pages from").click();
     h.run_steps(2);
     let range = h.state().marks_draft.range;
     assert_eq!((range.from, range.to), (1, 3), "from the first page to the last");

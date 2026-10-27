@@ -172,7 +172,7 @@ fn edit_row(ui: &mut egui::Ui, t: &Tokens, icon: &str, label: &str, availability
     let resp = theme::hand(resp);
     match availability {
         Availability::Ready => resp,
-        Availability::Planned(m) => resp.on_hover_text(format!("{} {m}", tl!("Planned for milestone"))),
+        Availability::Planned(_) => resp.on_hover_text(tl!("is not available yet")),
         Availability::Provider => resp.on_hover_text(tl!("Optional: needs an AI provider you configure")),
     }
 }

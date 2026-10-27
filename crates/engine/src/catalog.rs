@@ -124,7 +124,7 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
         icon: "file-pen-line",
         hue: PINK,
         badge: None,
-        availability: Planned("M7"),
+        availability: Ready,
         sections: &[
             ToolSection {
                 title: "Modify page",
@@ -241,8 +241,8 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
                     item("Oval", "circle", "comment.circle", Ready),
                     item("Line", "minus", "comment.line", Ready),
                     item("Arrow", "move-right", "comment.arrow", Ready),
-                    item("Cloud", "cloud", "comment.cloud", Planned("M5")),
-                    item("Stamp", "stamp", "comment.stamp", Planned("M5")),
+                    item("Cloud", "cloud", "comment.cloud", Ready),
+                    item("Stamp", "stamp", "comment.stamp", Ready),
                 ],
             },
             ToolSection {
@@ -278,7 +278,7 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
         icon: "shield-check",
         hue: BLUE,
         badge: None,
-        availability: Planned("M8"),
+        availability: Ready,
         sections: &[
             ToolSection {
                 title: "Protect",
@@ -501,7 +501,7 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
                 item("Save as PDF/A", "file-check", "standards.pdfa", Ready),
                 item("Save as PDF/X", "file-check", "standards.pdfx", Planned("M11")),
                 item("Save as PDF/UA", "accessibility", "standards.pdfua", Planned("M11")),
-                item("Preflight", "file-check", "preflight.run", Planned("M11")),
+                item("Preflight", "file-check", "preflight.run", Ready),
             ],
         }],
     },
@@ -575,6 +575,21 @@ pub static TOOL_CATEGORIES: &[ToolCategory] = &[
 mod tests {
     use super::*;
     use std::collections::HashSet;
+
+    #[test]
+    fn registered_tools_are_not_advertised_as_unimplemented() {
+        for g in TOOL_GROUPS {
+            let items: Vec<_> = g.sections.iter().flat_map(|s| s.items).collect();
+            for item in &items {
+                if crate::commands::command(item.command).is_some() {
+                    assert!(!matches!(item.availability, Planned(_)), "{} is implemented", item.command);
+                }
+            }
+            if items.iter().all(|i| i.availability == Ready) {
+                assert_eq!(g.availability, Ready, "{} is implemented", g.id);
+            }
+        }
+    }
 
     #[test]
     fn ids_are_unique_and_every_group_has_items() {

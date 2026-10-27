@@ -1017,27 +1017,34 @@ fn preferences_menu_and_shortcut_allow_switching_interface_languages() {
     }
     let (mut h, c) = harness();
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "ja" }));
-    ok(&mut h, &c, "ui.click", json!({ "label": "メニュー" }));
-    ok(&mut h, &c, "ui.click", json!({ "label": "編集 ⏵" }));
-    let menu = ok(&mut h, &c, "ui.inspect", json!({ "query": "環境設定…" }));
+    settle(&mut h);
+    let edit = ok(&mut h, &c, "ui.inspect", json!({ "query": "編集", "role": "MenuItem" }));
+    let edit = edit["widgets"].as_array().unwrap().iter().find(|w| w["clickable"] == true).expect("Edit menu title");
+    ok(&mut h, &c, "ui.click", json!({ "id": edit["id"] }));
+    settle(&mut h);
+    let menu = ok(&mut h, &c, "ui.inspect", json!({ "query": "環境設定", "role": "MenuItem" }));
     let prefs = menu["widgets"].as_array().unwrap().iter().find(|w| w["clickable"] == true).expect("Preferences menu item");
     ok(&mut h, &c, "ui.click", json!({ "id": prefs["id"] }));
     ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" }));
     for (current, next, code) in [("日本語", "English (US)", "en"), ("English (US)", "Українська", "uk"), ("Українська", "日本語", "ja")]
     {
+        settle(&mut h);
         let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": current }));
         let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");
         ok(&mut h, &c, "ui.click", json!({ "id": combo["id"] }));
+        settle(&mut h);
         ok(&mut h, &c, "ui.click", json!({ "label": next }));
         assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["language"], code);
     }
     ok(&mut h, &c, "ui.click", json!({ "label": "OK" }));
     ok(&mut h, &c, "ui.key", json!({ "key": ",", "modifiers": ["command"] }));
+    settle(&mut h);
     let prefs = ok(&mut h, &c, "ui.inspect", json!({ "query": "表示言語" }));
     assert!(prefs["count"].as_u64().unwrap() > 0, "{prefs}");
     ok(&mut h, &c, "ui.click", json!({ "label": "OK" }));
 
     ok(&mut h, &c, "ui.command", json!({ "id": "help.shortcuts" }));
+    settle(&mut h);
     for label in ["キーボードショートカット", "開く", "環境設定", "次／前の検索結果", "ダブルクリック", "閉じる"]
     {
         let found = ok(&mut h, &c, "ui.inspect", json!({ "query": label }));
@@ -1068,6 +1075,7 @@ fn japanese_dialogs_errors_and_custom_action_names() {
         ("sign", "署名用のデジタル ID を設定"),
     ] {
         ok(&mut h, &c, "ui.set", json!({"key": "dialog", "value": dialog}));
+        settle(&mut h);
         let found = ok(&mut h, &c, "ui.inspect", json!({"query": label}));
         assert!(found["count"].as_u64().unwrap() > 0, "{dialog}: {found}");
     }
@@ -1086,9 +1094,17 @@ fn japanese_dialogs_errors_and_custom_action_names() {
     });
     h.state_mut().wizard.selected = Some("Save".to_string());
     ok(&mut h, &c, "ui.set", json!({"key": "dialog", "value": "action-wizard"}));
+    settle(&mut h);
     for label in ["アクションウィザード", "Save", "Print"] {
         let found = ok(&mut h, &c, "ui.inspect", json!({"query": label}));
-        assert!(found["widgets"].as_array().unwrap().iter().any(|w| w["label"] == label || w["value"] == label), "{found}");
+        assert!(
+            found["widgets"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .any(|w| w["label"] == label || w["label"] == format!("Title: {label}") || w["value"] == label),
+            "{found}"
+        );
     }
 }
 

@@ -570,7 +570,7 @@ fn field_tip(f: &pdfcraft_render::Field) -> String {
         tip.push_str(&format!(" — {tt}"));
     }
     if f.has_actions {
-        tip.push_str(&format!("\n{}", tl!("Has JavaScript actions (run in M6)")));
+        tip.push_str(&format!("\n{}", tl!("Has JavaScript actions")));
     }
     tip
 }
