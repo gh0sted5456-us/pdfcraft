@@ -32,6 +32,21 @@ retains the exact Glass settings; 42% application opacity appears as alpha 107 i
 the header/canvas while PDF content stays opaque. Organizer Lock/Unlock toggles
 and padlock placement directly after Delete were checked natively.
 
+A follow-up native check reproduced normal startup growing 1000×700 to 1016×739.
+Windows changes the client size when the native frame is removed after startup.
+The shared frame switch now reapplies the previous normal client size after changing
+decorations, without resizing minimized, maximized or fullscreen windows. Its focused
+regression covers both header directions and those special states. Native normal
+restart passed twice at exactly 1000×700; Light/Dark/Glass maximize/restore and
+maximized restart passed again. Strict desktop/UI lint and the rebuilt MSI/PE package
+checks passed after the fix.
+
+Initial candidate CI at `7f1bdde8`: Linux printer, Nix, packaging lint and dependency
+source checks passed. Windows ARM64 packaging stopped while fetching the existing
+OCR model: upstream S3 returned HTTP 403, reproduced locally on both accelerated
+and standard endpoints. General Linux/FreeBSD checks were still running. This is
+not an ARM64 compiler qualification and prevents claiming all CI green.
+
 Native pointer dragging remains unqualified: injected drags did not select the
 sample text, and Windows control refuses its returned window identity with
 `window id ... no longer belongs to ...; current owner is ...` despite identical

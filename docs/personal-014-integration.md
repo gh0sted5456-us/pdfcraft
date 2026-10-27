@@ -30,7 +30,10 @@ accounted for after the move. Combined validation passed 5,033 tests (25 ignored
 strict lint, formatting, assets/layering/parity and web/WASM compilation.
 
 Native Windows checks cover header restoration in all themes, Assistant theme
-retention and organizer locks. Foreground pointer dragging, Linux/macOS and CAC
+retention and organizer locks. A follow-up preserves normal client size when Windows
+changes frame decorations; repeated normal restart now retains 1000×700 instead of
+growing by 16×39. Its focused regression and refreshed MSI/PE checks passed. Initial
+Linux printer CI passed; ARM64 packaging hit upstream OCR model HTTP 403. Foreground pointer dragging, Linux/macOS and CAC
 hardware remain unqualified; see [the migration record](egui-037-migration-plan.md).
 The Windows preview installer passed MSI and GUI/CLI subsystem validation; it has
 not been installed. The branch has not replaced fork main or the installed application.
