@@ -47,11 +47,13 @@ OCR model: upstream S3 returned HTTP 403, reproduced locally on both accelerated
 and standard endpoints. General Linux/FreeBSD checks were still running. This is
 not an ARM64 compiler qualification and prevents claiming all CI green.
 
-Native pointer dragging remains unqualified: injected drags did not select the
-sample text, and Windows control refuses its returned window identity with
-`window id ... no longer belongs to ...; current owner is ...` despite identical
-owner strings, preventing foreground verification. Automated group-selection,
-dragging and keyboard regressions pass. A user foreground check is pending.
+The final native marquee selects the synthetic PDF's original text with a visible
+blue highlight. Injected group movement and arrow nudging did not change its bounds
+or dirty state, so foreground movement/nudging remain unqualified. Windows control
+refuses its returned window identity with `window id ... no longer belongs to ...;
+current owner is ...` despite identical owner strings, preventing a physical input
+check. Automated group-selection, dragging and keyboard regressions pass. A user
+foreground movement/nudge check remains open.
 Linux/macOS runtime, browser runtime, native IME and hardware CAC remain unqualified.
 The Windows preview package passed MSI validation and PE subsystem checks for the
 GUI, CLI and bundled setup. The package guard caught and prevented a console-subsystem
