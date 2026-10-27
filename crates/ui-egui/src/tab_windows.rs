@@ -243,6 +243,8 @@ impl PdfCraftApp {
         child.integrated_titlebar = self.integrated_titlebar;
         child.window_controls = self.window_controls.clone();
         child.update_source = self.update_source.clone();
+        child.update_download = self.update_download.clone();
+        child.update_install = self.update_install.clone();
         child.printer_source = self.printer_source.clone();
         child.options_source = self.options_source.clone();
         child.os_key_store_ids = self.os_key_store_ids;

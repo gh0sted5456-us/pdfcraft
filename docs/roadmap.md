@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-26 · Personal fork: Preferences Updates checks the fork release feed, streams and verifies Windows x64 installers, and activates only after documents and other windows are closed. A guarded fork-only workflow packages desktop and printer installers after successful main CI; upstream merging remains deliberate. Estimates unchanged.
+
 > **Last updated:** 2026-10-26 · Windows integrated headers now remember the last normal physical window bounds across maximized/full-screen restarts, repair legacy off-screen restore bounds against the monitor work area, and retain independent Glass appearance values. Native Linux/macOS window restoration is unchanged. Estimates unchanged.
 
 > **Last updated:** 2026-10-26 · AI Assistant now opens/restores as a bounded floating popup over the PDF, with no workspace replacement or dimming layer. Preserve the live theme, tint and independent opacity values; 13 focused regressions, strict checks, WASM compilation and native open/restore background-pixel checks passed. Estimates unchanged.

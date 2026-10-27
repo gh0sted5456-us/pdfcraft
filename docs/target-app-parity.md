@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-26 · Personal fork: Preferences Updates checks the fork release feed, streams and verifies Windows x64 installers, and activates only after documents and other windows are closed. A guarded fork-only workflow packages desktop and printer installers after successful main CI; upstream merging remains deliberate. Estimates unchanged.
+
 > **Last updated:** 2026-10-26 · Windows integrated headers now remember the last normal physical window bounds across maximized/full-screen restarts, repair legacy off-screen restore bounds against the monitor work area, and retain independent Glass appearance values. Native Linux/macOS window restoration is unchanged. Estimates unchanged.
 
 # PdfCraft parity with Adobe Acrobat Pro

@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use pdfcraft_ui_egui::updates::{RELEASES_PAGE, Release};
 
-const LATEST: &str = "https://api.github.com/repos/storytold/pdfcraft/releases/latest";
+const LATEST: &str = "https://api.github.com/repos/gh0sted5456-us/pdfcraft/releases/latest";
 
 /// The latest release. The answer is untrusted: its size is capped, and only a page under
 /// [`RELEASES_PAGE`] is ever offered for download (anything else falls back to that list).
@@ -30,6 +30,9 @@ pub fn latest_release() -> Result<Release, String> {
         let reset = response.headers().get("x-ratelimit-reset").and_then(|v| v.to_str().ok());
         return Err(rate_limited(reset, now_unix()));
     }
+    if status == 404 {
+        return Err("This fork has not published a release yet.".into());
+    }
     if !(200..300).contains(&status) {
         return Err(format!("couldn't reach GitHub (http status: {status})"));
     }
@@ -38,7 +41,7 @@ pub fn latest_release() -> Result<Release, String> {
 }
 
 /// The certificate authorities the operating system trusts.
-fn os_roots() -> Result<ureq::tls::RootCerts, String> {
+pub(super) fn os_roots() -> Result<ureq::tls::RootCerts, String> {
     let found = rustls_native_certs::load_native_certs();
     let certs: Vec<ureq::tls::Certificate<'static>> = found.certs.iter().map(|c| ureq::tls::Certificate::from_der(c.as_ref()).to_owned()).collect();
     if certs.is_empty() {
@@ -77,7 +80,13 @@ fn parse(body: &str) -> Result<Release, String> {
         .filter(|u| u.strip_prefix(RELEASES_PAGE).is_some_and(|rest| rest.starts_with('/') && !rest.contains(['?', '#', '\\'])))
         .unwrap_or(RELEASES_PAGE)
         .to_string();
-    Ok(Release { version, url })
+    let installer = if cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        let name = format!("pdfcraft-{}-with-printer-x64.exe", pdfcraft_ui_egui::updates::version_name(&version));
+        v["assets"].as_array().and_then(|assets| assets.iter().find_map(|asset| crate::update_download::installer(asset, &version, &name)))
+    } else {
+        None
+    };
+    Ok(Release { version, url, installer })
 }
 
 #[cfg(test)]
@@ -86,9 +95,12 @@ mod tests {
 
     #[test]
     fn answers_are_read_and_only_our_release_pages_are_offered() {
-        let r = parse(r#"{"tag_name":"v0.2.0","html_url":"https://github.com/storytold/pdfcraft/releases/tag/v0.2.0"}"#).unwrap();
-        assert_eq!(r, Release { version: "v0.2.0".into(), url: "https://github.com/storytold/pdfcraft/releases/tag/v0.2.0".into() });
-        for elsewhere in ["https://example.com/pdfcraft.exe", "https://github.com/storytold/pdfcraft/releases.evil/x", "javascript:alert(1)"] {
+        let r = parse(r#"{"tag_name":"v0.2.0","html_url":"https://github.com/gh0sted5456-us/pdfcraft/releases/tag/v0.2.0"}"#).unwrap();
+        assert_eq!(
+            r,
+            Release { installer: None, version: "v0.2.0".into(), url: "https://github.com/gh0sted5456-us/pdfcraft/releases/tag/v0.2.0".into() }
+        );
+        for elsewhere in ["https://example.com/pdfcraft.exe", "https://github.com/gh0sted5456-us/pdfcraft/releases.evil/x", "javascript:alert(1)"] {
             let r = parse(&format!(r#"{{"tag_name":"v9.9.9","html_url":"{elsewhere}"}}"#)).unwrap();
             assert_eq!(r.url, RELEASES_PAGE, "{elsewhere}");
         }

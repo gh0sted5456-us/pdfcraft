@@ -23,10 +23,11 @@ pub enum PreferencesCategory {
     Pages,
     Security,
     Assistant,
+    Updates,
 }
 
 impl PreferencesCategory {
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Appearance,
         Self::Documents,
         Self::Paper,
@@ -40,6 +41,7 @@ impl PreferencesCategory {
         Self::Security,
         Self::JavaScript,
         Self::Assistant,
+        Self::Updates,
     ];
 
     pub const fn key(self) -> &'static str {
@@ -57,6 +59,7 @@ impl PreferencesCategory {
             Self::Pages => "pages",
             Self::Security => "security",
             Self::Assistant => "assistant",
+            Self::Updates => "updates",
         }
     }
 
@@ -64,7 +67,7 @@ impl PreferencesCategory {
         Self::ALL
             .into_iter()
             .find(|category| category.key() == value)
-            .ok_or_else(|| "preferences-category must be appearance, documents, paper, editing, pages, ocr, language, reading, identity, signing, security, javascript or assistant".into())
+            .ok_or_else(|| "preferences-category must be appearance, documents, paper, editing, pages, ocr, language, reading, identity, signing, security, javascript, assistant or updates".into())
     }
 
     fn label(self) -> &'static str {
@@ -82,6 +85,7 @@ impl PreferencesCategory {
             Self::Pages => "Organize pages",
             Self::Security => "Security",
             Self::Assistant => "AI Assistant",
+            Self::Updates => "Updates",
         }
     }
 
@@ -113,6 +117,7 @@ impl PreferencesCategory {
             Self::Pages => "files",
             Self::Security => "shield",
             Self::Assistant => "sparkles",
+            Self::Updates => "cloud",
         }
     }
 }
@@ -198,6 +203,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
                                 PreferencesCategory::Pages => pages(ui, app),
                                 PreferencesCategory::Security => security(ui, app),
                                 PreferencesCategory::Assistant => connections = assistant(ui, app),
+                                PreferencesCategory::Updates => crate::updates::preferences(ui, app),
                             }
                         });
                 },

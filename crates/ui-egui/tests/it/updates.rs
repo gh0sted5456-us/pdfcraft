@@ -3,13 +3,15 @@
 use std::sync::Arc;
 
 use egui_kittest::Harness;
-use egui_kittest::kittest::Queryable;
+use egui_kittest::kittest::{NodeT, Queryable};
 use pdfcraft_ui_egui::PdfCraftApp;
 use pdfcraft_ui_egui::updates::{Release, UpdateSource, is_newer};
 
 fn source(answer: Result<&str, &str>) -> UpdateSource {
     let answer = answer.map(str::to_string).map_err(str::to_string);
-    Arc::new(move || answer.clone().map(|v| Release { url: format!("https://github.com/storytold/pdfcraft/releases/tag/{v}"), version: v }))
+    Arc::new(move || {
+        answer.clone().map(|v| Release { url: format!("https://github.com/gh0sted5456-us/pdfcraft/releases/tag/{v}"), version: v, installer: None })
+    })
 }
 
 fn harness(answer: Result<&str, &str>) -> Harness<'static, PdfCraftApp> {
@@ -40,6 +42,8 @@ fn settle(h: &mut Harness<'static, PdfCraftApp>) {
 #[test]
 fn versions_compare_by_number() {
     assert!(is_newer("v0.2.0", "0.1.1"));
+    assert!(is_newer("fork-v0.14.1", "0.14.0"));
+    assert!(!is_newer("fork-v0.14.0", "0.14.0"));
     assert!(is_newer("v0.1.10", "0.1.9"));
     assert!(is_newer("1", "0.9.9"));
     assert!(!is_newer("v0.1.1", "0.1.1"));
@@ -89,7 +93,7 @@ fn nothing_is_asked_until_the_user_checks() {
         let counted = counted.clone();
         app.update_source = Some(Arc::new(move || {
             counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            Ok(Release { version: "v99.0.0".into(), url: "https://github.com/storytold/pdfcraft/releases/tag/v99.0.0".into() })
+            Ok(Release { installer: None, version: "v99.0.0".into(), url: "https://github.com/gh0sted5456-us/pdfcraft/releases/tag/v99.0.0".into() })
         }));
         app
     });
@@ -100,4 +104,56 @@ fn nothing_is_asked_until_the_user_checks() {
     settle(&mut h);
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
     h.get_by_label_contains("PdfCraft 99.0.0 is available");
+}
+
+#[test]
+fn preferences_downloads_a_fork_update_and_requires_closed_documents_to_install() {
+    use pdfcraft_ui_egui::updates::Installer;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let installs = Arc::new(AtomicUsize::new(0));
+    let installed = installs.clone();
+    let mut h = harness(Ok("v99.0.0"));
+    h.state_mut().update_source = Some(Arc::new(|| {
+        Ok(Release {
+            version: "v99.0.0".into(),
+            url: "https://github.com/gh0sted5456-us/pdfcraft/releases/tag/v99.0.0".into(),
+            installer: Some(Installer { name: "update.exe".into(), url: "unused-test-source".into(), size: 20, sha256: "test".into() }),
+        })
+    }));
+    h.state_mut().update_download = Some(Arc::new(|_, progress| {
+        progress.store(20, Ordering::Relaxed);
+        Ok(std::path::PathBuf::from("test-update.exe"))
+    }));
+    h.state_mut().update_install = Some(Arc::new(move |_, path| {
+        assert_eq!(path, std::path::PathBuf::from("test-update.exe"));
+        installed.fetch_add(1, Ordering::SeqCst);
+        Ok(())
+    }));
+    h.state_mut().set_option("dialog", "preferences").unwrap();
+    h.state_mut().set_option("preferences-category", "updates").unwrap();
+    h.run_steps(3);
+    h.get_by_label("Check for updates").click();
+    settle(&mut h);
+    h.get_by_label("Download").click();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    loop {
+        h.run_steps(2);
+        if h.query_by_label("Download complete · SHA-256 verified").is_some() {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(h.query_by_label("Download").is_none(), "the ready state offers installation rather than another download");
+    let bytes = h.state_mut().session.create_blank(300.0, 400.0, 1).unwrap();
+    h.state_mut().open_bytes("unsaved.pdf", None, bytes.as_ref().clone()).unwrap();
+    h.run_steps(3);
+    assert!(h.query_by_label("Close").is_none(), "opening a check inside Preferences doesn't create a second popup");
+    assert!(h.get_by_label("Install update").accesskit_node().is_disabled());
+    assert_eq!(installs.load(Ordering::SeqCst), 0);
+    h.state_mut().close_tab(0);
+    h.run_steps(3);
+    h.get_by_label("Install update").click();
+    h.run_steps(3);
+    assert_eq!(installs.load(Ordering::SeqCst), 1);
 }

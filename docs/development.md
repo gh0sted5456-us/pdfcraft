@@ -174,3 +174,40 @@ Relative includes resolve beside the config that contains them. Included directo
 digit-prefixed `*.conf` files, in lexical order; backups and disabled files are ignored. The scan
 limits each config to 1 MiB, visits at most 256 config files/directories, and bounds include depth
 to 16 and directory entries to 32,768. Cyclic includes are skipped.
+
+
+## Personal fork updates
+
+The personal build's **Preferences > Updates** uses only
+`gh0sted5456-us/pdfcraft` GitHub releases. Checks, downloads and installation require
+separate user actions. Windows x64 downloads the release asset named
+`pdfcraft-<version>-with-printer-x64.exe`; GitHub must provide its SHA-256 digest and
+size. No shared GitHub token is shipped. Offline, unpublished and rate-limited
+states remain usable. Other platforms use the release page.
+
+Download bytes are capped at 512 MiB and staged atomically under the settings
+folder's `updates/PdfCraft-update.exe`. GitHub HTTPS redirect hosts are allowlisted;
+truncated, oversized and mismatched payloads are rejected. The digest is checked
+again before Windows opens the installer. Close all PDFs and other application
+windows first; the existing quit path preserves preferences. Standard Windows
+installation and elevation prompts remain in use. No signature or security check
+is bypassed. The checksum trusts this fork's GitHub publishing account; it is not
+an independent publisher signature.
+
+`.github/workflows/fork-release.yml` runs only for this fork, after the **CI**
+workflow succeeds on a push to main. Manual dispatch is restricted to main and
+repeats native quality gates. `packaging/windows/fork-version.ps1` advances the
+patch version beyond existing fork releases (including reserved drafts), using `fork-vX.Y.Z`
+tags to avoid upstream tag collisions, with numeric MSI
+limits. The build-only version override updates Cargo.lock without upgrading
+third-party dependencies. The Windows release package contains current OCR models,
+the Explorer thumbnail handler and an optional printer plugin. A build of an older
+main commit cannot replace the latest update after main advances. Assets upload to
+a draft first; the installer digest is verified before publishing. Fork schedules
+remain inactive, and upstream-only SonarCloud and release jobs are guarded.
+
+To ship an upstream change: review and merge it into this fork's main, let CI pass,
+and wait for **Fork installer release** to publish. The app then offers that
+release from Preferences. This workflow never merges upstream automatically and
+never publishes from a pull request. Existing Linux/macOS build and release paths
+are retained; automatic installer activation currently targets Windows x64.

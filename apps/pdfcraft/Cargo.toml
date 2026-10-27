@@ -21,6 +21,9 @@ pdfcraft-engine = { workspace = true }
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "glow", "accesskit", "wayland", "x11", "persistence", "links"] }
 egui = { workspace = true }
 serde_json = { workspace = true }
+# Stream and verify downloaded installers before offering them to Windows.
+sha2 = "0.11"
+tempfile = "3"
 # Records from every crate go to standard error and the log file (src/logging.rs).
 log = { workspace = true }
 # The log timestamp goes through chrono (no hand-rolled calendar code).

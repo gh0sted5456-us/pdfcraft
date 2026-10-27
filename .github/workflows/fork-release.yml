@@ -1,0 +1,106 @@
+name: Fork installer release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-installer-release
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    if: >-
+      github.repository == 'gh0sted5456-us/pdfcraft' &&
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_repository.full_name == github.repository))
+    runs-on: windows-latest
+    timeout-minutes: 120
+    permissions:
+      contents: write
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      CRAFT_FONTS_DIR: ${{ runner.temp }}/craft-fonts
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: '-C target-feature=+crt-static'
+      PDFCRAFT_REQUIRE_WINRES: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+      - name: Install build tools and pinned font input
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          rustup toolchain install 1.95.0 --profile minimal --component clippy --component rustfmt
+          if ($LASTEXITCODE -ne 0) { throw 'Rust installation failed' }
+          rustup override set 1.95.0
+          dotnet tool install --global wix --version 5.0.2
+          if ($LASTEXITCODE -ne 0) { throw 'WiX installation failed' }
+          git clone https://github.com/storytold/craft-fonts.git $env:CRAFT_FONTS_DIR
+          if ($LASTEXITCODE -ne 0) { throw 'Font input clone failed' }
+          git -C $env:CRAFT_FONTS_DIR checkout 3d9ab3a132ed0eff457e424226a435a901da30d3
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned font input checkout failed' }
+          cargo fetch --locked
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned dependency fetch failed' }
+      - name: Choose the next fork version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./packaging/windows/test-fork-version.ps1
+          ./packaging/windows/fork-version.ps1
+      - name: Quality gates for manual releases
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          cargo fmt --all --check
+          if ($LASTEXITCODE -ne 0) { throw 'Formatting failed' }
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          if ($LASTEXITCODE -ne 0) { throw 'Clippy failed' }
+          cargo test --workspace --locked
+          if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
+          foreach ($gate in @('assets','layers','parity')) {
+            cargo xtask $gate
+            if ($LASTEXITCODE -ne 0) { throw "$gate failed" }
+          }
+      - name: Package desktop and optional printer
+        shell: pwsh
+        run: |
+          ./packaging/windows/package.ps1 -Arch x64
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop packaging failed' }
+          $msi = "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64.msi"
+          ./packaging/windows/package-printer.ps1 -MainInstaller $msi -Profile release -TargetTriple x86_64-pc-windows-msvc -Online
+          if ($LASTEXITCODE -ne 0) { throw 'Printer packaging failed' }
+      - name: Publish verified fork assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $head = git rev-parse HEAD
+          $main = (git ls-remote origin refs/heads/main).Split()[0]
+          if ($LASTEXITCODE -ne 0 -or $main -ne $head) { throw 'A newer main exists; this older build will not become the latest update' }
+          $setup = "dist/pdfcraft-$env:FORK_VERSION-with-printer-x64.exe"
+          $sha = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$sha  $([IO.Path]::GetFileName($setup))" | Set-Content dist/SHA256SUMS.txt -Encoding utf8
+          gh release create "fork-v$env:FORK_VERSION" --repo $env:GITHUB_REPOSITORY --target $head --title "PdfCraft $env:FORK_VERSION (personal fork)" --generate-notes --draft $setup dist/SHA256SUMS.txt "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64.msi" "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64-portable.zip"
+          if ($LASTEXITCODE -ne 0) { throw 'Draft asset upload failed' }
+          $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/fork-v$env:FORK_VERSION"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not inspect uploaded assets' }
+          $asset = ($assets | ConvertFrom-Json).assets | Where-Object name -eq ([IO.Path]::GetFileName($setup))
+          if ($asset.digest -ne "sha256:$sha") { throw 'Uploaded installer digest does not match the local build' }
+          $main = (git ls-remote origin refs/heads/main).Split()[0]
+          if ($LASTEXITCODE -ne 0 -or $main -ne $head) { throw 'Main advanced during upload; leave this build as a draft' }
+          gh release edit "fork-v$env:FORK_VERSION" --repo $env:GITHUB_REPOSITORY --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Release publishing failed' }

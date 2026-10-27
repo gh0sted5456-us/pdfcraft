@@ -21,6 +21,7 @@ concurrency:
 
 jobs:
   fuzz:
+    if: github.event_name != 'schedule' || github.repository == 'storytold/pdfcraft'
     name: fuzz (mutation, 15 min)
     runs-on: ubuntu-latest
     steps:
