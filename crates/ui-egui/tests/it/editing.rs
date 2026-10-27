@@ -6453,6 +6453,102 @@ fn organize_panel_comes_with_the_grid_and_closes_it() {
     assert!(h.query_by_label("Page properties").is_none(), "the panel is gone");
 }
 
+/// Organize pages ▸ Page properties ▸ Tab Order sets the tab order of the selected pages only,
+/// as one undo step, and opens on the order the pages have.
+#[test]
+fn page_properties_sets_the_tab_order_of_the_selected_pages() {
+    use pdfcraft_engine::TabOrder::{Annotations, Column, Row};
+    let tabs = |h: &Harness<'static, PdfCraftApp>| h.state().session.get(h.state().views[0].id).unwrap().tab_orders();
+    // The undo and redo labels: a new step replaces the redo step an undo left.
+    let undo = |h: &Harness<'static, PdfCraftApp>| {
+        let doc = h.state().session.get(h.state().views[0].id).unwrap();
+        (doc.can_undo().map(str::to_owned), doc.can_redo().map(str::to_owned))
+    };
+    let mut h = organize(3);
+    h.get_by_label("Select page 1").click();
+    h.run_steps(2);
+    h.get_by_label("Select page 3").click();
+    h.run_steps(2);
+    h.get_by_label("Page properties").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, Some(Dialog::PageProps));
+    assert_eq!(h.state().page_props_draft.as_ref().unwrap().tab_order, Some(Annotations), "opens on Unspecified, as the pages have it");
+    h.get_by_label("Use Column Order").click();
+    h.run_steps(2);
+    h.get_by_label("Minimize Page Properties").click();
+    h.run_steps(3);
+    h.get_by_label("Taskbar: Restore Page Properties").click();
+    h.run_steps(3);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, None);
+    assert_eq!(tabs(&h), [Column, Annotations, Column]);
+    assert_eq!(undo(&h).0.as_deref(), Some("Set tab order"));
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(3);
+    assert_eq!(tabs(&h), [Annotations; 3], "one undo step");
+
+    // Pages with different orders open with no choice made, and OK is off until one is.
+    h.state_mut().apply_edit(pdfcraft_engine::Edit::SetTabOrder { pages: vec![0], order: Row });
+    h.run_steps(2);
+    h.state_mut().views[0].select_pages(&[0, 1]);
+    assert!(h.state_mut().execute("page.properties"));
+    h.run_steps(3);
+    assert_eq!(h.state().page_props_draft.as_ref().unwrap().tab_order, None);
+    assert!(h.get_by_label("OK").accesskit_node().is_disabled());
+    h.get_by_label("Use Row Order").click();
+    h.run_steps(2);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert_eq!(tabs(&h), [Row, Row, Annotations]);
+
+    // OK on the order the pages already have adds no undo step, and Cancel changes nothing.
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(3);
+    let before = (tabs(&h), undo(&h));
+    assert_eq!(before.1.1.as_deref(), Some("Set tab order"), "the undone step can be redone");
+    h.state_mut().views[0].select_pages(&[2]);
+    assert!(h.state_mut().execute("page.properties"));
+    h.run_steps(3);
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert_eq!((tabs(&h), undo(&h)), before);
+    assert!(h.state_mut().execute("page.properties"));
+    h.run_steps(3);
+    h.get_by_label("Use Document Structure").click();
+    h.run_steps(2);
+    h.get_by_label("Cancel").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, None);
+    assert_eq!((tabs(&h), undo(&h)), before);
+}
+
+/// Page properties sets the tab order of the document it was opened on: when another document
+/// is active by OK, neither document changes.
+#[test]
+fn page_properties_does_not_apply_to_another_active_document() {
+    use pdfcraft_engine::TabOrder::Annotations;
+    let mut h = organize(3);
+    let first = h.state().views[0].id;
+    h.state_mut().views[0].select_pages(&[0]);
+    assert!(h.state_mut().execute("page.properties"));
+    h.run_steps(3);
+    h.get_by_label("Use Column Order").click();
+    h.run_steps(2);
+    h.state_mut().open_bytes("other.pdf", None, fixture(3)).unwrap();
+    h.run_steps(4);
+    let other = h.state().views[1].id;
+    assert_eq!(h.state().active_ids().map(|(_, id)| id), Some(other));
+    h.get_by_label("OK").click();
+    h.run_steps(3);
+    assert_eq!(h.state().dialog, None);
+    for id in [first, other] {
+        let doc = h.state().session.get(id).unwrap();
+        assert_eq!(doc.tab_orders(), [Annotations; 3]);
+        assert!(doc.can_undo().is_none());
+    }
+}
+
 /// Leaving Organize (a page opened from the grid, or the grid's Close) goes back to the
 /// workspace's panel: under the Edit tab, the Edit panel, not All tools.
 #[test]
@@ -6811,4 +6907,24 @@ fn save_prompt_centers_the_message_and_colored_actions_in_both_themes() {
             hovered.save(std::path::Path::new(&dir).join(format!("save-prompt-{theme}-hover.png"))).unwrap();
         }
     }
+}
+
+#[test]
+fn page_properties_refuses_stale_page_choices_after_taskbar_restore() {
+    let mut h = organize(3);
+    h.state_mut().views[0].select_pages(&[0]);
+    assert!(h.state_mut().execute("page.properties"));
+    h.run_steps(3);
+    h.get_by_label("Use Column Order").click();
+    h.run_steps(2);
+    h.get_by_label("Minimize Page Properties").click();
+    h.run_steps(3);
+    assert!(h.state_mut().apply_edit(pdfcraft_engine::Edit::DeletePages { pages: vec![0] }));
+    h.run_steps(3);
+    h.state_mut().execute("app.dialog_restore");
+    h.run_steps(4);
+    assert_eq!(h.state().dialog, None);
+    assert!(h.state().toast.as_ref().unwrap().0.contains("The PDF changed while this dialog was minimized"));
+    let doc = h.state().session.get(h.state().views[0].id).unwrap();
+    assert_eq!(doc.tab_orders(), [pdfcraft_engine::TabOrder::Annotations; 2]);
 }

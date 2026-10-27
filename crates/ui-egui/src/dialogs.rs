@@ -113,6 +113,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut summarize_now = false;
     let mut optimize_now = false;
     let mut duplicate_now: Option<Edit> = None;
+    let mut page_props_now: Option<(pdfcraft_engine::DocId, Edit)> = None;
     let mut replace_now = false;
     let mut open_revision: Option<usize> = None;
     let mut a11y_now = false;
@@ -951,6 +952,19 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 });
                 return;
             }
+            Dialog::PageProps => {
+                let Some(d) = app.page_props_draft.as_mut() else {
+                    close = true;
+                    return;
+                };
+                let (ok, cancel) = crate::organize_panel::page_props_body(ui, d);
+                // An order every page already has adds no undo step.
+                if ok && let Some(order) = d.tab_order.filter(|o| d.before != Some(*o)) {
+                    page_props_now = Some((d.doc, Edit::SetTabOrder { pages: d.pages.clone(), order }));
+                }
+                close = ok || cancel;
+                return;
+            }
             Dialog::DuplicateField => {
                 let n = app.active_ids().and_then(|(_, id)| app.session.get(id)).map_or(1, |d| d.info.pages.len());
                 let Some(d) = app.duplicate_draft.as_mut() else {
@@ -1604,6 +1618,12 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     }
     if let Some(e) = duplicate_now {
         app.duplicate_draft = None;
+        app.apply_edit(e);
+    }
+    // Another document became active while the dialog was open: its pages are not the ones chosen.
+    if let Some((doc, e)) = page_props_now
+        && app.active_ids().is_some_and(|(_, id)| id == doc)
+    {
         app.apply_edit(e);
     }
     if extract_now {

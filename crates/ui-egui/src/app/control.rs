@@ -170,6 +170,10 @@ impl PdfCraftApp {
                     "watermark" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::Watermark)),
                     "background" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::Background)),
                     "printer-marks" => Some(Dialog::PrinterMarks),
+                    "page-properties" => {
+                        self.execute("page.properties");
+                        self.dialog
+                    }
                     "export-image" => Some(Dialog::Export(export_ui::ExportKind::Image)),
                     "word-count" => Some(Dialog::WordCount),
                     "export-text" => Some(Dialog::Export(export_ui::ExportKind::Text)),

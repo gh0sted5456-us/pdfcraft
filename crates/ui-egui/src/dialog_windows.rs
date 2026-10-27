@@ -139,6 +139,7 @@ pub(crate) fn title(dialog: Dialog) -> String {
         Split => "Split PDF",
         NumberPages => "Page labels",
         PageBoxes => "Page boxes",
+        PageProps => "Page Properties",
         PrinterMarks => "Add printer marks",
         Marks(_) => "Page marks",
         Export(_) => "Export PDF",
@@ -445,6 +446,7 @@ fn swap_drafts(app: &mut PdfCraftApp, holder: &mut PdfCraftApp, dialog: Dialog) 
         Protect => swap!(protect_draft),
         EncryptCertificate => swap!(certificate_draft),
         PageBoxes => swap!(boxes_draft),
+        PageProps => swap!(page_props_draft),
         PrinterMarks => swap!(printer_marks_draft),
         Marks(_) => swap!(marks_draft),
         Export(_) => swap!(export_draft),
@@ -591,12 +593,12 @@ fn restore(app: &mut PdfCraftApp, ctx: &egui::Context, key: &str) {
         app.notify("Bring the PDF back to this window before restoring its dialog, or close the dialog from the taskbar.");
         return;
     }
-    if matches!(parked.slot.dialog, Dialog::OverwriteChanged | Dialog::Sign | Dialog::RemoveSignature)
+    if matches!(parked.slot.dialog, Dialog::OverwriteChanged | Dialog::Sign | Dialog::RemoveSignature | Dialog::PageProps)
         && parked.doc.and_then(|id| app.session.get(id).map(|d| d.edit_generation())) != parked.generation
     {
         let parked = app.dialog_shelf.parked.remove(index);
         remove(ctx, &parked.slot.key);
-        app.notify("The PDF changed while this dialog was minimized. Start the save or signing operation again; your document was kept.");
+        app.notify("The PDF changed while this dialog was minimized. Open the dialog again; your document was kept.");
         return;
     }
     if let Some(active) = app.dialog_shelf.active.take()

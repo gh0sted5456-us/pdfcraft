@@ -245,6 +245,20 @@ impl PdfCraftApp {
                 }
                 self.dialog = Some(Dialog::NumberPages);
             }
+            "page.properties" => {
+                if let Some(i) = active
+                    && let Some(view) = self.views.get(i)
+                    && let Some(doc) = self.session.get(view.id)
+                {
+                    let pages = view.target_pages();
+                    let orders = doc.tab_orders();
+                    let mut theirs = pages.iter().map(|p| orders.get(*p).copied());
+                    let first = theirs.next().flatten();
+                    let before = if theirs.all(|o| o == first) { first } else { None };
+                    self.page_props_draft = Some(crate::PagePropsDraft { doc: view.id, pages, before, tab_order: before });
+                    self.dialog = Some(Dialog::PageProps);
+                }
+            }
             link if pdfcraft_engine::links::for_command(link).is_some() => {
                 if let Some(l) = pdfcraft_engine::links::for_command(link) {
                     self.open_url(l.url);
