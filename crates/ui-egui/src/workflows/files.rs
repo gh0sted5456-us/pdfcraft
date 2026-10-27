@@ -908,7 +908,6 @@ impl PdfCraftApp {
         }
         let Some(doc) = self.session.get(id) else { return };
         let stem = doc.name.trim_end_matches(".pdf").trim_end_matches(".PDF").to_string();
-        let ext = format.extension();
         let folder = doc.path.clone();
         let export = doc.export_office_checked(format);
         if !export.truncated_pages.is_empty() {
@@ -916,6 +915,11 @@ impl PdfCraftApp {
             return;
         }
         let bytes = export.bytes;
+        self.save_export_file(&stem, format.extension(), folder, bytes);
+    }
+
+    /// Save an export beside the document after asking where to write it.
+    pub(crate) fn save_export_file(&mut self, stem: &str, ext: &'static str, folder: Option<String>, bytes: Vec<u8>) {
         #[cfg(not(target_arch = "wasm32"))]
         {
             let originals: Vec<_> = self.session.docs().iter().filter_map(|d| d.path.clone()).collect();

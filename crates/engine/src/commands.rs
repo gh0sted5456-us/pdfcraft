@@ -195,6 +195,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("create.save_template", "Save as template", FILE, None, Document, "file-output"),
     c("export.choose", "Export to", FILE, None, Copying, "file-output"),
     c("export.docx", "Export to Word…", FILE, None, Copying, "file-text"),
+    c("export.xlsx", "Export to Excel…", FILE, None, Copying, "grid-3x3"),
     c("export.pptx", "Export to PowerPoint…", FILE, None, Copying, "presentation"),
     c("export.rtf", "Export to RTF…", FILE, None, Copying, "file-text"),
     c("export.html", "Export to HTML…", FILE, None, Copying, "file-symlink"),
