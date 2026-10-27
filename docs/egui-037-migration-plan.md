@@ -48,12 +48,32 @@ and standard endpoints. General Linux/FreeBSD checks were still running. This is
 not an ARM64 compiler qualification and prevents claiming all CI green.
 
 The final native marquee selects the synthetic PDF's original text with a visible
-blue highlight. Injected group movement and arrow nudging did not change its bounds
-or dirty state, so foreground movement/nudging remain unqualified. Windows control
-refuses its returned window identity with `window id ... no longer belongs to ...;
-current owner is ...` despite identical owner strings, preventing a physical input
-check. Automated group-selection, dragging and keyboard regressions pass. A user
-foreground movement/nudge check remains open.
+blue highlight. On 2026-10-27 the owner also confirmed physical group dragging and
+arrow-key nudging both work in “Integration-preview.pdf.” These manual native checks
+are complete for that synthetic document, alongside the automated group-selection,
+dragging and keyboard regressions. Earlier injected movement did not apply and
+Windows control rejected its own window identity; that remains a control-tool
+limitation; the owner's physical checks succeeded.
+CI at `0aed0f90`: Linux printer, Nix, packaging lint and dependency-source checks
+passed. The general Linux gate ran 5,579 tests: 5,576 passed and 3 failed, with
+25 skipped. The failures concern Japanese menu/protection-title expectations and
+missing accessible names in header/footer controls. FreeBSD reported the two
+Japanese-control failures. ARM64 packaging still stops at the OCR-model HTTP 403.
+These are separate from the selected-text rendering fix and remain promotion
+blockers; the migration candidate is not all-CI-green.
+
+Selecting words in an unchanged paragraph could redraw the editor's fallback glyphs
+over the original PDF text: egui recolored the transparent glyph vertices during
+selection painting. Hidden glyph triangles now collapse to zero area while keeping
+all cursor/layout metadata and nonempty renderer buffers. The inline selection fill
+is translucent and selected draft text keeps its source color, so the original ink
+remains legible. The regression failed on visible duplicate glyphs before the fix;
+it now covers unchanged selection, visible typed selection, undo and unchanged
+source data, including a pixel check for readable original letters. All 187 editing
+interaction tests passed (4 ignored), strict UI/desktop Clippy and web/WASM compilation
+passed, and the selected paragraph was visually checked on an original synthetic
+banner. The user's illustrated PDF has not been retested directly.
+
 Linux/macOS runtime, browser runtime, native IME and hardware CAC remain unqualified.
 The Windows preview package passed MSI validation and PE subsystem checks for the
 GUI, CLI and bundled setup. The package guard caught and prevented a console-subsystem

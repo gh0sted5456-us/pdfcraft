@@ -182,11 +182,11 @@ pub(super) fn editor_job(ui: &egui::Ui, ed: &LineEditor, text: &str, scale: f32,
     job
 }
 
-/// `galley` drawn in no colour: its rows still place the caret and the selection.
+/// Collapse drawing geometry so selection recoloring cannot reveal glyphs; caret/selection metrics stay intact.
 pub(super) fn unseen(mut galley: Arc<egui::Galley>) -> Arc<egui::Galley> {
     for placed in &mut Arc::make_mut(&mut galley).rows {
         for vertex in &mut Arc::make_mut(&mut placed.row).visuals.mesh.vertices {
-            vertex.color = Color32::TRANSPARENT;
+            vertex.pos = Pos2::ZERO;
         }
     }
     galley

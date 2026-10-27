@@ -3535,6 +3535,74 @@ fn opening_a_paragraph_leaves_the_page_as_it_is() {
         assert!(n < 20, "frame {frame} after the click changed {n} pixels of the paragraph");
     }
     assert_eq!(h.state().views[0].line_editor.as_ref().map(|e| e.text.as_str()), Some("White on a banner"));
+
+    // egui recolors selected glyph vertices after the custom layouter has hidden them.
+    let visible_editor_glyphs = |h: &Harness<'_, PdfCraftApp>, expected: &str| {
+        let galley = h
+            .output()
+            .shapes
+            .iter()
+            .find_map(|shape| match &shape.shape {
+                egui::Shape::Text(text) if text.galley.text() == expected => Some(&text.galley),
+                _ => None,
+            })
+            .expect("the paragraph editor paints its galley");
+        assert!(
+            galley.rows.iter().any(|row| row.visuals.mesh.indices.iter().any(|i| {
+                let vertex = row.visuals.mesh.vertices[*i as usize];
+                vertex.uv == egui::epaint::WHITE_UV && vertex.color.a() > 0
+            })),
+            "the selection highlight stays visible"
+        );
+        galley
+            .rows
+            .iter()
+            .map(|row| {
+                let mesh = &row.visuals.mesh;
+                mesh.indices
+                    .as_chunks::<3>()
+                    .0
+                    .iter()
+                    .filter(|triangle| {
+                        let [a, b, c] =
+                            [mesh.vertices[triangle[0] as usize], mesh.vertices[triangle[1] as usize], mesh.vertices[triangle[2] as usize]];
+                        let (ab, ac) = (b.pos - a.pos, c.pos - a.pos);
+                        (ab.x * ac.y - ab.y * ac.x).abs() > f32::EPSILON
+                            && [a, b, c].iter().any(|v| v.uv != egui::epaint::WHITE_UV && v.color.a() > 0)
+                    })
+                    .count()
+            })
+            .sum::<usize>()
+    };
+    h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    h.run_steps(2);
+    assert_eq!(visible_editor_glyphs(&h, "White on a banner"), 0, "selection must not redraw the unchanged PDF text");
+    let bright_ink = |image: &image::RgbaImage| {
+        (inside.top() as u32..inside.bottom() as u32)
+            .flat_map(|y| (inside.left() as u32..inside.right() as u32).map(move |x| (x, y)))
+            .filter(|(x, y)| (*x as f32 - at.x).abs() >= 14.0 && image.get_pixel(*x, *y).0[..3].iter().all(|v| *v > 200))
+            .count()
+    };
+    let source_ink = bright_ink(&before);
+    let selected_ink = bright_ink(&h.render().unwrap());
+    assert!(
+        source_ink > 50 && selected_ink * 2 >= source_ink && selected_ink <= source_ink * 2,
+        "selection must preserve the PDF's visible letters, not cover them with an opaque rectangle: {source_ink} -> {selected_ink}"
+    );
+    if let Ok(path) = std::env::var("PDFCRAFT_TEXT_FRAME_SHOT") {
+        h.render().unwrap().save(path).unwrap();
+    }
+    h.event(egui::Event::Text("Changed paragraph".into()));
+    h.run_steps(2);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    h.run_steps(2);
+    assert!(visible_editor_glyphs(&h, "Changed paragraph") > 0, "selected draft text must remain readable");
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(2);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::A);
+    h.run_steps(2);
+    assert_eq!(visible_editor_glyphs(&h, "White on a banner"), 0, "undo must hide the duplicate glyphs again");
+    assert!(!dirty(&h), "selection, typing and undo must leave the original document unchanged");
 }
 
 /// A quick click (press and release in one frame) from an open, unchanged paragraph straight into

@@ -599,6 +599,10 @@ pub(crate) fn overlay(ctx: &egui::Context, view: &mut DocView, info: &DocInfo) -
             let cover = ui.painter().add(egui::Shape::Noop);
             let unchanged = !ed.has_changes();
             egui::Frame::NONE.show(ui, |ui| {
+                // Unchanged glyphs come from the PDF underneath the selection highlight.
+                let selection_fill = ui.visuals().selection.bg_fill.gamma_multiply(0.35);
+                ui.visuals_mut().selection.bg_fill = selection_fill;
+                ui.visuals_mut().selection.stroke.color = text_color;
                 // A textless PDF preview, or the page itself, keeps its real background through
                 // the transparent editor. The temporary opaque cover uses the shared caret-contrast rule.
                 ui.visuals_mut().text_cursor.stroke.color = if background_ready || unchanged {
