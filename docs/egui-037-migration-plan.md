@@ -921,3 +921,10 @@ messages. Field-action tooltips no longer promise JavaScript in a future milesto
 Shared workflow dependencies are pinned; the release font input matches CI. Main
 promotion still requires fresh platform checks on the final PR head. Runtime limits
 for CAC, IME, Linux/macOS compositing and browser behavior remain as recorded above.
+
+Follow-up qualification: all 646 UI library tests pass (1 ignored), including the
+shared-menu uniqueness check. The tools menu now deduplicates commands across all
+categories, so enabling Stamp and Preflight cannot list either command twice.
+All 7 catalog regressions pass. Strict desktop Clippy and the web compile passed;
+the web target retains its existing 11 desktop-only/dead-code warnings. Final-head
+menu interaction and lint reruns are included in PR qualification.

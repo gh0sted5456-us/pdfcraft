@@ -419,18 +419,18 @@ impl PdfCraftApp {
     /// View ▸ Tools: the All tools groups, each a submenu of its ready tools that no other menu
     /// lists, sections apart.
     fn tools_menu(&self, used: &[&str]) -> Vec<Node> {
+        let mut seen = used.to_vec();
         TOOL_GROUPS
             .iter()
             .filter(|g| g.availability == Availability::Ready)
             .map(|group| {
                 let mut nodes = Vec::new();
-                let mut seen: Vec<&str> = Vec::new();
                 for section in group.sections {
                     nodes.push(Node::Separator);
                     for tool in section.items.iter().filter(|t| t.availability == Availability::Ready) {
                         let actions: &[&'static str] = if tool.actions.is_empty() { std::slice::from_ref(&tool.command) } else { tool.actions };
                         for &id in actions {
-                            if commands::command(id).is_none() || used.contains(&id) || seen.contains(&id) {
+                            if commands::command(id).is_none() || seen.contains(&id) {
                                 continue;
                             }
                             seen.push(id);
