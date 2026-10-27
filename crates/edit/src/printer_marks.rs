@@ -6,7 +6,9 @@
 use pdfcraft_cos::{Document, Object};
 use pdfcraft_fonts::{literal, win_ansi};
 
-use crate::{END, EditError, MarkKind, add_resources, begin, check, n, page_list, place, remove_marks};
+use crate::marks::{MarkKind, n};
+use crate::place::{END, add_resources, begin, check, page_list, place};
+use crate::{EditError, remove_marks};
 
 /// Which marks, and how heavy.
 #[derive(Clone, Debug, PartialEq)]
