@@ -43,7 +43,6 @@ mod pictures;
 pub mod print_raster;
 pub mod printcheck;
 mod protection;
-mod reexports;
 mod scan_colours;
 mod scan_fields;
 mod session;
@@ -69,7 +68,57 @@ pub use signature_scan::{PhotoRect, ScanError, SignaturePhoto, Turn};
 pub use stamp_preview::StampPreview;
 pub use text_preview::TextEditPreview;
 
-pub use reexports::*;
+pub use pdfcraft_organize::{BoxSpec, FieldConflicts, PageBox, SplitBy, Transition, TransitionSpec, mime_for_name, split_ranges};
+
+pub use pdfcraft_organize::LabelStyle;
+pub use pdfcraft_organize::Standard;
+pub use pdfcraft_organize::check_custom_key;
+pub use pdfcraft_organize::view::{InitialView, Layout as InitialLayout, Magnification, Navigation};
+
+pub use pdfcraft_cos::Algorithm;
+pub use pdfcraft_create::{CONVERTIBLE, CreateError, ImageResolution, SourceKind, decode_text, source_kind};
+pub use pdfcraft_edit::added::{
+    CHAR_SPACING_LIMIT as ADDED_CHAR_SPACING_LIMIT, paste_place as added_paste_place, paste_rect as added_paste_rect, text_rect as added_text_rect,
+    text_width as added_text_width,
+};
+pub use pdfcraft_edit::{
+    Added, AddedImage, AddedText, Align as TextAlign, Background, Content as AddedContent, Family as FontFamily, HeaderFooter, MarkKind, Watermark,
+};
+pub use pdfcraft_forms::{
+    BorderStyle, CalculatedField, CalculationIssue, CalculationOrder, CheckStyle, Field as FormField, FieldAction, FieldChange, FieldFont,
+    FieldKind as FormFieldKind, FieldProps, FieldValue, Look as FieldLook, LookPatch as FieldLookPatch, NewField, TabOrder, Trigger as FieldTrigger,
+    Widget as FormWidget, af as form_scripts, appearance as form_appearance, appearance::auto_text_size_by as field_auto_text_size_by,
+    calculations_changed as form_calculations_changed, flags as field_flags,
+};
+
+pub use pdfcraft_a11y as a11y;
+pub use pdfcraft_edit::{BlockKey, BlockStyle, PageImage, RangeStyle, TextBlock, TextLine, block_overlapping, first_undrawable};
+pub use pdfcraft_measure as measure;
+pub use pdfcraft_xfa::Report as XfaLayout;
+
+pub use pdfcraft_edit::{EditableObject, MAX_MOVE_OBJECTS, ObjectKind, ObjectTarget};
+
+pub use pdfcraft_fonts::{MAX_SIGNATURE_CHARS, ScriptOutline, script_missing, script_outline, undrawable_message};
+
+/// Comment geometry helpers (text-box line breaking) for frontends.
+pub use pdfcraft_annot::appearance as annot_text;
+pub use pdfcraft_annot::links::{Highlight as LinkHighlight, LinkAction, LinkItem, LinkStyle};
+pub use pdfcraft_annot::{
+    AppearanceCache, AttachIcon, FillMark, LineEnding, Markup, NOTE_SIZE, NewAnnotation, NoteIcon, OverlayFont, OverlayLook, Props as CommentProps,
+    ReviewState, Rgb, Shape, StampGroup, StampKind, Style, rect_quad,
+};
+pub use pdfcraft_forms::detect;
+pub use pdfcraft_optimize as optimize;
+pub use pdfcraft_preflight as pdfa;
+pub use pdfcraft_print as print;
+pub use pdfcraft_redact::codes::{CODE_SETS as REDACTION_CODE_SETS, CodeSet as RedactionCodeSet};
+pub use pdfcraft_redact::patterns::{
+    MAX_WORDS as REDACT_MAX_WORDS, PATTERNS as REDACT_PATTERNS, Pattern as RedactPattern, find as find_pattern, word_list as redact_word_list,
+};
+pub use pdfcraft_redact::sanitize::{HIDDEN, Hidden};
+pub use pdfcraft_sign as sign;
+pub use pdfcraft_sign::{SignOptions, SignatureInfo, Status as SignatureStatus, TrustStore};
+pub use pdfcraft_xfdf::Format as DataFormat;
 
 use bookmarks::outline_rows;
 pub use bookmarks::{BookmarkPage, BookmarkRow};
@@ -98,145 +147,16 @@ use xfa_form::{
     undrawn_field_warnings, xfa_after_data_change, xfa_layout, xfa_redraw, xfa_sync_datasets, xfa_values_from_datasets,
 };
 
-/// A change to an existing page image.
-#[derive(Clone, Debug, PartialEq)]
-pub enum ImageEdit {
-    /// Move and resize it to this box (user space).
-    Move([f64; 4]),
-    /// Quarter turns clockwise about its centre.
-    Rotate(i32),
-    /// Any angle in degrees clockwise about its centre (the unit is degrees, not quarter turns).
-    RotateBy(f64),
-    Flip {
-        horizontal: bool,
-    },
-    /// Show only this box of it (user space), the pixels staying where they are.
-    Crop([f64; 4]),
-    /// Draw this image file (PNG, JPEG, TIFF, GIF, BMP, JPEG 2000) in its place.
-    Replace {
-        name: String,
-        bytes: Arc<Vec<u8>>,
-    },
-    Delete,
-}
+mod clock;
+mod doc_state;
 
-/// Forms ▸ Merge data files into spreadsheet: the field values of each file (FDF, XFDF or a
-/// filled-in PDF form), as CSV with one row per file.
-pub fn merge_data_files(files: &[(String, Vec<u8>)]) -> Result<String, String> {
-    let rows =
-        files.iter().map(|(name, bytes)| pdfcraft_xfdf::data_values(bytes).map_err(|e| format!("{name}: {e}"))).collect::<Result<Vec<_>, _>>()?;
-    Ok(pdfcraft_xfdf::merge_csv(&rows))
-}
-
-/// One file produced by a split: (1-based first page, last page, PDF bytes).
-pub type SplitPart = (usize, usize, Arc<Vec<u8>>);
-
-/// Stable identifier of an open document within a session.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct DocId(pub u64);
-
-/// The highest resolution a document that allows only low-resolution printing (Table 22, bit 12
-/// clear) is printed at.
-const LOW_RESOLUTION_PRINT_DPI: f64 = 150.0;
-
-fn render_threads() -> usize {
-    std::thread::available_parallelism().map(std::num::NonZeroUsize::get).unwrap_or(4).clamp(2, 8) - 1
-}
-
-/// A document's working file captured for crash recovery.
-#[derive(Clone, Debug)]
-pub struct RecoverySnapshot {
-    pub doc: DocId,
-    pub name: String,
-    pub path: Option<String>,
-    pub bytes: Arc<Vec<u8>>,
-    /// The snapshot is encrypted (recovering it asks for the password again).
-    pub encrypted: bool,
-}
-
-/// Seconds to add to UTC for local time (0 where unknown).
-fn local_utc_offset() -> i64 {
-    #[cfg(not(target_arch = "wasm32"))]
-    return i64::from(chrono::Local::now().offset().local_minus_utc());
-    #[cfg(target_arch = "wasm32")]
-    return 0;
-}
-
-/// (year, month, day) from a PDF date `D:YYYYMMDD…`.
-fn parse_ymd(d: &str) -> Option<(i64, u32, u32)> {
-    let d = d.strip_prefix("D:").unwrap_or(d);
-    Some((d.get(0..4)?.parse().ok()?, d.get(4..6)?.parse().ok()?, d.get(6..8)?.parse().ok()?))
-}
-
-/// The recovered user password of an R2–R4 file as text for the renderer, which tries a password
-/// as its UTF-8 bytes and then in PDFDocEncoding: UTF-8 bytes (as some writers store passwords
-/// PDFDocEncoding can't hold, such as "şifre") stay UTF-8, and other bytes are read as
-/// PDFDocEncoding, so either way the renderer gets back exactly these bytes.
-fn renderer_password(bytes: &[u8]) -> String {
-    match std::str::from_utf8(bytes) {
-        Ok(text) => text.to_owned(),
-        Err(_) => bytes.iter().map(|b| pdfcraft_cos::pdfdoc_char(*b)).collect(),
-    }
-}
-
-/// The document as it may be written to a file (#3926, #3944): a copy without the values of text
-/// fields with the Password flag (or XFA `<passwordEdit/>` fields in the datasets), or `cos`
-/// itself when it holds none. ISO 32000-2 §12.7.5.3, Table 231 (a note to the Password flag):
-/// "it is imperative that PDF processors never store the value of the text field in the PDF file
-/// if this flag is set". The open document keeps them in memory.
-fn writable(cos: &pdfcraft_cos::Document) -> Result<std::borrow::Cow<'_, pdfcraft_cos::Document>, EditError> {
-    let has_form_pw = pdfcraft_forms::has_password_values(cos);
-    let has_xfa_pw = pdfcraft_xfa::has_password_values(cos);
-    if !has_form_pw && !has_xfa_pw {
-        return Ok(std::borrow::Cow::Borrowed(cos));
-    }
-    let mut copy = cos.clone();
-    if has_form_pw {
-        pdfcraft_forms::clear_password_values(&mut copy).map_err(|e| EditError::Write(e.to_string()))?;
-    }
-    if has_xfa_pw {
-        pdfcraft_xfa::clear_password_values(&mut copy).map_err(|e| EditError::Write(e.to_string()))?;
-    }
-    Ok(std::borrow::Cow::Owned(copy))
-}
-
-/// The last-resort guard (AGENTS.md §4): run `f`, turning a panic that escapes it into an error
-/// message, so one bad file or edit can't take the app and its other documents down. It is a
-/// safety net for bugs, not a substitute for returning errors.
-pub fn guard<T>(f: impl FnOnce() -> T) -> Result<T, String> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).map_err(|p| {
-        p.downcast_ref::<&str>().map(|s| (*s).to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_else(|| "unknown error".into())
-    })
-}
-
-/// Validate the signature fields of `cos` (written as `bytes`).
-fn signatures_of(cos: &pdfcraft_cos::Document, bytes: &[u8], trust: &TrustStore, cache: &pdfcraft_sign::DigestCache) -> Vec<SignatureInfo> {
-    pdfcraft_sign::pdf::list_cached(cos, bytes, trust, cache)
-}
-
-/// What Optimize PDF did.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct OptimizeReport {
-    pub optimize: optimize::Report,
-    /// Identical objects merged.
-    pub merged: usize,
-    /// Remove Hidden Information categories discarded, with counts.
-    pub discarded: Vec<(Hidden, usize)>,
-}
+use clock::{local_utc_offset, parse_ymd};
+pub use doc_state::{DocId, ImageEdit, OptimizeReport, RecoverySnapshot, SplitPart, guard, merge_data_files};
+use doc_state::{LOW_RESOLUTION_PRINT_DPI, render_threads, renderer_password, signatures_of, writable};
 
 #[cfg(test)]
 mod tests;
 
-pub mod assistant;
-pub mod clear_signature;
-mod ocr_pdf;
-pub mod outputcheck;
-mod page_workflows;
-pub mod spelling;
-pub mod templates;
-use history::*;
-use pdfcraft_cos::{SaveOptions, write_full, write_incremental};
-use pdfcraft_render::DocInfo;
 /// What opens a certificate-protected document (§7.6.5): the seed and permissions one of its
 /// envelopes gave up to one of the session's identities.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -244,11 +164,13 @@ pub struct CertificateKey {
     pub seed: [u8; 20],
     pub permissions: i32,
 }
+
 /// Whether the document's next save is certificate security (`/Adobe.PubSec`): its working
 /// bytes cannot be read by the renderer, which gets a decrypted copy instead.
 fn certificate_secured(cos: &pdfcraft_cos::Document) -> bool {
     cos.output_handler().is_some_and(|h| h.dict().filter == pdfcraft_cos::PUBSEC_FILTER)
 }
+
 /// The document as it is now, with no encryption: what the renderer and inspector read when
 /// the file itself is certificate-protected.
 fn plain_copy(cos: &pdfcraft_cos::Document) -> Result<Arc<Vec<u8>>, EditError> {
@@ -256,6 +178,7 @@ fn plain_copy(cos: &pdfcraft_cos::Document) -> Result<Arc<Vec<u8>>, EditError> {
     plain.remove_encryption();
     write_full(&plain, &SaveOptions::default()).map(Arc::new).map_err(|e| EditError::Write(e.to_string()))
 }
+
 /// The working file: the file as opened or last saved, plus one appended update with the unsaved
 /// edits. A certificate-protected document's working file stays encrypted; its
 /// [`Document::bytes`] are a decrypted copy that must not leave memory.
@@ -266,6 +189,7 @@ fn working_file(cos: &pdfcraft_cos::Document) -> Result<Arc<Vec<u8>>, EditError>
         Ok(cos.bytes().clone())
     }
 }
+
 /// What one of `identities` makes of the envelopes: the seed and permissions of the first
 /// envelope addressed to it.
 fn unlock_with_identities(identities: &[Arc<pdfcraft_sign::DigitalId>], envelopes: &[Vec<u8>]) -> Option<CertificateKey> {
@@ -280,6 +204,7 @@ fn unlock_with_identities(identities: &[Arc<pdfcraft_sign::DigitalId>], envelope
     }
     None
 }
+
 /// Certificate security to apply (§7.6.5): the file encrypted for `recipients`, each with the
 /// permissions their envelope carries (`-1`: everything, what the author gives themself).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -291,6 +216,7 @@ pub struct CertificateProtection {
     /// The file key's seed, fresh from [`Session::new_seed`].
     pub seed: [u8; 20],
 }
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CertificateRecipient {
     /// The certificate, DER.
@@ -298,6 +224,7 @@ pub struct CertificateRecipient {
     /// Permission bits as `/P` (§7.6.4.2, Table 22); `-1` for everything.
     pub permissions: i32,
 }
+
 /// Whether the opening password allows an edit (§7.6.4.2, Table 22).
 fn check_certified_edit(edit: &Edit, permission: Option<u8>) -> Result<(), EditError> {
     let Some(p) = permission else { return Ok(()) };
@@ -316,6 +243,7 @@ fn check_certified_edit(edit: &Edit, permission: Option<u8>) -> Result<(), EditE
         Err(EditError::Invalid("The document's certification does not permit this edit; remove the signature first".into()))
     }
 }
+
 /// Whether the edit, or any edit inside a batch, deletes pages.
 fn deletes_pages(edit: &Edit) -> bool {
     match edit {
@@ -324,3 +252,29 @@ fn deletes_pages(edit: &Edit) -> bool {
         _ => false,
     }
 }
+
+pub mod assistant;
+
+pub mod clear_signature;
+
+mod ocr_pdf;
+
+pub mod outputcheck;
+
+mod page_workflows;
+
+pub mod spelling;
+
+pub mod templates;
+
+use history::*;
+
+use pdfcraft_cos::{SaveOptions, write_full, write_incremental};
+
+use pdfcraft_render::DocInfo;
+
+pub use pdfcraft_edit::PathOutline;
+
+pub use pdfcraft_edit::PathStyle;
+
+pub use pdfcraft_edit::ObjectAlign;

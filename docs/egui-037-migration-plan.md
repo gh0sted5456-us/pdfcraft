@@ -1,37 +1,58 @@
 # Personal fork candidate — 2026-10-27
 
 The isolated `codex/egui-037-integration` branch starts from fork `6ca60e50` and
-integrates upstream history through `9a9813bf`. Main remains unchanged. This
-framework checkpoint upgrades egui/eframe to 0.37, the published winit fork and
-craft-ui/quit/keymap to `edc41f68`; craft-print remains pinned to `42e30cd5`.
+integrates upstream history through `1dd2737b`, including egui/eframe 0.37, shared
+menus and the module-layout merge (#4889). Fork main remains unchanged. Dependencies
+pin the published egui and winit forks and craft-ui/quit/keymap `edc41f68`;
+craft-print remains at `42e30cd5`.
 
-The fork keeps its manual GitHub updater and installs no startup update check.
-Glass opacity, integrated headers, popup taskbar, Assistant, OCR, group editing,
-signing/protection, page locks, templates, printer and thumbnail integration remain.
-All 313 original engine definitions were accounted for once across the split modules.
-Menu coverage includes the fork's commands and Glass's selected state. Controls
-retain accessible names; the signature pad scrolls its content above a pinned footer
-in Type, Draw, Image and Scan modes, including 640×480 windows.
+The fork retains Glass and its independent application/popup/tool opacity, integrated
+headers, popup taskbar, Assistant, OCR, group editing, signing/protection, page locks,
+templates, printer, thumbnails and manual GitHub updater. There is no new startup
+update check. The layout audit accounts for all 17,591 original definitions; the
+production function bodies are unchanged by the directory move. Moved test paths,
+private imports and helper visibility were repaired, preserving the fork's regressions.
 
-The pinned craft-menu manifest is rejected by Cargo 1.95 because it disables an
-inherited dependency's implicit defaults. `vendor/craft-menu` contains its exact
-14 Rust sources and original licenses; only the manifest is adjusted. See
-[PATCHES.md](../vendor/craft-menu/PATCHES.md). No Cargo-cache modifications are needed.
+Shared menus retain fork commands and Glass's selected state. Accessible control
+names, compact translated headers and scrolling signature-pad content with pinned
+confirmation buttons are covered by the framework checkpoint and combined tests.
+The pinned craft-menu manifest is rejected by Cargo's inherited-default-features
+rules: `vendor/craft-menu` carries all 14 exact Rust sources and original licenses,
+with only the manifest adapted. See [PATCHES.md](../vendor/craft-menu/PATCHES.md).
 
-Framework validation: 2,831 scoped tests passed and 17 were ignored. Strict Clippy,
-formatting, assets, dependency layering, parity and `pdfcraft-web`'s WASM build
-passed. The WASM check retains desktop-only/dead-code warnings. No new native,
-browser-runtime, Linux/macOS GUI or hardware-CAC qualification is claimed here.
+Combined validation: 5,033 tests passed, zero failed and 25 were ignored across 20
+affected packages. Strict Clippy on all targets, formatting, assets, dependency
+layering, parity references and `pdfcraft-web` WASM compilation passed. The WASM
+check retains desktop-only/dead-code warnings. Test-module ordering was adjusted
+after the runtime suite without changing function bodies.
 
-The next checkpoint integrates the module-layout merge `1dd2737b` on this branch,
-then qualifies the combined application and package. The earlier upstream planning
-and historical validation below are retained as context, not personal-build evidence.
+An isolated portable Windows preview verified Light/Dark/Glass headers, maximize /
+restore and normal bounds after a maximized restart. Assistant minimize/restore
+retains the exact Glass settings; 42% application opacity appears as alpha 107 in
+the header/canvas while PDF content stays opaque. Organizer Lock/Unlock toggles
+and padlock placement directly after Delete were checked natively.
+
+Native pointer dragging remains unqualified: injected drags did not select the
+sample text, and Windows control refuses its returned window identity with
+`window id ... no longer belongs to ...; current owner is ...` despite identical
+owner strings, preventing foreground verification. Automated group-selection,
+dragging and keyboard regressions pass. A user foreground check is pending.
+Linux/macOS runtime, browser runtime, native IME and hardware CAC remain unqualified.
+The Windows preview package passed MSI validation and PE subsystem checks for the
+GUI, CLI and bundled setup. The package guard caught and prevented a console-subsystem
+regression from upstream; the fork's unconditional Windows GUI subsystem was restored,
+then all 95 desktop tests (2 ignored) and desktop lint passed again. The installer was
+not executed and the printer payload is unchanged. The installed application and
+updater release remain unchanged. Do not promote this candidate to main before CI and native review.
+
+The earlier upstream planning and historical validation below are retained as
+context, not personal-build evidence.
 
 # Current integration — 2026-10-25
 
 The local integration includes main `d764a8ebca2dc289841b34ea3048f613a9869bbb` and pins craft-ui, craft-quit and craft-print to published `42e30cd5b3f4b114270dd053fccbc33bedc47f68`. The egui, winit and independent craft-docpath pins are unchanged. Its `Cargo.lock` SHA-256 is `3e0c10576c8584eb1f45a27908177e7c65bb83f8e855bf3a5429edd4e7268c80`.
 
-Main replaced the floating docking workspace with fixed shared side panes in `crates/ui-egui/src/side_panels.rs`. `PaneHost` owns the Tools and inspector columns; `Rail` owns the fixed navigation rail and footer. The integration retains the 0.37 ID, text alignment, capture, IME and accessibility adaptations. The former `docking.rs`, `rail-nav` panel and read-mode inspector panel no longer exist. Floating windows, tab groups and drag/redock operations from the earlier design are not capabilities of this integrated UI. Their historical acceptance items below do not establish current behavior.
+Main replaced the floating docking workspace with fixed shared side panes in `crates/ui-egui/src/panels/side_panels.rs`. `PaneHost` owns the Tools and inspector columns; `Rail` owns the fixed navigation rail and footer. The integration retains the 0.37 ID, text alignment, capture, IME and accessibility adaptations. The former `docking.rs`, `rail-nav` panel and read-mode inspector panel no longer exist. Floating windows, tab groups and drag/redock operations from the earlier design are not capabilities of this integrated UI. Their historical acceptance items below do not establish current behavior.
 
 Focused scroll, zoom and RTL palette regressions passed. Removing the production fixes while retaining the tests reproduced double scrolling, double zooming and failed reordered-word RTL search; both source files were then restored byte-for-byte. Independent source review accepted the integration. Full combined-tree CI and the separate web WASM check passed with required external oracles: 5,190 passing test executions, zero failures and 22 ignored across 89 summaries. The first attempt stopped at the storage reservation guard; the successful rerun used an increased reservation. The 5,190 result comes from managed run `egui037-pdf-combined-ci-20261025-1340` and qualifies the integration of main `d764a8ebca2dc289841b34ea3048f613a9869bbb` with `Cargo.lock` SHA-256 `3e0c10576c8584eb1f45a27908177e7c65bb83f8e855bf3a5429edd4e7268c80`, published as `fbfad2039c650a02b39ceee5c3f0e4d6fd4b3f74`. The older 5,183-pass result covered commit `9032aeb35f7abe7777f66d4b835fd461a865c516`, integrating main `71b47b51`; it is a separate checkpoint and is not evidence for the current tree. Both runs recorded 22 ignored executions across 89 summaries.
 
@@ -194,7 +215,7 @@ Docking is `crates/ui-egui/src/docking.rs`; `DockArea::new(egui::Id::unique("pdf
 
 ### 2.7 Window frame, decorations and restoration
 
-`apps/pdfcraft/src/main.rs` owns native options, app creation and GPU setup. `apps/pdfcraft/src/decorations.rs` decides whether GNOME Wayland leaves the frame to the app. `crates/ui-egui/src/window_controls.rs` draws the app frame and resize edges, and `window_state.rs` repairs a 64×64 restored window.
+`apps/pdfcraft/src/main.rs` owns native options, app creation and GPU setup. `apps/pdfcraft/src/decorations.rs` decides whether GNOME Wayland leaves the frame to the app. `crates/ui-egui/src/platform/window_controls.rs` draws the app frame and resize edges, and `window_state.rs` repairs a 64×64 restored window.
 
 `craft-window` owns `Frame`, `Layout` and `Button`; `window_controls.rs` currently has distinct duplicate types and its own GNOME `button-layout` parser. The migration makes `window_controls` re-export `craft_window::{Button, Layout}` and removes the duplicate parser. `decorations::app_drawn` uses `craft_window::Choice::probe(Prefix::new("PDFCRAFT"))`; `PDFCRAFT_TITLEBAR` accepts `app`, `system` and `desktop` (the last two force the desktop frame), matching craft-window. PdfCraft still applies `with_decorations(false)` only when it will draw its own header bar, and the runtime “Use system title bar” preference still toggles `ViewportCommand::Decorations`; craft-window decides the startup frame, not the runtime preference. The probe is called once at startup and never from `App::ui`.
 

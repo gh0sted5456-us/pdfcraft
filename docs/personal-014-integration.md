@@ -23,13 +23,20 @@ An isolated native Windows run checked Home at 35%, 67% and 100% opacity, docume
 
 ## egui 0.37 candidate — 2026-10-27
 
-The integration branch upgrades the menu/framework foundation while preserving the
-personal workspace, Glass and updater. Its framework checkpoint passed 2,831 scoped
-tests (17 ignored), strict lint, formatting, provenance/layering/parity gates and the
-web build check. The full directory-layout merge and native package qualification
-are pending; fork main and the installed build remain unchanged. See
-[the migration record](egui-037-migration-plan.md).
+The isolated `codex/egui-037-integration` branch integrates upstream through
+`1dd2737b`: egui 0.37, shared menus and the directory-layout merge. It preserves
+the personal workflows and manual updater. All 17,591 original definitions are
+accounted for after the move. Combined validation passed 5,033 tests (25 ignored),
+strict lint, formatting, assets/layering/parity and web/WASM compilation.
+
+Native Windows checks cover header restoration in all themes, Assistant theme
+retention and organizer locks. Foreground pointer dragging, Linux/macOS and CAC
+hardware remain unqualified; see [the migration record](egui-037-migration-plan.md).
+The Windows preview installer passed MSI and GUI/CLI subsystem validation; it has
+not been installed. The branch has not replaced fork main or the installed application.
 
 ## Revision history
+
+- 2026-10-27: Integrate the egui 0.37/menu and module-layout candidate on a separate branch; record combined qualification and remaining native checks.
 
 - 2026-10-25: Integrated upstream 0.14.0 and corrected accumulation of Glass tint across nested main-window surfaces.
