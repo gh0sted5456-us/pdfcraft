@@ -28,7 +28,7 @@ pub fn run() -> Result<(), String> {
         Ok(())
     }
     #[cfg(not(feature = "bundle"))]
-    Err("This is the PdfCraft printer component. Run the combined PdfCraft installer to install it, or use --status / --remove-printer.".into())
+    Err("This is the PdfCraft printer component. Run the combined Lion PDF installer to install it, or use --status / --remove-printer.".into())
 }
 
 fn status(remove: bool) -> Result<(), String> {
@@ -105,7 +105,7 @@ fn install(args: &[String]) -> Result<(), String> {
             .map_err(|e| format!("Could not start Windows Installer: {e}. Setup log: {}", log_path.display()))?;
         if !matches!(status.code(), Some(0 | 3010)) {
             return Err(format!(
-                "PdfCraft installation did not finish (Windows Installer result {}). Printer setup did not run. Setup log: {}",
+                "Lion PDF installation did not finish (Windows Installer result {}). Printer setup did not run. Setup log: {}",
                 status.code().map_or_else(|| "unavailable".to_string(), |code| code.to_string()),
                 log_path.display()
             ));
@@ -127,7 +127,7 @@ fn install(args: &[String]) -> Result<(), String> {
         let result = PackageManager::new()
             .and_then(|p| p.AddPackageByUriAsync(&uri, &options))
             .and_then(|op| op.join())
-            .map_err(|e| format!("PdfCraft setup could not register the printer plugin: {e}"))?;
+            .map_err(|e| format!("Lion PDF setup could not register the printer plugin: {e}"))?;
         let error = result.ExtendedErrorCode().map_err(|e| e.to_string())?;
         if error.is_err() {
             return Err(format!("Printer plugin registration failed: {} ({error:?})", result.ErrorText().map_err(|e| e.to_string())?));

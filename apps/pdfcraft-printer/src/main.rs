@@ -17,7 +17,7 @@ fn main() -> std::process::ExitCode {
             eprintln!("{message}");
             #[cfg(windows)]
             if !std::env::args().any(|a| a == "--quiet") {
-                setup::message("PdfCraft setup", &message, true);
+                setup::message("Lion PDF setup", &message, true);
             }
             std::process::ExitCode::FAILURE
         }
