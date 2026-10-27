@@ -23,7 +23,7 @@ output="/var/spool/pdfcraft-printer/$(id -u)"
 # Authenticated local submission, through the real CUPS queue and PDF pass-through PPD.
 timeout 30 lp -h /run/cups/cups.sock -d PdfCraft_Printer "$WORK/source.pdf"
 found=''
-for attempt in $(seq 1 50); do
+for _attempt in $(seq 1 50); do
   if [ -d "$output" ]; then
     for file in "$output"/*.pdf; do
       if [ -f "$file" ] && cmp -s "$WORK/source.pdf" "$file"; then found="$file"; break; fi
