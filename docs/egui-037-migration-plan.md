@@ -961,3 +961,8 @@ allowlist is unchanged. NOTICE includes the full MPL text and links to the exact
 published source archive and browsable source. Existing package scripts ship
 NOTICE in Linux, FreeBSD, Flatpak, macOS and Windows distributions. All nine
 actual-target dependency audits must pass before promotion.
+
+The release version self-check now covers standalone and mixed versioned build-input
+tags. These OCR dependency releases no longer prevent assigning the next installer
+version. Unknown tags, downgrades and MSI version overflow remain rejected; the new
+regression failed on the old script before this fix.
