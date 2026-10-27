@@ -23,6 +23,7 @@ pub fn show(app: &mut PdfCraftApp, ctx: &egui::Context) {
     crate::dialog_windows::capture(app, ctx);
 }
 
+/// Draw the active modal dialog and apply the action the user chose.
 fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     password(app, ctx);
     save_prompt(app, ctx);
@@ -222,6 +223,22 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     });
                     ui.end_row();
                 };
+                // A file name or path is read left to right even in an RTL UI: the extension
+                // stays at its visual end, as in the tab strip.
+                let path_row = |ui: &mut egui::Ui, k: &str, v: String| {
+                    ui.label(egui::RichText::new(tl!(k)).color(t.text_muted));
+                    ui.scope(|ui| {
+                        ui.set_max_width(420.0);
+                        // Align path text with editable fields while keeping its LTR text order.
+                        ui.add_space(inset);
+                        if v.is_empty() {
+                            ui.label(egui::RichText::new("—").color(t.text_faint));
+                        } else {
+                            crate::widgets::label_ltr(ui, v, crate::theme::regular(13.0), t.text);
+                        }
+                    });
+                    ui.end_row();
+                };
                 widgets::dialog_scroll(ui, "properties-body", |ui| {
                     if tab == PropsTab::SpaceAudit {
                         ui.add_space(4.0);
@@ -230,7 +247,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     }
                     egui::Grid::new("props").num_columns(2).spacing([18.0, 8.0]).min_col_width(140.0).show(ui, |ui| match tab {
                         PropsTab::Description => {
-                            row(ui, "File", crate::bidi::visual(&doc.name).into_owned());
+                            path_row(ui, "File", doc.name.clone());
                             match app.props_draft.as_mut() {
                                 Some((_, draft)) if editable_info => {
                                     for (k, v) in INFO_KEYS.iter().zip(draft.iter_mut()) {
@@ -266,7 +283,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                             let Some((_, v)) = app.view_draft.as_mut() else { return };
                             ui.label(egui::RichText::new(tl!("Layout and Magnification")).font(theme::semibold(12.5)));
                             ui.end_row();
-                            ui.label(tl!("Navigation tab"));
+                            let label = ui.label(tl!("Navigation tab"));
                             ui.add_enabled_ui(editable, |ui| {
                                 egui::ComboBox::from_id_salt("iv-nav")
                                     .selected_text(tl!(format!("{:?}", v.navigation)
@@ -283,10 +300,12 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                                         ] {
                                             ui.selectable_value(&mut v.navigation, n, l);
                                         }
-                                    });
+                                    })
+                                    .response
+                                    .labelled_by(label.id);
                             });
                             ui.end_row();
-                            ui.label(tl!("Page layout"));
+                            let label = ui.label(tl!("Page layout"));
                             ui.add_enabled_ui(editable, |ui| {
                                 let names = [
                                     (L::Default, tl!("Default")),
@@ -298,14 +317,18 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                                     (L::TwoUpContinuousCoverPage, tl!("Two-Up Continuous (Cover Page)")),
                                 ];
                                 let shown = names.iter().find(|(l, _)| *l == v.layout).map_or(tl!("Default"), |(_, n)| n);
-                                egui::ComboBox::from_id_salt("iv-layout").selected_text(shown).show_ui(ui, |ui| {
-                                    for (l, n) in names {
-                                        ui.selectable_value(&mut v.layout, l, n);
-                                    }
-                                });
+                                egui::ComboBox::from_id_salt("iv-layout")
+                                    .selected_text(shown)
+                                    .show_ui(ui, |ui| {
+                                        for (l, n) in names {
+                                            ui.selectable_value(&mut v.layout, l, n);
+                                        }
+                                    })
+                                    .response
+                                    .labelled_by(label.id);
                             });
                             ui.end_row();
-                            ui.label(tl!("Magnification"));
+                            let label = ui.label(tl!("Magnification"));
                             ui.add_enabled_ui(editable, |ui| {
                                 ui.horizontal(|ui| {
                                     let names = [
@@ -320,21 +343,25 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                                         M::Percent(p) => format!("{p:.0}%"),
                                         m => names.iter().find(|(x, _)| *x == m).map_or(tl!("Default").to_string(), |(_, n)| n.to_string()),
                                     };
-                                    egui::ComboBox::from_id_salt("iv-mag").selected_text(shown).show_ui(ui, |ui| {
-                                        for (m, n) in names {
-                                            ui.selectable_value(&mut v.magnification, m, n);
-                                        }
-                                        for p in [50.0, 75.0, 125.0, 150.0, 200.0] {
-                                            ui.selectable_value(&mut v.magnification, M::Percent(p), format!("{p:.0}%"));
-                                        }
-                                    });
+                                    egui::ComboBox::from_id_salt("iv-mag")
+                                        .selected_text(shown)
+                                        .show_ui(ui, |ui| {
+                                            for (m, n) in names {
+                                                ui.selectable_value(&mut v.magnification, m, n);
+                                            }
+                                            for p in [50.0, 75.0, 125.0, 150.0, 200.0] {
+                                                ui.selectable_value(&mut v.magnification, M::Percent(p), format!("{p:.0}%"));
+                                            }
+                                        })
+                                        .response
+                                        .labelled_by(label.id);
                                 });
                             });
                             ui.end_row();
-                            ui.label(tl!("Open to page"));
+                            let label = ui.label(tl!("Open to page"));
                             ui.add_enabled_ui(editable, |ui| {
                                 let mut p = v.page + 1;
-                                if ui.add(egui::DragValue::new(&mut p).range(1..=pages.max(1))).changed() {
+                                if ui.add(egui::DragValue::new(&mut p).range(1..=pages.max(1))).labelled_by(label.id).changed() {
                                     v.page = p - 1;
                                 }
                                 ui.label(crate::i18n::fmt(tl!("of {pages}"), &[("pages", &pages.to_string())]));
@@ -529,7 +556,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                         }
                         PropsTab::Advanced => {
                             row(ui, "PDF version", i.pdf_version.clone());
-                            row(ui, "Location", crate::bidi::visual(doc.path.as_deref().unwrap_or_default()).into_owned());
+                            path_row(ui, "Location", doc.path.clone().unwrap_or_default());
                             row(ui, "File size", format!("{} ({})", human_size(i.file_size), crate::panels::byte_count(i.file_size)));
                             let p = &i.pages[0];
                             row(ui, "Page size", units.size(f64::from(p.width), f64::from(p.height)));
@@ -618,7 +645,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     ui.horizontal(|ui| {
                         ui.add_space(24.0);
                         ui.label(tl!("Pages per file"));
-                        ui.add(egui::DragValue::new(&mut draft.every).range(1..=n.max(1)));
+                        ui.add(egui::DragValue::new(&mut draft.every).range(1..=n.max(1))).accessible_name(tl!("Pages per file"));
                     });
                 });
                 widgets::radio_value(ui, &mut draft.mode, M::Size, tl!("File size"));
@@ -626,7 +653,8 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     ui.horizontal(|ui| {
                         ui.add_space(24.0);
                         ui.label(tl!("At most"));
-                        ui.add(egui::DragValue::new(&mut draft.size_mb).range(0.05..=2000.0).speed(0.1).suffix(" MB"));
+                        ui.add(egui::DragValue::new(&mut draft.size_mb).range(0.05..=2000.0).speed(0.1).suffix(" MB"))
+                            .accessible_name(tl!("Maximum file size"));
                     });
                 });
                 ui.add_enabled_ui(!marks.is_empty(), |ui| {
@@ -680,10 +708,10 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 d.to = d.to.clamp(1, count);
                 d.from = d.from.clamp(1, d.to);
                 ui.horizontal(|ui| {
-                    ui.label(tl!("Original: replace pages"));
-                    let from = ui.add(egui::DragValue::new(&mut d.from).range(1..=count));
-                    ui.label(tl!("to"));
-                    let to = ui.add(egui::DragValue::new(&mut d.to).range(1..=count));
+                    let from_label = ui.label(tl!("Original: replace pages"));
+                    let from = ui.add(egui::DragValue::new(&mut d.from).range(1..=count)).labelled_by(from_label.id);
+                    let to_label = ui.label(tl!("to"));
+                    let to = ui.add(egui::DragValue::new(&mut d.to).range(1..=count)).labelled_by(to_label.id);
                     if from.changed() || to.changed() {
                         d.range_edited = true;
                     }
@@ -693,8 +721,8 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 let max_start = d.src_pages.saturating_sub(n) + 1;
                 d.src_from = d.src_from.clamp(1, max_start.max(1));
                 ui.horizontal(|ui| {
-                    ui.label(crate::i18n::fmt(tl!("Replacement: pages of {name}"), &[("name", &d.name)]));
-                    ui.add(egui::DragValue::new(&mut d.src_from).range(1..=max_start.max(1)));
+                    let replacement_label = ui.label(crate::i18n::fmt(tl!("Replacement: pages of {name}"), &[("name", &d.name)]));
+                    ui.add(egui::DragValue::new(&mut d.src_from).range(1..=max_start.max(1))).labelled_by(replacement_label.id);
                     ui.label(crate::i18n::fmt(tl!("to {n}"), &[("n", &(d.src_from + n - 1).to_string())]));
                     ui.label(egui::RichText::new(crate::i18n::fmt(tl!("of {name}"), &[("name", &d.src_pages.to_string())])).color(t.text_muted));
                 });
@@ -845,7 +873,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                             ui.selectable_value(&mut d.degrees, 90, tl!("Clockwise 90 degrees"));
                             ui.selectable_value(&mut d.degrees, 270, tl!("Counterclockwise 90 degrees"));
                             ui.selectable_value(&mut d.degrees, 180, tl!("180 degrees"));
-                        });
+                        })
+                        .response
+                        .accessible_name(tl!("Direction"));
                     ui.end_row();
                     ui.label(tl!("Pages:"));
                     ui.vertical(|ui| {
@@ -853,9 +883,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                         widgets::radio_value(ui, &mut d.which, 1, tl!("Selection"));
                         ui.horizontal(|ui| {
                             widgets::radio_value(ui, &mut d.which, 2, tl!("From"));
-                            ui.add_enabled(d.which == 2, egui::DragValue::new(&mut d.from).range(1..=n));
+                            ui.add_enabled(d.which == 2, egui::DragValue::new(&mut d.from).range(1..=n)).accessible_name(tl!("First page"));
                             ui.label(tl!("to"));
-                            ui.add_enabled(d.which == 2, egui::DragValue::new(&mut d.to).range(1..=n));
+                            ui.add_enabled(d.which == 2, egui::DragValue::new(&mut d.to).range(1..=n)).accessible_name(tl!("Last page"));
                             ui.label(crate::i18n::fmt(tl!("of {name}"), &[("name", &n.to_string())]));
                         });
                     });
@@ -871,7 +901,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                             ui.selectable_value(&mut d.parity, P::Both, tl!("Even and Odd Pages"));
                             ui.selectable_value(&mut d.parity, P::Even, tl!("Even Pages Only"));
                             ui.selectable_value(&mut d.parity, P::Odd, tl!("Odd Pages Only"));
-                        });
+                        })
+                        .response
+                        .accessible_name(tl!("Page parity"));
                     ui.end_row();
                     ui.label("");
                     egui::ComboBox::from_id_salt("rotate-orient")
@@ -884,7 +916,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                             ui.selectable_value(&mut d.orientation, O::Both, tl!("Landscape and Portrait Pages"));
                             ui.selectable_value(&mut d.orientation, O::Landscape, tl!("Landscape Pages"));
                             ui.selectable_value(&mut d.orientation, O::Portrait, tl!("Portrait Pages"));
-                        });
+                        })
+                        .response
+                        .accessible_name(tl!("Page orientation"));
                     ui.end_row();
                 });
                 d.to = d.to.max(d.from);
@@ -912,9 +946,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 widgets::radio_value(ui, &mut d.all, true, tl!("All pages"));
                 ui.horizontal(|ui| {
                     widgets::radio_value(ui, &mut d.all, false, tl!("From"));
-                    ui.add_enabled(!d.all, egui::DragValue::new(&mut d.from).range(1..=n));
+                    ui.add_enabled(!d.all, egui::DragValue::new(&mut d.from).range(1..=n)).accessible_name(tl!("First page"));
                     ui.label(tl!("to"));
-                    ui.add_enabled(!d.all, egui::DragValue::new(&mut d.to).range(1..=n));
+                    ui.add_enabled(!d.all, egui::DragValue::new(&mut d.to).range(1..=n)).accessible_name(tl!("Last page"));
                     ui.label(crate::i18n::fmt(tl!("of {name}"), &[("name", &n.to_string())]));
                 });
                 d.to = d.to.max(d.from);
@@ -995,11 +1029,15 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 ui.add_space(6.0);
                 ui.horizontal(|ui| {
                     ui.label(tl!("Sort comments by:"));
-                    egui::ComboBox::from_id_salt("summary-sort").selected_text(tl!(app.summary_sort.name())).show_ui(ui, |ui| {
-                        for s in pdfcraft_engine::SummarySort::ALL {
-                            ui.selectable_value(&mut app.summary_sort, s, tl!(s.name()));
-                        }
-                    });
+                    egui::ComboBox::from_id_salt("summary-sort")
+                        .selected_text(tl!(app.summary_sort.name()))
+                        .show_ui(ui, |ui| {
+                            for s in pdfcraft_engine::SummarySort::ALL {
+                                ui.selectable_value(&mut app.summary_sort, s, tl!(s.name()));
+                            }
+                        })
+                        .response
+                        .accessible_name(tl!("Sort comments"));
                 });
                 ui.add_space(12.0);
                 crate::widgets::dialog_footer(ui, |ui| {
@@ -1273,9 +1311,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 egui::Grid::new("number_pages").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
                     ui.label(tl!("Pages"));
                     ui.horizontal(|ui| {
-                        ui.add(egui::DragValue::new(&mut d.from).range(1..=n));
+                        ui.add(egui::DragValue::new(&mut d.from).range(1..=n)).accessible_name(tl!("First page"));
                         ui.label(tl!("to"));
-                        ui.add(egui::DragValue::new(&mut d.to).range(1..=n));
+                        ui.add(egui::DragValue::new(&mut d.to).range(1..=n)).accessible_name(tl!("Last page"));
                         ui.label(egui::RichText::new(crate::i18n::fmt(tl!("of {name}"), &[("name", &n.to_string())])).color(t.text_muted));
                     });
                     ui.end_row();
@@ -1289,17 +1327,21 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                         (L::None, tl!("None (prefix only)")),
                     ];
                     let current = styles.iter().find(|(s, _)| *s == d.style).map_or("1, 2, 3", |(_, l)| *l);
-                    egui::ComboBox::from_id_salt("label_style").selected_text(current).show_ui(ui, |ui| {
-                        for (s, l) in styles {
-                            ui.selectable_value(&mut d.style, s, l);
-                        }
-                    });
+                    egui::ComboBox::from_id_salt("label_style")
+                        .selected_text(current)
+                        .show_ui(ui, |ui| {
+                            for (s, l) in styles {
+                                ui.selectable_value(&mut d.style, s, l);
+                            }
+                        })
+                        .response
+                        .accessible_name(tl!("Style"));
                     ui.end_row();
                     let l = ui.label(tl!("Prefix"));
                     ui.add(widgets::line(&mut d.prefix).desired_width(160.0)).labelled_by(l.id);
                     ui.end_row();
                     ui.label(tl!("Start"));
-                    ui.add(egui::DragValue::new(&mut d.start).range(1..=99_999));
+                    ui.add(egui::DragValue::new(&mut d.start).range(1..=99_999)).accessible_name(tl!("Start number"));
                     ui.end_row();
                 });
                 d.to = d.to.max(d.from);
@@ -1403,7 +1445,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     ui.label(crate::i18n::fmt(tl!("Version {v}"), &[("v", &pdfcraft_engine::build_info::version())]));
                 });
                 ui.add_space(8.0);
-                let tab_id = egui::Id::new("about_tab");
+                let tab_id = egui::Id::unique("about_tab");
                 let mut tab = ui.data_mut(|d| d.get_temp::<u8>(tab_id)).unwrap_or(0);
                 ui.horizontal_wrapped(|ui| {
                     for (i, label) in ["About", "Contributors", "Models"].into_iter().enumerate() {
@@ -2042,7 +2084,16 @@ fn remote_link_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
         ui.add_space(6.0);
         ui.label(tl!("This document is trying to open a local file:"));
         egui::ScrollArea::vertical().max_height(160.0).show(ui, |ui| {
-            ui.add(egui::Label::new(egui::RichText::new(pending.path.to_string_lossy()).monospace()).wrap().selectable(true));
+            // A local path is file/path chrome: left to right, so its final component stays last.
+            let mut job = egui::text::LayoutJob::simple(
+                pending.path.to_string_lossy().into_owned(),
+                egui::FontId::monospace(13.0),
+                crate::theme::Tokens::get(ui.ctx()).text,
+                ui.available_width().max(0.0),
+            );
+            job.direction = egui::epaint::text::TextDirection::LeftToRight;
+            let galley = ui.painter().layout_job(job);
+            ui.add(egui::Label::new(egui::WidgetText::Galley(galley)).selectable(true));
         });
         ui.add_space(8.0);
         ui.label(tl!("Only allow this if you trust the source document."));

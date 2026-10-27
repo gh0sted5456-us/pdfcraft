@@ -21,7 +21,7 @@ fn category_rail_switches_the_right_pane_without_losing_changes_or_moving_ok() {
     let chosen = h.state().view_defaults.show_page_gaps;
     h.get_by_role_and_label(egui::accesskit::Role::Button, "Language").click();
     h.run_steps(4);
-    h.get_by_label("Interface language");
+    h.get_by_role_and_label(egui::accesskit::Role::ComboBox, "Interface language");
     assert!(h.query_by_label("Show gaps between pages").is_none());
     h.get_by_role_and_label(egui::accesskit::Role::Button, "Documents").click();
     h.run_steps(4);
@@ -45,7 +45,7 @@ fn all_categories_stay_centered_and_bounded_in_both_themes() {
             for category in pdfcraft_ui_egui::PreferencesCategory::ALL {
                 h.state_mut().set_option("preferences-category", category.key()).unwrap();
                 h.run_steps(6);
-                let card = h.ctx.data(|data| data.get_temp::<Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+                let card = h.ctx.data(|data| data.get_temp::<Rect>(egui::Id::unique("dialog").with("card"))).unwrap();
                 let screen = Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
                 assert!(card.width() <= 810.0 && card.height() <= 520.0, "compact Settings: {card:?}");
                 assert!(screen.contains_rect(card), "{theme} {category:?}: {card:?} exceeds {screen:?}");
@@ -144,7 +144,7 @@ fn a_tall_window_keeps_a_bounded_centered_settings_card() {
     let mut h = harness(2600.0);
     h.state_mut().set_option("preferences-category", "javascript").unwrap();
     h.run_steps(6);
-    let card = h.ctx.data(|data| data.get_temp::<Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+    let card = h.ctx.data(|data| data.get_temp::<Rect>(egui::Id::unique("dialog").with("card"))).unwrap();
     assert!(card.height() < 750.0, "settings should not stretch across a tall monitor: {card:?}");
     assert!((card.center() - egui::pos2(500.0, 1300.0)).length() < 2.0, "settings stay centered: {card:?}");
     assert!(on_screen(h.get_by_label("OK").rect(), 2600.0));

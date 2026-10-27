@@ -24,7 +24,7 @@ struct Cache {
 }
 thread_local! { static CACHE: RefCell<Cache> = RefCell::new(Cache::default()); }
 fn key() -> egui::Id {
-    egui::Id::new("spelling-settings")
+    egui::Id::unique("spelling-settings")
 }
 
 pub(crate) fn begin_frame(ctx: &egui::Context, settings: &mut Settings, interface: &str) {
@@ -178,6 +178,7 @@ pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut crate::PdfCraftApp) {
                 }
             })
             .response
+            .accessible_name(tl!("Spelling language"))
             .labelled_by(label.id);
     });
     let language = if app.spelling.language == "auto" {
@@ -218,6 +219,7 @@ mod tests {
                 let mut settings = Settings { language: "en-US".into(), ..Default::default() };
                 begin_frame(ui.ctx(), &mut settings, "en");
                 let mut out = egui::TextEdit::multiline(&mut state.0).desired_width(300.0).show(ui);
+                out.response.response = out.response.response.accessible_name("Spelling test text");
                 state.1 = out.galley_pos + out.galley.pos_from_cursor(egui::text::CCursor::new(3)).center().to_vec2();
                 annotate(ui, &mut out, &mut state.0, None);
             },

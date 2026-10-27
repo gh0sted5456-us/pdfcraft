@@ -309,14 +309,16 @@ pub(crate) fn console_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
         });
     });
     ui.add_space(6.0);
-    let input = ui.add(
-        crate::widgets::block(&mut app.js_console.input)
-            .code_editor()
-            .desired_rows(4)
-            .desired_width(f32::INFINITY)
-            .hint_text(tl!("JavaScript, e.g. getField(\"total\").value"))
-            .id_salt("js-console-input"),
-    );
+    let input = ui
+        .add(
+            crate::widgets::block(&mut app.js_console.input)
+                .code_editor()
+                .desired_rows(4)
+                .desired_width(f32::INFINITY)
+                .hint_text(tl!("JavaScript, e.g. getField(\"total\").value"))
+                .id_salt("js-console-input"),
+        )
+        .accessible_name(tl!("JavaScript code"));
     let run_key = input.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter) && i.modifiers.command);
     ui.add_space(8.0);
     match buttons(ui, "Run", &["Close", "Clear"]).as_deref() {
@@ -336,8 +338,8 @@ pub(crate) fn document_js_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
     let scripts = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.document_scripts()).unwrap_or_default();
     let mut edit: Option<Edit> = None;
     ui.horizontal(|ui| {
-        ui.label(tl!("Script Name:"));
-        ui.add(crate::widgets::line(&mut app.doc_js.name).desired_width(240.0).id_salt("doc-js-name"));
+        let label = ui.label(tl!("Script Name:"));
+        ui.add(crate::widgets::line(&mut app.doc_js.name).desired_width(240.0).id_salt("doc-js-name")).labelled_by(label.id);
     });
     ui.add_space(4.0);
     egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
@@ -355,7 +357,8 @@ pub(crate) fn document_js_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tok
         });
     });
     ui.add_space(6.0);
-    ui.add(crate::widgets::block(&mut app.doc_js.script).code_editor().desired_rows(8).desired_width(f32::INFINITY).id_salt("doc-js-script"));
+    ui.add(crate::widgets::block(&mut app.doc_js.script).code_editor().desired_rows(8).desired_width(f32::INFINITY).id_salt("doc-js-script"))
+        .accessible_name(tl!("JavaScript code"));
     ui.add_space(8.0);
     let name = app.doc_js.name.trim().to_string();
     let close = match buttons(ui, "Save", &["Close", "Delete"]).as_deref() {
@@ -383,15 +386,20 @@ pub(crate) fn document_actions_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) ->
         ui.label("Scripts share this PDF's isolated JavaScript state. File and network access are unavailable.");
         let actions = app.active_ids().and_then(|(_, id)| app.session.get(id)).map(|d| d.document_actions()).unwrap_or_default();
         let old = app.doc_js.name.clone();
-        egui::ComboBox::from_id_salt("document-action-event").selected_text(&old).show_ui(ui, |ui| {
-            for event in pdfcraft_engine::js::DOCUMENT_EVENTS {
-                ui.selectable_value(&mut app.doc_js.name, event.into(), event);
-            }
-        });
+        egui::ComboBox::from_id_salt("document-action-event")
+            .selected_text(&old)
+            .show_ui(ui, |ui| {
+                for event in pdfcraft_engine::js::DOCUMENT_EVENTS {
+                    ui.selectable_value(&mut app.doc_js.name, event.into(), event);
+                }
+            })
+            .response
+            .accessible_name(tl!("Document event"));
         if app.doc_js.name != old {
             app.doc_js.script = actions.iter().find(|(e, _)| *e == app.doc_js.name).map(|(_, s)| s.clone()).unwrap_or_default();
         }
-        ui.add(crate::widgets::block(&mut app.doc_js.script).code_editor().desired_rows(10).desired_width(f32::INFINITY));
+        ui.add(crate::widgets::block(&mut app.doc_js.script).code_editor().desired_rows(10).desired_width(f32::INFINITY))
+            .accessible_name(tl!("JavaScript code"));
         ui.label("Open runs on opening; WillSave runs before serialization; WillPrint runs before print layout. Other lifecycle events are preserved but do not run yet.");
     });
     let mut close = false;
@@ -405,4 +413,30 @@ pub(crate) fn document_actions_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) ->
         close = app.apply_edit(Edit::SetDocumentAction { event: app.doc_js.name.clone(), script });
     }
     close
+}
+
+/// Whether the interface can draw a language picker's native name. On the web the browser's glyph
+/// rasterizer draws scripts no embedded face has, so the native names stay; on native, ask the
+/// fonts this build installed (including an installed fallback face, unless system fonts are off).
+pub(crate) fn picker_text_is_drawable(ui: &egui::Ui, text: &str) -> bool {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let _ = (ui, text);
+        true
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        ui.fonts_mut(|fonts| fonts.has_glyphs(&egui::FontId::proportional(13.0), text))
+    }
+}
+
+/// The date picker's displayed name. Its languages are the interface languages, so it uses the
+/// same drawable-name fallback: a native name whose script this build has no face for would
+/// otherwise abort under egui 0.37's `MissingGlyphPolicy::Panic` (for example Hindi without a
+/// Devanagari face and installed system fonts turned off).
+pub(crate) fn date_language_picker_name(l: &pdfcraft_engine::dates::DateLanguage, drawable: impl FnOnce(&str) -> bool) -> &'static str {
+    match crate::i18n::Lang::from_code(l.code) {
+        Some(language) => language.picker_name(drawable),
+        None => l.name,
+    }
 }

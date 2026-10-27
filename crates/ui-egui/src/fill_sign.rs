@@ -555,7 +555,7 @@ pub(crate) fn signature_entries(ui: &mut egui::Ui, app: &mut crate::PdfCraftApp,
         ui.horizontal(|ui| {
             let (rect, response) = ui.allocate_exact_size(vec2((ui.available_width() - 68.0).max(140.0), 52.0), Sense::click());
             let use_label = label("Use {what}");
-            response.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, use_label.clone()));
+            response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, use_label.clone()));
             let painter = ui.painter_at(rect);
             painter.rect_filled(rect, CornerRadius::same(4), Color32::WHITE);
             painter.rect_stroke(
@@ -718,7 +718,7 @@ pub(crate) fn type_box(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, 
     // Over the page, so only where the document shows: a box scrolled under the mode bar or a
     // side panel must leave them their pointer (#2755). It stays where it was placed, cut off as
     // the page is, rather than pushed back into the window.
-    egui::Area::new(egui::Id::new(("fill-text", view.id.0)))
+    egui::Area::new(egui::Id::unique(("fill-text", view.id.0)))
         .fade_in(false)
         .order(egui::Order::Foreground)
         .fixed_pos(pos)
@@ -732,15 +732,17 @@ pub(crate) fn type_box(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, 
             // The area's max rect is last frame's size, which caps the edit's width; widen it so the
             // box grows as text is typed.
             ui.set_min_width(width);
-            let r = ui.add(
-                egui::TextEdit::singleline(&mut t.text)
-                    .font(egui::FontId::proportional((t.size as f32 * zoom).max(8.0)))
-                    .desired_width(width)
-                    .background_color(Color32::from_rgba_unmultiplied(255, 255, 255, 230))
-                    .text_color(Color32::BLACK)
-                    .hint_text(tl!("Type text"))
-                    .id_salt("fill-text-edit"),
-            );
+            let r = ui
+                .add(
+                    egui::TextEdit::singleline(&mut t.text)
+                        .font(egui::FontId::proportional((t.size as f32 * zoom).max(8.0)))
+                        .desired_width(width)
+                        .background_color(Color32::from_rgba_unmultiplied(255, 255, 255, 230))
+                        .text_color(Color32::BLACK)
+                        .hint_text(tl!("Type text"))
+                        .id_salt("fill-text-edit"),
+                )
+                .accessible_name(tl!("Text to place"));
             if t.focus {
                 r.request_focus();
                 t.focus = false;
@@ -800,11 +802,39 @@ pub(crate) fn signature_pad(
             }
         }
     });
+    let browse = crate::widgets::dialog_scroll(ui, "signature-pad-body", |ui| {
+        let browse = signature_pad_content(ui, t, d, preview, photo_texture, what);
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            if d.draw_tab() && ui.add_enabled(!d.strokes.is_empty(), egui::Button::new(tl!("Undo"))).clicked() {
+                d.undo_stroke();
+            }
+            if ui.button(tl!("Clear")).clicked() {
+                d.strokes.clear();
+                d.text.clear();
+                d.image = None;
+                if d.scan_mode {
+                    d.scan = None;
+                }
+            }
+        });
+        browse
+    });
+    let (apply, cancel) = pad_buttons(ui, d);
+    (apply, cancel, browse)
+}
+
+fn signature_pad_content(
+    ui: &mut egui::Ui,
+    t: &Tokens,
+    d: &mut SigDraft,
+    preview: &mut Option<(SavedSig, egui::TextureHandle)>,
+    photo_texture: &mut Option<(u64, egui::TextureHandle)>,
+    what: &str,
+) -> bool {
     ui.add_space(6.0);
     if d.scan_mode {
-        let browse = scan_tab(ui, t, d, preview, photo_texture);
-        let (apply, cancel) = pad_buttons(ui, d);
-        return (apply, cancel, browse);
+        return scan_tab(ui, t, d, preview, photo_texture);
     }
     if d.image_mode {
         ui.label(egui::RichText::new(tl!("Choose a PNG or JPEG image (up to 4 MiB). Transparency is preserved.")).color(t.text_muted));
@@ -815,8 +845,7 @@ pub(crate) fn signature_pad(
         if let Some(image) = &d.image {
             image_preview(ui, rect.shrink(8.0), image, preview);
         }
-        let (apply, cancel) = pad_buttons(ui, d);
-        return (apply, cancel, browse);
+        return browse;
     }
     if !d.drawing {
         let l = ui.label(egui::RichText::new(crate::i18n::fmt(tl!("Type your {what}."), &[("what", what)])).color(t.text_muted));
@@ -839,8 +868,7 @@ pub(crate) fn signature_pad(
         if let Some((_, tex)) = preview {
             painter.image(tex.id(), rect.shrink(4.0), egui::Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         }
-        let (apply, cancel) = pad_buttons(ui, d);
-        return (apply, cancel, false);
+        return false;
     }
     ui.label(egui::RichText::new(crate::i18n::fmt(tl!("Draw your {what} below."), &[("what", what)])).color(t.text_muted));
     // The dialog is modal, so ⌘Z / Ctrl+Z here can only mean the last stroke (the document's own
@@ -871,8 +899,7 @@ pub(crate) fn signature_pad(
         let pts: Vec<Pos2> = s.iter().map(|p| pos2(rect.left() + p[0] * rect.width(), rect.bottom() - p[1] * rect.width())).collect();
         painter.add(egui::Shape::line(pts, Stroke::new(2.0, Color32::BLACK)));
     }
-    let (apply, cancel) = pad_buttons(ui, d);
-    (apply, cancel, false)
+    false
 }
 
 /// The Scan tab above the pad buttons. Returns whether a photo should be chosen.
@@ -911,10 +938,10 @@ fn scan_tab(
     }
     let Some(scan) = d.scan.as_mut() else {
         painter.text(area.center(), egui::Align2::CENTER_CENTER, tl!("No photo chosen"), egui::FontId::proportional(13.0), t.text_muted);
-        resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, tl!("Photo")));
+        resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Image, true, tl!("Photo")));
         return browse;
     };
-    resp.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Other, true, tl!("Photo")));
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Image, true, tl!("Photo")));
     // The photo, fitted into the area; `to_screen`/`to_photo` map between its pixels and points.
     let [pw, ph] = scan.photo.size();
     let (pw, ph) = (pw.max(1) as f32, ph.max(1) as f32);
@@ -1068,21 +1095,7 @@ fn image_preview(ui: &egui::Ui, rect: egui::Rect, image: &SignatureImage, cache:
 }
 
 fn pad_buttons(ui: &mut egui::Ui, d: &mut SigDraft) -> (bool, bool) {
-    ui.add_space(10.0);
     let (mut apply, mut cancel) = (false, false);
-    ui.horizontal(|ui| {
-        if d.draw_tab() && ui.add_enabled(!d.strokes.is_empty(), egui::Button::new(tl!("Undo"))).clicked() {
-            d.undo_stroke();
-        }
-        if ui.button(tl!("Clear")).clicked() {
-            d.strokes.clear();
-            d.text.clear();
-            d.image = None;
-            if d.scan_mode {
-                d.scan = None;
-            }
-        }
-    });
     crate::widgets::dialog_footer(ui, |ui| {
         let ready = d.ready();
         if ui.add_enabled_ui(ready, |ui| crate::widgets::dialog_button(ui, tl!("Apply"), crate::widgets::DialogAction::Confirm)).inner.clicked() {

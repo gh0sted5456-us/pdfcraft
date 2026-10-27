@@ -117,11 +117,11 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
             widgets::radio_value(ui, &mut d.pages, OcrPages::All, tl!("All pages"));
             widgets::radio_value(ui, &mut d.pages, OcrPages::Current, tl!("Current page"));
             ui.horizontal(|ui| {
-                widgets::radio_value(ui, &mut d.pages, OcrPages::Range, tl!("From"));
+                let from = widgets::radio_value(ui, &mut d.pages, OcrPages::Range, tl!("From"));
                 let on = d.pages == OcrPages::Range;
-                ui.add_enabled(on, egui::DragValue::new(&mut d.from).range(1..=pages));
-                ui.label(tl!("to"));
-                ui.add_enabled(on, egui::DragValue::new(&mut d.to).range(1..=pages));
+                ui.add_enabled(on, egui::DragValue::new(&mut d.from).range(1..=pages)).labelled_by(from.id);
+                let to = ui.label(tl!("to"));
+                ui.add_enabled(on, egui::DragValue::new(&mut d.to).range(1..=pages)).labelled_by(to.id);
             });
         });
         group(ui, "Settings", &mut |ui| {
@@ -133,8 +133,8 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
             ui.add(widgets::checkbox(&mut d.auto_crop, tl!("Crop scanner borders to the paper edge")));
             ui.add_enabled_ui(d.auto_crop, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(tl!("Safety margin (pt)"));
-                    ui.add(egui::DragValue::new(&mut d.crop_margin).range(0.0..=20.0).speed(0.5));
+                    let label = ui.label(tl!("Safety margin (pt)"));
+                    ui.add(egui::DragValue::new(&mut d.crop_margin).range(0.0..=20.0).speed(0.5)).labelled_by(label.id);
                 });
             });
             ui.label(
@@ -176,15 +176,29 @@ pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut PdfCraftApp) {
     settings_controls(ui, &mut app.ocr_draft);
 }
 
+fn language_name(ui: &egui::Ui, code: &'static str, name: &'static str) -> &'static str {
+    let shown = tl!(name);
+    if crate::js_ui::picker_text_is_drawable(ui, shown) {
+        shown
+    } else {
+        crate::i18n::Lang::from_code(&code.to_ascii_lowercase()).map_or(code, |language| language.english_name())
+    }
+}
+
 fn settings_controls(ui: &mut egui::Ui, d: &mut OcrDraft) {
     egui::Grid::new("ocr-settings").num_columns(2).min_col_width(110.0).spacing([12.0, 8.0]).show(ui, |ui| {
-        ui.label(tl!("Document language"));
-        let name = LANGUAGES.iter().find(|l| l.0 == d.language).map_or("English", |l| l.1);
-        egui::ComboBox::from_id_salt("ocr-language").selected_text(tl!(name)).width(220.0).show_ui(ui, |ui| {
-            for (code, name) in LANGUAGES {
-                ui.selectable_value(&mut d.language, (*code).to_string(), tl!(*name));
-            }
-        });
+        let language = ui.label(tl!("Document language"));
+        let name = LANGUAGES.iter().find(|l| l.0 == d.language).map_or("English", |&(code, name)| language_name(ui, code, name));
+        egui::ComboBox::from_id_salt("ocr-language")
+            .selected_text(name)
+            .width(220.0)
+            .show_ui(ui, |ui| {
+                for (code, name) in LANGUAGES {
+                    ui.selectable_value(&mut d.language, (*code).to_string(), language_name(ui, code, name));
+                }
+            })
+            .response
+            .labelled_by(language.id);
         ui.end_row();
         ui.label(tl!("Output"));
         ui.label(if !d.recognize {
@@ -195,12 +209,17 @@ fn settings_controls(ui: &mut egui::Ui, d: &mut OcrDraft) {
             tl!("Searchable Image (Exact)")
         });
         ui.end_row();
-        ui.label(tl!("Downsample to"));
-        egui::ComboBox::from_id_salt("ocr-dpi").selected_text(format!("{} dpi", d.dpi)).width(220.0).show_ui(ui, |ui| {
-            for v in [600, 300, 150, 72] {
-                ui.selectable_value(&mut d.dpi, v, format!("{v} dpi"));
-            }
-        });
+        let resolution = ui.label(tl!("Downsample to"));
+        egui::ComboBox::from_id_salt("ocr-dpi")
+            .selected_text(format!("{} dpi", d.dpi))
+            .width(220.0)
+            .show_ui(ui, |ui| {
+                for v in [600, 300, 150, 72] {
+                    ui.selectable_value(&mut d.dpi, v, format!("{v} dpi"));
+                }
+            })
+            .response
+            .labelled_by(resolution.id);
         ui.end_row();
     });
     ui.add_space(4.0);

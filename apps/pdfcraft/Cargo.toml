@@ -18,8 +18,8 @@ pdfcraft-ui-egui = { workspace = true }
 pdfcraft-engine = { workspace = true }
 # Windows defaults to OpenGL for desktop transparency, with wgpu as a startup fallback.
 # Other desktops use wgpu with OpenGL fallback (#461, #435, #392); PDFCRAFT_RENDERER overrides either.
-eframe = { workspace = true, features = ["default_fonts", "wgpu", "glow", "accesskit", "wayland", "x11", "persistence", "links"] }
-egui = { workspace = true }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "glow", "accesskit", "wayland", "x11", "persistence", "links", "clipboard"] }
+egui = { workspace = true, features = ["default_fonts", "monochrome_emoji_fonts"] }
 serde_json = { workspace = true }
 # Stream and verify downloaded installers before offering them to Windows.
 sha2 = "0.11"
@@ -34,9 +34,6 @@ chrono = { workspace = true }
 # crate registers the handler (Objective-C interop needs unsafe, which our workspace forbids)
 # behind a safe API. Same version as PhotoCraft. Pinned exactly: review the diff before bumping.
 fmv-macos-events = "=0.1.0"
-# ⌘Q asks about unsaved changes like the close button (#1136): an app menu whose Quit asks the
-# window to close instead of winit's, which ends the process without asking.
-craft-quit = { workspace = true, features = ["menu"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Asks the Wayland compositor which GPU it draws with (linux-dmabuf feedback), so the window is
@@ -76,3 +73,5 @@ uds_windows = "=1.2.1"
 [build-dependencies]
 # Icon + VERSIONINFO for pdfcraft.exe; build.rs only uses it when targeting Windows.
 winresource = "0.1"
+
+[target.'cfg(windows)'.dependencies]

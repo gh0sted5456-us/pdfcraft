@@ -9,6 +9,8 @@
 // The settings object in `persist` is one `json!` literal past the default limit of 128.
 #![recursion_limit = "256"]
 
+use crate::control::Host as _;
+
 /// Whether `a` and `b` name the same file: equal, or equal once made absolute against the
 /// current directory (links are not resolved, as in `last_session`).
 pub(crate) fn same_file(a: &str, b: &str) -> bool {
@@ -73,6 +75,7 @@ pub mod docking;
 mod macos_association;
 mod marks_ui;
 mod measure_ui;
+mod menus;
 mod ocr_correct;
 mod ocr_ui;
 mod optimize_ui;
@@ -305,8 +308,8 @@ struct GridDrop {
     /// Dropped on the Pages panel (its gap decides where they go), not the page grid.
     panel: bool,
     files: Vec<GridFile>,
-    /// When to stop waiting for the pointer (egui time, seconds).
-    deadline: f64,
+    /// When to stop waiting for the pointer (monotonic: `logic` may run without a UI pass).
+    deadline: web_time::Instant,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1002,7 +1005,7 @@ pub struct PdfCraftApp {
     /// Recovered documents whose path came from a recovery sidecar and no save has confirmed
     /// yet: their first Save asks where, starting at that path, instead of writing it (#3923).
     recovered_paths: std::collections::HashSet<DocId>,
-    last_autosave: f64,
+    last_autosave: Option<web_time::Instant>,
     allow_quit: bool,
     /// Native window host owns close decisions and tab transfers (false in browser/embedders).
     pub(crate) managed_windows: bool,
@@ -1012,6 +1015,10 @@ pub struct PdfCraftApp {
     /// Shortcuts pressed while a text field had the keyboard, run on the next frame (see
     /// `registry_shortcuts`).
     deferred_commands: Vec<(&'static str, Option<DocId>)>,
+    /// The native menu bar (macOS), while it is installed; the in-window bar shows otherwise.
+    pub(crate) native_menu: Option<craft_menu::NativeMenu>,
+    /// Input a menu click stands for (⌘C, Delete…), added to the next frame's input in `logic`.
+    pub(crate) menu_input: Vec<egui::Event>,
     /// The dialog seen at the last check, and a counter bumped whenever it changes (see
     /// [`Self::dialog_epoch`]).
     dialog_seen: Option<Dialog>,
@@ -1183,6 +1190,7 @@ pub enum OpenOutcome {
 }
 
 impl PdfCraftApp {
+    /// Construct an application with the default session, panels, theme and control state.
     pub fn new() -> Self {
         Self {
             session: {
@@ -1381,13 +1389,15 @@ impl PdfCraftApp {
             recoverable: Vec::new(),
             recovery_keys: Default::default(),
             recovered_paths: Default::default(),
-            last_autosave: 0.0,
+            last_autosave: None,
             allow_quit: false,
             managed_windows: false,
             window_close_ready: false,
             detach_request: None,
             tab_drag_cancelled: false,
             deferred_commands: Vec::new(),
+            native_menu: None,
+            menu_input: Vec::new(),
             dialog_seen: None,
             dialog_epoch: 0,
             ctx: None,
@@ -1892,7 +1902,7 @@ impl PdfCraftApp {
             // Where there is no telling where the pointer is during the drag, its place arrives
             // with the first move after the drop.
             ctx.request_repaint();
-            self.grid_drop = Some(GridDrop { doc: id, panel, files, deadline: ctx.input(|i| i.time) + 1.0 });
+            self.grid_drop = Some(GridDrop { doc: id, panel, files, deadline: web_time::Instant::now() + std::time::Duration::from_secs(1) });
         }
         Vec::new()
     }
@@ -1916,7 +1926,7 @@ impl PdfCraftApp {
         let Some(view) = self.active.and_then(|i| self.views.get_mut(i)) else { return };
         let gap = match if panel { view.panel_gap } else { view.grid_gap } {
             Some(gap) => gap,
-            None if ctx.input(|i| i.time) >= deadline => usize::MAX,
+            None if web_time::Instant::now() >= deadline => usize::MAX,
             None => return ctx.request_repaint(),
         };
         view.insert_at = Some(gap);
@@ -3730,8 +3740,13 @@ impl PdfCraftApp {
         {
             return;
         }
-        self.text_alignment_keys(ctx);
-        self.registry_shortcuts(ctx);
+        // The in-window menu bar holds the keys while one of its menus is open or it has the
+        // keyboard (Alt, F10); a command shortcut leaves it and runs.
+        craft_menu::bar::leave_for_shortcut(ctx);
+        if !craft_menu::bar::is_open(ctx) && !craft_menu::bar::is_focused(ctx) {
+            self.text_alignment_keys(ctx);
+            self.registry_shortcuts(ctx);
+        }
         // (Esc closes a Combine file shown large first.)
         if self.full_screen && self.combine_tab.preview.is_none() && ctx.input(|i| i.key_pressed(Key::Escape)) {
             self.set_full_screen(ctx, false);
@@ -3892,6 +3907,64 @@ impl PdfCraftApp {
     }
 }
 
+/// Root-level panel salts whose 0.36 persisted state key changed in 0.37.
+///
+/// The shared rail and side panes now own their state. The legacy `rail` and
+/// `read_right_panel` entries are inert; the former `rail-nav` footer is no longer migrated.
+const PANEL_SALTS: [&str; 4] = ["tab_strip", "mode_bar", "rail", "read_right_panel"];
+
+/// Copy persisted 0.36 panel sizes to 0.37's parent-scope key, once, before the first panel.
+///
+/// 0.36 stored [`egui::PanelState`] under the panel's own `Id::unique(salt)`; 0.37 derives it
+/// from the parent `Ui`'s scope plus an `IdSalt`. A missing copy would reset a width the user
+/// chose. The old entry is left untouched, so rolling back to 0.36 still finds it.
+fn migrate_panel_state(ui: &egui::Ui) {
+    if ui.ctx().viewport_id() != egui::ViewportId::ROOT {
+        return;
+    }
+    for salt in PANEL_SALTS {
+        migrate_panel_state_from(ui, salt);
+    }
+}
+
+/// Copy one 0.36 panel's state to the key derived from this exact parent `Ui`.
+///
+/// The parent must be the `Ui` the panel is shown in (for a nested panel, the panel's content
+/// `Ui`), because 0.37's key includes that `Ui`'s scope.
+pub(crate) fn migrate_panel_state_from(ui: &egui::Ui, salt: &str) {
+    let old = egui::Id::unique(salt);
+    let new = ui.scope_id().with_salt(egui::IdSalt::new(salt));
+    if old == new || egui::PanelState::load(ui.ctx(), new).is_some() {
+        return;
+    }
+    if let Some(state) = egui::PanelState::load(ui.ctx(), old) {
+        ui.ctx().data_mut(|data| data.insert_persisted(new, state));
+        log::debug!("migrated panel {salt} state {:?}", state.size());
+    }
+}
+
+impl PdfCraftApp {
+    /// The parts of [`eframe::App::raw_input_hook`] that must run before egui's input hooks:
+    /// publish this pass's input-target generation to the control plugin, and hand the wheel
+    /// input to the reduced-motion reader.
+    ///
+    /// A test host that drives the app without eframe's raw hook can call this first, so its
+    /// frame ordering matches production instead of hiding focus-change bugs.
+    #[doc(hidden)]
+    pub fn prepare_raw_input(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        // The control plugin's input hook runs next: give it this pass's input generation.
+        if let Some(control) = &self.control {
+            control.set_epoch(self.input_epoch());
+        }
+        // Before egui reads this frame's wheel input.
+        self.scroll_speed.apply(ctx, raw);
+        // The native menu's key equivalents.
+        if let Some(native) = self.native_menu.as_mut() {
+            native.raw_input(raw);
+        }
+    }
+}
+
 impl eframe::App for PdfCraftApp {
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
         if self.theme_preference == ThemePreference::Glass {
@@ -3907,8 +3980,7 @@ impl eframe::App for PdfCraftApp {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         // The button's release a window move or resize kept from egui.
         window_controls::release_after_desktop_grab(ctx, raw);
-        // Before egui reads this frame's wheel input.
-        self.scroll_speed.apply(ctx, raw);
+        self.prepare_raw_input(ctx, raw);
         if raw.hovered_files.is_empty() && raw.dropped_files.is_empty() {
             return;
         }
@@ -3988,8 +4060,8 @@ impl eframe::App for PdfCraftApp {
         self.startup_superseded |= !self.views.is_empty() || self.combine_showing() || self.dialog.is_some() || self.password_prompt.is_some();
         // Also done in `raw_input_hook`, before input; here for hosts that don't call the hook.
         self.scroll_speed.set_line_speed(ctx);
-        // Before anything reads this frame's wheel input or draws, and with the line speed just set.
-        self.motion.begin_pass(ctx, self.animation_effects);
+        // Motion reads this frame's wheel input, so it begins in `ui`, in a known UI phase:
+        // `logic` also runs alone while hidden, where the input events and time are stale.
         // Before taking this frame's drop: the grid must be drawn once with the pointer where
         // the files were let go before the gap is read.
         self.finish_grid_drop(ctx);
@@ -4076,8 +4148,7 @@ impl eframe::App for PdfCraftApp {
         if !self.managed_windows {
             craft_quit::on_close_request(ctx);
         }
-        let now = ctx.input(|i| i.time);
-        self.autosave_tick(ctx, now);
+        self.autosave_tick(ctx, web_time::Instant::now());
         // Reload documents whose files a build rewrote (#431).
         #[cfg(not(target_arch = "wasm32"))]
         self.watch_files();
@@ -4091,6 +4162,12 @@ impl eframe::App for PdfCraftApp {
         self.poll_print();
         // Shortcuts deferred last frame: the text field has taken that frame's typing since.
         let deferred = std::mem::take(&mut self.deferred_commands);
+        self.native_menu_clicks(ctx);
+        // The keys a menu click stands for (⌘C, Delete…), before anything reads this frame's keys.
+        if !self.menu_input.is_empty() {
+            let events = std::mem::take(&mut self.menu_input);
+            ctx.input_mut(|i| i.events.extend(events));
+        }
         self.shortcuts(ctx);
         // Scrolling and group-drag previews are transient: never resume after changing tabs,
         // opening a modal/palette, or returning to a window that lost focus.
@@ -4123,6 +4200,7 @@ impl eframe::App for PdfCraftApp {
         self.process_picked();
         // Last, after everything that can open or answer the "save changes?" question.
         self.attend_save_prompt(ctx);
+        self.sync_native_menu(ctx);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
@@ -4133,11 +4211,17 @@ impl eframe::App for PdfCraftApp {
         crate::window_drop::begin(&ctx, self.managed_windows && !self.window_close_ready);
         i18n::set_current(i18n::Lang::from_pref(&self.language));
         spelling_ui::begin_frame(&ctx, &mut self.spelling, i18n::Lang::from_pref(&self.language).code());
+        // A language change switches stock chrome between LTR and RTL before anything is drawn.
+        theme::sync_direction(&ctx);
         // Fonts registered via set_fonts only take effect next frame; named families would panic now.
         if !self.fonts_ready {
             ctx.request_repaint();
             return;
         }
+        // Before any widget reads this frame's wheel input or draws.
+        self.motion.begin_pass(&ctx, self.animation_effects);
+        // One-time 0.36 -> 0.37 panel persistence migration, before any panel stores or reads state.
+        migrate_panel_state(ui);
         for view in &mut self.views {
             view.begin_render_frame();
         }
@@ -4172,6 +4256,10 @@ impl eframe::App for PdfCraftApp {
             self.show_progress(&ctx);
             widgets::toast(self, &ctx);
             self.finish_render_frame(&ctx);
+            if let Some(mut control) = self.control.take() {
+                control.finish_frame(&ctx, self);
+                self.control = Some(control);
+            }
             return;
         }
         self.sync_window_frame(&ctx);
@@ -4217,6 +4305,11 @@ impl eframe::App for PdfCraftApp {
         self.show_progress(&ctx);
         widgets::toast(self, &ctx);
         self.finish_render_frame(&ctx);
+        // Screenshots are issued only after a settled pass that really drew the window.
+        if let Some(mut control) = self.control.take() {
+            control.finish_frame(&ctx, self);
+            self.control = Some(control);
+        }
     }
 }
 
@@ -4244,5 +4337,77 @@ impl PdfCraftApp {
                 view.finish_render_frame(ctx, &doc.info, &doc.renderer);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod panel_migration_tests {
+    use super::*;
+
+    fn state(width: f32) -> egui::PanelState {
+        egui::PanelState { outer_rect: egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(width, 900.0)) }
+    }
+
+    /// 0.36 stored a panel's persisted size under `Id::unique(salt)`. 0.37 derives the key from
+    /// the root `Ui`'s scope; the upgrade must carry the chosen width over, not reset it.
+    #[test]
+    fn upgrade_from_036_panel_memory_keeps_width() {
+        let ctx = egui::Context::default();
+        let old = egui::Id::unique("rail");
+        ctx.data_mut(|d| d.insert_persisted(old, state(287.0)));
+        let mut migrated = None;
+        let mut new_id = None;
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            migrate_panel_state(ui);
+            new_id = Some(ui.scope_id().with_salt(egui::IdSalt::new("rail")));
+            migrated = egui::PanelState::load(ui.ctx(), new_id.expect("an id"));
+        });
+        output.drop_without_applying_deltas();
+        let migrated = migrated.expect("the 0.36 panel width migrates to the 0.37 key");
+        assert!((migrated.size().x - 287.0).abs() <= 1.0, "width survives: {:?}", migrated.size());
+        assert_eq!(new_id.unwrap(), ctx.viewport_id().root_ui_id().with_salt(egui::IdSalt::new("rail")));
+        assert!(egui::PanelState::load(&ctx, old).is_some(), "the old key stays for rollback");
+    }
+
+    /// A synthetic nested panel is keyed from its own parent `Ui`, not the root.
+    /// Migrating it at the root would silently miss its 0.36 state; the fixture uses
+    /// legacy rail names but does not model the current shared rail implementation.
+    #[test]
+    fn nested_panel_state_migrates_from_its_actual_parent_ui() {
+        let ctx = egui::Context::default();
+        let old = egui::Id::unique("rail-nav");
+        ctx.data_mut(|d| d.insert_persisted(old, state(140.0)));
+        let mut nested_id = None;
+        let mut migrated = None;
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            egui::Panel::right("rail").resizable(false).exact_size(48.0).show(ui, |ui| {
+                migrate_panel_state_from(ui, "rail-nav");
+                // The key egui will use for the nested panel shown in this same Ui.
+                let key = ui.scope_id().with_salt(egui::IdSalt::new("rail-nav"));
+                nested_id = Some(key);
+                migrated = egui::PanelState::load(ui.ctx(), key);
+                egui::Panel::bottom("rail-nav").resizable(false).show(ui, |_ui| {});
+            });
+        });
+        output.drop_without_applying_deltas();
+        let migrated = migrated.expect("the nested 0.36 state migrates to its parent-scoped key");
+        assert_eq!(migrated.size().x, 140.0);
+        assert_ne!(nested_id.unwrap(), ctx.viewport_id().root_ui_id().with_salt(egui::IdSalt::new("rail-nav")), "the nested key is not the root key");
+    }
+
+    /// The one-time copy must never overwrite state a 0.37 run has already stored.
+    #[test]
+    fn migration_does_not_replace_a_037_panel_state() {
+        let ctx = egui::Context::default();
+        let old = egui::Id::unique("rail");
+        let new = ctx.viewport_id().root_ui_id().with_salt(egui::IdSalt::new("rail"));
+        ctx.data_mut(|d| {
+            d.insert_persisted(old, state(287.0));
+            d.insert_persisted(new, state(412.0));
+        });
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| migrate_panel_state(ui));
+        output.drop_without_applying_deltas();
+        let kept = egui::PanelState::load(&ctx, new).expect("the 0.37 state");
+        assert_eq!(kept.size().x, 412.0);
     }
 }

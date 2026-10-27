@@ -103,18 +103,26 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
                         (PageBox::Media, "MediaBox"),
                     ];
                     let cur = names.iter().find(|(b, _)| *b == d.which).map_or("CropBox", |(_, l)| *l);
-                    egui::ComboBox::from_id_salt("boxes-which").selected_text(cur).show_ui(ui, |ui| {
-                        for (b, l) in names {
-                            ui.selectable_value(&mut d.which, b, l);
-                        }
-                    });
+                    egui::ComboBox::from_id_salt("boxes-which")
+                        .selected_text(cur)
+                        .show_ui(ui, |ui| {
+                            for (b, l) in names {
+                                ui.selectable_value(&mut d.which, b, l);
+                            }
+                        })
+                        .response
+                        .accessible_name(tl!("Page box"));
                     ui.end_row();
                     ui.label(tl!("Units"));
-                    egui::ComboBox::from_id_salt("boxes-unit").selected_text(d.unit.label()).show_ui(ui, |ui| {
-                        for u in Unit::ALL {
-                            ui.selectable_value(&mut d.unit, u, u.label());
-                        }
-                    });
+                    egui::ComboBox::from_id_salt("boxes-unit")
+                        .selected_text(d.unit.label())
+                        .show_ui(ui, |ui| {
+                            for u in Unit::ALL {
+                                ui.selectable_value(&mut d.unit, u, u.label());
+                            }
+                        })
+                        .response
+                        .accessible_name(tl!("Units"));
                     ui.end_row();
                     let k = d.unit.per_point();
                     for (label, idx) in [(tl!("Top"), 3), (tl!("Bottom"), 1), (tl!("Left"), 0), (tl!("Right"), 2)] {
@@ -158,9 +166,9 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
                             if ui.add(widgets::radio(on, tl!("From"))).clicked() {
                                 d.range = Range::Pages(a, b);
                             }
-                            let ra = ui.add(egui::DragValue::new(&mut a).range(1..=count));
+                            let ra = ui.add(egui::DragValue::new(&mut a).range(1..=count)).accessible_name(tl!("First page"));
                             ui.label(tl!("to"));
-                            let rb = ui.add(egui::DragValue::new(&mut b).range(1..=count));
+                            let rb = ui.add(egui::DragValue::new(&mut b).range(1..=count)).accessible_name(tl!("Last page"));
                             if ra.changed() || rb.changed() {
                                 d.range = Range::Pages(a.min(b), b.max(a));
                             }

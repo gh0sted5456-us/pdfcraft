@@ -1,5 +1,6 @@
 //! Use a certificate in the real shell: draw a signature, create a digital ID, sign, validate.
 
+use crate::support;
 use egui::{Pos2, pos2};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT, Queryable};
@@ -134,14 +135,14 @@ fn drawing_a_signature_creating_an_id_signing_and_trusting() {
     if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
         h.render().unwrap().save(format!("{dir}/signing-clock-default.png")).unwrap();
     }
-    h.get_by_label("Sign").click();
+    support::outside_menus(&h, "Sign").click();
     h.run_steps(3);
     h.get_by_label("The password is incorrect.");
     h.state_mut().sign_draft.as_mut().unwrap().password = "secret12".into();
     field(&h, "Reason").click();
     h.run_steps(1);
     field(&h, "Reason").type_text("I approve");
-    h.get_by_label("Sign").click();
+    support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
 
     let s = h.state();
@@ -283,7 +284,7 @@ fn certifying_without_a_visible_signature() {
     h.get_by_label("Certify as \"Test Signer EC\"");
     h.get_by_label("After signing");
     h.state_mut().sign_draft.as_mut().unwrap().password = "test".into();
-    h.get_by_label("Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
     let s = h.state();
     assert_eq!(s.sign_draft.as_ref().and_then(|d| d.error.clone()), None);
@@ -369,7 +370,7 @@ fn clicking_an_empty_signature_field_signs_it() {
         d.password = "test".into();
     }
     h.run_steps(2);
-    h.get_by_label("Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
     let s = h.state();
     let sig = s.session.get(s.views[1].id).unwrap().signatures.iter().find(|x| x.field == "Approver").cloned().unwrap();
@@ -406,7 +407,7 @@ fn the_fill_and_sign_signature_or_an_image_shows_in_a_digital_signature() {
     h.get_by_label("Fill & Sign signature").click();
     h.run_steps(2);
     assert_eq!(h.state().sign_draft.as_ref().unwrap().graphic, SignGraphic::FillSign);
-    h.get_by_label("Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
     let s = h.state();
     assert_eq!(s.sign_draft.as_ref().and_then(|d| d.error.clone()), None);
@@ -426,7 +427,7 @@ fn the_fill_and_sign_signature_or_an_image_shows_in_a_digital_signature() {
     h.state_mut().sign_draft.as_mut().unwrap().graphic = SignGraphic::Image(image.clone());
     h.run_steps(2);
     h.get_by_label("Choose image…");
-    h.get_by_label("Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
     let s = h.state();
     assert_eq!(s.sign_draft.as_ref().and_then(|d| d.error.clone()), None);
@@ -544,7 +545,7 @@ fn windows_store_identity_does_not_ask_for_a_file_password() {
     h.get_by_label("Sign as \"Store signer\"");
     assert_eq!(h.query_all_by_label("Digital ID password").count(), 0);
     h.get_by_label("The key is in the Windows certificate store, which may ask to allow PdfCraft to use it.");
-    h.get_by_label("Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(3);
     assert_eq!(h.state().dialog, Some(Dialog::Sign));
     assert!(h.state().sign_draft.as_ref().unwrap().error.as_ref().unwrap().contains("Windows certificate store"));
@@ -568,7 +569,7 @@ fn long_digital_id_names_stay_inside_the_picker() {
     });
     h.state_mut().sign_draft.as_mut().unwrap().step = SignStep::Choose;
     h.run_steps(3);
-    let right = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap().right() - 16.0;
+    let right = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::unique("dialog").with("card"))).unwrap().right() - 16.0;
     let lines: Vec<_> = h
         .output()
         .shapes
@@ -692,7 +693,7 @@ fn signing_preserves_destination_opening_attributes() {
     let d = h.state_mut().sign_draft.as_mut().unwrap();
     (d.selected, d.step, d.password) = (Some(entry), SignStep::SignAs, "test".into());
     h.run_steps(2);
-    h.get_by_label("Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
     assert!(h.state().session.get(h.state().views[0].id).unwrap().signatures.iter().any(|s| s.signed));
     assert_eq!(xattr::get(&dest, "com.apple.LaunchServices.OpenWith").unwrap(), Some(b"existing binding".to_vec()));
@@ -767,6 +768,7 @@ fn the_validation_marks_over_signatures_can_be_turned_off() {
     if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
         h.hover_at(egui::pos2(700.0, 650.0));
         h.event(egui::Event::MouseWheel {
+            source: egui::MouseWheelSource::Unknown,
             unit: egui::MouseWheelUnit::Point,
             delta: egui::vec2(0.0, -360.0),
             phase: egui::TouchPhase::Move,
@@ -821,7 +823,7 @@ fn signing_confirmation_selects_page_protection_and_preserves_it_after_signing()
     assert!(!h.state().views[0].organize_pick);
     assert_eq!(h.state().sign_draft.as_ref().unwrap().password, "test");
     assert_eq!(h.state().sign_draft.as_ref().unwrap().protected_pages, vec![0]);
-    h.get_by_label("Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
     let doc = h.state().session.get(h.state().views[0].id).unwrap();
     assert!(doc.is_signed());

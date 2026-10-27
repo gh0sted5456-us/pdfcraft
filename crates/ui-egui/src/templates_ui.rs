@@ -218,11 +218,16 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> Action {
         if draft.imported.is_some() {
             categories.push("Imported");
         }
-        egui::ComboBox::from_id_salt("template-category").selected_text(&draft.category).width(160.0).show_ui(ui, |ui| {
-            for category in categories {
-                ui.selectable_value(&mut draft.category, category.into(), category);
-            }
-        });
+        egui::ComboBox::from_id_salt("template-category")
+            .selected_text(&draft.category)
+            .width(160.0)
+            .show_ui(ui, |ui| {
+                for category in categories {
+                    ui.selectable_value(&mut draft.category, category.into(), category);
+                }
+            })
+            .response
+            .accessible_name(tl!("Template category"));
         let search_width = (ui.available_width() - 80.0).max(50.0);
         ui.add(widgets::line(&mut draft.search).hint_text("Search templates").desired_width(search_width));
         if crate::icons::button(ui, "folder-open", 30.0, false, "Import template...").clicked() {
@@ -319,7 +324,9 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> Action {
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut draft.paper, "letter".into(), "US Letter");
                     ui.selectable_value(&mut draft.paper, "a4".into(), "A4");
-                });
+                })
+                .response
+                .accessible_name(tl!("Paper size"));
             if old != draft.paper {
                 choose = Some(draft.selected.clone());
             }
@@ -354,7 +361,7 @@ fn card(
     t: &theme::Tokens,
 ) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
-    response.widget_info(|| egui::WidgetInfo::selected(egui::WidgetType::Button, true, selected, title));
+    response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, selected, title));
     ui.painter().rect_filled(
         rect,
         6.0,
@@ -527,11 +534,11 @@ pub(crate) fn export_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> (bool, bo
     for (label, value, limit) in
         [("Name", &mut draft.info.title, 120), ("Description", &mut draft.info.description, 1000), ("Category", &mut draft.info.category, 64)]
     {
-        ui.label(label);
+        let name = ui.label(label);
         if label == "Description" {
-            ui.add(egui::TextEdit::multiline(value).char_limit(limit).desired_rows(3).desired_width(ui.available_width()));
+            ui.add(egui::TextEdit::multiline(value).char_limit(limit).desired_rows(3).desired_width(ui.available_width())).labelled_by(name.id);
         } else {
-            ui.add(egui::TextEdit::singleline(value).char_limit(limit).desired_width(ui.available_width()));
+            ui.add(egui::TextEdit::singleline(value).char_limit(limit).desired_width(ui.available_width())).labelled_by(name.id);
         }
     }
     ui.add_space(12.0);

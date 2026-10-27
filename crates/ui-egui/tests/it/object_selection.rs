@@ -189,8 +189,8 @@ fn right_click_selected_objects_offers_alignment_and_distribution() {
         h.event(egui::Event::PointerButton { pos: p, button: egui::PointerButton::Secondary, pressed, modifiers: Modifiers::NONE });
     }
     h.run_steps(4);
-    h.get_by_label("Distribute ⏵");
-    h.get_by_label("Align ⏵").hover();
+    h.get_by_label("Distribute");
+    h.get_by_label("Align").hover();
     h.run_steps(5);
     h.get_by_label("Left").click();
     h.run_steps(5);

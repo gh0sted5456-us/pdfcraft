@@ -72,7 +72,7 @@ mod tests {
             h.run_steps(3);
             let cancel = h.get_by_label("Cancel").rect();
             let confirm = h.get_by_role_and_label(egui::accesskit::Role::Button, "Timestamp").rect();
-            let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::new("dialog").with("card"))).unwrap();
+            let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::unique("dialog").with("card"))).unwrap();
             assert!(cancel.right() < confirm.left());
             assert!((cancel.center().y - confirm.center().y).abs() < 0.5);
             assert!((cancel.union(confirm).center().x - card.center().x).abs() < 1.0, "confirmation group belongs at the center");

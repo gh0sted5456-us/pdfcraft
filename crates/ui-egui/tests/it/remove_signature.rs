@@ -50,7 +50,7 @@ fn signed(dir: &std::path::Path) -> Harness<'static, PdfCraftApp> {
         d.password = "test".into();
     }
     h.run_steps(2);
-    h.get_by_label("Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
     assert!(h.state().session.get(h.state().views[0].id).unwrap().is_signed(), "the fixture is signed");
     h

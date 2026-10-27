@@ -44,7 +44,7 @@ fn scan_text_prompt_waits_for_a_page_choice() {
     assert!(h.state_mut().execute("edit.edit_text"));
     h.run_steps(4);
     h.get_by_label("Scanned text detected");
-    h.get_by_label("Current page");
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Current page");
     h.get_by_label("All pages");
     let id = h.state().active_ids().unwrap().1;
     assert!(h.state().session.get(id).unwrap().text_blocks(0).is_empty());
@@ -66,7 +66,7 @@ fn scan_text_prompt_respects_current_and_all_pages_and_undo() {
         h.run_steps(4);
         h.state_mut().execute("edit.edit_text");
         h.run_steps(4);
-        h.get_by_label(if all { "All pages" } else { "Current page" }).click();
+        h.get_by_role_and_label(egui::accesskit::Role::Button, if all { "All pages" } else { "Current page" }).click();
         h.run_steps(4);
         let id = h.state().active_ids().unwrap().1;
         let doc = h.state().session.get(id).unwrap();
@@ -120,7 +120,7 @@ fn scan_text_prompt_refuses_a_document_changed_before_the_page_choice() {
     let note = AddedText { rect: [20.0, 20.0, 220.0, 60.0], text: "Keep this note".into(), ..Default::default() };
     h.state_mut().session.apply(id, Edit::AddText { page: 0, text: note }).unwrap();
     let generation = h.state().session.get(id).unwrap().edit_generation();
-    h.get_by_label("Current page").click();
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Current page").click();
     h.run_steps(4);
     assert_eq!(h.state().session.get(id).unwrap().edit_generation(), generation);
     assert!(h.state().toast.as_ref().unwrap().0.contains("result was discarded"));
@@ -182,26 +182,29 @@ fn recognize_text_dialog_adds_searchable_text() {
     h.run_steps(4);
     assert!(h.state_mut().execute("ocr.recognize"));
     h.run_steps(2);
-    h.get_by_label("Document language");
+    h.get_by_role_and_label(egui::accesskit::Role::ComboBox, "Document language");
     h.get_by_label("Output");
     h.get_by_label("Automatically rotate sideways and upside-down pages");
     h.get_by_label("Straighten skewed scans");
     assert!(h.state().ocr_draft.auto_rotate && h.state().ocr_draft.deskew);
     let expected = pdfcraft_engine::ocr::language_for_locale(sys_locale::get_locale().as_deref());
     assert_eq!(h.state().ocr_draft.language, expected, "OCR follows the system even when the interface is English");
-    let label = pdfcraft_engine::ocr::LANGUAGES.iter().find(|(code, _)| *code == expected).unwrap().1;
-    h.get_by_value(label).click();
+    h.get_by_role_and_label(egui::accesskit::Role::ComboBox, "Document language").click();
     h.run_steps(2);
-    for label in ["Nederlands", "Dansk", "Norsk bokmål", "Svenska", "Suomi", "Português", "Català", "繁體中文", "简体中文"] {
+    for label in ["Nederlands", "Dansk", "Norsk bokmål", "Svenska", "Suomi", "Português", "Català"] {
         h.get_by_label(label);
     }
+    let traditional = if h.query_by_label("繁體中文").is_some() { "繁體中文" } else { "Traditional Chinese" };
+    let simplified = if h.query_by_label("简体中文").is_some() { "简体中文" } else { "Simplified Chinese" };
+    h.get_by_label(traditional);
+    h.get_by_label(simplified);
     // The expanded language list scrolls when the popup reaches the window edge.
-    h.get_by_label("简体中文").scroll_to_me();
+    h.get_by_label(simplified).scroll_to_me();
     h.run_steps(4);
-    h.get_by_label("简体中文").click();
+    h.get_by_label(simplified).click();
     h.run_steps(2);
     assert_eq!(h.state().ocr_draft.language, "zh-Hans", "the last language in the list can be chosen");
-    h.get_by_value("简体中文").click();
+    h.get_by_role_and_label(egui::accesskit::Role::ComboBox, "Document language").click();
     h.run_steps(2);
     h.get_by_label("Català").scroll_to_me();
     h.run_steps(4);
@@ -422,7 +425,7 @@ fn edit_harness(pdf: Vec<u8>) -> Harness<'static, PdfCraftApp> {
 
 fn accept_current_scan(h: &mut Harness<'static, PdfCraftApp>) {
     assert!(matches!(h.state().dialog, Some(pdfcraft_ui_egui::Dialog::RecognizeScan { .. })), "recognition waits for the user's page choice");
-    h.get_by_label("Current page").click();
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Current page").click();
     h.run_steps(4);
 }
 

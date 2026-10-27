@@ -72,7 +72,7 @@ pub struct TextDraft {
 }
 
 pub(crate) fn editor_id(doc: pdfcraft_engine::DocId) -> egui::Id {
-    egui::Id::new(("added-text-edit", doc.0))
+    egui::Id::unique(("added-text-edit", doc.0))
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -96,6 +96,11 @@ pub struct ContentView {
 }
 
 impl ContentView {
+    /// Forget an in-progress pointer grab for content editing.
+    pub(crate) fn cancel_pointer_gesture(&mut self) {
+        self.grab = None;
+    }
+
     pub(crate) fn finish_draft(&mut self, added: &[Added]) -> Option<Edit> {
         self.draft.take().and_then(|d| finish(self, d, added))
     }
@@ -619,7 +624,7 @@ pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, ad
     // Shown at once, like the paragraph editor: a fade-in shows the page's copy through it. Over
     // the page, so only where the document shows: text scrolled under the mode bar or a side
     // panel must leave them their pointer (#2755).
-    egui::Area::new(egui::Id::new(("added-text", view.id.0)))
+    egui::Area::new(egui::Id::unique(("added-text", view.id.0)))
         .fade_in(false)
         .order(egui::Order::Foreground)
         .fixed_pos(at)
@@ -653,7 +658,10 @@ pub(crate) fn editor(ctx: &egui::Context, view: &mut DocView, info: &DocInfo, ad
                     .font(font.clone())
                     .desired_width(width)
                     .desired_rows(1)
-                    .horizontal_align(halign)
+                    .align(egui::Align2::new(halign, egui::Align::TOP))
+                    // Keep the page editor's original inset; the theme's larger button padding
+                    // otherwise shifts narrow right-aligned boxes away from their text edge.
+                    .margin(egui::Margin::symmetric(4, 2))
                     .background_color(if background_ready { Color32::TRANSPARENT } else { Color32::WHITE })
                     .text_color(Color32::from_rgb(cr, cg, cb))
                     .hint_text(tl!("Type text"))

@@ -49,6 +49,12 @@ struct Gesture {
 }
 
 impl ObjectSelection {
+    /// Clear any object-selection gesture and the page it was blocking.
+    pub(crate) fn cancel_pointer_gesture(&mut self) {
+        self.gesture = None;
+        self.blocked_page = None;
+    }
+
     pub fn count(&self) -> usize {
         self.selected.len()
     }
@@ -802,7 +808,7 @@ pub(crate) fn line_panel(ui: &mut egui::Ui, count: usize, look: &PathOutline) ->
         // The colour a stroked line is drawn in, or a shape's fill.
         let current = look.stroke.filter(|_| look.stroked).or(look.fill).unwrap_or([0.0; 3]);
         let mut rgb = current.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8);
-        let pending = egui::Id::new("path-color-pending");
+        let pending = egui::Id::unique("path-color-pending");
         if ui.color_edit_button_srgb(&mut rgb).on_hover_text(tl!("Line colour")).changed() {
             ui.data_mut(|d| d.insert_temp(pending, rgb));
         }

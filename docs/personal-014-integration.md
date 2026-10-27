@@ -21,6 +21,15 @@ Validation: 2,130 backend tests, 548 UI library tests and 1,234 UI interaction t
 An isolated native Windows run checked Home at 35%, 67% and 100% opacity, document display, settings, floating panels and maximized mode. Pixel samples across the main header, tools, canvas and nested Home cards shared the requested alpha; PDF content remained opaque. Properties, marks and optimizer dialogs retain bounded scrolling and centered headings/actions in the small-window layout tests.
  Native checks use an isolated portable app and synthetic documents; they do not install the printer or change the default printer. Linux/macOS desktop compositing and printer runtime behavior require their respective systems. Glass requires a compositor supporting per-pixel alpha; no blur effect is claimed.
 
+## egui 0.37 candidate — 2026-10-27
+
+The integration branch upgrades the menu/framework foundation while preserving the
+personal workspace, Glass and updater. Its framework checkpoint passed 2,831 scoped
+tests (17 ignored), strict lint, formatting, provenance/layering/parity gates and the
+web build check. The full directory-layout merge and native package qualification
+are pending; fork main and the installed build remain unchanged. See
+[the migration record](egui-037-migration-plan.md).
+
 ## Revision history
 
 - 2026-10-25: Integrated upstream 0.14.0 and corrected accumulation of Glass tint across nested main-window surfaces.
