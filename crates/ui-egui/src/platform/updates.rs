@@ -237,7 +237,7 @@ pub(crate) fn dialog(app: &mut PdfCraftApp, ctx: &egui::Context) {
 
 /// Fork release status inside the bounded Preferences pane.
 pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut PdfCraftApp) {
-    ui.label(egui::RichText::new(format!("PdfCraft {}", env!("CARGO_PKG_VERSION"))).strong());
+    ui.label(egui::RichText::new(format!("{} {}", crate::APP_NAME, env!("CARGO_PKG_VERSION"))).strong());
     ui.label("Personal fork · gh0sted5456-us/pdfcraft");
     ui.add_space(10.0);
     #[cfg(not(target_arch = "wasm32"))]

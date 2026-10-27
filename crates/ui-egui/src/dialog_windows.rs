@@ -21,6 +21,7 @@ struct Entry {
     seen: u64,
     offset: Vec2,
     size: Vec2,
+    requested_size: Option<Vec2>,
 }
 #[derive(Clone)]
 struct Slot {
@@ -82,6 +83,7 @@ fn touch(ctx: &egui::Context, key: &str, title: &str, full: bool) {
                 seen: frame,
                 offset: Vec2::ZERO,
                 size: vec2(400.0, 300.0),
+                requested_size: None,
             });
         }
     });
@@ -122,7 +124,7 @@ pub(crate) fn title(dialog: Dialog) -> String {
         SaveTemplate => "Export template",
         NewPaper => "New PDF",
         ExportTo => "Export to",
-        About => "About PdfCraft",
+        About => "About Lion PDF",
         Shortcuts => "Keyboard shortcuts",
         Sign => "Digital signature",
         RemoveSignature => "Remove signature",
@@ -187,7 +189,7 @@ fn default_title(id: &str) -> &str {
         "updates" => "Updates",
         "combine-preview" => "Preview",
         "combine-skip" => "Combine files",
-        _ => "PdfCraft",
+        _ => crate::APP_NAME,
     }
 }
 
@@ -296,18 +298,26 @@ fn render<R>(ctx: &egui::Context, id: &str, blocking: bool, content: impl FnOnce
     let full = state.as_ref().is_some_and(|e| e.maximized);
     let shelf = registry(ctx, |r| r.entries.iter().any(|e| e.minimized));
     let usable = ctx.content_rect().shrink2(if full { vec2(12.0, 12.0) } else { vec2(36.0, 32.0) });
-    let available = (usable.size() - vec2(32.0, 60.0)).max(vec2(1.0, 1.0));
+    let limit = (usable.size() - vec2(32.0, 60.0)).max(vec2(1.0, 1.0));
+    let requested = state.as_ref().and_then(|e| e.requested_size).filter(|size| size.is_finite());
+    let available = if full { limit } else { requested.map_or(limit, |size| (size - vec2(32.0, 24.0)).clamp(vec2(1.0, 1.0), limit)) };
     let mut modal = widgets::modal(ctx, Id::unique(&key));
     if shelf {
         modal = modal.area(egui::Modal::default_area(Id::unique(&key)).anchor(Align2::CENTER_CENTER, vec2(0.0, -18.0)));
     }
-    let offset = if full { Vec2::ZERO } else { state.as_ref().map_or(Vec2::ZERO, |e| e.offset) };
+    let offset = if full {
+        Vec2::ZERO
+    } else {
+        let size = requested.unwrap_or_else(|| state.as_ref().map_or(Vec2::ZERO, |e| e.size)).min(limit + vec2(32.0, 24.0));
+        let bounds = ((ctx.content_rect().size() - size - vec2(0.0, 44.0)) * 0.5).max(Vec2::ZERO);
+        state.as_ref().map_or(Vec2::ZERO, |e| e.offset).clamp(-bounds, bounds)
+    };
     let offset = offset + vec2(0.0, if shelf { -18.0 } else { 0.0 });
     modal = modal.area(egui::Modal::default_area(Id::unique(&key)).anchor(Align2::CENTER_CENTER, offset));
     let draw = |ui: &mut egui::Ui| {
         widgets::begin_dialog(ui);
         ui.set_max_size(available);
-        if full {
+        if full || requested.is_some() {
             ui.set_min_size(available);
         }
         let origin = ui.cursor().min;
@@ -323,7 +333,7 @@ fn render<R>(ctx: &egui::Context, id: &str, blocking: bool, content: impl FnOnce
             .id_salt((&key, "content"))
             .max_width(available.x)
             .max_height((available.y - 34.0).max(1.0))
-            .auto_shrink([true, true])
+            .auto_shrink([requested.is_none() && !full; 2])
             .show(ui, |ui| {
                 ui.set_max_height((available.y - 34.0).max(1.0));
                 content(ui)
@@ -346,6 +356,9 @@ fn render<R>(ctx: &egui::Context, id: &str, blocking: bool, content: impl FnOnce
                 e.size = card.size();
             }
         });
+        if !full {
+            resize_edges(ui, &key, card, limit + vec2(32.0, 24.0));
+        }
     };
     let (response, dismissed) = if blocking {
         let out = modal.show(ctx, draw);
@@ -369,6 +382,50 @@ fn render<R>(ctx: &egui::Context, id: &str, blocking: bool, content: impl FnOnce
         remove(ctx, &key);
     }
     Response { close }
+}
+
+/// Resize the shared popup shell; content scrolls inside its chosen bounds.
+fn resize_edges(ui: &mut egui::Ui, key: &str, card: Rect, maximum: Vec2) {
+    let directions =
+        [vec2(-1.0, -1.0), vec2(0.0, -1.0), vec2(1.0, -1.0), vec2(-1.0, 0.0), vec2(1.0, 0.0), vec2(-1.0, 1.0), vec2(0.0, 1.0), vec2(1.0, 1.0)];
+    for (index, direction) in directions.into_iter().enumerate() {
+        let corner = direction.x != 0.0 && direction.y != 0.0;
+        let size = if corner {
+            vec2(14.0, 14.0)
+        } else if direction.x == 0.0 {
+            vec2((card.width() - 28.0).max(1.0), 6.0)
+        } else {
+            vec2(6.0, (card.height() - 28.0).max(1.0))
+        };
+        let center = card.center() + direction * (card.size() - size) * 0.5;
+        let cursor = if direction.x == 0.0 {
+            egui::CursorIcon::ResizeVertical
+        } else if direction.y == 0.0 {
+            egui::CursorIcon::ResizeHorizontal
+        } else if direction.x == direction.y {
+            egui::CursorIcon::ResizeNwSe
+        } else {
+            egui::CursorIcon::ResizeNeSw
+        };
+        let response =
+            ui.interact(Rect::from_center_size(center, size), Id::unique((key, "resize", index)), egui::Sense::drag()).on_hover_cursor(cursor);
+        let title = registry(ui.ctx(), |r| r.entries.iter().find(|e| e.key == key).map(|e| e.title.clone())).unwrap_or_default();
+        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, format!("Resize {title} ({index})")));
+        if response.dragged() && response.drag_delta().is_finite() {
+            let delta = response.drag_delta() * direction;
+            let viewport = ui.ctx().content_rect().size();
+            registry(ui.ctx(), |r| {
+                if let Some(entry) = r.entries.iter_mut().find(|e| e.key == key) {
+                    let old = card.size();
+                    let size = (old + delta).clamp(vec2(300.0, 180.0).min(maximum), maximum);
+                    entry.requested_size = Some(size);
+                    let bounds = ((viewport - size - vec2(0.0, 44.0)) * 0.5).max(Vec2::ZERO);
+                    entry.offset = (entry.offset + (size - old) * direction * 0.5).clamp(-bounds, bounds);
+                }
+            });
+            ui.ctx().request_repaint();
+        }
+    }
 }
 
 // Move only the active dialog's drafts; live documents, Undo, global preferences and jobs stay in the host.
@@ -601,7 +658,8 @@ pub(crate) fn taskbar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         ui.set_width(panel.response.rect.width());
         egui::Frame::new().fill(t.glass_toolbar_shade().unwrap_or(t.panel)).inner_margin(egui::Margin::symmetric(10, 4)).show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("Windows").small().color(t.text_muted));
+                let logo = widgets::app_icon(ui, 24.0).on_hover_text(crate::APP_NAME);
+                logo.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Image, true, "Lion PDF taskbar"));
                 let width = (ui.available_width() - 34.0).max(1.0);
                 egui::ScrollArea::horizontal().id_salt("dialog-taskbar-items").max_width(width).auto_shrink([false, true]).show(ui, |ui| {
                     ui.horizontal(|ui| {
@@ -788,5 +846,62 @@ mod tests {
         command(&mut app, "app.dialog_restore");
         assert!(app.dialog.is_none() && app.dialog_shelf.parked.is_empty());
         assert!(app.session.get(doc).unwrap().dirty);
+    }
+    #[test]
+    fn popup_edges_resize_without_losing_settings_and_restore_the_chosen_size() {
+        let mut h = Harness::builder().with_size(vec2(1400.0, 1000.0)).build_eframe(|_| {
+            let mut app = app().unwrap();
+            app.execute("app.preferences");
+            app
+        });
+        h.run_steps(8);
+        let key = effective(&h.ctx, "dialog");
+        let before = registry(&h.ctx, |r| r.entries.iter().find(|e| e.key == key).unwrap().size);
+        let a = h.get_by_label("Resize Preferences (7)").rect().center();
+        let b = a + vec2(90.0, 60.0);
+        h.hover_at(a);
+        h.run_steps(2);
+        h.drag_at(a);
+        h.run_steps(2);
+        h.hover_at(b);
+        h.run_steps(2);
+        h.drop_at(b);
+        h.run_steps(6);
+        let after = registry(&h.ctx, |r| r.entries.iter().find(|e| e.key == key).unwrap().size);
+        assert!(after.x > before.x + 40.0 && after.y > before.y + 20.0, "{before:?} -> {after:?}");
+        h.get_by_label("Show community button in title bar").click();
+        h.run_steps(3);
+        assert!(h.state().show_community);
+        let saved = h.state().persist();
+        let mut restored = PdfCraftApp::new();
+        restored.restore(&saved);
+        assert!(restored.show_community);
+        h.state_mut().execute("app.dialog_minimize");
+        h.run_steps(3);
+        h.state_mut().execute("app.dialog_restore");
+        h.run_steps(6);
+        let resumed = registry(&h.ctx, |r| r.entries.iter().find(|e| e.key == key).unwrap().size);
+        assert!((resumed - after).length() < 2.0, "{after:?} -> {resumed:?}");
+        assert!(h.state().show_community);
+        h.input_mut().screen_rect = Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(640.0, 480.0)));
+        h.run_steps(8);
+        let card = h.ctx.data(|data| data.get_temp::<Rect>(Id::unique("dialog").with("card"))).unwrap();
+        assert!(card.left() >= 0.0 && card.top() >= 0.0 && card.right() <= 640.0 && card.bottom() <= 480.0, "{card:?}");
+    }
+
+    #[test]
+    fn community_shortcut_is_opt_in_and_old_settings_keep_it_hidden() {
+        let mut h = Harness::builder().with_size(vec2(1200.0, 850.0)).build_eframe(|_| app().unwrap());
+        h.run_steps(5);
+        assert!(!h.state().show_community);
+        assert!(h.query_by_label("ArtCraft Community").is_none());
+        h.state_mut().set_option("show-community", "true").unwrap();
+        h.run_steps(3);
+        h.get_by_label("ArtCraft Community");
+        let mut restored = PdfCraftApp::new();
+        restored.restore(&h.state().persist());
+        assert!(restored.show_community);
+        restored.restore("{}");
+        assert!(!restored.show_community);
     }
 }

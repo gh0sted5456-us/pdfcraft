@@ -737,7 +737,7 @@ pub fn app_icon(ui: &mut egui::Ui, size: f32) -> Response {
     ui.add(
         egui::Image::from_bytes(if dark { "bytes://personal-lion-dark.png" } else { "bytes://personal-lion-light.png" }, crate::app_icon::png(dark))
             .fit_to_exact_size(vec2(size, size))
-            .alt_text("PdfCraft lion"),
+            .alt_text("Lion PDF application icon"),
     )
 }
 

@@ -19,7 +19,7 @@ fn harness(setup: impl FnOnce(&mut PdfCraftApp) + 'static) -> Harness<'static, P
 
 #[test]
 fn discord_button_in_the_top_bar_opens_discord() {
-    let mut h = harness(|_| {});
+    let mut h = harness(|app| app.show_community = true);
     h.get_by_label("ArtCraft Community").click();
     h.run_steps(2);
     assert_eq!(h.state().last_opened_url.as_deref(), Some(links::DISCORD));
@@ -63,7 +63,7 @@ fn about_dialog_shows_the_brand_and_links() {
         app.open_bytes("one.pdf", None, pdf.to_vec()).unwrap();
         app.dialog = Some(Dialog::About);
     });
-    h.get_by_label("PdfCraft lion");
+    h.get_by_label("Lion PDF application icon");
     h.get_by_label("Personal build by @gh0sted5456-us");
     h.get_by_label("Join our Discord").click();
     h.run_steps(2);

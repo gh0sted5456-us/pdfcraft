@@ -221,7 +221,7 @@ pub(crate) fn panel(ui: &mut egui::Ui, t: &Tokens, look: &mut AddedText, extras:
             ui.add_space(8.0);
             ui.add_enabled_ui(false, |ui| {
                 labelled_icon(ui, t, "pilcrow", tl!("Paragraph spacing"));
-                let tip = format!("{} — {}", tl!("Paragraph spacing"), tl!("Planned"));
+                let tip = format!("{} — {}", tl!("Paragraph spacing"), tl!("is not available yet"));
                 let _ = egui::ComboBox::from_id_salt("format-paragraph-spacing")
                     .selected_text("0")
                     .width(half)
@@ -271,7 +271,7 @@ fn planned(ui: &mut egui::Ui, icon: &str, label: &str) {
     let _ = ui
         .add_enabled_ui(false, |ui| icons::button(ui, icon, 30.0, false, label))
         .inner
-        .on_disabled_hover_text(format!("{label} — {}", tl!("Planned")));
+        .on_disabled_hover_text(format!("{label} — {}", tl!("is not available yet")));
 }
 
 /// The small corner mark Acrobat puts on a button that opens a menu.

@@ -161,6 +161,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     ui.add_space(10.0);
                     for (label, command) in [
                         ("WordCraft / Microsoft Word (.docx)", "export.docx"),
+                        ("Excel spreadsheet (.xlsx)", "export.xlsx"),
                         ("PowerPoint (.pptx)", "export.pptx"),
                         ("Rich Text (.rtf)", "export.rtf"),
                         ("Web page (.html)", "export.html"),
@@ -1454,7 +1455,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 ui.vertical_centered(|ui| {
                     widgets::app_icon(ui, 40.0);
                 });
-                widgets::dialog_heading(ui, "PdfCraft");
+                widgets::dialog_heading(ui, crate::APP_NAME);
                 ui.vertical_centered(|ui| {
                     ui.label(crate::i18n::fmt(tl!("Version {v}"), &[("v", &pdfcraft_engine::build_info::version())]));
                 });

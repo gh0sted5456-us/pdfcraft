@@ -309,7 +309,7 @@ fn row(ui: &mut egui::Ui, t: &Tokens, icon: &str, label: &str, availability: Ava
     }
     match availability {
         Availability::Ready => theme::hand(resp),
-        Availability::Later => resp.on_hover_text(tl!("Planned")),
+        Availability::Later => resp.on_hover_text(tl!("is not available yet")),
     }
 }
 

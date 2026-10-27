@@ -11,6 +11,9 @@
 
 use crate::control::Host as _;
 
+/// The personal fork's display name; storage and update identities remain compatible.
+pub const APP_NAME: &str = "Lion PDF";
+
 /// Translate an English UI string into the current language (see [`i18n`]).
 macro_rules! tl {
     ($s:expr) => {
@@ -282,6 +285,8 @@ pub struct PdfCraftApp {
     /// Resolved colours, including the current OS theme when following the system.
     pub theme: ThemeKind,
     pub theme_preference: ThemePreference,
+    /// Show the optional community shortcut in the application header.
+    pub show_community: bool,
     pub glass: theme::GlassSettings,
     pub glass_background: glass_background::GlassBackground,
     #[cfg(target_os = "windows")]

@@ -65,7 +65,9 @@ fn export_to_excel_offers_the_sheets() {
         app
     });
     h.run_steps(4);
-    assert!(h.state_mut().execute("export.xlsx"));
+    assert!(h.state_mut().execute("export.choose"));
+    h.run_steps(4);
+    h.get_by_label("Excel spreadsheet (.xlsx)").click();
     h.run_steps(6);
     h.get_by_label("Export to Excel");
     h.get_by_label("One sheet per page");

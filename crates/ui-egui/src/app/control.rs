@@ -430,6 +430,13 @@ impl PdfCraftApp {
                     _ => return Err("secured-notice must be true or false".into()),
                 };
             }
+            ("show-community", _) => {
+                self.show_community = match value {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err("show-community must be true or false".into()),
+                };
+            }
             ("system-title-bar", _) => {
                 self.system_title_bar = match value {
                     "true" => true,

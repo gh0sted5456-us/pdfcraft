@@ -88,6 +88,7 @@ impl PdfCraftApp {
             "last_session": self.reopen_last_session.then(|| self.session_to_save()),
             "reload_changed_files": self.reload_changed_files,
             "system_title_bar": self.system_title_bar,
+            "show_community": self.show_community,
             "pinned_folders": self.pinned.folders,
             "theme": self.theme_preference,
             "glass": self.glass,
@@ -206,6 +207,7 @@ impl PdfCraftApp {
         }
         self.restore_last_views(&v["last_views"]);
         self.last_session = last_session::LastSession::from_json(&v["last_session"]);
+        self.show_community = v["show_community"].as_bool().unwrap_or(false);
         if let Some(on) = v["system_title_bar"].as_bool() {
             self.system_title_bar = on;
         }

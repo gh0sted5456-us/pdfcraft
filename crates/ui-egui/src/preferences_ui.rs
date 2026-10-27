@@ -305,6 +305,7 @@ fn appearance(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
         }
     });
     ui.add_space(8.0);
+    ui.add(widgets::checkbox(&mut app.show_community, "Show community button in title bar"));
     crate::appearance::preferences_section(ui, app, t);
     ui.add_space(8.0);
     // Whether anything animates, the wheel's scrolling and zooming included; left alone it
