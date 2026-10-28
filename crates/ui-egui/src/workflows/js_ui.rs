@@ -295,29 +295,49 @@ pub(crate) fn console_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens)
     if !app.session.javascript() {
         ui.label(egui::RichText::new(tl!("JavaScript is turned off (Preferences ▸ JavaScript).")).small().color(t.text_muted));
     }
+    let room = (ui.available_height() - 76.0).max(40.0);
+    let height = if crate::dialog_windows::resized(ui.ctx(), "dialog") { room } else { room.min(240.0) };
+    let output_height = height * (2.0 / 3.0);
+    let input_height = height - output_height;
     egui::Frame::new().fill(t.hover).corner_radius(egui::CornerRadius::same(6)).inner_margin(egui::Margin::same(8)).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        egui::ScrollArea::vertical().max_height(220.0).stick_to_bottom(true).show(ui, |ui| {
-            ui.set_width(ui.available_width());
-            ui.set_min_height(160.0);
-            if app.js_console.log.is_empty() {
-                ui.label(egui::RichText::new(tl!("Output appears here.")).color(t.text_muted));
-            }
-            for line in &app.js_console.log {
-                ui.label(egui::RichText::new(line).monospace());
-            }
-        });
+        egui::ScrollArea::vertical()
+            .id_salt("js-console-output")
+            .max_height(output_height)
+            .min_scrolled_height(output_height)
+            .auto_shrink([false, false])
+            .stick_to_bottom(true)
+            .show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                if app.js_console.log.is_empty() {
+                    ui.label(egui::RichText::new(tl!("Output appears here.")).color(t.text_muted));
+                }
+                for line in &app.js_console.log {
+                    ui.label(egui::RichText::new(line).monospace());
+                }
+            });
     });
     ui.add_space(6.0);
-    let input = ui
-        .add(
-            crate::widgets::block(&mut app.js_console.input)
-                .code_editor()
-                .desired_rows(4)
-                .desired_width(f32::INFINITY)
-                .hint_text(tl!("JavaScript, e.g. getField(\"total\").value"))
-                .id_salt("js-console-input"),
-        )
+    let width = ui.available_width();
+    let input = egui::ScrollArea::both()
+        .id_salt("js-console-editor")
+        .max_width(width)
+        .max_height(input_height)
+        .min_scrolled_height(input_height)
+        .auto_shrink([false, false])
+        .show(ui, |ui| {
+            ui.set_max_width(width);
+            ui.add_sized(
+                egui::vec2(width, input_height),
+                crate::widgets::block(&mut app.js_console.input)
+                    .code_editor()
+                    .desired_rows(1)
+                    .desired_width(width)
+                    .hint_text(tl!("JavaScript, e.g. getField(\"total\").value"))
+                    .id_salt("js-console-input"),
+            )
+        })
+        .inner
         .accessible_name(tl!("JavaScript code"));
     let run_key = input.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter) && i.modifiers.command);
     ui.add_space(8.0);

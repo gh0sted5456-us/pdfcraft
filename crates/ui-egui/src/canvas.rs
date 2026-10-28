@@ -82,6 +82,28 @@ pub enum Fit {
     None,
 }
 
+/// What a real window resize does after manually choosing a zoom percentage.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ResizeZoom {
+    #[default]
+    FitWidth,
+    FitPage,
+    KeepZoom,
+}
+
+impl ResizeZoom {
+    pub const ALL: [Self; 3] = [Self::FitWidth, Self::FitPage, Self::KeepZoom];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::FitWidth => "Fit width",
+            Self::FitPage => "Fit whole page",
+            Self::KeepZoom => "Keep zoom",
+        }
+    }
+}
+
 /// The page display as it was before full screen, put back on leaving it
 /// ([`DocView::enter_presentation`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -187,6 +209,8 @@ pub struct ViewDefaults {
     pub fit: Fit,
     /// The zoom with [`Fit::None`] (1.0 = 100%).
     pub zoom: f32,
+    /// Shared resize behavior, including documents already open.
+    pub resize_zoom: ResizeZoom,
     /// Highlight existing fields: a preference in Acrobat, so it carries over to the next
     /// document and the next session. On for new settings; a stored choice wins.
     pub highlight_fields: bool,
@@ -195,7 +219,15 @@ pub struct ViewDefaults {
 impl Default for ViewDefaults {
     fn default() -> Self {
         // Single page, scrolling continuously at fit width: the earlier "continuous" default.
-        Self { layout: PageLayout::Single, continuous: true, show_page_gaps: true, fit: Fit::Width, zoom: 1.0, highlight_fields: true }
+        Self {
+            layout: PageLayout::Single,
+            continuous: true,
+            show_page_gaps: true,
+            fit: Fit::Width,
+            zoom: 1.0,
+            resize_zoom: ResizeZoom::default(),
+            highlight_fields: true,
+        }
     }
 }
 
@@ -377,6 +409,9 @@ pub struct DocView {
     /// Finished renders wait in the pool instead of reaching the view (tests): what the view
     /// shows before a raster arrives can be looked at however fast the renderer is.
     pub hold_rasters: bool,
+    window_size: Vec2,
+    presentation_window_size: Vec2,
+    restoring_window: bool,
     viewport_w: f32,
     viewport_h: f32,
     page_count: usize,
@@ -656,6 +691,9 @@ impl DocView {
             present_turn: None,
             last_queue: Vec::new(),
             hold_rasters: false,
+            window_size: Vec2::ZERO,
+            presentation_window_size: Vec2::ZERO,
+            restoring_window: false,
             viewport_w: 800.0,
             viewport_h: 600.0,
             page_count: info.pages.len(),
@@ -788,6 +826,9 @@ impl DocView {
         fresh.find = self.find.take();
         fresh.pages = std::mem::take(&mut self.pages);
         fresh.thumbs = std::mem::take(&mut self.thumbs);
+        fresh.window_size = self.window_size;
+        fresh.presentation_window_size = self.presentation_window_size;
+        fresh.restoring_window = self.restoring_window;
         fresh.viewport_w = self.viewport_w;
         fresh.viewport_h = self.viewport_h;
         fresh.viewport_screen = self.viewport_screen;
@@ -910,6 +951,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     }
 
     let avail = ui.available_rect_before_wrap();
+    view.resize_window(ui.ctx().content_rect().size(), app.view_defaults.resize_zoom);
     view.viewport_w = avail.width();
     view.viewport_h = avail.height();
     let old_zoom = view.zoom;

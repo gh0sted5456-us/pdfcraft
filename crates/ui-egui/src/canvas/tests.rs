@@ -2069,3 +2069,44 @@ fn closed_thumbnail_consumers_release_caches_while_main_pixels_are_pending() {
     v.last_queue = pending;
     assert_eq!(v.receive_result(&ctx, solid_result(first, 132, 171)), 0, "late obsolete results stay rejected");
 }
+
+#[test]
+fn resize_policy_ignores_initial_layout_jitter_and_invalid_sizes() {
+    let mut v = view(1, PageLayout::Single, true);
+    v.set_zoom(2.0);
+    v.resize_window(vec2(1000.0, 800.0), ResizeZoom::FitWidth);
+    assert_eq!(v.fit, Fit::None);
+    v.resize_window(vec2(1000.25, 800.0), ResizeZoom::FitWidth);
+    assert_eq!(v.fit, Fit::None);
+    for width in [1000.5, 1000.75] {
+        v.resize_window(vec2(width, 800.0), ResizeZoom::FitWidth);
+    }
+    assert_eq!(v.fit, Fit::Width, "small high-DPI resize steps accumulate");
+    v.set_zoom(2.0);
+    v.resize_window(vec2(f32::NAN, 600.0), ResizeZoom::FitPage);
+    v.resize_window(Vec2::ZERO, ResizeZoom::FitPage);
+    assert_eq!(v.window_size, vec2(1000.75, 800.0));
+    assert_eq!(v.fit, Fit::None);
+    v.resize_window(vec2(600.0, 500.0), ResizeZoom::FitWidth);
+    assert_eq!(v.fit, Fit::Width);
+}
+
+#[test]
+fn presentation_restores_manual_zoom_without_resize_policy_overriding_it() {
+    let mut v = view(1, PageLayout::Single, true);
+    v.set_zoom(2.0);
+    v.resize_window(vec2(1000.0, 800.0), ResizeZoom::FitWidth);
+    v.enter_presentation();
+    v.resize_window(vec2(1920.0, 1080.0), ResizeZoom::KeepZoom);
+    assert_eq!(v.fit, Fit::Page);
+    v.leave_presentation();
+    v.resize_window(vec2(1000.0, 800.0), ResizeZoom::FitWidth);
+    assert_eq!((v.fit, v.zoom), (Fit::None, 2.0));
+    v.resize_window(vec2(800.0, 600.0), ResizeZoom::FitWidth);
+    assert_eq!(v.fit, Fit::Width, "later resizes follow the preference again");
+    v.set_zoom(2.0);
+    v.enter_presentation();
+    v.leave_presentation();
+    v.resize_window(vec2(900.0, 700.0), ResizeZoom::FitWidth);
+    assert_eq!(v.fit, Fit::Width, "no restore resize was expected when dimensions stayed the same");
+}

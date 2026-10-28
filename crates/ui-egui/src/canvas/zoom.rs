@@ -16,6 +16,27 @@ impl DocView {
         self.reset_coarse_state();
     }
 
+    /// Respond to native/web window size changes, not side panels or popup chrome.
+    pub(super) fn resize_window(&mut self, size: Vec2, policy: ResizeZoom) {
+        if !size.is_finite() || size.x <= 0.0 || size.y <= 0.0 {
+            return;
+        }
+        let known = self.window_size.x > 0.0 && self.window_size.y > 0.0;
+        let changed = known && ((size.x - self.window_size.x).abs() > 0.5 || (size.y - self.window_size.y).abs() > 0.5);
+        let restoring = changed && std::mem::take(&mut self.restoring_window);
+        // Keep the last accepted size so small high-DPI drag steps can accumulate.
+        if !known || changed {
+            self.window_size = size;
+        }
+        if changed && !restoring && self.fit == Fit::None && !self.presenting() {
+            match policy {
+                ResizeZoom::FitWidth => self.fit = Fit::Width,
+                ResizeZoom::FitPage => self.set_fit(Fit::Page),
+                ResizeZoom::KeepZoom => {}
+            }
+        }
+    }
+
     /// Switch the zoom mode, keeping the current page in view.
     pub fn set_fit(&mut self, fit: Fit) {
         self.fit = fit;
@@ -32,6 +53,8 @@ impl DocView {
         }
         self.presentation =
             Some(SavedDisplay { layout: self.layout, continuous: self.continuous, cover: self.cover, fit: self.fit, zoom: self.zoom });
+        self.presentation_window_size = self.window_size;
+        self.restoring_window = false;
         self.continuous = false;
         self.fit = Fit::Page;
         self.selection = None;
@@ -46,6 +69,8 @@ impl DocView {
         self.cover = saved.cover;
         self.fit = saved.fit;
         self.zoom = saved.zoom;
+        // Ignore the native resize that restores the window after full screen.
+        self.restoring_window = self.window_size != self.presentation_window_size;
         self.goto = Some((self.current, 0.0));
     }
 
