@@ -54,7 +54,7 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                             });
                         });
                         ui.add_space(8.0);
-                        if let Some(cmd) = widgets::community_links(ui) {
+                        if let Some(cmd) = widgets::community_links(ui, false) {
                             app.execute(cmd);
                         }
                     });

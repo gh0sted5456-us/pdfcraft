@@ -114,3 +114,28 @@ fn about_dialog_has_contributors_and_models_tabs() {
     h.run_steps(4);
     assert!(h.query_all_by_label("Anthropic").count() >= 1);
 }
+
+#[test]
+fn about_tabs_text_and_links_are_centered_at_normal_and_narrow_widths() {
+    for width in [1400.0, 640.0] {
+        let mut h = Harness::builder().with_size(egui::vec2(width, 850.0)).build_eframe(|_cc| {
+            let mut app = PdfCraftApp::new();
+            app.set_option("language", "en").unwrap();
+            let bytes = app.session.create_blank(200.0, 200.0, 1).unwrap();
+            app.open_bytes("about-layout.pdf", None, bytes.as_ref().clone()).unwrap();
+            app.dialog = Some(Dialog::About);
+            app
+        });
+        h.run_steps(8);
+        let center = width / 2.0;
+        let tabs = ["About", "Contributors", "Models"].into_iter().fold(egui::Rect::NOTHING, |rect, label| rect.union(h.get_by_label(label).rect()));
+        assert!((tabs.center().x - center).abs() < 1.5, "tab group is off center at {width}: {tabs:?}");
+        for label in ["Personal build by @gh0sted5456-us", "Based on PdfCraft by the ArtCraft team and community."] {
+            assert!((h.get_by_label(label).rect().center().x - center).abs() < 1.5, "{label} is off center at {width}");
+        }
+        let links = ["Join our Discord", "PdfCraft web page", "PdfCraft on GitHub", "ArtCraft website"]
+            .into_iter()
+            .fold(egui::Rect::NOTHING, |rect, label| rect.union(h.get_by_label(label).rect()));
+        assert!((links.center().x - center).abs() < 1.5, "community links are off center at {width}: {links:?}");
+    }
+}

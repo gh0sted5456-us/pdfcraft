@@ -3,6 +3,7 @@
 Lion PDF is the personal PdfCraft fork maintained by @gh0sted5456-us. This version brings the reviewed interface and tool integrations into one release.
 
 - Lion PDF application, installer, shortcut and update branding; the existing engraved lion on the application popup taskbar.
+- Centered About tabs, text and community links at normal and narrow window widths.
 - Popup resizing from edges/corners, bounded layouts and preserved minimized drafts. The Discord title-bar shortcut is hidden by default and can be enabled in Preferences → Appearance.
 - Native Excel export through the File menu, Export To chooser and automation, with page-range selection.
 - Removable printer marks with selected-page controls, preserved existing fonts and physical dimensions on enlarged page units.

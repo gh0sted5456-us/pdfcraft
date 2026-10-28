@@ -1492,7 +1492,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 ui.add_space(8.0);
                 let tab_id = egui::Id::unique("about_tab");
                 let mut tab = ui.data_mut(|d| d.get_temp::<u8>(tab_id)).unwrap_or(0);
-                ui.horizontal_wrapped(|ui| {
+                widgets::centered_row(ui, "about-tabs", egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     for (i, label) in ["About", "Contributors", "Models"].into_iter().enumerate() {
                         let i = i as u8;
                         if widgets::mode_tab(ui, tl!(label), tab == i).clicked() {
@@ -1506,22 +1506,24 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     1 => crate::credits::contributors_ui(ui),
                     2 => crate::credits::models_ui(ui),
                     _ => {
-                        ui.add_space(6.0);
-                        ui.label(tl!("A clean-room, open-source PDF application written in Rust. MIT OR Apache-2.0."));
-                        ui.label(
+                        ui.vertical_centered(|ui| {
+                            ui.add_space(6.0);
+                            ui.label(tl!("A clean-room, open-source PDF application written in Rust. MIT OR Apache-2.0."));
+                            ui.label(
                             egui::RichText::new(
                                 "Rendering: hayro (bootstrap) · UI: egui · Icons: Lucide (ISC) · Fonts: Inter, JetBrains Mono, Dancing Script (OFL)",
                             )
                             .color(t.text_muted)
                             .small(),
                         );
-                        ui.add_space(12.0);
-                        ui.label("Personal build by @gh0sted5456-us");
-                        ui.label(egui::RichText::new("Based on PdfCraft by the ArtCraft team and community.").color(t.text_muted));
-                        ui.add_space(6.0);
-                        if let Some(cmd) = widgets::community_links(ui) {
-                            link_command = Some(cmd);
-                        }
+                            ui.add_space(12.0);
+                            ui.label("Personal build by @gh0sted5456-us");
+                            ui.label(egui::RichText::new("Based on PdfCraft by the ArtCraft team and community.").color(t.text_muted));
+                            ui.add_space(6.0);
+                            if let Some(cmd) = widgets::community_links(ui, true) {
+                                link_command = Some(cmd);
+                            }
+                        });
                     }
                 });
             }
