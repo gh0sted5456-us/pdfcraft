@@ -462,6 +462,13 @@ fn print_as_image_is_an_advanced_choice_that_saves_pictures() {
     let mut h = harness();
     h.state_mut().printer_source = Some(std::sync::Arc::new(Vec::new));
     assert!(h.state_mut().execute("print.dialog"));
+    // The empty-list notice changes the layout; let discovery finish before scrolling/clicking.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while h.state().print_draft.printers_loading && std::time::Instant::now() < deadline {
+        h.run_steps(1);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    assert!(!h.state().print_draft.printers_loading, "printer discovery completed");
     h.run_steps(3);
     h.get_by_label("Advanced".to_uppercase().as_str()).scroll_to_me();
     h.run_steps(4);
