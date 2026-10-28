@@ -13,6 +13,13 @@ pub fn message(title: &str, text: &str, error: bool) {
 
 pub fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    #[cfg(feature = "bundle")]
+    if args.first().is_some_and(|a| a == "--update") {
+        if args.len() != 2 {
+            return Err("Invalid update arguments".into());
+        }
+        return apply_update(std::path::Path::new(args.get(1).ok_or("Missing update session")?));
+    }
     if args.iter().any(|a| !["--status", "--remove-printer", "--printer-only", "--quiet", "--install"].contains(&a.as_str())) {
         return Err("Usage: pdfcraft-printer [--status | --remove-printer | --install] [--printer-only] [--quiet]".into());
     }
@@ -223,5 +230,125 @@ mod tests {
         assert_eq!(default_device_name("Printer,WinSpool,port"), Some("Printer".into()));
         assert_eq!(default_device_name("damaged"), None);
         assert_eq!(default_device_name(",winspool,port"), None);
+    }
+}
+
+#[cfg(any(feature = "bundle", test))]
+fn read_update(path: &std::path::Path, executable: &std::path::Path) -> Result<(u32, std::path::PathBuf), String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read as _;
+    if path.parent() != executable.parent()
+        || executable.file_name().and_then(|n| n.to_str()) != Some("PdfCraft-update.exe")
+        || !path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("resume-") && n.ends_with(".json"))
+    {
+        return Err("Invalid staged update location".into());
+    }
+    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    if file.metadata().map_err(|e| e.to_string())?.len() > 1 << 20 {
+        return Err("Update session is too large".into());
+    }
+    let job: serde_json::Value = serde_json::from_reader(file.take((1 << 20) + 1)).map_err(|e| e.to_string())?;
+    let parent = job["parent"].as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| *n > 0).ok_or("Invalid parent process")?;
+    let application = std::path::PathBuf::from(job["application"].as_str().ok_or("Missing application")?);
+    if !application.is_absolute() || application.file_name().and_then(|n| n.to_str()) != Some("pdfcraft.exe") || !application.is_file() {
+        return Err("Invalid application to restart".into());
+    }
+    let expected_size = job["size"].as_u64().filter(|n| (1..=512 * 1024 * 1024).contains(n)).ok_or("Invalid installer size")?;
+    let expected_hash =
+        job["sha256"].as_str().filter(|h| h.len() == 64 && h.bytes().all(|b| b.is_ascii_hexdigit())).ok_or("Invalid installer digest")?;
+    let mut installer = std::fs::File::open(executable).map_err(|e| e.to_string())?;
+    if installer.metadata().map_err(|e| e.to_string())?.len() != expected_size {
+        return Err("The staged installer size changed".into());
+    }
+    let mut hash = Sha256::new();
+    let mut buffer = [0u8; 65536];
+    loop {
+        let n = installer.read(&mut buffer).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        hash.update(buffer.get(..n).ok_or("Invalid installer chunk")?);
+    }
+    let actual = hash.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>();
+    if !actual.eq_ignore_ascii_case(expected_hash) {
+        return Err("The staged installer digest changed".into());
+    }
+    Ok((parent, application))
+}
+
+#[cfg(feature = "bundle")]
+fn apply_update(path: &std::path::Path) -> Result<(), String> {
+    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+    let (pid, application) = read_update(path, &executable)?;
+    wait_for_parent(pid, &application, &path.with_extension("ready"), 120_000)?;
+    let installed = install(&["--quiet".into()]);
+    // This process stays unelevated, even if Windows Installer asked for administrator approval.
+    let restarted = std::process::Command::new(&application)
+        .arg("--resume-update")
+        .arg(path)
+        .spawn()
+        .map_err(|e| format!("Could not reopen Lion PDF: {e}. Your session is saved at {}", path.display()));
+    installed.and(restarted.map(|_| ()))
+}
+
+#[cfg(any(feature = "bundle", test))]
+fn wait_for_parent(pid: u32, application: &std::path::Path, ready: &std::path::Path, timeout: u32) -> Result<(), String> {
+    // Hold the actual process handle, so PID reuse cannot make an update wait on a different app.
+    match winsafe::HPROCESS::OpenProcess(winsafe::co::PROCESS::SYNCHRONIZE | winsafe::co::PROCESS::QUERY_LIMITED_INFORMATION, false, pid) {
+        Ok(parent) => {
+            let image = parent.QueryFullProcessImageName(winsafe::co::PROCESS_NAME::WIN32).map_err(|e| e.to_string())?;
+            if !image.eq_ignore_ascii_case(&application.to_string_lossy()) {
+                return Err("The update parent is not Lion PDF".into());
+            }
+            std::fs::write(ready, b"ready").map_err(|e| format!("Could not acknowledge the staged update: {e}"))?;
+            if parent.WaitForSingleObject(Some(timeout)).map_err(|e| e.to_string())? != winsafe::co::WAIT::OBJECT_0 {
+                return Err("Lion PDF did not finish closing; nothing was installed".into());
+            }
+        }
+        Err(e) if e == winsafe::co::ERROR::INVALID_PARAMETER => {
+            std::fs::write(ready, b"ready").map_err(|e| e.to_string())?;
+        } // It already exited.
+        Err(e) => return Err(format!("Could not wait for Lion PDF: {e}")),
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::*;
+    use sha2::{Digest, Sha256};
+    #[test]
+    fn updater_acknowledges_readiness_but_never_installs_while_parent_is_alive() {
+        let folder = tempfile::tempdir().unwrap();
+        let ready = folder.path().join("resume-test.ready");
+        let app = std::env::current_exe().unwrap();
+        let error = wait_for_parent(std::process::id(), &app, &ready, 0).unwrap_err();
+        assert!(ready.is_file());
+        assert!(error.contains("nothing was installed"));
+        std::fs::remove_file(&ready).unwrap();
+        assert!(wait_for_parent(std::process::id(), &folder.path().join("other.exe"), &ready, 0).is_err());
+        assert!(!ready.exists(), "a mismatched parent never acknowledges readiness");
+    }
+    #[test]
+    fn restart_job_is_bounded_and_rejects_changed_installers() {
+        let folder = tempfile::tempdir().unwrap();
+        let application = folder.path().join("pdfcraft.exe");
+        let executable = folder.path().join("PdfCraft-update.exe");
+        let resume = folder.path().join("resume-test.json");
+        std::fs::write(&application, b"synthetic app").unwrap();
+        std::fs::write(&executable, b"synthetic setup").unwrap();
+        let digest = Sha256::digest(b"synthetic setup").iter().map(|b| format!("{b:02x}")).collect::<String>();
+        let mut job = serde_json::json!({"parent": 42,"application": application,"session": {},"size":15,"sha256":digest});
+        std::fs::write(&resume, job.to_string()).unwrap();
+        assert_eq!(read_update(&resume, &executable).unwrap(), (42, application));
+        std::fs::write(&executable, b"synthetic other").unwrap();
+        assert!(read_update(&resume, &executable).is_err());
+        std::fs::write(&executable, b"synthetic setup").unwrap();
+        for parent in [serde_json::json!(0), serde_json::json!(-1), serde_json::json!(u64::MAX)] {
+            job["parent"] = parent;
+            std::fs::write(&resume, job.to_string()).unwrap();
+            assert!(read_update(&resume, &executable).is_err());
+        }
+        assert!(read_update(&folder.path().join("elsewhere.json"), &executable).is_err());
     }
 }

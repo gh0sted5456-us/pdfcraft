@@ -29,7 +29,7 @@ pub struct SessionFile {
 impl LastSession {
     /// Read what [`PdfCraftApp::persist`] wrote. Malformed entries are skipped and the list is
     /// capped at [`MAX_FILES`].
-    pub(crate) fn from_json(v: &serde_json::Value) -> Self {
+    pub fn from_json(v: &serde_json::Value) -> Self {
         let files = v["files"]
             .as_array()
             .map(|files| {
