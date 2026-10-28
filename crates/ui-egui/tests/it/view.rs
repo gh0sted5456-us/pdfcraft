@@ -2259,3 +2259,85 @@ fn the_pages_panel_tools_are_off_without_page_editing_permission() {
     assert!(h.query_by_label("Delete the selected pages").is_none(), "its menu doesn't open");
     assert_eq!(h.state().session.get(id).unwrap().info.pages.len(), 3);
 }
+
+#[test]
+fn manual_zoom_follows_window_resizing_by_default() {
+    use pdfcraft_ui_egui::canvas::Fit;
+    let mut h = harness(&[]);
+    h.state_mut().views[0].set_zoom(3.0);
+    h.run_steps(8);
+    assert_eq!(h.state().views[0].fit, Fit::None);
+    h.set_size(egui::vec2(800.0, 650.0));
+    h.run_steps(8);
+    let small = rect(&h, 0).expect("page 1");
+    assert_eq!(h.state().views[0].fit, Fit::Width);
+    assert!(small.width() <= h.state().views[0].viewport_rect().width());
+    h.set_size(egui::vec2(1800.0, 1000.0));
+    h.run_steps(8);
+    let large = rect(&h, 0).expect("page 1");
+    assert!(large.width() > small.width() + 400.0);
+    assert!(large.width() <= h.state().views[0].viewport_rect().width());
+    assert!(!h.state().session.get(h.state().views[0].id).unwrap().dirty);
+}
+
+#[test]
+fn resize_zoom_options_are_saved_and_can_preserve_manual_zoom() {
+    use pdfcraft_ui_egui::canvas::{Fit, ResizeZoom};
+    let mut h = harness(&[]);
+    h.state_mut().set_option("resize-zoom", "keep-zoom").unwrap();
+    h.state_mut().views[0].set_zoom(3.0);
+    h.run_steps(8);
+    h.set_size(egui::vec2(800.0, 650.0));
+    h.run_steps(8);
+    assert_eq!((h.state().views[0].fit, h.state().views[0].zoom), (Fit::None, 3.0));
+    let mut fresh = PdfCraftApp::new();
+    fresh.restore(&h.state().persist());
+    assert_eq!(fresh.view_defaults.resize_zoom, ResizeZoom::KeepZoom);
+    fresh.restore(r#"{"resize_zoom":"bogus"}"#);
+    assert_eq!(fresh.view_defaults.resize_zoom, ResizeZoom::KeepZoom);
+    for bad in ["bogus", "75%", "fit-height"] {
+        assert!(fresh.set_option("resize-zoom", bad).is_err());
+        assert_eq!(fresh.view_defaults.resize_zoom, ResizeZoom::KeepZoom);
+    }
+    let mut legacy = PdfCraftApp::new();
+    legacy.restore("{}");
+    assert_eq!(legacy.view_defaults.resize_zoom, ResizeZoom::FitWidth);
+    h.state_mut().set_option("resize-zoom", "fit-page").unwrap();
+    h.set_size(egui::vec2(1200.0, 850.0));
+    h.run_steps(8);
+    let page = rect(&h, 0).expect("page 1");
+    let viewport = h.state().views[0].viewport_rect();
+    assert_eq!(h.state().views[0].fit, Fit::Page);
+    assert!(viewport.contains_rect(page), "{page:?} in {viewport:?}");
+}
+
+#[test]
+fn preferences_choose_the_window_resize_behavior() {
+    use egui::accesskit::Role;
+    use pdfcraft_ui_egui::canvas::ResizeZoom;
+    let mut h = harness(&[]);
+    h.state_mut().set_option("preferences-category", "documents").unwrap();
+    assert!(h.state_mut().execute("app.preferences"));
+    h.run_steps(8);
+    h.get_by_role_and_label(Role::ComboBox, "Window resize behavior").scroll_to_me();
+    h.run_steps(4);
+    h.get_by_role_and_label(Role::ComboBox, "Window resize behavior").click();
+    h.run_steps(3);
+    h.get_by_label("Keep zoom").click();
+    h.run_steps(3);
+    assert_eq!(h.state().view_defaults.resize_zoom, ResizeZoom::KeepZoom);
+}
+
+#[test]
+fn opening_popups_and_panels_does_not_override_manual_zoom() {
+    use pdfcraft_ui_egui::canvas::Fit;
+    let mut h = harness(&[]);
+    h.state_mut().views[0].set_zoom(2.0);
+    h.run_steps(8);
+    h.state_mut().set_option("panel", "comments").unwrap();
+    h.run_steps(8);
+    assert_eq!((h.state().views[0].fit, h.state().views[0].zoom), (Fit::None, 2.0));
+    assert!(h.state_mut().execute("tools.js_console"));
+    h.run_steps(8);
+    assert_eq!((h.state().views[0].fit, h.state().views[0].zoom), (Fit::None, 2.0));
+}

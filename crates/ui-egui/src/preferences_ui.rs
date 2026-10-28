@@ -370,6 +370,23 @@ fn documents(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
             .small()
             .color(t.text_muted),
     );
+    ui.horizontal_wrapped(|ui| {
+        let label = ui.label(tl!("Window resize behavior"));
+        egui::ComboBox::from_id_salt("resize-zoom")
+            .selected_text(tl!(defaults.resize_zoom.label()))
+            .show_ui(ui, |ui| {
+                for policy in crate::canvas::ResizeZoom::ALL {
+                    ui.selectable_value(&mut defaults.resize_zoom, policy, tl!(policy.label()));
+                }
+            })
+            .response
+            .labelled_by(label.id);
+    });
+    ui.label(
+        egui::RichText::new(tl!("Applies after manual zoom. Fit views always follow the window; resizing never changes the PDF itself."))
+            .small()
+            .color(t.text_muted),
+    );
     ui.add(widgets::checkbox(&mut app.always_default_view, tl!("Always use my default zoom and page layout")));
     ui.horizontal_wrapped(|ui| {
         ui.label(tl!("Units"));

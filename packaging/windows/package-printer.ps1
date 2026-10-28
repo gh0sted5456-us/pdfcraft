@@ -2,7 +2,8 @@
    MainInstaller is a previously validated PdfCraft MSI. The printer is a separate Windows 11 24H2+ MSIX.
    No certificate store, Developer Mode setting, default printer or PDF association is changed. #>
 param(
-  [Parameter(Mandatory=$true)][string]$MainInstaller,
+  [string]$MainInstaller,
+  [switch]$PluginOnly,
   [ValidateRange(1,65535)][int]$Revision = 1,
   [ValidateSet('debug','release')][string]$Profile = 'debug',
   [string]$TargetTriple = '',
@@ -11,7 +12,8 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'pe.ps1')
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
-$MainInstaller = (Resolve-Path -LiteralPath $MainInstaller).Path
+if (-not $PluginOnly -and -not $MainInstaller) { throw 'MainInstaller is required when bundling the installer' }
+if ($MainInstaller) { $MainInstaller = (Resolve-Path -LiteralPath $MainInstaller).Path }
 $Version = (Select-String -LiteralPath (Join-Path $Root 'Cargo.toml') -Pattern '^version = "([0-9]+\.[0-9]+\.[0-9]+)"' | Select-Object -First 1).Matches.Groups[1].Value
 if (-not $Version) { throw 'Could not read the PdfCraft version' }
 $SdkRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits/10/bin'
@@ -58,6 +60,7 @@ try {
   $Msix = Join-Path $Dist "PdfCraft.Printer-$Version.$Revision-x64.msix"
   & $MakeAppx pack /d $Stage /p $Msix /o
   if ($LASTEXITCODE -ne 0) { throw 'MSIX package validation failed' }
+  if ($PluginOnly) { Write-Output "Printer package: $Msix"; return }
   $env:PDFCRAFT_SETUP_MSI = $MainInstaller
   $env:PDFCRAFT_SETUP_MSIX = $Msix
   & cargo @BuildArgs --bin pdfcraft-printer-setup --features bundle

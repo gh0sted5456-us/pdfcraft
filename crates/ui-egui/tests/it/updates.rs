@@ -110,7 +110,7 @@ fn nothing_is_asked_until_the_user_checks() {
 }
 
 #[test]
-fn preferences_downloads_a_fork_update_and_requires_closed_documents_to_install() {
+fn preferences_downloads_a_fork_update_and_allows_open_documents_to_install() {
     use pdfcraft_ui_egui::updates::Installer;
     use std::sync::atomic::{AtomicUsize, Ordering};
     let installs = Arc::new(AtomicUsize::new(0));
@@ -127,8 +127,9 @@ fn preferences_downloads_a_fork_update_and_requires_closed_documents_to_install(
         progress.store(20, Ordering::Relaxed);
         Ok(std::path::PathBuf::from("test-update.exe"))
     }));
-    h.state_mut().update_install = Some(Arc::new(move |_, path| {
+    h.state_mut().update_install = Some(Arc::new(move |_, path, session| {
         assert_eq!(path, std::path::PathBuf::from("test-update.exe"));
+        assert_eq!(session.files.len(), 1);
         installed.fetch_add(1, Ordering::SeqCst);
         Ok(())
     }));
@@ -149,14 +150,81 @@ fn preferences_downloads_a_fork_update_and_requires_closed_documents_to_install(
     }
     assert!(h.query_by_label("Download").is_none(), "the ready state offers installation rather than another download");
     let bytes = h.state_mut().session.create_blank(300.0, 400.0, 1).unwrap();
-    h.state_mut().open_bytes("unsaved.pdf", None, bytes.as_ref().clone()).unwrap();
+    h.state_mut().open_bytes("saved.pdf", Some("saved.pdf".into()), bytes.as_ref().clone()).unwrap();
     h.run_steps(3);
     assert!(h.query_by_label("Close").is_none(), "opening a check inside Preferences doesn't create a second popup");
-    assert!(h.get_by_label("Install update").accesskit_node().is_disabled());
+    assert!(!h.get_by_label("Install update").accesskit_node().is_disabled());
     assert_eq!(installs.load(Ordering::SeqCst), 0);
-    h.state_mut().close_tab(0);
-    h.run_steps(3);
+
     h.get_by_label("Install update").click();
     h.run_steps(3);
     assert_eq!(installs.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn updater_cancel_save_and_launch_failure_preserve_unsaved_documents() {
+    use pdfcraft_ui_egui::updates::Installer;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let calls = Arc::new(AtomicUsize::new(0));
+    let installed = calls.clone();
+    let mut h = harness(Ok("v99.0.0"));
+    h.state_mut().update_source = Some(Arc::new(|| {
+        Ok(Release {
+            version: "v99.0.0".into(),
+            url: "https://github.com/gh0sted5456-us/pdfcraft/releases/tag/v99.0.0".into(),
+            installer: Some(Installer { name: "test.exe".into(), url: "stand-in".into(), size: 1, sha256: "stand-in".into() }),
+        })
+    }));
+    h.state_mut().update_download = Some(Arc::new(|_, _| Ok("test.exe".into())));
+    h.state_mut().update_install = Some(Arc::new(move |_, _, session| {
+        assert_eq!(session.files.len(), 1);
+        installed.fetch_add(1, Ordering::SeqCst);
+        Err("test launch failed".into())
+    }));
+    h.state_mut().set_option("dialog", "preferences").unwrap();
+    h.state_mut().set_option("preferences-category", "updates").unwrap();
+    h.run_steps(3);
+    h.get_by_label("Check for updates").click();
+    settle(&mut h);
+    h.get_by_label("Download").click();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    while h.query_by_label("Download complete · SHA-256 verified").is_none() {
+        h.run_steps(2);
+        assert!(std::time::Instant::now() < deadline);
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let folder = std::env::temp_dir().join(format!("pdfcraft-update-save-{}", std::process::id()));
+    std::fs::create_dir_all(&folder).unwrap();
+    let path = folder.join("saved.pdf");
+    let bytes = h.state_mut().session.create_blank(300.0, 400.0, 1).unwrap();
+    std::fs::write(&path, bytes.as_ref()).unwrap();
+    h.state_mut().open_bytes("saved.pdf", Some(path.to_string_lossy().into()), bytes.as_ref().clone()).unwrap();
+    let id = h.state().views[0].id;
+    h.state_mut().session.apply(id, pdfcraft_engine::Edit::RotatePages { pages: vec![0], degrees: 90 }).unwrap();
+    h.state_mut().reopen_last_session = false;
+    h.run_steps(3);
+    h.get_by_label("Install update").click();
+    h.run_steps(3);
+    assert_eq!(h.state().close_request, Some(pdfcraft_ui_egui::CloseRequest::Update));
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    h.state_mut().resolve_close(&egui::Context::default(), None);
+    assert!(h.state().session.get(id).unwrap().dirty);
+    h.run_steps(3);
+    h.get_by_label("Install update").click();
+    h.run_steps(3);
+    h.state_mut().resolve_close(&egui::Context::default(), Some(false));
+    assert_eq!(calls.load(Ordering::SeqCst), 1);
+    assert!(h.state().session.get(id).unwrap().dirty, "failed launch retains the discarded draft until an actual exit");
+    assert_eq!(std::fs::read(&path).unwrap(), *bytes);
+    h.run_steps(3);
+    h.get_by_label("Install update").click();
+    h.run_steps(3);
+    h.state_mut().resolve_close(&egui::Context::default(), Some(true));
+    assert_eq!(calls.load(Ordering::SeqCst), 2);
+    assert!(!h.state().session.get(id).unwrap().dirty);
+    assert_ne!(std::fs::read(&path).unwrap(), *bytes);
+    assert!(!h.state().reopen_last_session);
+    assert_eq!(h.state().views.len(), 1);
+    std::fs::remove_file(path).unwrap();
+    std::fs::remove_dir(folder).unwrap();
 }

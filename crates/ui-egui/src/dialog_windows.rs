@@ -95,9 +95,15 @@ pub(crate) fn minimized(ctx: &egui::Context, id: &str) -> bool {
     let key = effective(ctx, id);
     registry(ctx, |r| r.entries.iter().any(|e| e.key == key && e.minimized))
 }
+#[cfg(test)]
 pub(crate) fn maximized(ctx: &egui::Context, id: &str) -> bool {
     let key = effective(ctx, id);
     registry(ctx, |r| r.entries.iter().any(|e| e.key == key && e.maximized))
+}
+/// A user-sized popup fills its chosen bounds instead of retaining its opening width.
+pub(crate) fn resized(ctx: &egui::Context, id: &str) -> bool {
+    let key = effective(ctx, id);
+    registry(ctx, |r| r.entries.iter().any(|e| e.key == key && (e.maximized || e.requested_size.is_some())))
 }
 fn set_minimized(ctx: &egui::Context, key: &str, value: bool) {
     registry(ctx, |r| {
@@ -338,6 +344,7 @@ fn render<R>(ctx: &egui::Context, id: &str, blocking: bool, content: impl FnOnce
             .max_height((available.y - 34.0).max(1.0))
             .auto_shrink([requested.is_none() && !full; 2])
             .show(ui, |ui| {
+                ui.set_max_width(ui.available_width().min(available.x));
                 ui.set_max_height((available.y - 34.0).max(1.0));
                 content(ui)
             });
@@ -893,6 +900,38 @@ mod tests {
         h.run_steps(8);
         let card = h.ctx.data(|data| data.get_temp::<Rect>(Id::unique("dialog").with("card"))).unwrap();
         assert!(card.left() >= 0.0 && card.top() >= 0.0 && card.right() <= 640.0 && card.bottom() <= 480.0, "{card:?}");
+    }
+
+    #[test]
+    fn console_editor_follows_popup_size_without_losing_the_draft() {
+        let mut h = Harness::builder().with_size(vec2(1400.0, 1000.0)).build_eframe(|_| {
+            let mut app = app().unwrap();
+            app.js_console.input = "let answer = 42;".into();
+            assert!(app.execute("tools.js_console"));
+            app
+        });
+        h.run_steps(8);
+        let key = effective(&h.ctx, "dialog");
+        let original = h.get_by_label("JavaScript code").rect();
+        registry(&h.ctx, |r| r.entries.iter_mut().find(|e| e.key == key).unwrap().requested_size = Some(vec2(1000.0, 700.0)));
+        h.run_steps(8);
+        let large = h.get_by_label("JavaScript code").rect();
+        assert!(large.width() > original.width() + 100.0, "{original:?} -> {large:?}");
+        assert!(large.height() > original.height() + 30.0, "{original:?} -> {large:?}");
+        registry(&h.ctx, |r| r.entries.iter_mut().find(|e| e.key == key).unwrap().requested_size = Some(vec2(500.0, 380.0)));
+        h.run_steps(8);
+        let small = h.get_by_label("JavaScript code").rect();
+        assert!(small.width() < large.width() - 200.0 && small.height() < large.height());
+        let card = h.ctx.data(|data| data.get_temp::<Rect>(Id::unique("dialog").with("card"))).unwrap();
+        assert!(card.contains_rect(small), "{small:?} in {card:?}");
+        for label in ["Clear", "Close", "Run"] {
+            let action = h.get_by_label(label).rect();
+            let card = h.ctx.data(|data| data.get_temp::<Rect>(Id::unique("dialog").with("card"))).unwrap();
+            assert!(card.contains_rect(action), "{label}: {action:?} in {card:?}");
+        }
+        assert_eq!(h.state().js_console.input, "let answer = 42;");
+        assert!(h.state().js_console.log.is_empty());
+        assert!(!h.state().session.get(h.state().views[0].id).unwrap().dirty);
     }
 
     #[test]

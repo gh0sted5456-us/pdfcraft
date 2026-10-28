@@ -217,6 +217,7 @@ fn main() -> eframe::Result {
     let mut control_file: Option<String> = None;
     let mut create_images = false;
     let mut new_window = false;
+    let mut resume_update = None;
     let mut args = std::env::args_os().skip(1).map(text_arg);
     while let Some(a) = args.next() {
         let Some(a) = a else { continue };
@@ -227,6 +228,10 @@ fn main() -> eframe::Result {
             "--control" => control_file = args.next().flatten(),
             "--create-images" => create_images = true,
             "--new-window" => new_window = true,
+            "--resume-update" => {
+                resume_update = args.next().flatten();
+                new_window = true;
+            }
             "--refresh-thumbnails" => {
                 #[cfg(windows)]
                 pdfcraft_thumbnails::windows::refresh_shell_cache();
@@ -270,7 +275,7 @@ fn main() -> eframe::Result {
         single_instance::Claim::Alone => None,
     };
     let choice = renderer_choice(std::env::var("PDFCRAFT_RENDERER").ok().as_deref());
-    let launch = Launch { files, options, control_file, create_images, integrated, window_controls };
+    let launch = Launch { files, options, control_file, create_images, integrated, window_controls, resume_update };
     // Finder, Open With and the Dock deliver files as Apple events, not arguments; catch the one
     // that launched us as well as later ones. Lives until the event loop returns.
     #[cfg(target_os = "macos")]
@@ -372,6 +377,7 @@ fn native_options(integrated: bool, app_frame: bool, renderer: eframe::Renderer)
 /// What the command line asked for, kept so a second run (with OpenGL) can start the same way.
 #[derive(Clone)]
 struct Launch {
+    resume_update: Option<String>,
     files: Vec<String>,
     options: Vec<(String, String)>,
     control_file: Option<String>,
@@ -399,7 +405,7 @@ fn app_creator<'a>(
     instance: Option<&'a single_instance::Server>,
     #[cfg(target_os = "macos")] apple_events: &'a apple_events::AppleEvents,
 ) -> eframe::AppCreator<'a> {
-    let Launch { files, options, control_file, create_images, integrated, window_controls } = launch;
+    let Launch { files, options, control_file, create_images, integrated, window_controls, resume_update } = launch;
     Box::new(move |cc| {
         started.set(true);
         let mut app = PdfCraftApp::new();
@@ -467,6 +473,11 @@ fn app_creator<'a>(
                 "Portable mode is off: {folder} can't be written ({error}). Settings are kept in your user folder instead.",
                 &[("folder", &w.folder.display().to_string()), ("error", &w.error)],
             );
+        }
+        if let Some(path) = resume_update
+            && let Err(error) = update_download::resume(&mut app, std::path::Path::new(&path))
+        {
+            app.notify(error);
         }
         if create_images {
             if let Err(e) = app.begin_image_import_paths(&files) {

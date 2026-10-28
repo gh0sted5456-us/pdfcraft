@@ -79,7 +79,9 @@ jobs:
       - name: Package desktop and optional printer
         shell: pwsh
         run: |
-          ./packaging/windows/package.ps1 -Arch x64
+          ./packaging/windows/package-printer.ps1 -PluginOnly -Profile release -TargetTriple x86_64-pc-windows-msvc -Online
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled printer payload build failed' }
+          ./packaging/windows/package.ps1 -Arch x64 -PrinterPackage "dist/PdfCraft.Printer-$env:FORK_VERSION.1-x64.msix"
           if ($LASTEXITCODE -ne 0) { throw 'Desktop packaging failed' }
           $msi = "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64.msi"
           ./packaging/windows/package-printer.ps1 -MainInstaller $msi -Profile release -TargetTriple x86_64-pc-windows-msvc -Online

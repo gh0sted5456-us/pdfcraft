@@ -98,6 +98,7 @@ impl PdfCraftApp {
             "default_mode": self.default_mode,
             "default_layout": canvas::display_token(self.view_defaults.layout, self.view_defaults.continuous),
             "default_zoom": self.view_defaults.zoom_name(),
+            "resize_zoom": self.view_defaults.resize_zoom,
             "always_default_view": self.always_default_view,
             "highlight_fields": self.view_defaults.highlight_fields,
             "units": self.units,
@@ -300,6 +301,9 @@ impl PdfCraftApp {
         }
         if let Some(defaults) = v["default_zoom"].as_str().and_then(|zoom| self.view_defaults.with_zoom(zoom)) {
             self.view_defaults = defaults;
+        }
+        if let Ok(policy) = serde_json::from_value::<canvas::ResizeZoom>(v["resize_zoom"].clone()) {
+            self.view_defaults.resize_zoom = policy;
         }
         if let Some(language) = v["language"].as_str().and_then(i18n::normalize_pref) {
             self.language = language.to_string();

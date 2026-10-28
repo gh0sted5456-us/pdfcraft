@@ -103,7 +103,7 @@ pub fn download(asset: Installer, progress: Arc<AtomicU64>) -> Result<PathBuf, S
     Err("Too many GitHub download redirects".into())
 }
 
-pub fn install(asset: Installer, path: PathBuf) -> Result<(), String> {
+pub fn install(asset: Installer, path: PathBuf, session: pdfcraft_ui_egui::last_session::LastSession) -> Result<(), String> {
     let expected_dir = super::settings_dir().ok_or("No update folder")?.join("updates");
     if path.parent() != Some(expected_dir.as_path()) || path.file_name().and_then(|s| s.to_str()) != Some("PdfCraft-update.exe") {
         return Err("Installer is not in PdfCraft's update folder".into());
@@ -122,12 +122,46 @@ pub fn install(asset: Installer, path: PathBuf) -> Result<(), String> {
     verify_file(&path, &asset)?;
     #[cfg(windows)]
     {
-        // Explorer delegates elevation to Windows; no shell command or password is constructed.
-        std::process::Command::new("explorer.exe").arg(&path).spawn().map_err(|e| format!("Could not open installer: {e}"))?;
+        if pdfcraft_ui_egui::portable::current().dir.is_some() {
+            return Err("Portable builds need the portable ZIP from the release page; an MSI cannot update the portable folder.".into());
+        }
+        let application = std::env::current_exe().map_err(|e| format!("Could not locate Lion PDF: {e}"))?;
+        let mut resume = tempfile::Builder::new()
+            .prefix("resume-")
+            .suffix(".json")
+            .tempfile_in(&expected_dir)
+            .map_err(|e| format!("Could not stage the restart session: {e}"))?;
+        let job = serde_json::json!({"parent": std::process::id(), "application": application, "session": session,
+            "size": asset.size, "sha256": asset.sha256});
+        serde_json::to_writer(resume.as_file_mut(), &job).map_err(|e| format!("Could not save the restart session: {e}"))?;
+        resume.as_file().sync_all().map_err(|e| format!("Could not finish the restart session: {e}"))?;
+        let (_, resume) = resume.keep().map_err(|e| format!("Could not retain the restart session: {e}"))?;
+        let mut child = match std::process::Command::new(&path).arg("--update").arg(&resume).spawn() {
+            Ok(child) => child,
+            Err(error) => {
+                let _ = std::fs::remove_file(&resume);
+                return Err(format!("Could not start the update: {error}"));
+            }
+        };
+        let ready = resume.with_extension("ready");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while !ready.is_file() {
+            if child.try_wait().map_err(|e| e.to_string())?.is_some() || std::time::Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = std::fs::remove_file(&resume);
+                return Err("The staged updater did not become ready. Your PDFs remain open.".into());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        let _ = std::fs::remove_file(ready);
         Ok(())
     }
     #[cfg(not(windows))]
-    Err("Use the release page to install this platform's update".into())
+    {
+        let _ = session;
+        Err("Use the release page to install this platform's update".into())
+    }
 }
 
 #[cfg(windows)]
@@ -210,5 +244,61 @@ mod tests {
         assert!(other_instance(11, "PdfCraft.EXE", 10));
         assert!(!other_instance(11, "pdfcraft-printer-setup.exe", 10));
         assert!(!other_instance(11, "notepad.exe", 10));
+    }
+}
+
+/// Consume the one-shot session without changing the normal startup preference.
+pub fn resume(app: &mut pdfcraft_ui_egui::PdfCraftApp, path: &Path) -> Result<(), String> {
+    let dir = super::settings_dir().ok_or("No update folder")?.join("updates");
+    resume_in(app, path, &dir)
+}
+
+fn resume_in(app: &mut pdfcraft_ui_egui::PdfCraftApp, path: &Path, dir: &Path) -> Result<(), String> {
+    if path.parent() != Some(dir) || !path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("resume-") && n.ends_with(".json")) {
+        return Err("Restart session is outside the update folder".into());
+    }
+    let file = std::fs::File::open(path).map_err(|e| format!("Could not reopen the update session: {e}"))?;
+    if file.metadata().map_err(|e| e.to_string())?.len() > 1 << 20 {
+        return Err("Restart session is too large".into());
+    }
+    let job: serde_json::Value = serde_json::from_reader(file.take((1 << 20) + 1)).map_err(|e| format!("Invalid restart session: {e}"))?;
+    if !job["session"].is_object() {
+        return Err("Missing restart session".into());
+    }
+    app.last_session = pdfcraft_ui_egui::last_session::LastSession::from_json(&job["session"]);
+    let preference = app.reopen_last_session;
+    app.reopen_last_session = true;
+    app.reopen_last_files(&[]);
+    app.reopen_last_session = preference;
+    std::fs::remove_file(path).map_err(|e| format!("Could not clear the used restart session: {e}"))?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod resume_tests {
+    use super::*;
+    #[test]
+    fn update_reopens_saved_pdfs_without_changing_theme_or_normal_startup() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = folder.path().join("Synthetic resume.pdf");
+        let resume = folder.path().join("resume-test.json");
+        let mut app = pdfcraft_ui_egui::PdfCraftApp::new();
+        app.run_inline = true;
+        app.set_option("theme", "glass").unwrap();
+        app.set_option("glass-opacity", "42").unwrap();
+        let glass = app.glass;
+        let theme = app.theme_preference;
+        let bytes = app.session.create_blank(300.0, 400.0, 2).unwrap();
+        std::fs::write(&path, bytes.as_ref()).unwrap();
+        std::fs::write(&resume, serde_json::json!({"session":{"files":[{"path":path,"page":1}],"active":path}}).to_string()).unwrap();
+        app.reopen_last_session = false;
+        resume_in(&mut app, &resume, folder.path()).unwrap();
+        assert_eq!(app.views.len(), 1);
+        assert_eq!(app.views[0].current, 1);
+        assert_eq!(app.glass, glass);
+        assert_eq!(app.theme_preference, theme);
+        assert!(!app.reopen_last_session);
+        assert!(!resume.exists());
+        assert!(resume_in(&mut app, &folder.path().join("wrong.json"), folder.path()).is_err());
     }
 }

@@ -138,18 +138,19 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
             Dialog::Print => 820.0,
             Dialog::FieldProps | Dialog::BulkFieldProps => 600.0,
             Dialog::About => 780.0,
+            Dialog::JsConsole | Dialog::DocumentJs => 640.0,
             Dialog::Assistant => 900.0,
             Dialog::Templates => (ctx.content_rect().width() - 104.0).clamp(1.0, 1120.0),
             Dialog::Preferences => (ctx.content_rect().width() - 104.0).clamp(1.0, 760.0),
             _ => 520.0,
         };
-        let width = if crate::dialog_windows::maximized(ctx, "dialog") {
+        let width = if crate::dialog_windows::resized(ctx, "dialog") {
             ui.available_width()
         } else {
-            width.min((ctx.content_rect().width() - 104.0).max(1.0))
+            width.min(ui.available_width()).min((ctx.content_rect().width() - 104.0).max(1.0))
         };
         ui.set_width(width);
-        if dialog == Dialog::Assistant && !crate::dialog_windows::maximized(ctx, "dialog") {
+        if dialog == Dialog::Assistant && !crate::dialog_windows::resized(ctx, "dialog") {
             ui.set_max_height(ui.available_height().min(560.0));
         }
         match dialog {
@@ -1251,7 +1252,6 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 return;
             }
             Dialog::JsConsole => {
-                ui.set_width(640.0_f32.min((ctx.content_rect().width() - 104.0).max(1.0)));
                 close = crate::js_ui::console_body(ui, app, &t);
                 return;
             }
@@ -1265,7 +1265,6 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 return;
             }
             Dialog::DocumentJs => {
-                ui.set_width(640.0_f32.min((ctx.content_rect().width() - 104.0).max(1.0)));
                 close = crate::js_ui::document_js_body(ui, app, &t);
                 return;
             }

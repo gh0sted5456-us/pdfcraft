@@ -23,6 +23,7 @@
 param(
   [ValidateSet('x64', 'x86', 'arm64')] [string] $Arch = 'x64',
   [switch] $SkipBuild,
+  [string] $PrinterPackage = '',
   # -SkipBuild only: the existing binaries were built without CRAFT_FONTS_DIR, so they embed no
   # craft-fonts faces. Without CRAFT_FONTS_DIR this assertion is required: package.ps1 cannot
   # otherwise know whether the binaries need the fonts' OFL notices.
@@ -99,6 +100,17 @@ $Stage = Join-Path $TargetDir "windows-package\$Arch"
 Remove-Item -Recurse -Force $Stage -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 Copy-Item (Join-Path $Bin 'pdfcraft.exe'), (Join-Path $Bin 'pdfcraft-cli.exe'), (Join-Path $Bin 'pdfcraft_thumbnails.dll') $Stage
+$HasPrinterPackage = 0
+if ($PrinterPackage) {
+  if ($Arch -ne 'x64') { throw 'The bundled virtual printer package currently targets x64' }
+  $PrinterPackage = (Resolve-Path -LiteralPath $PrinterPackage).Path
+  $PrinterStage = Join-Path $Stage 'printer'
+  New-Item -ItemType Directory -Path $PrinterStage -Force | Out-Null
+  Copy-Item -LiteralPath $PrinterPackage -Destination (Join-Path $PrinterStage 'PdfCraft.Printer.msix')
+  Copy-Item -LiteralPath (Join-Path $Bin 'pdfcraft_printer.dll') -Destination $PrinterStage
+  Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'printer/Printer.pdc') -Destination $PrinterStage
+  $HasPrinterPackage = 1
+}
 # The document icon embeds Lucide artwork: carry its ISC notice and the project licences
 # beside the binaries in both distributions.
 foreach ($f in 'LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE') {
@@ -144,14 +156,14 @@ Invoke-Native 'wix build' {
   wix build (Join-Path $PSScriptRoot 'pdfcraft.wxs') -arch $Arch `
     (Join-Path $PSScriptRoot 'installer-ui.wxs') `
     -d "Version=$MsiVersion" -d "BinDir=$Stage" -d "ModelsDir=$Models" -d "IconPath=$(Join-Path $Root 'assets\app-icon\pdfcraft.ico')" `
-    -d "DocsDir=$Docs" -d "HasCraftFontLicences=$HasCraftFontLicences" `
+    -d "DocsDir=$Docs" -d "HasCraftFontLicences=$HasCraftFontLicences" -d "HasPrinterPackage=$HasPrinterPackage" `
     -o $Msi
 }
 # Inspect the built MSI, not just the XML, before signing/publishing it. In a child process, so
 # its Windows Installer database handle is gone before signtool opens the MSI.
 Invoke-Native 'test-msi' {
   & (Get-Process -Id $PID).Path -NoProfile -File (Join-Path $PSScriptRoot 'test-msi.ps1') $Msi `
-    -CraftFontLicences $HasCraftFontLicences -ExpectedFontNoticesDirectory $Docs
+    -CraftFontLicences $HasCraftFontLicences -ExpectedFontNoticesDirectory $Docs -ExpectedPrinterPackage $PrinterPackage
 }
 # wix writes its debug symbols (.wixpdb) next to the MSI; keep them out of the release assets.
 Remove-Item -Force -ErrorAction SilentlyContinue ([IO.Path]::ChangeExtension($Msi, '.wixpdb'))

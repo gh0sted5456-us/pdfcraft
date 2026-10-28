@@ -285,6 +285,10 @@ impl PdfCraftApp {
                 self.view_defaults =
                     self.view_defaults.with_zoom(value).ok_or("default-zoom must be fit-width, fit-page or a percentage from 8 to 6400")?;
             }
+            ("resize-zoom", _) => {
+                self.view_defaults.resize_zoom = serde_json::from_value(serde_json::Value::String(value.into()))
+                    .map_err(|_| "resize-zoom must be fit-width, fit-page or keep-zoom")?;
+            }
             ("always-default-view", _) => {
                 self.always_default_view = match value {
                     "on" => true,

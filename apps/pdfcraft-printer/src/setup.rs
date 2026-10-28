@@ -2,6 +2,8 @@
 
 use windows::Management::Deployment::PackageManager;
 use windows_core::HSTRING;
+#[cfg(any(feature = "bundle", test))]
+use winsafe::prelude::Handle;
 
 const NAME: &str = "PdfCraft.Printer.Personal";
 const PUBLISHER: &str = "CN=gh0sted5456-us, OID.2.25.311729368913984317654407730594956997722=1";
@@ -13,6 +15,20 @@ pub fn message(title: &str, text: &str, error: bool) {
 
 pub fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    #[cfg(feature = "bundle")]
+    if args.first().is_some_and(|a| a == "--register-printer") {
+        if args.len() != 3 || args.get(2).map(String::as_str) != Some("--quiet") {
+            return Err("Invalid printer activation arguments".into());
+        }
+        return register_printer_child(args.get(1).ok_or("Missing printer activation token")?);
+    }
+    #[cfg(feature = "bundle")]
+    if args.first().is_some_and(|a| a == "--update") {
+        if args.len() != 2 {
+            return Err("Invalid update arguments".into());
+        }
+        return apply_update(std::path::Path::new(args.get(1).ok_or("Missing update session")?));
+    }
     if args.iter().any(|a| !["--status", "--remove-printer", "--printer-only", "--quiet", "--install"].contains(&a.as_str())) {
         return Err("Usage: pdfcraft-printer [--status | --remove-printer | --install] [--printer-only] [--quiet]".into());
     }
@@ -73,9 +89,7 @@ fn stage_msi(folder: &std::path::Path, source: &std::path::Path, bytes: &[u8]) -
 
 #[cfg(feature = "bundle")]
 fn install(args: &[String]) -> Result<(), String> {
-    use std::io::Write as _;
-    use windows::Foundation::{Metadata::ApiInformation, Uri};
-    use windows::Management::Deployment::AddPackageOptions;
+    use windows::Foundation::Metadata::ApiInformation;
     if !ApiInformation::IsTypePresent(&HSTRING::from("Windows.Graphics.Printing.Workflow.PrintWorkflowVirtualPrinterSession"))
         .map_err(|e| e.to_string())?
     {
@@ -111,6 +125,16 @@ fn install(args: &[String]) -> Result<(), String> {
             ));
         }
     }
+    register_printer_with_elevation()?;
+    status(false)
+}
+
+#[cfg(feature = "bundle")]
+fn register_printer() -> Result<(), String> {
+    use std::io::Write as _;
+    use windows::Foundation::Uri;
+    use windows::Management::Deployment::AddPackageOptions;
+    let temporary = tempfile::Builder::new().prefix("pdfcraft-printer-").tempdir().map_err(|e| e.to_string())?;
     let path = temporary.path().join("PdfCraft.Printer.msix");
     let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).map_err(|e| e.to_string())?;
     file.write_all(include_bytes!(env!("PDFCRAFT_SETUP_MSIX"))).and_then(|_| file.sync_all()).map_err(|e| e.to_string())?;
@@ -122,27 +146,22 @@ fn install(args: &[String]) -> Result<(), String> {
     let options = AddPackageOptions::new().map_err(|e| e.to_string())?;
     // Applies only to this embedded personal-build package; never changes certificate stores or system policy.
     options.SetAllowUnsigned(true).map_err(|e| e.to_string())?;
-    let previous_default = default_printer()?;
-    let registration = (|| {
-        let result = PackageManager::new()
-            .and_then(|p| p.AddPackageByUriAsync(&uri, &options))
-            .and_then(|op| op.join())
-            .map_err(|e| format!("Lion PDF setup could not register the printer plugin: {e}"))?;
-        let error = result.ExtendedErrorCode().map_err(|e| e.to_string())?;
-        if error.is_err() {
-            return Err(format!("Printer plugin registration failed: {} ({error:?})", result.ErrorText().map_err(|e| e.to_string())?));
+    let result = PackageManager::new()
+        .and_then(|p| p.AddPackageByUriAsync(&uri, &options))
+        .and_then(|op| op.join())
+        .map_err(|e| format!("Lion PDF setup could not register the printer plugin: {e}"))?;
+    let error = result.ExtendedErrorCode().map_err(|e| e.to_string())?;
+    if error.is_err() {
+        return Err(format!("Printer plugin registration failed: {} ({error:?})", result.ErrorText().map_err(|e| e.to_string())?));
+    }
+    for _ in 0..50 {
+        if printer_ready() {
+            return Ok(());
         }
-        for _ in 0..50 {
-            if printer_ready() {
-                return Ok(());
-            }
-            std::thread::sleep(std::time::Duration::from_millis(200));
-        }
-        Err("The plugin package installed, but Windows did not register PdfCraft Printer. The printer is not ready; see the setup troubleshooting guide.".to_string())
-    })();
-    let restored = restore_default(previous_default.as_deref());
-    registration.and(restored)?;
-    status(false)
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    Err("The plugin package installed, but Windows did not register PdfCraft Printer. The printer is not ready; see the setup troubleshooting guide."
+        .to_string())
 }
 
 fn printer_ready() -> bool {
@@ -223,5 +242,215 @@ mod tests {
         assert_eq!(default_device_name("Printer,WinSpool,port"), Some("Printer".into()));
         assert_eq!(default_device_name("damaged"), None);
         assert_eq!(default_device_name(",winspool,port"), None);
+    }
+}
+
+#[cfg(any(feature = "bundle", test))]
+fn read_update(path: &std::path::Path, executable: &std::path::Path) -> Result<(u32, std::path::PathBuf), String> {
+    use sha2::{Digest, Sha256};
+    use std::io::Read as _;
+    if path.parent() != executable.parent()
+        || executable.file_name().and_then(|n| n.to_str()) != Some("PdfCraft-update.exe")
+        || !path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("resume-") && n.ends_with(".json"))
+    {
+        return Err("Invalid staged update location".into());
+    }
+    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+    if file.metadata().map_err(|e| e.to_string())?.len() > 1 << 20 {
+        return Err("Update session is too large".into());
+    }
+    let job: serde_json::Value = serde_json::from_reader(file.take((1 << 20) + 1)).map_err(|e| e.to_string())?;
+    let parent = job["parent"].as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| *n > 0).ok_or("Invalid parent process")?;
+    let application = std::path::PathBuf::from(job["application"].as_str().ok_or("Missing application")?);
+    if !application.is_absolute() || application.file_name().and_then(|n| n.to_str()) != Some("pdfcraft.exe") || !application.is_file() {
+        return Err("Invalid application to restart".into());
+    }
+    let expected_size = job["size"].as_u64().filter(|n| (1..=512 * 1024 * 1024).contains(n)).ok_or("Invalid installer size")?;
+    let expected_hash =
+        job["sha256"].as_str().filter(|h| h.len() == 64 && h.bytes().all(|b| b.is_ascii_hexdigit())).ok_or("Invalid installer digest")?;
+    let mut installer = std::fs::File::open(executable).map_err(|e| e.to_string())?;
+    if installer.metadata().map_err(|e| e.to_string())?.len() != expected_size {
+        return Err("The staged installer size changed".into());
+    }
+    let mut hash = Sha256::new();
+    let mut buffer = [0u8; 65536];
+    loop {
+        let n = installer.read(&mut buffer).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        hash.update(buffer.get(..n).ok_or("Invalid installer chunk")?);
+    }
+    let actual = hash.finalize().iter().map(|b| format!("{b:02x}")).collect::<String>();
+    if !actual.eq_ignore_ascii_case(expected_hash) {
+        return Err("The staged installer digest changed".into());
+    }
+    Ok((parent, application))
+}
+
+#[cfg(feature = "bundle")]
+fn apply_update(path: &std::path::Path) -> Result<(), String> {
+    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+    let (pid, application) = read_update(path, &executable)?;
+    wait_for_parent(pid, &application, &path.with_extension("ready"), 120_000)?;
+    let installed = install(&["--quiet".into()]);
+    // This process stays unelevated, even if Windows Installer asked for administrator approval.
+    let restarted = std::process::Command::new(&application)
+        .arg("--resume-update")
+        .arg(path)
+        .spawn()
+        .map_err(|e| format!("Could not reopen Lion PDF: {e}. Your session is saved at {}", path.display()));
+    installed.and(restarted.map(|_| ()))
+}
+
+#[cfg(any(feature = "bundle", test))]
+fn wait_for_parent(pid: u32, application: &std::path::Path, ready: &std::path::Path, timeout: u32) -> Result<(), String> {
+    // Hold the actual process handle, so PID reuse cannot make an update wait on a different app.
+    match winsafe::HPROCESS::OpenProcess(winsafe::co::PROCESS::SYNCHRONIZE | winsafe::co::PROCESS::QUERY_LIMITED_INFORMATION, false, pid) {
+        Ok(parent) => {
+            let image = parent.QueryFullProcessImageName(winsafe::co::PROCESS_NAME::WIN32).map_err(|e| e.to_string())?;
+            if !image.eq_ignore_ascii_case(&application.to_string_lossy()) {
+                return Err("The update parent is not Lion PDF".into());
+            }
+            std::fs::write(ready, b"ready").map_err(|e| format!("Could not acknowledge the staged update: {e}"))?;
+            if parent.WaitForSingleObject(Some(timeout)).map_err(|e| e.to_string())? != winsafe::co::WAIT::OBJECT_0 {
+                return Err("Lion PDF did not finish closing; nothing was installed".into());
+            }
+        }
+        Err(e) if e == winsafe::co::ERROR::INVALID_PARAMETER => {
+            std::fs::write(ready, b"ready").map_err(|e| e.to_string())?;
+        } // It already exited.
+        Err(e) => return Err(format!("Could not wait for Lion PDF: {e}")),
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod update_tests {
+    use super::*;
+    use sha2::{Digest, Sha256};
+    #[test]
+    fn updater_acknowledges_readiness_but_never_installs_while_parent_is_alive() {
+        let folder = tempfile::tempdir().unwrap();
+        let ready = folder.path().join("resume-test.ready");
+        let app = std::env::current_exe().unwrap();
+        let error = wait_for_parent(std::process::id(), &app, &ready, 0).unwrap_err();
+        assert!(ready.is_file());
+        assert!(error.contains("nothing was installed"));
+        std::fs::remove_file(&ready).unwrap();
+        assert!(wait_for_parent(std::process::id(), &folder.path().join("other.exe"), &ready, 0).is_err());
+        assert!(!ready.exists(), "a mismatched parent never acknowledges readiness");
+    }
+    #[test]
+    fn restart_job_is_bounded_and_rejects_changed_installers() {
+        let folder = tempfile::tempdir().unwrap();
+        let application = folder.path().join("pdfcraft.exe");
+        let executable = folder.path().join("PdfCraft-update.exe");
+        let resume = folder.path().join("resume-test.json");
+        std::fs::write(&application, b"synthetic app").unwrap();
+        std::fs::write(&executable, b"synthetic setup").unwrap();
+        let digest = Sha256::digest(b"synthetic setup").iter().map(|b| format!("{b:02x}")).collect::<String>();
+        let mut job = serde_json::json!({"parent": 42,"application": application,"session": {},"size":15,"sha256":digest});
+        std::fs::write(&resume, job.to_string()).unwrap();
+        assert_eq!(read_update(&resume, &executable).unwrap(), (42, application));
+        std::fs::write(&executable, b"synthetic other").unwrap();
+        assert!(read_update(&resume, &executable).is_err());
+        std::fs::write(&executable, b"synthetic setup").unwrap();
+        for parent in [serde_json::json!(0), serde_json::json!(-1), serde_json::json!(u64::MAX)] {
+            job["parent"] = parent;
+            std::fs::write(&resume, job.to_string()).unwrap();
+            assert!(read_update(&resume, &executable).is_err());
+        }
+        assert!(read_update(&folder.path().join("elsewhere.json"), &executable).is_err());
+    }
+}
+
+#[cfg(any(feature = "bundle", test))]
+fn printer_event_names(token: &str) -> Result<(String, String), String> {
+    if token.len() != 32 || !token.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err("Invalid printer activation token".into());
+    }
+    Ok((format!(r"Local\LionPDF-Printer-{token}-ok"), format!(r"Local\LionPDF-Printer-{token}-failed")))
+}
+
+#[cfg(feature = "bundle")]
+fn register_printer_with_elevation() -> Result<(), String> {
+    let packages = PackageManager::new()
+        .and_then(|p| p.FindPackagesByUserSecurityIdNamePublisher(&HSTRING::new(), &HSTRING::from(NAME), &HSTRING::from(PUBLISHER)))
+        .map_err(|e| format!("Could not inspect the installed printer plugin: {e}"))?;
+    for package in packages {
+        let version = package.Id().and_then(|id| id.Version()).map_err(|e| e.to_string())?;
+        if format!("{}.{}.{}.{}", version.Major, version.Minor, version.Build, version.Revision) == format!("{}.1", env!("CARGO_PKG_VERSION"))
+            && printer_ready()
+        {
+            return Ok(());
+        }
+    }
+    let token = format!("{:032x}", windows_core::GUID::new().map_err(|e| e.to_string())?.to_u128());
+    let (done_name, failed_name) = printer_event_names(&token)?;
+    let done = winsafe::HEVENT::CreateEvent(None, true, false, Some(&done_name)).map_err(|e| e.to_string())?;
+    let failed = winsafe::HEVENT::CreateEvent(None, true, false, Some(&failed_name)).map_err(|e| e.to_string())?;
+    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+    let before = default_printer()?;
+    // Only package registration is elevated; the waiting bootstrapper restarts the app normally.
+    let parameters = format!("--register-printer {token} --quiet");
+    winsafe::ShellExecuteEx(&winsafe::SHELLEXECUTEINFO {
+        mask: winsafe::co::SEE_MASK::NOASYNC,
+        verb: Some("runas"),
+        file: &executable.to_string_lossy(),
+        parameters: Some(&parameters),
+        show: winsafe::co::SW::HIDE,
+        ..Default::default()
+    })
+    .map_err(|e| format!("Windows did not authorize PdfCraft Printer registration: {e}"))?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
+    let result = loop {
+        if done.WaitForSingleObject(Some(0)).map_err(|e| e.to_string())? == winsafe::co::WAIT::OBJECT_0 {
+            break Ok(());
+        }
+        if failed.WaitForSingleObject(Some(0)).map_err(|e| e.to_string())? == winsafe::co::WAIT::OBJECT_0 {
+            break Err("Windows could not register PdfCraft Printer. Lion PDF is installed; retry printer setup with administrator approval.".into());
+        }
+        if std::time::Instant::now() >= deadline {
+            break Err("PdfCraft Printer registration did not finish. Check the Windows approval prompt before retrying.".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let restored = restore_default(before.as_deref());
+    result.and(restored)
+}
+
+#[cfg(feature = "bundle")]
+fn register_printer_child(token: &str) -> Result<(), String> {
+    let (done_name, failed_name) = printer_event_names(token)?;
+    let done = winsafe::HEVENT::NULL.OpenEvent(winsafe::co::EVENT_RIGHTS::MODIFY_STATE, false, &done_name).map_err(|e| e.to_string())?;
+    let failed = winsafe::HEVENT::NULL.OpenEvent(winsafe::co::EVENT_RIGHTS::MODIFY_STATE, false, &failed_name).map_err(|e| e.to_string())?;
+    match register_printer() {
+        Ok(()) => done.SetEvent().map_err(|e| e.to_string())?,
+        Err(error) => {
+            let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("{error}\n"));
+            failed.SetEvent().map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod printer_activation_tests {
+    use super::*;
+    #[test]
+    fn printer_elevation_uses_unique_local_event_names_without_path_or_command_input() {
+        assert!(printer_event_names("../../file").is_err());
+        assert!(printer_event_names(&"f".repeat(33)).is_err());
+        assert!(printer_event_names(&"x".repeat(32)).is_err());
+        let token = format!("{:032x}", windows_core::GUID::new().unwrap().to_u128());
+        let (ok, failed) = printer_event_names(&token).unwrap();
+        assert!(ok.starts_with(r"Local\LionPDF-Printer-"));
+        assert_ne!(ok, failed);
+        let event = winsafe::HEVENT::CreateEvent(None, true, false, Some(&ok)).unwrap();
+        let child = winsafe::HEVENT::NULL.OpenEvent(winsafe::co::EVENT_RIGHTS::MODIFY_STATE, false, &ok).unwrap();
+        assert_eq!(event.WaitForSingleObject(Some(0)).unwrap(), winsafe::co::WAIT::TIMEOUT);
+        child.SetEvent().unwrap();
+        assert_eq!(event.WaitForSingleObject(Some(0)).unwrap(), winsafe::co::WAIT::OBJECT_0);
     }
 }

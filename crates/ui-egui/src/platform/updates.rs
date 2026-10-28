@@ -32,7 +32,7 @@ pub struct Installer {
 }
 
 pub type DownloadSource = Arc<dyn Fn(Installer, Arc<std::sync::atomic::AtomicU64>) -> Result<std::path::PathBuf, String> + Send + Sync>;
-pub type InstallSource = Arc<dyn Fn(Installer, std::path::PathBuf) -> Result<(), String> + Send + Sync>;
+pub type InstallSource = Arc<dyn Fn(Installer, std::path::PathBuf, crate::last_session::LastSession) -> Result<(), String> + Send + Sync>;
 
 #[derive(Default)]
 enum Download {
@@ -93,6 +93,7 @@ pub(crate) struct Updates {
     /// The Updates dialog is showing.
     pub(crate) open: bool,
     download: Download,
+    resolved: Vec<pdfcraft_engine::DocId>,
 }
 
 impl PdfCraftApp {
@@ -306,28 +307,20 @@ pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut PdfCraftApp) {
         #[cfg(not(target_arch = "wasm32"))]
         Download::Ready(installer, path) => {
             ui.label("Download complete · SHA-256 verified");
-            let clean = app.views.is_empty()
-                && app.pending_opens.is_empty()
-                && crate::window_drop::inspect(ui.ctx()).as_array().is_none_or(|windows| windows.len() <= 1);
-            let install = app.update_install.clone();
-            let installer = installer.clone();
-            let path = path.clone();
+            let available = app.update_install.is_some() && app.update_can_close(ui.ctx());
+            let _ = (installer, path);
             if ui
-                .add_enabled_ui(clean && install.is_some(), |ui| widgets::dialog_button(ui, "Install update", widgets::DialogAction::Confirm))
+                .add_enabled_ui(available, |ui| widgets::dialog_button(ui, "Install update", widgets::DialogAction::Confirm))
                 .inner
-                .on_hover_text("Close all PDFs and other PdfCraft windows before installing.")
+                .on_hover_text("Save changes, install the verified update, and restart with your PDFs open.")
                 .clicked()
-                && let Some(install) = install
             {
-                match install(installer, path) {
-                    Ok(()) => {
-                        app.request_quit(ui.ctx());
-                    }
-                    Err(error) => app.notify(error),
-                }
+                app.updates.resolved.clear();
+                app.continue_update(ui.ctx());
             }
-            if !clean {
-                ui.label("Save and close all PDFs and other PdfCraft windows to install. Your download will stay ready.");
+            ui.label("Open PDFs will return after restarting. Unsaved changes are resolved before installation.");
+            if !available {
+                ui.label("Finish pending file opens and close other Lion PDF windows or minimized document dialogs first.");
             }
         }
     }
@@ -354,5 +347,70 @@ impl PdfCraftApp {
             }
         });
         self.updates.download = Download::Running { received, installer, reply };
+    }
+}
+
+impl PdfCraftApp {
+    pub(crate) fn first_update_dirty(&self) -> Option<usize> {
+        (0..self.views.len()).find(|&i| self.has_unsaved_work(i) && self.views.get(i).is_some_and(|v| !self.updates.resolved.contains(&v.id)))
+    }
+
+    fn update_can_close(&self, ctx: &egui::Context) -> bool {
+        #[cfg(not(target_arch = "wasm32"))]
+        if !self.pending_opens.is_empty() {
+            return false;
+        }
+        !self.dialog_shelf.holds_document_drafts() && crate::window_drop::inspect(ctx).as_array().is_none_or(|windows| windows.len() <= 1)
+    }
+
+    pub(crate) fn resolve_update(&mut self, ctx: &egui::Context, choice: Option<bool>) {
+        let Some(save) = choice else {
+            self.updates.resolved.clear();
+            return;
+        };
+        let Some(index) = self.first_update_dirty() else {
+            self.continue_update(ctx);
+            return;
+        };
+        let Some(id) = self.views.get(index).map(|v| v.id) else { return };
+        if save {
+            self.active = Some(index);
+            let ctx = ctx.clone();
+            self.save_then(index, crate::editing::SaveTarget::InPlace, move |app| {
+                app.updates.resolved.push(id);
+                app.continue_update(&ctx);
+            });
+        } else {
+            self.updates.resolved.push(id);
+            self.continue_update(ctx);
+        }
+    }
+
+    fn continue_update(&mut self, ctx: &egui::Context) {
+        if !self.update_can_close(ctx) {
+            self.notify("Finish pending file opens and close other Lion PDF windows or minimized document dialogs before installing.");
+            return;
+        }
+        if self.first_update_dirty().is_some() {
+            self.save_prompt_seen = false;
+            self.close_request = Some(crate::CloseRequest::Update);
+            ctx.request_repaint();
+            return;
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if let Download::Ready(installer, path) = &self.updates.download
+            && let Some(install) = self.update_install.clone()
+        {
+            match install(installer.clone(), path.clone(), self.open_session()) {
+                Ok(()) => {
+                    self.shutdown_recovery();
+                    self.quit(ctx);
+                }
+                Err(error) => {
+                    self.updates.resolved.clear();
+                    self.notify(error);
+                }
+            }
+        }
     }
 }

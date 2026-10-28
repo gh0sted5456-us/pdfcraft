@@ -11,6 +11,8 @@ pub enum CloseRequest {
     Quit,
     /// File ▸ Close all: like Quit, but the application stays open.
     All,
+    /// Resolve changes without closing tabs until the staged updater can start.
+    Update,
 }
 
 impl PdfCraftApp {
@@ -79,9 +81,15 @@ impl PdfCraftApp {
     /// Answer the save prompt: `Some(true)` save, `Some(false)` discard, `None` cancel.
     pub fn resolve_close(&mut self, ctx: &egui::Context, choice: Option<bool>) {
         let Some(req) = self.close_request.take() else { return };
+        if req == CloseRequest::Update {
+            self.save_prompt_button = Default::default();
+            self.resolve_update(ctx, choice);
+            return;
+        }
         // The next question (another dirty document) starts on Save again.
         self.save_prompt_button = Default::default();
         let index = match req {
+            CloseRequest::Update => return,
             CloseRequest::Tab(id) => match self.views.iter().position(|v| v.id == id) {
                 Some(i) => i,
                 None => return, // already closed
@@ -157,7 +165,7 @@ impl PdfCraftApp {
         }
     }
 
-    fn quit(&mut self, ctx: &egui::Context) {
+    pub(crate) fn quit(&mut self, ctx: &egui::Context) {
         if self.dialog_shelf.holds_document_drafts() {
             self.notify("Restore or close minimized document dialogs before exiting.");
             return;
