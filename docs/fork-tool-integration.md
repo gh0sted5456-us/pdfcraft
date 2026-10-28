@@ -14,7 +14,7 @@ Status: 2026-10-27. Feature proposals are reviewed against the personal fork bef
 | PDF/X conversion | [#3028](https://github.com/storytold/pdfcraft/pull/3028) | Located; conversion, profiles and independent conformance qualification remain open. |
 | PDF/UA conversion | [#3026](https://github.com/storytold/pdfcraft/pull/3026) | This is validator work, not a complete accessible-PDF converter. It cannot enable Save as PDF/UA by itself. |
 | Geospatial tools | [#467](https://github.com/storytold/pdfcraft/pull/467) | Located; broad proposal also includes 3D and new dependencies, requiring separate review. |
-| Paragraph spacing | [#1487](https://github.com/storytold/pdfcraft/pull/1487) | Located; port must preserve current original-text and invisible-OCR editing safeguards. |
+| Paragraph spacing | [#1487](https://github.com/storytold/pdfcraft/pull/1487) | Located; proposal also changes older pointer/OCR handlers. A focused spacing port must retain current glyph/OCR safeguards and qualify soft wraps, repeated spacing changes and preview/save agreement. |
 | Page transitions | #2083 backend already integrated | Creation controls and full presentation playback remain incomplete. |
 | Make accessible wizard | No complete proposal established | Keep unavailable until an end-to-end workflow is qualified. |
 | Archive/PDF-A action preset | No complete proposal established | A generic action preset is not proof of PDF/A conversion. |
