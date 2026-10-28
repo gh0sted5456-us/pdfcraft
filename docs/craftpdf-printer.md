@@ -1,18 +1,15 @@
-# CraftPDF Printer (planned; excluded from 0.13.1)
+# PdfCraft Printer
 
-The personal 0.13.1 build does not install or offer a CraftPDF printer. The user requested
-a separate conversion engine instead of a renamed Microsoft Print to PDF queue.
+> **Last updated:** 2026-10-28 · Lion PDF 1.0.2 Windows registration, retained payload and update/restart qualification. Native Linux printing and broader application interoperability need their own runtime qualification.
 
-The requirement is to retain text as text, with Unicode mappings and accurate word positions,
-so printed PDFs support selection, searching and highlighting without OCR. Vector artwork
-should remain vector artwork. Unsupported input must return a clear error instead of silently
-rasterizing a page. Image-only source material cannot provide original text without OCR.
+The personal Windows installer includes PdfCraft Printer, a Windows Print Support App virtual printer for Windows 11 24H2 or newer. Its bounded XPS/OXPS converter uses PdfCraft's PDF writer and preserves supported Unicode text and vector content without a raster fallback. Unsupported jobs fail explicitly. Image-only source material still needs OCR for text selection.
 
-Windows printer integration and the PDF conversion engine are separate pieces. The engine
-should accept a vector/text print intermediate, preserve embedded font data and glyph placement,
-and create the PDF using PdfCraft's own writer. Printer registration must not change the
-system default, overwrite an unrelated queue, or start an agent/network service automatically.
+The desktop MSI owns `Printer/PdfCraft.Printer.msix`, `Printer/pdfcraft_printer.dll` and `Printer/Printer.pdc` under the PdfCraft installation directory. These files remain installed for repair and updates. Windows manages the registered runtime copy in its package store.
 
-Local QA on 2026-10-23 confirmed that a synthetic Word document printed through Microsoft's
-existing driver retained words that PdfCraft could find, highlight, save and reopen without OCR.
-That only tested the old prototype; it is not evidence for the planned independent engine.
+The bootstrapper and restarted application run with normal user privileges. Only printer package registration requests administrator approval through Windows. This personal unsigned MSIX requires that approval; setup does not change certificate stores or Developer Mode. An already healthy matching printer version stays registered, and setup preserves the user's default printer.
+
+Preferences → Updates downloads and verifies the combined installer from this fork's GitHub releases. Open PDFs can remain open while downloading. Save/Discard/Cancel resolves edits before the staged installer acknowledges readiness and waits for the app to exit. After installation, the app restarts with saved PDF paths/pages restored. Other app windows and minimized document drafts must close first. Portable builds use the portable ZIP.
+
+Qualification for 1.0.2 includes synthetic Unicode conversion tests, real package registration, a ready printer queue, installed payload checks, and a complete install/restart with a synthetic PDF restored and the EPSON default unchanged. The original native test exposed missing registration elevation before it was fixed. This run did not submit a new Word or physical printer job.
+
+Linux uses the separate CUPS integration in `apps/pdfcraft-printer`; the Windows MSIX is not used there.

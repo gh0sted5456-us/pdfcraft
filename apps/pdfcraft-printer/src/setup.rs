@@ -2,6 +2,8 @@
 
 use windows::Management::Deployment::PackageManager;
 use windows_core::HSTRING;
+#[cfg(any(feature = "bundle", test))]
+use winsafe::prelude::Handle;
 
 const NAME: &str = "PdfCraft.Printer.Personal";
 const PUBLISHER: &str = "CN=gh0sted5456-us, OID.2.25.311729368913984317654407730594956997722=1";
@@ -13,6 +15,13 @@ pub fn message(title: &str, text: &str, error: bool) {
 
 pub fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
+    #[cfg(feature = "bundle")]
+    if args.first().is_some_and(|a| a == "--register-printer") {
+        if args.len() != 3 || args.get(2).map(String::as_str) != Some("--quiet") {
+            return Err("Invalid printer activation arguments".into());
+        }
+        return register_printer_child(args.get(1).ok_or("Missing printer activation token")?);
+    }
     #[cfg(feature = "bundle")]
     if args.first().is_some_and(|a| a == "--update") {
         if args.len() != 2 {
@@ -80,9 +89,7 @@ fn stage_msi(folder: &std::path::Path, source: &std::path::Path, bytes: &[u8]) -
 
 #[cfg(feature = "bundle")]
 fn install(args: &[String]) -> Result<(), String> {
-    use std::io::Write as _;
-    use windows::Foundation::{Metadata::ApiInformation, Uri};
-    use windows::Management::Deployment::AddPackageOptions;
+    use windows::Foundation::Metadata::ApiInformation;
     if !ApiInformation::IsTypePresent(&HSTRING::from("Windows.Graphics.Printing.Workflow.PrintWorkflowVirtualPrinterSession"))
         .map_err(|e| e.to_string())?
     {
@@ -118,6 +125,16 @@ fn install(args: &[String]) -> Result<(), String> {
             ));
         }
     }
+    register_printer_with_elevation()?;
+    status(false)
+}
+
+#[cfg(feature = "bundle")]
+fn register_printer() -> Result<(), String> {
+    use std::io::Write as _;
+    use windows::Foundation::Uri;
+    use windows::Management::Deployment::AddPackageOptions;
+    let temporary = tempfile::Builder::new().prefix("pdfcraft-printer-").tempdir().map_err(|e| e.to_string())?;
     let path = temporary.path().join("PdfCraft.Printer.msix");
     let mut file = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).map_err(|e| e.to_string())?;
     file.write_all(include_bytes!(env!("PDFCRAFT_SETUP_MSIX"))).and_then(|_| file.sync_all()).map_err(|e| e.to_string())?;
@@ -129,27 +146,22 @@ fn install(args: &[String]) -> Result<(), String> {
     let options = AddPackageOptions::new().map_err(|e| e.to_string())?;
     // Applies only to this embedded personal-build package; never changes certificate stores or system policy.
     options.SetAllowUnsigned(true).map_err(|e| e.to_string())?;
-    let previous_default = default_printer()?;
-    let registration = (|| {
-        let result = PackageManager::new()
-            .and_then(|p| p.AddPackageByUriAsync(&uri, &options))
-            .and_then(|op| op.join())
-            .map_err(|e| format!("Lion PDF setup could not register the printer plugin: {e}"))?;
-        let error = result.ExtendedErrorCode().map_err(|e| e.to_string())?;
-        if error.is_err() {
-            return Err(format!("Printer plugin registration failed: {} ({error:?})", result.ErrorText().map_err(|e| e.to_string())?));
+    let result = PackageManager::new()
+        .and_then(|p| p.AddPackageByUriAsync(&uri, &options))
+        .and_then(|op| op.join())
+        .map_err(|e| format!("Lion PDF setup could not register the printer plugin: {e}"))?;
+    let error = result.ExtendedErrorCode().map_err(|e| e.to_string())?;
+    if error.is_err() {
+        return Err(format!("Printer plugin registration failed: {} ({error:?})", result.ErrorText().map_err(|e| e.to_string())?));
+    }
+    for _ in 0..50 {
+        if printer_ready() {
+            return Ok(());
         }
-        for _ in 0..50 {
-            if printer_ready() {
-                return Ok(());
-            }
-            std::thread::sleep(std::time::Duration::from_millis(200));
-        }
-        Err("The plugin package installed, but Windows did not register PdfCraft Printer. The printer is not ready; see the setup troubleshooting guide.".to_string())
-    })();
-    let restored = restore_default(previous_default.as_deref());
-    registration.and(restored)?;
-    status(false)
+        std::thread::sleep(std::time::Duration::from_millis(200));
+    }
+    Err("The plugin package installed, but Windows did not register PdfCraft Printer. The printer is not ready; see the setup troubleshooting guide."
+        .to_string())
 }
 
 fn printer_ready() -> bool {
@@ -350,5 +362,95 @@ mod update_tests {
             assert!(read_update(&resume, &executable).is_err());
         }
         assert!(read_update(&folder.path().join("elsewhere.json"), &executable).is_err());
+    }
+}
+
+#[cfg(any(feature = "bundle", test))]
+fn printer_event_names(token: &str) -> Result<(String, String), String> {
+    if token.len() != 32 || !token.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err("Invalid printer activation token".into());
+    }
+    Ok((format!(r"Local\LionPDF-Printer-{token}-ok"), format!(r"Local\LionPDF-Printer-{token}-failed")))
+}
+
+#[cfg(feature = "bundle")]
+fn register_printer_with_elevation() -> Result<(), String> {
+    let packages = PackageManager::new()
+        .and_then(|p| p.FindPackagesByUserSecurityIdNamePublisher(&HSTRING::new(), &HSTRING::from(NAME), &HSTRING::from(PUBLISHER)))
+        .map_err(|e| format!("Could not inspect the installed printer plugin: {e}"))?;
+    for package in packages {
+        let version = package.Id().and_then(|id| id.Version()).map_err(|e| e.to_string())?;
+        if format!("{}.{}.{}.{}", version.Major, version.Minor, version.Build, version.Revision) == format!("{}.1", env!("CARGO_PKG_VERSION"))
+            && printer_ready()
+        {
+            return Ok(());
+        }
+    }
+    let token = format!("{:032x}", windows_core::GUID::new().map_err(|e| e.to_string())?.to_u128());
+    let (done_name, failed_name) = printer_event_names(&token)?;
+    let done = winsafe::HEVENT::CreateEvent(None, true, false, Some(&done_name)).map_err(|e| e.to_string())?;
+    let failed = winsafe::HEVENT::CreateEvent(None, true, false, Some(&failed_name)).map_err(|e| e.to_string())?;
+    let executable = std::env::current_exe().map_err(|e| e.to_string())?;
+    let before = default_printer()?;
+    // Only package registration is elevated; the waiting bootstrapper restarts the app normally.
+    let parameters = format!("--register-printer {token} --quiet");
+    winsafe::ShellExecuteEx(&winsafe::SHELLEXECUTEINFO {
+        mask: winsafe::co::SEE_MASK::NOASYNC,
+        verb: Some("runas"),
+        file: &executable.to_string_lossy(),
+        parameters: Some(&parameters),
+        show: winsafe::co::SW::HIDE,
+        ..Default::default()
+    })
+    .map_err(|e| format!("Windows did not authorize PdfCraft Printer registration: {e}"))?;
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(180);
+    let result = loop {
+        if done.WaitForSingleObject(Some(0)).map_err(|e| e.to_string())? == winsafe::co::WAIT::OBJECT_0 {
+            break Ok(());
+        }
+        if failed.WaitForSingleObject(Some(0)).map_err(|e| e.to_string())? == winsafe::co::WAIT::OBJECT_0 {
+            break Err("Windows could not register PdfCraft Printer. Lion PDF is installed; retry printer setup with administrator approval.".into());
+        }
+        if std::time::Instant::now() >= deadline {
+            break Err("PdfCraft Printer registration did not finish. Check the Windows approval prompt before retrying.".into());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    };
+    let restored = restore_default(before.as_deref());
+    result.and(restored)
+}
+
+#[cfg(feature = "bundle")]
+fn register_printer_child(token: &str) -> Result<(), String> {
+    let (done_name, failed_name) = printer_event_names(token)?;
+    let done = winsafe::HEVENT::NULL.OpenEvent(winsafe::co::EVENT_RIGHTS::MODIFY_STATE, false, &done_name).map_err(|e| e.to_string())?;
+    let failed = winsafe::HEVENT::NULL.OpenEvent(winsafe::co::EVENT_RIGHTS::MODIFY_STATE, false, &failed_name).map_err(|e| e.to_string())?;
+    match register_printer() {
+        Ok(()) => done.SetEvent().map_err(|e| e.to_string())?,
+        Err(error) => {
+            let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("{error}\n"));
+            failed.SetEvent().map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod printer_activation_tests {
+    use super::*;
+    #[test]
+    fn printer_elevation_uses_unique_local_event_names_without_path_or_command_input() {
+        assert!(printer_event_names("../../file").is_err());
+        assert!(printer_event_names(&"f".repeat(33)).is_err());
+        assert!(printer_event_names(&"x".repeat(32)).is_err());
+        let token = format!("{:032x}", windows_core::GUID::new().unwrap().to_u128());
+        let (ok, failed) = printer_event_names(&token).unwrap();
+        assert!(ok.starts_with(r"Local\LionPDF-Printer-"));
+        assert_ne!(ok, failed);
+        let event = winsafe::HEVENT::CreateEvent(None, true, false, Some(&ok)).unwrap();
+        let child = winsafe::HEVENT::NULL.OpenEvent(winsafe::co::EVENT_RIGHTS::MODIFY_STATE, false, &ok).unwrap();
+        assert_eq!(event.WaitForSingleObject(Some(0)).unwrap(), winsafe::co::WAIT::TIMEOUT);
+        child.SetEvent().unwrap();
+        assert_eq!(event.WaitForSingleObject(Some(0)).unwrap(), winsafe::co::WAIT::OBJECT_0);
     }
 }

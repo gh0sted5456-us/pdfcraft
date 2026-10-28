@@ -9,7 +9,8 @@ param(
   # 1 when package.ps1 staged craft-fonts OFL notices, 0 when the binaries embed no craft-fonts.
   # -1 (the default) skips the check when the MSI is inspected by hand.
   [int] $CraftFontLicences = -1,
-  [string] $ExpectedFontNoticesDirectory
+  [string] $ExpectedFontNoticesDirectory,
+  [string] $ExpectedPrinterPackage
 )
 $ErrorActionPreference = 'Stop'
 $Installer = New-Object -ComObject WindowsInstaller.Installer
@@ -326,6 +327,17 @@ try {
 if ($modelFiles -lt 2) { throw "expected the OCR models (*.rten) in models\, found $modelFiles" }
 $rm = Read-Row 'SELECT `Dialog` FROM `Dialog` WHERE `Dialog` = ''MsiRMFilesInUse''' 1
 Assert-Equal $rm[0] 'MsiRMFilesInUse' 'Files-in-use dialog'
+if ($ExpectedPrinterPackage) {
+  $printer = Read-Row 'SELECT `Directory_Parent`, `DefaultDir` FROM `Directory` WHERE `Directory` = ''PrinterFolder''' 2
+  Assert-Equal $printer[0] 'INSTALLFOLDER' 'Bundled printer directory parent'
+  if ($printer[1] -notmatch '(^|\|)Printer$') { throw 'Bundled printer directory name is wrong' }
+  foreach ($id in @('PdfcraftPrinterPackage','PdfcraftPrinterRuntime','PdfcraftPrinterCapabilities')) {
+    $row = Read-Row ('SELECT `FileSize` FROM `File` WHERE `File` = ''' + $id + '''') 1
+    if ([long]$row[0] -le 0) { throw "Missing bundled printer file: $id" }
+  }
+  $row = Read-Row 'SELECT `FileSize` FROM `File` WHERE `File` = ''PdfcraftPrinterPackage''' 1
+  Assert-Equal ([long]$row[0]) (Get-Item -LiteralPath $ExpectedPrinterPackage).Length 'Bundled MSIX size'
+}
 [void] [Runtime.InteropServices.Marshal]::FinalReleaseComObject($Database)
 [void] [Runtime.InteropServices.Marshal]::FinalReleaseComObject($Installer)
 Write-Output 'ok MSI: per-machine scope guard, publisher, persistent progress text, Start Menu shortcut, optional desktop shortcut and PDF and image context menus (on for a first install, kept on update only while present; checkboxes for the first two), icon/key path, full-UI success/cancel/error and Finish controls, files-in-use dialog, OCR models'

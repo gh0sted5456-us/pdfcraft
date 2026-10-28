@@ -16,6 +16,9 @@
   <?ifndef HasCraftFontLicences ?>
   <?define HasCraftFontLicences=0 ?>
   <?endif ?>
+  <?ifndef HasPrinterPackage ?>
+  <?define HasPrinterPackage=0 ?>
+  <?endif ?>
   <Package
       Name="Lion PDF"
       Manufacturer="gh0sted5456-us"
@@ -96,6 +99,7 @@
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="INSTALLFOLDER" Name="PdfCraft">
         <Directory Id="ModelsFolder" Name="models" />
+        <Directory Id="PrinterFolder" Name="Printer" />
       </Directory>
     </StandardDirectory>
     <StandardDirectory Id="ProgramMenuFolder" />
@@ -107,6 +111,9 @@
       <?endif ?>
       <ComponentGroupRef Id="PdfcraftFiles" />
       <ComponentGroupRef Id="PdfcraftModels" />
+      <?if $(var.HasPrinterPackage) = 1 ?>
+      <ComponentGroupRef Id="PdfcraftPrinterFiles" />
+      <?endif ?>
     </Feature>
   </Package>
 
@@ -114,6 +121,15 @@
     <?if $(var.HasCraftFontLicences) = 1 ?>
     <ComponentGroup Id="CraftFontLicences" Directory="INSTALLFOLDER">
       <Files Include="$(var.DocsDir)\**" />
+    </ComponentGroup>
+    <?endif ?>
+    <?if $(var.HasPrinterPackage) = 1 ?>
+    <ComponentGroup Id="PdfcraftPrinterFiles" Directory="PrinterFolder">
+      <Component Id="PdfcraftPrinterBundle" Guid="FE77079E-C8E4-4585-9BDC-737302136ED9">
+        <File Id="PdfcraftPrinterPackage" Source="$(var.BinDir)\printer\PdfCraft.Printer.msix" KeyPath="yes" />
+        <File Id="PdfcraftPrinterRuntime" Source="$(var.BinDir)\printer\pdfcraft_printer.dll" />
+        <File Id="PdfcraftPrinterCapabilities" Source="$(var.BinDir)\printer\Printer.pdc" />
+      </Component>
     </ComponentGroup>
     <?endif ?>
     <ComponentGroup Id="PdfcraftFiles" Directory="INSTALLFOLDER">
