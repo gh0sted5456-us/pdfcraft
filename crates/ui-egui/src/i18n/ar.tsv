@@ -817,9 +817,9 @@
 	Check for updates	التحقق من التحديثات
 	No check has run yet.	لم يُجرَ أي تحقق بعد.
 	Checking for a newer version…	جارٍ التحقق من وجود إصدار أحدث…
-	PdfCraft {v} is available.	PdfCraft {v} متاح.
+	{app} {v} is available.	{app} {v} متاح.
 	You have version {c}. Download the new version from its release page.	لديك الإصدار {c}. نزّل الإصدار الجديد من صفحة إصداره.
-	PdfCraft {c} is up to date.	PdfCraft {c} محدَّث.
+	{app} {c} is up to date.	{app} {c} محدَّث.
 	Couldn't check for updates: {e}	تعذّر التحقق من التحديثات: {e}
 	You have version {c}. All releases are listed at {page}.	لديك الإصدار {c}. كل الإصدارات مدرجة في {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	يسأل GitHub عن أحدث إصدار. لا يُنزَّل أو يُثبَّت شيء تلقائيًا.
@@ -2973,3 +2973,36 @@ certificate	Version	الإصدار
 	Glass	زجاجي
 	Move Tab to New Window	نقل علامة التبويب إلى نافذة جديدة
 	Move Tab to This Window	نقل علامة التبويب إلى هذه النافذة
+	Export to Excel…	تصدير إلى Excel…
+	Export to Excel	تصدير إلى Excel
+	Sheets	الأوراق
+	One sheet for the whole document	ورقة واحدة للمستند كله
+	A table that runs across pages stays together; the pages follow one another down the sheet.	يبقى الجدول الممتد عبر الصفحات متصلًا؛ تتوالى الصفحات واحدة تلو الأخرى في الورقة.
+	One sheet per page	ورقة لكل صفحة
+	Each page on its own sheet, named Page 1, Page 2…	كل صفحة في ورقة خاصة بها، باسم Page 1 وPage 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	تصبح الجداول خلايا؛ وتصبح الأرقام والمبالغ والنسب المئوية والتواريخ قيمًا يمكن لـ Excel الحساب بها، وتظهر كما في الصفحة.
+	Add printer marks…	إضافة علامات الطباعة…
+	Remove printer marks	إزالة علامات الطباعة
+	Marks	العلامات
+	All marks	كل العلامات
+	Trim marks	علامات القص
+	Bleed marks	علامات النزيف
+	Registration marks	علامات التسجيل
+	Colour bars	أشرطة الألوان
+	Page information	معلومات الصفحة
+	Line weight	سُمك الخط
+	Widen the page to make room	توسيع الصفحة لإفساح المجال
+	Room on each side	المساحة على كل جانب
+	The trim box is kept where it is, so the printed page cuts the same.	يبقى مربع القص في مكانه، فتُقص الصفحة المطبوعة كما هي.
+	Printer marks added	تمت إضافة علامات الطباعة
+	printer marks	علامات الطباعة
+	Narrower than	أضيق من
+	New width	العرض الجديد
+	Zero-width lines always count as narrower.	الخطوط ذات العرض الصفري تُعدّ دائمًا أضيق.
+	Also	أيضًا
+	Type 3 font glyphs	رموز خطوط Type 3
+	Pattern strokes	ضربات الأنماط
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	الخطوط المرسومة داخل رموز Type 3 وأنماط التبليط؛ معطّلة افتراضيًا.
+	No hairlines found on those pages	لم يُعثر على خطوط شعرية في تلك الصفحات
+	Fixed {n} hairlines on {p} pages	تم إصلاح {n} خطًا شعريًا في {p} صفحة
+	Fix hairlines…	إصلاح الخطوط الرفيعة…

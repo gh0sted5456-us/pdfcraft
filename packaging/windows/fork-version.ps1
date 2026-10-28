@@ -1,4 +1,4 @@
-# CI-only version override: monotonically increase this fork's patch version.
+# CI-only release version: the source is a floor; published releases and drafts reserve patches.
 $ErrorActionPreference='Stop'
 if ($env:GITHUB_REPOSITORY -ne 'gh0sted5456-us/pdfcraft') { throw 'This release script belongs to the personal fork' }
 $Manifest=Get-Content Cargo.toml -Raw
@@ -14,9 +14,8 @@ foreach ($Latest in @($Tags)) {
   if ($Latest -cmatch '^build-inputs-v[1-9][0-9]*$') { continue }
   if ($Latest -notmatch '^(?:fork-)?v([0-9]+)\.([0-9]+)\.([0-9]+)$') { throw 'A fork release has a nonnumeric version tag' }
   if ([int]$Matches[1] -gt $Major -or ([int]$Matches[1] -eq $Major -and [int]$Matches[2] -gt $Minor)) { throw 'Source version is older than the latest release series' }
-  if ([int]$Matches[1] -eq $Major -and [int]$Matches[2] -eq $Minor) { $Patch=[Math]::Max($Patch,[int]$Matches[3]) }
+  if ([int]$Matches[1] -eq $Major -and [int]$Matches[2] -eq $Minor) { $Patch=[Math]::Max($Patch,([int]$Matches[3]+1)) }
 }
-$Patch++
 if ($Major -gt 255 -or $Minor -gt 255 -or $Patch -gt 65535) { throw 'Version exceeds Windows Installer limits' }
 $Version="$Major.$Minor.$Patch"
 $Prefix=$Match.Groups[1].Value; $Suffix=$Match.Groups[5].Value

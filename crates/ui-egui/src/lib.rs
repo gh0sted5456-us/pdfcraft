@@ -11,6 +11,9 @@
 
 use crate::control::Host as _;
 
+/// The personal fork's display name; storage and update identities remain compatible.
+pub const APP_NAME: &str = "Lion PDF";
+
 /// Translate an English UI string into the current language (see [`i18n`]).
 macro_rules! tl {
     ($s:expr) => {
@@ -84,9 +87,11 @@ use canvas::zoom_snap;
 use dialogs::appearance;
 use dialogs::comment_props;
 use dialogs::credits;
+use dialogs::hairlines_ui;
 use dialogs::marks_ui;
 use dialogs::pageboxes;
 use dialogs::palette;
+use dialogs::printer_marks_ui;
 use dialogs::protect;
 use dialogs::standards_ui;
 use dialogs::word_count_ui;
@@ -127,8 +132,8 @@ use state::CopyPage;
 #[cfg(not(target_arch = "wasm32"))]
 use state::OpenRequest;
 pub use state::{
-    CustomDraft, Dialog, DuplicateDraft, LeftPanel, LinkOrigin, Mode, NumberDraft, OpenOutcome, PageClip, PasswordPrompt, PendingLink,
-    PendingRemoteLink, PropsTab, QuickTool, RecentFile, RightPanel, UnlockPrompt,
+    CustomDraft, Dialog, DuplicateDraft, LeftPanel, LinkOrigin, Mode, NumberDraft, OpenOutcome, PageClip, PagePropsDraft, PasswordPrompt,
+    PendingLink, PendingRemoteLink, PropsTab, QuickTool, RecentFile, RightPanel, UnlockPrompt,
 };
 use state::{DocumentCopyJob, GridFile};
 pub use tools::bulk_fields;
@@ -282,6 +287,8 @@ pub struct PdfCraftApp {
     /// Resolved colours, including the current OS theme when following the system.
     pub theme: ThemeKind,
     pub theme_preference: ThemePreference,
+    /// Show the optional community shortcut in the application header.
+    pub show_community: bool,
     pub glass: theme::GlassSettings,
     pub glass_background: glass_background::GlassBackground,
     #[cfg(target_os = "windows")]
@@ -552,6 +559,8 @@ pub struct PdfCraftApp {
     pub attach_override: Option<(String, Vec<u8>)>,
     /// Duplicate Field: which field and onto which pages.
     pub duplicate_draft: Option<DuplicateDraft>,
+    /// Page Properties: selected document/pages and tab-order draft.
+    pub page_props_draft: Option<PagePropsDraft>,
     /// Text field table: the table being set up, and the page it goes on.
     pub field_table_draft: Option<field_table_ui::FieldTableDraft>,
     /// Prepare a form ▸ Preview: fill the form instead of editing its fields.
@@ -602,6 +611,8 @@ pub struct PdfCraftApp {
     pub(crate) word_count_draft: word_count_ui::Draft,
     pub(crate) assistant: assistant_ui::Draft,
     pub(crate) dialog_shelf: dialog_windows::Shelf,
+    pub printer_marks_draft: printer_marks_ui::PrinterMarksDraft,
+    pub hairlines_draft: hairlines_ui::HairlinesDraft,
     /// Protect Using Password dialog state.
     pub protect_draft: protect::ProtectDraft,
     pub certificate_draft: certificate_ui::CertificateDraft,

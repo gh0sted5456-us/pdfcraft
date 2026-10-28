@@ -109,6 +109,15 @@ impl Session {
         .map_err(EditError::Write)
     }
 
+    /// How many hairlines [`Edit::FixHairlines`] would change on `pages` of `id`, and on how many
+    /// pages, without changing the document (the edit itself refuses when there is nothing to fix).
+    pub fn count_hairlines(&self, id: DocId, pages: &[usize], settings: &Hairlines) -> Result<HairlinesFixed, EditError> {
+        let doc = self.get(id).ok_or(EditError::NoDocument)?;
+        let editor = doc.editor.as_ref().ok_or_else(|| EditError::ReadOnly(doc.read_only_reason.clone().unwrap_or_default()))?;
+        let mut cos = editor.cos.clone();
+        guard(|| pdfcraft_edit::fix_hairlines(&mut cos, pages, settings)).map_err(EditError::Write)?.map_err(EditError::Edit)
+    }
+
     /// The print-ready PDF for `settings` (sheets laid out for the paper; see `pdfcraft-print`).
     pub fn print_pdf(&mut self, id: DocId, settings: &print::Settings) -> Result<Vec<u8>, EditError> {
         if !self.get(id).ok_or(EditError::NoDocument)?.allows_printing() {

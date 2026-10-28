@@ -132,6 +132,7 @@ impl PdfCraftApp {
                         pdfcraft_engine::MarkKind::HeaderFooter => tl!("header or footer"),
                         pdfcraft_engine::MarkKind::Watermark => tl!("watermark"),
                         pdfcraft_engine::MarkKind::Background => tl!("background"),
+                        pdfcraft_engine::MarkKind::PrinterMarks => tl!("printer marks"),
                     };
                     crate::i18n::fmt(tl!("This document has no {kind} to change"), &[("kind", kind)])
                 }
@@ -229,6 +230,7 @@ impl PdfCraftApp {
                 self.certificate_draft = Default::default();
                 self.dialog = Some(Dialog::EncryptCertificate);
             }
+            "prepress.hairlines" => self.dialog = Some(Dialog::FixHairlines),
             "edit.attach" => self.attach_file_dialog(),
             "protect.remove" => {
                 if self.apply_edit(Edit::RemoveProtection) {
@@ -243,6 +245,20 @@ impl PdfCraftApp {
                     self.number_draft = crate::NumberDraft { from: lo + 1, to: hi + 1, ..self.number_draft.clone() };
                 }
                 self.dialog = Some(Dialog::NumberPages);
+            }
+            "page.properties" => {
+                if let Some(i) = active
+                    && let Some(view) = self.views.get(i)
+                    && let Some(doc) = self.session.get(view.id)
+                {
+                    let pages = view.target_pages();
+                    let orders = doc.tab_orders();
+                    let mut theirs = pages.iter().map(|p| orders.get(*p).copied());
+                    let first = theirs.next().flatten();
+                    let before = if theirs.all(|o| o == first) { first } else { None };
+                    self.page_props_draft = Some(crate::PagePropsDraft { doc: view.id, pages, before, tab_order: before });
+                    self.dialog = Some(Dialog::PageProps);
+                }
             }
             link if pdfcraft_engine::links::for_command(link).is_some() => {
                 if let Some(l) = pdfcraft_engine::links::for_command(link) {
@@ -437,17 +453,20 @@ impl PdfCraftApp {
                 self.marks_draft.preview = None;
                 self.dialog = Some(Dialog::Marks(pdfcraft_engine::MarkKind::HeaderFooter));
             }
-            "edit.header_footer.remove" | "edit.watermark.remove" | "edit.background.remove" => {
+            "prepress.marks" => self.dialog = Some(Dialog::PrinterMarks),
+            "edit.header_footer.remove" | "edit.watermark.remove" | "edit.background.remove" | "prepress.marks.remove" => {
                 use pdfcraft_engine::MarkKind as K;
                 let kind = match id {
                     "edit.header_footer.remove" => K::HeaderFooter,
                     "edit.watermark.remove" => K::Watermark,
+                    "prepress.marks.remove" => K::PrinterMarks,
                     _ => K::Background,
                 };
                 self.apply_edit(Edit::RemoveMarks { kind });
             }
             "export.image" => self.dialog = Some(Dialog::Export(crate::export_ui::ExportKind::Image)),
             "export.text" => self.dialog = Some(Dialog::Export(crate::export_ui::ExportKind::Text)),
+            "export.xlsx" => self.dialog = Some(Dialog::Export(crate::export_ui::ExportKind::Excel)),
             "a11y.check" => self.start_accessibility_check(),
             "a11y.find_untagged" => self.find_untagged_content(),
             "ocr.correct" => {

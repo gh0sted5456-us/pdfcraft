@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-27 · Personal fork: printer marks and basic hairline repair have engine, automation and popup coverage. Malformed or over-budget hairline content refuses the atomic edit; original shared resources stay untouched. Remaining unfinished tools and proposal review requirements are inventoried in `fork-tool-integration.md`. Estimates unchanged.
+
 > **Last updated:** 2026-10-27 · Personal fork: integrate upstream vector/Type 3 redaction cleanup, eleven dependency updates and nextest 0.9.150. Preserve Type 3 glyphs used by surviving annotation appearances; exercise print controls through the scroll viewport with a controlled empty printer list. Larger egui/menu/updater migrations are deferred. Estimates unchanged.
 
 > **Last updated:** 2026-10-25 · Personal fork: scan orientation/deskew/paper-edge crop (adapted from #1012), invisible OCR-text correction, RSA certificate-file encryption (adapted from #2014), direct Space Audit, and foreground-only marquee path selection. CAC decryption and native Linux runtime remain unverified; readiness estimates unchanged.
@@ -404,9 +406,9 @@ update the numbers.
 ### 18. Print production tools absent
 
 - **Missing:** Output Preview, separations, total area coverage, overprint preview, ink manager,
-  colour conversion, printer marks, fix hairlines, flattener preview, colour management settings;
-  print as image; PostScript output.
-- **Evidence:** 18 print-production features planned (L area).
+  colour conversion, flattener preview, colour management settings;
+  print as image; PostScript output. Printer marks and basic hairline repair are in (Print production).
+- **Evidence:** remaining print-production tools are tracked individually in the L-area parity entries. Printer marks and basic hairline repair now have tool/dialog tests; colour conversion, conformance workflows and other incomplete entries remain unavailable.
 - **Estimate:** 25–45 h (part of the L area's 30–55). **Doc:** [target-app-parity.md](target-app-parity.md).
 
 ### 19. Preferences mostly missing

@@ -21,6 +21,7 @@ jobs:
       ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
        (github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_sha == github.sha &&
         github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: windows-latest
     timeout-minutes: 120
@@ -58,6 +59,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          ./packaging/windows/test-fork-publish.ps1
           ./packaging/windows/test-fork-version.ps1
           ./packaging/windows/fork-version.ps1
       - name: Quality gates for manual releases
@@ -88,19 +90,33 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
+          if ($env:GITHUB_REPOSITORY -cne 'gh0sted5456-us/pdfcraft') { throw 'Publication belongs to the personal fork' }
           $head = git rev-parse HEAD
           $main = (git ls-remote origin refs/heads/main).Split()[0]
           if ($LASTEXITCODE -ne 0 -or $main -ne $head) { throw 'A newer main exists; this older build will not become the latest update' }
           $setup = "dist/pdfcraft-$env:FORK_VERSION-with-printer-x64.exe"
           $sha = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
           "$sha  $([IO.Path]::GetFileName($setup))" | Set-Content dist/SHA256SUMS.txt -Encoding utf8
-          gh release create "fork-v$env:FORK_VERSION" --repo $env:GITHUB_REPOSITORY --target $head --title "PdfCraft $env:FORK_VERSION (personal fork)" --generate-notes --draft $setup dist/SHA256SUMS.txt "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64.msi" "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64-portable.zip"
+          gh release create "fork-v$env:FORK_VERSION" --repo $env:GITHUB_REPOSITORY --target $head --title "Lion PDF $env:FORK_VERSION" --generate-notes --draft $setup dist/SHA256SUMS.txt "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64.msi" "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64-portable.zip"
           if ($LASTEXITCODE -ne 0) { throw 'Draft asset upload failed' }
-          $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/fork-v$env:FORK_VERSION"
+          # Unpublished drafts can have no tag ref yet: resolve their numeric release ID.
+          $pages = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --paginate --slurp
+          if ($LASTEXITCODE -ne 0) { throw 'Could not read draft releases' }
+          $drafts = @(foreach ($page in ($pages | ConvertFrom-Json)) {
+            foreach ($entry in $page) {
+              if ($entry.tag_name -ceq "fork-v$env:FORK_VERSION" -and $entry.draft -eq $true -and $entry.target_commitish -ceq $head) { $entry }
+            }
+          })
+          if ($drafts.Count -ne 1) { throw 'Expected exactly one matching draft release' }
+          $releaseId = [string]$drafts[0].id
+          if ($releaseId -cnotmatch '^[1-9][0-9]*$') { throw 'Invalid draft release ID' }
+          $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/$releaseId"
           if ($LASTEXITCODE -ne 0) { throw 'Could not inspect uploaded assets' }
-          $asset = ($assets | ConvertFrom-Json).assets | Where-Object name -eq ([IO.Path]::GetFileName($setup))
-          if ($asset.digest -ne "sha256:$sha") { throw 'Uploaded installer digest does not match the local build' }
+          $release = $assets | ConvertFrom-Json
+          if ($release.id -ne $releaseId -or $release.tag_name -cne "fork-v$env:FORK_VERSION" -or $release.draft -ne $true -or $release.target_commitish -cne $head) { throw 'The draft changed during verification' }
+          $asset = @($release.assets | Where-Object name -CEQ ([IO.Path]::GetFileName($setup)))
+          if ($asset.Count -ne 1 -or $asset[0].digest -cne "sha256:$sha" -or $asset[0].state -cne 'uploaded' -or $asset[0].size -ne (Get-Item -LiteralPath $setup).Length) { throw 'Uploaded installer does not match the local build' }
           $main = (git ls-remote origin refs/heads/main).Split()[0]
           if ($LASTEXITCODE -ne 0 -or $main -ne $head) { throw 'Main advanced during upload; leave this build as a draft' }
-          gh release edit "fork-v$env:FORK_VERSION" --repo $env:GITHUB_REPOSITORY --draft=false --latest
+          gh api --method PATCH "repos/$env:GITHUB_REPOSITORY/releases/$releaseId" -F draft=false -f make_latest=true --silent
           if ($LASTEXITCODE -ne 0) { throw 'Release publishing failed' }

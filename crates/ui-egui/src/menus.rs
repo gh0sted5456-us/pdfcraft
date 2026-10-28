@@ -21,7 +21,7 @@ use crate::{PdfCraftApp, RightPanel};
 pub(super) mod tab_context;
 
 /// The app's name in the menus the layouts write (About, Hide, Quit).
-pub(crate) const APP_NAME: &str = "PdfCraft";
+pub(crate) const APP_NAME: &str = crate::APP_NAME;
 
 /// The top bar's width after the menus: the mode tabs, the search box and the buttons.
 const ROW_AFTER_MENUS: f32 = 720.0;
@@ -133,8 +133,18 @@ const FILE: &[&str] = &[
     "print.dialog",
 ];
 const CREATE: &[&str] = &["create.custom", "create.file", "create.multiple", "create.multiple_separate", "create.images", "create.clipboard"];
-const EXPORT: &[&str] =
-    &["export.choose", "export.docx", "export.pptx", "export.rtf", "export.html", "export.text", SEP, "export.image", "export.all_images"];
+const EXPORT: &[&str] = &[
+    "export.choose",
+    "export.docx",
+    "export.xlsx",
+    "export.pptx",
+    "export.rtf",
+    "export.html",
+    "export.text",
+    SEP,
+    "export.image",
+    "export.all_images",
+];
 const PROTECT: &[&str] = &["protect.password", "protect.certificate", "protect.remove", "protect.unlock", SEP, "protect.properties"];
 const EDIT: &[&str] = &[
     "edit.undo",
@@ -195,6 +205,7 @@ const PAGES: &[&str] = &[
     SEP,
     "page.crop",
     "page.boxes",
+    "page.properties",
     "page.number",
     SEP,
     "bookmark.add",

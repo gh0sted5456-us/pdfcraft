@@ -868,8 +868,8 @@
 	Patterns (graphics objects)	Mønstre (grafikkobjekter)
 	PdfCraft didn't shut down normally. These documents had changes that were autosaved:	PdfCraft ble ikke avsluttet normalt. Disse dokumentene hadde endringer som ble autolagret:
 	PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.	PdfCraft fungerer uten nett. Ingen telemetri, ingen konto og ingen skybehandling med mindre du legger til en leverandør.
-	PdfCraft {c} is up to date.	PdfCraft {c} er oppdatert.
-	PdfCraft {v} is available.	PdfCraft {v} er tilgjengelig.
+	{app} {c} is up to date.	{app} {c} er oppdatert.
+	{app} {v} is available.	{app} {v} er tilgjengelig.
 	Percentage	Prosent
 	Permissions password	Tillatelsespassord
 	Permitted actions after certifying	Tillatte handlinger etter sertifisering

@@ -868,8 +868,8 @@
 	Patterns (graphics objects)	Modele (obiecte grafice)
 	PdfCraft didn't shut down normally. These documents had changes that were autosaved:	PdfCraft nu s-a închis normal. Aceste documente aveau modificări salvate automat:
 	PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.	PdfCraft funcționează offline. Fără telemetrie, fără cont și fără procesare în cloud, cu excepția cazului în care adăugați un furnizor.
-	PdfCraft {c} is up to date.	PdfCraft {c} este la zi.
-	PdfCraft {v} is available.	Este disponibil PdfCraft {v}.
+	{app} {c} is up to date.	{app} {c} este la zi.
+	{app} {v} is available.	Este disponibil {app} {v}.
 	Percentage	Procent
 	Permissions password	Parolă de permisiuni
 	Permitted actions after certifying	Acțiuni permise după certificare
@@ -2945,3 +2945,36 @@ theme	Appearance	Aspect
 	Glass	Sticlă
 	Move Tab to New Window	Mută fila într-o fereastră nouă
 	Move Tab to This Window	Mută fila în această fereastră
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Un tabel care se întinde pe mai multe pagini rămâne întreg; paginile se succed pe foaie, una sub alta.
+	Each page on its own sheet, named Page 1, Page 2…	Fiecare pagină pe foaia ei, denumită Pagina 1, Pagina 2…
+	Export to Excel	Exportare în Excel
+	Export to Excel…	Exportare în Excel…
+	One sheet for the whole document	O foaie pentru tot documentul
+	One sheet per page	O foaie pe pagină
+	Sheets	Foi
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Tabelele devin celule; numerele, sumele, procentele și datele devin valori cu care Excel poate calcula, afișate ca pe pagină.
+	Add printer marks…	Adăugare semne de imprimare…
+	All marks	Toate semnele
+	Bleed marks	Semne de tăiere cu bleed
+	Colour bars	Bare de culoare
+	Line weight	Grosimea liniei
+	Marks	Semne
+	Page information	Informații despre pagină
+	Printer marks added	Semne de imprimare adăugate
+	Registration marks	Semne de registru
+	Remove printer marks	Eliminare semne de imprimare
+	Room on each side	Loc pe fiecare parte
+	The trim box is kept where it is, so the printed page cuts the same.	Caseta de tăiere rămâne unde este, astfel încât pagina imprimată se taie la fel.
+	Trim marks	Semne de tăiere
+	Widen the page to make room	Lărgiți pagina pentru a face loc
+	printer marks	semne de imprimare
+	Also	De asemenea
+	Fix hairlines…	Corectare linii subțiri…
+	Fixed {n} hairlines on {p} pages	S-au corectat {n} linii subțiri pe {p} pagini
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Linii desenate în interiorul glifelor Type 3 și al modelelor repetitive; dezactivat implicit.
+	Narrower than	Mai îngust decât
+	New width	Lățime nouă
+	No hairlines found on those pages	Nu s-au găsit linii subțiri pe aceste pagini
+	Pattern strokes	Contururi de model
+	Type 3 font glyphs	Glife de font Type 3
+	Zero-width lines always count as narrower.	Liniile cu lățime zero sunt întotdeauna considerate mai înguste.

@@ -811,9 +811,9 @@
 	Check for updates	Buscar actualizaciones
 	No check has run yet.	Aún no se ha hecho ninguna comprobación.
 	Checking for a newer version…	Buscando una versión más reciente…
-	PdfCraft {v} is available.	PdfCraft {v} está disponible.
+	{app} {v} is available.	{app} {v} está disponible.
 	You have version {c}. Download the new version from its release page.	Tienes la versión {c}. Descarga la nueva versión desde su página de publicación.
-	PdfCraft {c} is up to date.	PdfCraft {c} está actualizado.
+	{app} {c} is up to date.	{app} {c} está actualizado.
 	Couldn't check for updates: {e}	No se pudieron buscar actualizaciones: {e}
 	You have version {c}. All releases are listed at {page}.	Tienes la versión {c}. Todas las versiones aparecen en {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	Consulta a GitHub cuál es la última versión. No se descarga ni se instala nada automáticamente.
@@ -3020,3 +3020,36 @@ theme	Appearance	Aspecto
 	Glass	Cristal
 	Move Tab to New Window	Mover pestaña a una ventana nueva
 	Move Tab to This Window	Mover pestaña a esta ventana
+	Export to Excel…	Exportar a Excel…
+	Export to Excel	Exportar a Excel
+	Sheets	Hojas
+	One sheet for the whole document	Una hoja para todo el documento
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Una tabla que sigue en varias páginas queda unida; las páginas se suceden hacia abajo en la hoja.
+	One sheet per page	Una hoja por página
+	Each page on its own sheet, named Page 1, Page 2…	Cada página en su propia hoja, llamada Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Las tablas se convierten en celdas; los números, importes, porcentajes y fechas pasan a ser valores con los que Excel puede calcular, mostrados como en la página.
+	Add printer marks…	Añadir marcas de impresión…
+	Remove printer marks	Quitar marcas de impresión
+	Marks	Marcas
+	All marks	Todas las marcas
+	Trim marks	Marcas de recorte
+	Bleed marks	Marcas de sangrado
+	Registration marks	Marcas de registro
+	Colour bars	Barras de color
+	Page information	Información de página
+	Line weight	Grosor de línea
+	Widen the page to make room	Ensanchar la página para hacer sitio
+	Room on each side	Espacio a cada lado
+	The trim box is kept where it is, so the printed page cuts the same.	El cuadro de recorte se mantiene donde está, así que la página impresa se corta igual.
+	Printer marks added	Marcas de impresión añadidas
+	printer marks	marcas de impresión
+	Narrower than	Más finas que
+	New width	Ancho nuevo
+	Zero-width lines always count as narrower.	Las líneas de ancho cero siempre cuentan como más finas.
+	Also	También
+	Type 3 font glyphs	Glifos de fuentes Type 3
+	Pattern strokes	Trazos de patrones
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Líneas dibujadas dentro de glifos Type 3 y patrones de mosaico; desactivado de forma predeterminada.
+	No hairlines found on those pages	No se encontraron líneas finas en esas páginas
+	Fixed {n} hairlines on {p} pages	Se corrigieron {n} líneas finas en {p} páginas
+	Fix hairlines…	Corregir líneas finas…

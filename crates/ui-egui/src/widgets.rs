@@ -1,6 +1,6 @@
 //! Small custom widgets built on the design tokens.
 
-use egui::{Align2, Color32, CornerRadius, Rect, Response, Sense, Stroke, vec2};
+use egui::{Align2, Color32, CornerRadius, Layout, Rect, Response, Sense, Stroke, vec2};
 
 use crate::PdfCraftApp;
 use crate::theme::{self, Tokens};
@@ -145,14 +145,20 @@ pub(crate) fn dialog_button_width(ui: &egui::Ui, label: &str) -> f32 {
 
 /// Center the complete action group, retaining right-to-left primary/cancel/back order.
 pub(crate) fn dialog_footer<R>(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+    centered_row(ui, "dialog-action-width", Layout::right_to_left(egui::Align::Center), content)
+}
+
+/// Center a compact row while preserving its visual and keyboard navigation order.
+pub(crate) fn centered_row<R>(ui: &mut egui::Ui, salt: &str, layout: Layout, content: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
     let available = ui.available_rect_before_wrap();
     let width = ui.available_width();
-    let id = ui.scope_id().with("dialog-action-width");
+    let id = ui.scope_id().with(salt);
     let previous = ui.ctx().data(|d| d.get_temp::<f32>(id)).unwrap_or(width).min(width);
-    let right = available.left() + (width + previous) * 0.5;
-    // Keep the full wrapping width when actions change; only their group's alignment is cached.
-    let rect = Rect::from_min_size(egui::pos2(right - width, available.top()), vec2(width, 28.0));
-    ui.scope_builder(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::right_to_left(egui::Align::Center).with_main_wrap(true)), |ui| {
+    let offset = (width - previous) * 0.5;
+    let left = available.left() + if layout.main_dir == egui::Direction::RightToLeft { -offset } else { offset };
+    // Keep the full wrapping width when controls change; only the group's alignment is cached.
+    let rect = Rect::from_min_size(egui::pos2(left, available.top()), vec2(width, 28.0));
+    ui.scope_builder(egui::UiBuilder::new().max_rect(rect).layout(layout.with_main_wrap(true)), |ui| {
         let value = content(ui);
         let bounds = ui.min_rect();
         let measured = bounds.width().min(width);
@@ -737,15 +743,15 @@ pub fn app_icon(ui: &mut egui::Ui, size: f32) -> Response {
     ui.add(
         egui::Image::from_bytes(if dark { "bytes://personal-lion-dark.png" } else { "bytes://personal-lion-light.png" }, crate::app_icon::png(dark))
             .fit_to_exact_size(vec2(size, size))
-            .alt_text("PdfCraft lion"),
+            .alt_text("Lion PDF application icon"),
     )
 }
 
 /// Buttons for every community link (`pdfcraft_engine::links`), Discord first and prominent.
 /// Returns the registry command of the one clicked.
-pub fn community_links(ui: &mut egui::Ui) -> Option<&'static str> {
+pub fn community_links(ui: &mut egui::Ui, centered: bool) -> Option<&'static str> {
     let mut clicked = None;
-    ui.horizontal_wrapped(|ui| {
+    let render = |ui: &mut egui::Ui| {
         ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
         for (i, l) in pdfcraft_engine::links::LINKS.iter().enumerate() {
             let resp =
@@ -754,7 +760,12 @@ pub fn community_links(ui: &mut egui::Ui) -> Option<&'static str> {
                 clicked = Some(l.command);
             }
         }
-    });
+    };
+    if centered {
+        centered_row(ui, "community-links", Layout::left_to_right(egui::Align::Center), render);
+    } else {
+        ui.horizontal_wrapped(render);
+    }
     clicked
 }
 

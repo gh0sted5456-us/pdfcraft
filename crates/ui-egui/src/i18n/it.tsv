@@ -814,9 +814,9 @@
 	Check for updates	Verifica aggiornamenti
 	No check has run yet.	Nessuna verifica eseguita finora.
 	Checking for a newer version…	Ricerca di una versione più recente…
-	PdfCraft {v} is available.	PdfCraft {v} è disponibile.
+	{app} {v} is available.	{app} {v} è disponibile.
 	You have version {c}. Download the new version from its release page.	Hai la versione {c}. Scarica la nuova versione dalla sua pagina di rilascio.
-	PdfCraft {c} is up to date.	PdfCraft {c} è aggiornato.
+	{app} {c} is up to date.	{app} {c} è aggiornato.
 	Couldn't check for updates: {e}	Impossibile verificare gli aggiornamenti: {e}
 	You have version {c}. All releases are listed at {page}.	Hai la versione {c}. Tutte le versioni sono elencate su {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	Chiede a GitHub qual è l'ultima versione. Nulla viene scaricato o installato automaticamente.
@@ -2929,3 +2929,36 @@ certificate	SHA-256 digest	Impronta SHA-256
 	Glass	Vetro
 	Move Tab to New Window	Sposta scheda in una nuova finestra
 	Move Tab to This Window	Sposta scheda in questa finestra
+	Export to Excel…	Esporta in Excel…
+	Export to Excel	Esporta in Excel
+	Sheets	Fogli
+	One sheet for the whole document	Un foglio per l'intero documento
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Una tabella che continua su più pagine resta unita; le pagine si susseguono lungo il foglio.
+	One sheet per page	Un foglio per pagina
+	Each page on its own sheet, named Page 1, Page 2…	Ogni pagina nel proprio foglio, chiamato Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Le tabelle diventano celle; numeri, importi, percentuali e date diventano valori con cui Excel può calcolare, mostrati come nella pagina.
+	Add printer marks…	Aggiungi segni di stampa…
+	Remove printer marks	Rimuovi segni di stampa
+	Marks	Segni
+	All marks	Tutti i segni
+	Trim marks	Segni di rifilo
+	Bleed marks	Segni di abbondanza
+	Registration marks	Segni di registro
+	Colour bars	Barre colore
+	Page information	Informazioni pagina
+	Line weight	Spessore linea
+	Widen the page to make room	Allarga la pagina per fare spazio
+	Room on each side	Spazio su ogni lato
+	The trim box is kept where it is, so the printed page cuts the same.	Il riquadro di rifilo resta dov'è, così la pagina stampata si taglia allo stesso modo.
+	Printer marks added	Segni di stampa aggiunti
+	printer marks	segni di stampa
+	Narrower than	Più sottili di
+	New width	Nuovo spessore
+	Zero-width lines always count as narrower.	Le linee di spessore zero contano sempre come più sottili.
+	Also	Inoltre
+	Type 3 font glyphs	Glifi dei font Type 3
+	Pattern strokes	Tratti dei motivi
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Linee tracciate dentro glifi Type 3 e motivi a mosaico; disattivato per impostazione predefinita.
+	No hairlines found on those pages	Nessuna linea sottile trovata in queste pagine
+	Fixed {n} hairlines on {p} pages	Corrette {n} linee sottili in {p} pagine
+	Fix hairlines…	Correggi linee sottilissime…

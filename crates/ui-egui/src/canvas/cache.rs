@@ -409,7 +409,9 @@ impl DocView {
                 && !self.errors.contains_key(&r.page)
         });
         if visible_mains_pending {
-            // Caches are kept; demand is re-evaluated next frame once pixels arrive.
+            // Keep demanded fallback previews without retaining closed consumers' textures.
+            self.thumbs.retain(|page, _| self.thumb_demand.contains_key(page));
+            self.stale_thumbs.retain(|page| self.thumb_demand.contains_key(page));
             return queue;
         }
         let thumbs = self.thumbnail_requests(info, ppp);

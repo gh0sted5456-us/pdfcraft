@@ -792,9 +792,9 @@ comment menu	Edit	సవరించు
 	Check for updates	అప్‌డేట్‌ల కోసం తనిఖీ చేయి
 	No check has run yet.	ఇంకా తనిఖీ జరగలేదు.
 	Checking for a newer version…	కొత్త వెర్షన్ కోసం తనిఖీ చేస్తోంది…
-	PdfCraft {v} is available.	PdfCraft {v} అందుబాటులో ఉంది.
+	{app} {v} is available.	{app} {v} అందుబాటులో ఉంది.
 	You have version {c}. Download the new version from its release page.	మీ వద్ద వెర్షన్ {c} ఉంది. కొత్త వెర్షన్‌ను దాని విడుదల పేజీ నుండి డౌన్‌లోడ్ చేసుకోండి.
-	PdfCraft {c} is up to date.	PdfCraft {c} తాజా వెర్షన్.
+	{app} {c} is up to date.	{app} {c} తాజా వెర్షన్.
 	Couldn't check for updates: {e}	అప్‌డేట్‌ల కోసం తనిఖీ చేయడం సాధ్యం కాలేదు: {e}
 	You have version {c}. All releases are listed at {page}.	మీ వద్ద వెర్షన్ {c} ఉంది. అన్ని విడుదలల జాబితా: {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	తాజా విడుదల గురించి GitHubను అడుగుతుంది. ఏదీ ఆటోమేటిక్‌గా డౌన్‌లోడ్ లేదా ఇన్‌స్టాల్ చేయబడదు.
@@ -2599,3 +2599,36 @@ animation effects	Off	ఆఫ్
 	Glass	గాజు
 	Move Tab to New Window	ట్యాబ్‌ను కొత్త విండోకు తరలించు
 	Move Tab to This Window	ట్యాబ్‌ను ఈ విండోకు తరలించండి
+	Export to Excel…	Excelగా ఎగుమతి చేయి…
+	Export to Excel	Excelగా ఎగుమతి
+	Sheets	షీట్‌లు
+	One sheet for the whole document	మొత్తం పత్రానికి ఒకే షీట్
+	A table that runs across pages stays together; the pages follow one another down the sheet.	పేజీల మీదుగా సాగే పట్టిక కలిసే ఉంటుంది; పేజీలు షీట్‌లో ఒకదాని తర్వాత ఒకటి కిందికి వస్తాయి.
+	One sheet per page	ప్రతి పేజీకి ఒక షీట్
+	Each page on its own sheet, named Page 1, Page 2…	ప్రతి పేజీ దాని స్వంత షీట్‌లో, పేర్లు: Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	పట్టికలు గడులుగా మారుతాయి; సంఖ్యలు, మొత్తాలు, శాతాలు, తేదీలు Excel లెక్కించగల విలువలుగా మారి, పేజీలో ఉన్నట్లే కనిపిస్తాయి.
+	Add printer marks…	ప్రింటర్ గుర్తులను జోడించు…
+	Remove printer marks	ప్రింటర్ గుర్తులను తొలగించు
+	Marks	గుర్తులు
+	All marks	అన్ని గుర్తులు
+	Trim marks	ట్రిమ్ గుర్తులు
+	Bleed marks	బ్లీడ్ గుర్తులు
+	Registration marks	రిజిస్ట్రేషన్ గుర్తులు
+	Colour bars	రంగు పట్టీలు
+	Page information	పేజీ సమాచారం
+	Line weight	గీత మందం
+	Widen the page to make room	స్థలం కోసం పేజీని వెడల్పు చేయండి
+	Room on each side	ప్రతి వైపు స్థలం
+	The trim box is kept where it is, so the printed page cuts the same.	ట్రిమ్ బాక్స్ ఉన్నచోటే ఉంటుంది, కాబట్టి ముద్రించిన పేజీ అలాగే కత్తిరించబడుతుంది.
+	Printer marks added	ప్రింటర్ గుర్తులు జోడించబడ్డాయి
+	printer marks	ప్రింటర్ గుర్తులు
+	Narrower than	దీని కంటే సన్నని
+	New width	కొత్త వెడల్పు
+	Zero-width lines always count as narrower.	సున్నా వెడల్పు గీతలు ఎల్లప్పుడూ సన్ననివిగా లెక్కించబడతాయి.
+	Also	అలాగే
+	Type 3 font glyphs	Type 3 ఫాంట్ గ్లిఫ్‌లు
+	Pattern strokes	ప్యాటర్న్ స్ట్రోక్‌లు
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Type 3 గ్లిఫ్‌లు మరియు టైలింగ్ ప్యాటర్న్‌ల లోపల గీసిన గీతలు; డిఫాల్ట్‌గా ఆఫ్.
+	No hairlines found on those pages	ఆ పేజీలలో హెయిర్‌లైన్‌లు కనబడలేదు
+	Fixed {n} hairlines on {p} pages	{p} పేజీలలో {n} హెయిర్‌లైన్‌లు సరిచేయబడ్డాయి
+	Fix hairlines…	అతి సన్నని గీతలను సరిచేయి…

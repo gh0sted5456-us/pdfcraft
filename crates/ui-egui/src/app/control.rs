@@ -169,10 +169,16 @@ impl PdfCraftApp {
                     "header-footer" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::HeaderFooter)),
                     "watermark" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::Watermark)),
                     "background" => Some(Dialog::Marks(pdfcraft_engine::MarkKind::Background)),
+                    "printer-marks" => Some(Dialog::PrinterMarks),
+                    "page-properties" => {
+                        self.execute("page.properties");
+                        self.dialog
+                    }
                     "export-image" => Some(Dialog::Export(export_ui::ExportKind::Image)),
                     "word-count" => Some(Dialog::WordCount),
                     "export-text" => Some(Dialog::Export(export_ui::ExportKind::Text)),
                     "export-all-images" => Some(Dialog::Export(export_ui::ExportKind::AllImages)),
+                    "export-excel" => Some(Dialog::Export(export_ui::ExportKind::Excel)),
                     "accessibility-options" => Some(Dialog::AccessibilityOptions),
                     "recognize-text" => Some(Dialog::RecognizeText),
                     "js-console" => Some(Dialog::JsConsole),
@@ -206,6 +212,12 @@ impl PdfCraftApp {
                         // Same path as the menu, so the page range is seeded.
                         self.execute("page.number");
                         Some(Dialog::NumberPages)
+                    }
+                    "fix-hairlines" => {
+                        // Through the command, so it is refused with no document or none that
+                        // can be modified, as the menu is.
+                        self.execute("prepress.hairlines");
+                        return Ok(());
                     }
                     "none" => None,
                     _ => Some(Dialog::About),
@@ -427,6 +439,13 @@ impl PdfCraftApp {
                     "true" => true,
                     "false" => false,
                     _ => return Err("secured-notice must be true or false".into()),
+                };
+            }
+            ("show-community", _) => {
+                self.show_community = match value {
+                    "true" => true,
+                    "false" => false,
+                    _ => return Err("show-community must be true or false".into()),
                 };
             }
             ("system-title-bar", _) => {

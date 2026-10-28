@@ -774,9 +774,9 @@
 	Check for updates	Жаңартуларды тексеру
 	No check has run yet.	Тексеру әлі жүргізілген жоқ.
 	Checking for a newer version…	Жаңа нұсқа бар ма екені тексерілуде…
-	PdfCraft {v} is available.	PdfCraft {v} қолжетімді.
+	{app} {v} is available.	{app} {v} қолжетімді.
 	You have version {c}. Download the new version from its release page.	Сізде {c} нұсқасы бар. Жаңа нұсқаны шығарылым бетінен жүктеп алыңыз.
-	PdfCraft {c} is up to date.	PdfCraft {c} нұсқасы ең соңғы.
+	{app} {c} is up to date.	{app} {c} нұсқасы ең соңғы.
 	Couldn't check for updates: {e}	Жаңартуларды тексеру мүмкін болмады: {e}
 	You have version {c}. All releases are listed at {page}.	Сізде {c} нұсқасы бар. Барлық шығарылымдар {page} бетінде көрсетілген.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	GitHub-тан соңғы шығарылымды сұрайды. Ештеңе автоматты түрде жүктелмейді немесе орнатылмайды.
@@ -2697,3 +2697,36 @@ animation effects	Off	Өшірулі
 	Glass	Шыны
 	Move Tab to New Window	Қойындыны жаңа терезеге жылжыту
 	Move Tab to This Window	Қойындыны осы терезеге жылжыту
+	Export to Excel…	Excel-ге экспорттау…
+	Export to Excel	Excel-ге экспорттау
+	Sheets	Парақтар
+	One sheet for the whole document	Бүкіл құжатқа бір парақ
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Бірнеше бетке созылған кесте біртұтас қалады; беттер парақта бірінен соң бірі төмен қарай жалғасады.
+	One sheet per page	Әр бетке бір парақ
+	Each page on its own sheet, named Page 1, Page 2…	Әр бет өз парағында, атауы Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Кестелер ұяшықтарға айналады; сандар, сомалар, пайыздар мен күндер Excel есептей алатын мәндерге айналады және бетте көрінгендей көрсетіледі.
+	Add printer marks…	Басып шығару белгілерін қосу…
+	Remove printer marks	Басып шығару белгілерін алып тастау
+	Marks	Белгілер
+	All marks	Барлық белгілер
+	Trim marks	Кесу белгілері
+	Bleed marks	Шығыңқы жиек белгілері
+	Registration marks	Тіркеу белгілері
+	Colour bars	Түс жолақтары
+	Page information	Бет туралы ақпарат
+	Line weight	Сызық қалыңдығы
+	Widen the page to make room	Орын босату үшін бетті кеңейту
+	Room on each side	Әр жақтағы орын
+	The trim box is kept where it is, so the printed page cuts the same.	Кесу жақтауы орнында қалады, сондықтан басылған бет сол күйінде кесіледі.
+	Printer marks added	Басып шығару белгілері қосылды
+	printer marks	басып шығару белгілері
+	Narrower than	Мынадан жіңішке
+	New width	Жаңа ені
+	Zero-width lines always count as narrower.	Ені нөл сызықтар әрқашан жіңішке саналады.
+	Also	Сондай-ақ
+	Type 3 font glyphs	Type 3 қаріп глифтері
+	Pattern strokes	Өрнек штрихтары
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Type 3 глифтері мен қайталанатын өрнектер ішінде сызылған сызықтар; әдепкі бойынша өшірулі.
+	No hairlines found on those pages	Бұл беттерде жіңішке сызықтар табылмады
+	Fixed {n} hairlines on {p} pages	{p} бетте {n} жіңішке сызық түзетілді
+	Fix hairlines…	Жіңішке сызықтарды түзету…

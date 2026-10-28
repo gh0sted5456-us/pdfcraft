@@ -815,9 +815,9 @@
 	Check for updates	Перевірити оновлення
 	No check has run yet.	Перевірку ще не виконано.
 	Checking for a newer version…	Перевірка наявності новішої версії…
-	PdfCraft {v} is available.	Доступна версія PdfCraft {v}.
+	{app} {v} is available.	Доступна версія {app} {v}.
 	You have version {c}. Download the new version from its release page.	У вас версія {c}. Завантажте нову версію зі сторінки випуску.
-	PdfCraft {c} is up to date.	Ваша версія PdfCraft {c} актуальна.
+	{app} {c} is up to date.	Ваша версія {app} {c} актуальна.
 	Couldn't check for updates: {e}	Не вдалося перевірити оновлення: {e}
 	You have version {c}. All releases are listed at {page}.	У вас версія {c}. Усі випуски наведено на {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	Запитує в GitHub найновіший випуск. Нічого не завантажується й не встановлюється автоматично.
@@ -2725,3 +2725,36 @@ animation effects	Off	Вимкнено
 	Glass	Скло
 	Move Tab to New Window	Перемістити вкладку в нове вікно
 	Move Tab to This Window	Перемістити вкладку до цього вікна
+	Export to Excel…	Експортувати в Excel…
+	Export to Excel	Експортувати в Excel
+	Sheets	Аркуші
+	One sheet for the whole document	Один аркуш на весь документ
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Таблиця, що йде через кілька сторінок, лишається цілою; сторінки йдуть одна за одною вниз аркушем.
+	One sheet per page	Аркуш на кожну сторінку
+	Each page on its own sheet, named Page 1, Page 2…	Кожна сторінка на власному аркуші з назвою Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Таблиці стають клітинками; числа, суми, відсотки й дати стають значеннями, з якими Excel може рахувати, і виглядають як на сторінці.
+	Add printer marks…	Додати друкарські позначки…
+	Remove printer marks	Вилучити друкарські позначки
+	Marks	Позначки
+	All marks	Усі позначки
+	Trim marks	Позначки обрізання
+	Bleed marks	Позначки випуску під обріз
+	Registration marks	Приводні позначки
+	Colour bars	Кольорові шкали
+	Page information	Відомості про сторінку
+	Line weight	Товщина лінії
+	Widen the page to make room	Розширити сторінку, щоб звільнити місце
+	Room on each side	Місце з кожного боку
+	The trim box is kept where it is, so the printed page cuts the same.	Рамка обрізання лишається на місці, тож надрукована сторінка ріжеться так само.
+	Printer marks added	Друкарські позначки додано
+	printer marks	друкарські позначки
+	Narrower than	Тонші за
+	New width	Нова товщина
+	Zero-width lines always count as narrower.	Лінії нульової товщини завжди вважаються тоншими.
+	Also	Також
+	Type 3 font glyphs	Гліфи шрифтів Type 3
+	Pattern strokes	Штрихи візерунків
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Лінії, намальовані всередині гліфів Type 3 і мозаїчних візерунків; типово вимкнено.
+	No hairlines found on those pages	На цих сторінках тонких ліній не знайдено
+	Fixed {n} hairlines on {p} pages	Виправлено {n} тонких ліній на {p} сторінках
+	Fix hairlines…	Виправити надтонкі лінії…

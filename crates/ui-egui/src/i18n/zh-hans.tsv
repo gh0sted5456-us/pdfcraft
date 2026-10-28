@@ -486,9 +486,9 @@
 	Check for updates	检查更新
 	No check has run yet.	尚未运行检查。
 	Checking for a newer version…	正在检查新版本…
-	PdfCraft {v} is available.	PdfCraft {v} 可用。
+	{app} {v} is available.	{app} {v} 可用。
 	You have version {c}. Download the new version from its release page.	当前版本为 {c}。请从其发布页面下载新版本。
-	PdfCraft {c} is up to date.	PdfCraft {c} 已是最新。
+	{app} {c} is up to date.	{app} {c} 已是最新。
 	Couldn't check for updates: {e}	无法检查更新：{e}
 	You have version {c}. All releases are listed at {page}.	当前版本为 {c}。所有版本列在 {page}。
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	向 GitHub 查询最新版本。不会自动下载或安装任何内容。
@@ -2662,3 +2662,36 @@ animation effects	Off	关
 	Glass	玻璃
 	Move Tab to New Window	将标签页移至新窗口
 	Move Tab to This Window	将标签页移到此窗口
+	Export to Excel…	导出为 Excel…
+	Export to Excel	导出为 Excel
+	Sheets	工作表
+	One sheet for the whole document	整个文档一个工作表
+	A table that runs across pages stays together; the pages follow one another down the sheet.	跨页的表格保持完整；各页在工作表中依次向下排列。
+	One sheet per page	每页一个工作表
+	Each page on its own sheet, named Page 1, Page 2…	每页单独一个工作表，名为 Page 1、Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	表格变为单元格；数字、金额、百分比和日期变为 Excel 可以计算的值，显示与页面相同。
+	Add printer marks…	添加打印标记…
+	Remove printer marks	移除打印标记
+	Marks	标记
+	All marks	所有标记
+	Trim marks	裁切标记
+	Bleed marks	出血标记
+	Registration marks	套准标记
+	Colour bars	色条
+	Page information	页面信息
+	Line weight	线条粗细
+	Widen the page to make room	加宽页面以留出空间
+	Room on each side	每侧空间
+	The trim box is kept where it is, so the printed page cuts the same.	裁切框保持不变，打印页面的裁切位置相同。
+	Printer marks added	已添加打印标记
+	printer marks	打印标记
+	Narrower than	细于
+	New width	新宽度
+	Zero-width lines always count as narrower.	零宽度的线始终视为更细。
+	Also	同时
+	Type 3 font glyphs	Type 3 字体字形
+	Pattern strokes	图案描边
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	绘制在 Type 3 字形和平铺图案内部的线；默认关闭。
+	No hairlines found on those pages	这些页面上未找到细线
+	Fixed {n} hairlines on {p} pages	已修复 {p} 页上的 {n} 条细线
+	Fix hairlines…	修复细线…

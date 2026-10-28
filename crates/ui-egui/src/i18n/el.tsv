@@ -395,9 +395,9 @@
 	Save Image As…	Αποθήκευση εικόνας ως…
 	No check has run yet.	Δεν έχει πραγματοποιηθεί ακόμη έλεγχος.
 	Checking for a newer version…	Έλεγχος για νεότερη έκδοση…
-	PdfCraft {v} is available.	Η έκδοση {v} του PdfCraft είναι διαθέσιμη.
+	{app} {v} is available.	Η έκδοση {v} του {app} είναι διαθέσιμη.
 	You have version {c}. Download the new version from its release page.	Έχετε την έκδοση {c}. Κάντε λήψη της νέας έκδοσης από τη σελίδα εκδόσεών της.
-	PdfCraft {c} is up to date.	Το PdfCraft {c} είναι ενημερωμένο.
+	{app} {c} is up to date.	Το {app} {c} είναι ενημερωμένο.
 	Couldn't check for updates: {e}	Δεν ήταν δυνατός ο έλεγχος για ενημερώσεις: {e}
 	You have version {c}. All releases are listed at {page}.	Έχετε την έκδοση {c}. Όλες οι εκδόσεις βρίσκονται στη διεύθυνση {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	Αναζητά την τελευταία έκδοση στο GitHub. Δεν γίνεται αυτόματα λήψη ή εγκατάσταση.
@@ -2698,3 +2698,36 @@ animation effects	Off	Ανενεργά
 	Glass	Γυαλί
 	Move Tab to New Window	Μετακίνηση καρτέλας σε νέο παράθυρο
 	Move Tab to This Window	Μετακίνηση καρτέλας σε αυτό το παράθυρο
+	Export to Excel…	Εξαγωγή σε Excel…
+	Export to Excel	Εξαγωγή σε Excel
+	Sheets	Φύλλα
+	One sheet for the whole document	Ένα φύλλο για όλο το έγγραφο
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Ένας πίνακας που συνεχίζεται σε πολλές σελίδες μένει ενωμένος· οι σελίδες ακολουθούν η μία μετά την άλλη στο φύλλο.
+	One sheet per page	Ένα φύλλο ανά σελίδα
+	Each page on its own sheet, named Page 1, Page 2…	Κάθε σελίδα στο δικό της φύλλο, με όνομα Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Οι πίνακες γίνονται κελιά· οι αριθμοί, τα ποσά, τα ποσοστά και οι ημερομηνίες γίνονται τιμές με τις οποίες το Excel μπορεί να υπολογίζει, όπως φαίνονται στη σελίδα.
+	Add printer marks…	Προσθήκη σημαδιών εκτύπωσης…
+	Remove printer marks	Αφαίρεση σημαδιών εκτύπωσης
+	Marks	Σημάδια
+	All marks	Όλα τα σημάδια
+	Trim marks	Σημάδια ξακρίσματος
+	Bleed marks	Σημάδια ξεχειλώματος
+	Registration marks	Σημάδια σύμπτωσης
+	Colour bars	Χρωματικές ράβδοι
+	Page information	Πληροφορίες σελίδας
+	Line weight	Πάχος γραμμής
+	Widen the page to make room	Διεύρυνση της σελίδας για χώρο
+	Room on each side	Χώρος σε κάθε πλευρά
+	The trim box is kept where it is, so the printed page cuts the same.	Το πλαίσιο ξακρίσματος μένει όπου είναι, ώστε η τυπωμένη σελίδα να κόβεται ίδια.
+	Printer marks added	Προστέθηκαν σημάδια εκτύπωσης
+	printer marks	σημάδια εκτύπωσης
+	Narrower than	Στενότερες από
+	New width	Νέο πλάτος
+	Zero-width lines always count as narrower.	Οι γραμμές μηδενικού πλάτους μετρούν πάντα ως στενότερες.
+	Also	Επίσης
+	Type 3 font glyphs	Γλυφές γραμματοσειρών Type 3
+	Pattern strokes	Πινελιές μοτίβων
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Γραμμές σχεδιασμένες μέσα σε γλυφές Type 3 και μοτίβα πλακιδίων· απενεργοποιημένο από προεπιλογή.
+	No hairlines found on those pages	Δεν βρέθηκαν λεπτές γραμμές σε αυτές τις σελίδες
+	Fixed {n} hairlines on {p} pages	Διορθώθηκαν {n} λεπτές γραμμές σε {p} σελίδες
+	Fix hairlines…	Διόρθωση πολύ λεπτών γραμμών…

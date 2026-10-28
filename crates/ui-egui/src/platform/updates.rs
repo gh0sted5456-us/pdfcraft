@@ -181,7 +181,7 @@ pub(crate) fn dialog(app: &mut PdfCraftApp, ctx: &egui::Context) {
             }
             Check::Done(Ok(r)) if is_newer(&r.version, current) => {
                 let version = version_name(&r.version);
-                ui.label(egui::RichText::new(crate::i18n::fmt(tl!("PdfCraft {v} is available."), &[("v", version)])).strong());
+                ui.label(egui::RichText::new(crate::i18n::fmt(tl!("{app} {v} is available."), &[("app", crate::APP_NAME), ("v", version)])).strong());
                 ui.label(
                     egui::RichText::new(crate::i18n::fmt(
                         tl!("You have version {c}. Download the new version from its release page."),
@@ -192,7 +192,7 @@ pub(crate) fn dialog(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 download = Some(r.url.clone());
             }
             Check::Done(Ok(_)) => {
-                ui.label(crate::i18n::fmt(tl!("PdfCraft {c} is up to date."), &[("c", current)]));
+                ui.label(crate::i18n::fmt(tl!("{app} {c} is up to date."), &[("app", crate::APP_NAME), ("c", current)]));
             }
             Check::Done(Err(e)) => {
                 ui.label(crate::i18n::fmt(tl!("Couldn't check for updates: {e}"), &[("e", &e.to_string())]));
@@ -237,7 +237,7 @@ pub(crate) fn dialog(app: &mut PdfCraftApp, ctx: &egui::Context) {
 
 /// Fork release status inside the bounded Preferences pane.
 pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut PdfCraftApp) {
-    ui.label(egui::RichText::new(format!("PdfCraft {}", env!("CARGO_PKG_VERSION"))).strong());
+    ui.label(egui::RichText::new(format!("{} {}", crate::APP_NAME, env!("CARGO_PKG_VERSION"))).strong());
     ui.label("Personal fork · gh0sted5456-us/pdfcraft");
     ui.add_space(10.0);
     #[cfg(not(target_arch = "wasm32"))]

@@ -912,9 +912,9 @@ key	Space	Mezerník
 	Check for updates	Zkontrolovat aktualizace
 	No check has run yet.	Kontrola zatím neproběhla.
 	Checking for a newer version…	Hledání novější verze…
-	PdfCraft {v} is available.	Je k dispozici PdfCraft {v}.
+	{app} {v} is available.	Je k dispozici {app} {v}.
 	You have version {c}. Download the new version from its release page.	Máte verzi {c}. Novou verzi si stáhněte z její stránky s vydáním.
-	PdfCraft {c} is up to date.	PdfCraft {c} je aktuální.
+	{app} {c} is up to date.	{app} {c} je aktuální.
 	Couldn't check for updates: {e}	Aktualizace nelze zkontrolovat: {e}
 	You have version {c}. All releases are listed at {page}.	Máte verzi {c}. Všechna vydání najdete na {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	Zjistí na GitHubu nejnovější vydání. Nic se automaticky nestahuje ani neinstaluje.
@@ -3004,3 +3004,36 @@ certificate	Version	Verze
 	Glass	Sklo
 	Move Tab to New Window	Přesunout kartu do nového okna
 	Move Tab to This Window	Přesunout kartu do tohoto okna
+	Export to Excel…	Exportovat do formátu Excel…
+	Export to Excel	Exportovat do formátu Excel
+	Sheets	Listy
+	One sheet for the whole document	Jeden list pro celý dokument
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Tabulka, která pokračuje přes více stránek, zůstane pohromadě; stránky následují jedna za druhou dolů po listu.
+	One sheet per page	Jeden list na stránku
+	Each page on its own sheet, named Page 1, Page 2…	Každá stránka na vlastním listu s názvem Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Z tabulek se stanou buňky; čísla, částky, procenta a data se stanou hodnotami, se kterými Excel umí počítat, zobrazenými jako na stránce.
+	Add printer marks…	Přidat tiskové značky…
+	Remove printer marks	Odebrat tiskové značky
+	Marks	Značky
+	All marks	Všechny značky
+	Trim marks	Ořezové značky
+	Bleed marks	Značky spadávky
+	Registration marks	Soutiskové značky
+	Colour bars	Barevné pruhy
+	Page information	Informace o stránce
+	Line weight	Tloušťka čáry
+	Widen the page to make room	Rozšířit stránku, aby bylo místo
+	Room on each side	Místo na každé straně
+	The trim box is kept where it is, so the printed page cuts the same.	Ořezový rámeček zůstává na místě, takže se vytištěná stránka ořízne stejně.
+	Printer marks added	Tiskové značky přidány
+	printer marks	tiskové značky
+	Narrower than	Užší než
+	New width	Nová šířka
+	Zero-width lines always count as narrower.	Čáry s nulovou šířkou se vždy počítají jako užší.
+	Also	Také
+	Type 3 font glyphs	Glyfy písem Type 3
+	Pattern strokes	Tahy vzorů
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Čáry kreslené uvnitř glyfů Type 3 a dlaždicových vzorů; ve výchozím stavu vypnuto.
+	No hairlines found on those pages	Na těchto stránkách nebyly nalezeny vlasové čáry
+	Fixed {n} hairlines on {p} pages	Opraveno {n} vlasových čar na {p} stránkách
+	Fix hairlines…	Opravit vlasové čáry…

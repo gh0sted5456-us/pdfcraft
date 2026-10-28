@@ -10,9 +10,11 @@ use crate::{CloseRequest, Dialog, PdfCraftApp, PropsTab, panels::human_size, wid
 pub(super) mod appearance;
 pub(super) mod comment_props;
 pub(super) mod credits;
+pub(super) mod hairlines_ui;
 pub(super) mod marks_ui;
 pub(super) mod pageboxes;
 pub(super) mod palette;
+pub(super) mod printer_marks_ui;
 mod prompts;
 pub(super) mod protect;
 pub(super) mod standards_ui;
@@ -97,6 +99,8 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut protect_now = false;
     let mut certificate_now = false;
     let mut boxes_now = false;
+    let mut printer_marks_now = false;
+    let mut fix_hairlines_now = false;
     let mut marks_now = false;
     let mut export_now = false;
     let mut props_now = false;
@@ -111,6 +115,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut summarize_now = false;
     let mut optimize_now = false;
     let mut duplicate_now: Option<Edit> = None;
+    let mut page_props_now: Option<(pdfcraft_engine::DocId, Edit)> = None;
     let mut replace_now = false;
     let mut open_revision: Option<usize> = None;
     let mut a11y_now = false;
@@ -161,6 +166,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     ui.add_space(10.0);
                     for (label, command) in [
                         ("WordCraft / Microsoft Word (.docx)", "export.docx"),
+                        ("Excel spreadsheet (.xlsx)", "export.xlsx"),
                         ("PowerPoint (.pptx)", "export.pptx"),
                         ("Rich Text (.rtf)", "export.rtf"),
                         ("Web page (.html)", "export.html"),
@@ -948,6 +954,19 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 });
                 return;
             }
+            Dialog::PageProps => {
+                let Some(d) = app.page_props_draft.as_mut() else {
+                    close = true;
+                    return;
+                };
+                let (ok, cancel) = crate::organize_panel::page_props_body(ui, d);
+                // An order every page already has adds no undo step.
+                if ok && let Some(order) = d.tab_order.filter(|o| d.before != Some(*o)) {
+                    page_props_now = Some((d.doc, Edit::SetTabOrder { pages: d.pages.clone(), order }));
+                }
+                close = ok || cancel;
+                return;
+            }
             Dialog::DuplicateField => {
                 let n = app.active_ids().and_then(|(_, id)| app.session.get(id)).map_or(1, |d| d.info.pages.len());
                 let Some(d) = app.duplicate_draft.as_mut() else {
@@ -1313,6 +1332,18 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 close = apply || cancel;
                 return;
             }
+            Dialog::PrinterMarks => {
+                let (go, cancel) = crate::printer_marks_ui::body(ui, app, &t);
+                printer_marks_now = go;
+                close = go || cancel;
+                return;
+            }
+            Dialog::FixHairlines => {
+                let (go, cancel) = crate::hairlines_ui::body(ui, app, &t);
+                fix_hairlines_now = go;
+                close = go || cancel;
+                return;
+            }
             Dialog::NumberPages => {
                 use pdfcraft_engine::LabelStyle as L;
                 crate::widgets::dialog_heading(ui, tl!("Number pages"));
@@ -1454,14 +1485,14 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 ui.vertical_centered(|ui| {
                     widgets::app_icon(ui, 40.0);
                 });
-                widgets::dialog_heading(ui, "PdfCraft");
+                widgets::dialog_heading(ui, crate::APP_NAME);
                 ui.vertical_centered(|ui| {
                     ui.label(crate::i18n::fmt(tl!("Version {v}"), &[("v", &pdfcraft_engine::build_info::version())]));
                 });
                 ui.add_space(8.0);
                 let tab_id = egui::Id::unique("about_tab");
                 let mut tab = ui.data_mut(|d| d.get_temp::<u8>(tab_id)).unwrap_or(0);
-                ui.horizontal_wrapped(|ui| {
+                widgets::centered_row(ui, "about-tabs", egui::Layout::left_to_right(egui::Align::Center), |ui| {
                     for (i, label) in ["About", "Contributors", "Models"].into_iter().enumerate() {
                         let i = i as u8;
                         if widgets::mode_tab(ui, tl!(label), tab == i).clicked() {
@@ -1475,22 +1506,24 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                     1 => crate::credits::contributors_ui(ui),
                     2 => crate::credits::models_ui(ui),
                     _ => {
-                        ui.add_space(6.0);
-                        ui.label(tl!("A clean-room, open-source PDF application written in Rust. MIT OR Apache-2.0."));
-                        ui.label(
+                        ui.vertical_centered(|ui| {
+                            ui.add_space(6.0);
+                            ui.label(tl!("A clean-room, open-source PDF application written in Rust. MIT OR Apache-2.0."));
+                            ui.label(
                             egui::RichText::new(
                                 "Rendering: hayro (bootstrap) · UI: egui · Icons: Lucide (ISC) · Fonts: Inter, JetBrains Mono, Dancing Script (OFL)",
                             )
                             .color(t.text_muted)
                             .small(),
                         );
-                        ui.add_space(12.0);
-                        ui.label("Personal build by @gh0sted5456-us");
-                        ui.label(egui::RichText::new("Based on PdfCraft by the ArtCraft team and community.").color(t.text_muted));
-                        ui.add_space(6.0);
-                        if let Some(cmd) = widgets::community_links(ui) {
-                            link_command = Some(cmd);
-                        }
+                            ui.add_space(12.0);
+                            ui.label("Personal build by @gh0sted5456-us");
+                            ui.label(egui::RichText::new("Based on PdfCraft by the ArtCraft team and community.").color(t.text_muted));
+                            ui.add_space(6.0);
+                            if let Some(cmd) = widgets::community_links(ui, true) {
+                                link_command = Some(cmd);
+                            }
+                        });
                     }
                 });
             }
@@ -1595,6 +1628,12 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     }
     if let Some(e) = duplicate_now {
         app.duplicate_draft = None;
+        app.apply_edit(e);
+    }
+    // Another document became active while the dialog was open: its pages are not the ones chosen.
+    if let Some((doc, e)) = page_props_now
+        && app.active_ids().is_some_and(|(_, id)| id == doc)
+    {
         app.apply_edit(e);
     }
     if extract_now {
@@ -1710,6 +1749,12 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     }
     if certificate_now {
         app.apply_certificate_draft();
+    }
+    if printer_marks_now {
+        app.add_printer_marks();
+    }
+    if fix_hairlines_now {
+        app.fix_hairlines();
     }
     if apply_number && let Some(edit) = number_now {
         app.apply_edit(edit);

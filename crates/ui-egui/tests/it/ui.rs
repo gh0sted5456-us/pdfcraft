@@ -37,7 +37,7 @@ fn harness(setup: impl FnOnce(&mut PdfCraftApp) + 'static) -> Harness<'static, P
 #[test]
 fn home_shows_welcome_and_tools() {
     let h = harness(|_| {});
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
     assert!(h.query_all_by_label("Organize pages").count() >= 2, "tool list + home card");
     h.get_by_label("Open file");
 }
@@ -241,7 +241,7 @@ fn another_tab_coming_forward_puts_the_expanded_all_tools_away() {
     h.state_mut().set_option("home", "").unwrap();
     h.run_steps(3);
     assert!(!h.state().all_tools_full);
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
     // Another document's tab.
     let mut h = harness(|app| {
         app.open_bytes("one.pdf", None, FIXTURE.to_vec()).expect("fixture opens");
@@ -261,7 +261,7 @@ fn going_home_with_no_document_puts_the_expanded_all_tools_away() {
     h.state_mut().set_option("home", "").unwrap();
     h.run_steps(3);
     assert!(!h.state().all_tools_full);
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
 }
 
 #[test]
@@ -636,6 +636,7 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
     // buttons on the right, Open sits after them, and no arrows show.
     let name = |i: usize| format!("Statement {i} for the office records, scanned.pdf");
     let mut h = harness(move |app| {
+        app.show_community = true;
         for i in 0..5 {
             app.open_bytes(&name(i), None, FIXTURE.to_vec()).unwrap();
         }
@@ -683,11 +684,12 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
 #[test]
 fn the_integrated_title_bar_is_the_traffic_light_band() {
     let h = harness(|app| {
+        app.show_community = true;
         app.integrated_titlebar = true;
         app.open_bytes("band.pdf", None, FIXTURE.to_vec()).unwrap();
     });
     let band = 28.0;
-    for label in ["Home", "band.pdf", "Open", "Discord", "Keyboard shortcuts"] {
+    for label in ["Home", "band.pdf", "Open", "ArtCraft Community", "Keyboard shortcuts"] {
         let r = h.get_by_label(label).rect();
         assert!(r.top() >= 0.0 && r.bottom() <= band, "{label}: {r:?} inside the {band} pt title bar");
         assert!(r.height() >= 24.0, "{label}: {r:?} stays clickable");
@@ -1412,7 +1414,7 @@ fn closing_the_last_active_tab_selects_the_previous_one_then_home() {
         assert!(app.session.get(ids[removed]).is_none());
     }
     assert_eq!(h.state().active, None);
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
 }
 
 #[test]
@@ -2103,6 +2105,8 @@ fn glass_opacity_sliders_update_three_backdrops_independently() {
     });
     h.run_steps(8);
     for (label, key) in [("Application opacity", "opacity"), ("Popup opacity", "popup_opacity"), ("Tool panes opacity", "tool_opacity")] {
+        h.get_by_role_and_label(egui::accesskit::Role::Slider, label).scroll_to_me();
+        h.run_steps(4);
         let before = serde_json::to_value(h.state().glass).unwrap();
         let rect = h.get_by_role_and_label(egui::accesskit::Role::Slider, label).rect();
         assert!(rect.width() >= 140.0, "{label} needs room to drag: {rect:?}");

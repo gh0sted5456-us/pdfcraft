@@ -773,9 +773,9 @@
 	Check for updates	Güncellemeleri denetle
 	No check has run yet.	Henüz denetim yapılmadı.
 	Checking for a newer version…	Daha yeni bir sürüm denetleniyor…
-	PdfCraft {v} is available.	PdfCraft {v} kullanılabilir.
+	{app} {v} is available.	{app} {v} kullanılabilir.
 	You have version {c}. Download the new version from its release page.	{c} sürümüne sahipsiniz. Yeni sürümü sürüm sayfasından indirin.
-	PdfCraft {c} is up to date.	PdfCraft {c} güncel.
+	{app} {c} is up to date.	{app} {c} güncel.
 	Couldn't check for updates: {e}	Güncellemeler denetlenemedi: {e}
 	You have version {c}. All releases are listed at {page}.	{c} sürümüne sahipsiniz. Tüm sürümler {page} adresinde listelenmiştir.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	En son sürüm için GitHub'ı sorgular. Hiçbir şey otomatik olarak indirilmez veya kurulmaz.
@@ -2695,3 +2695,36 @@ animation effects	Off	Kapalı
 	Glass	Cam
 	Move Tab to New Window	Sekmeyi yeni pencereye taşı
 	Move Tab to This Window	Sekmeyi Bu Pencereye Taşı
+	Export to Excel…	Excel'e dışa aktar…
+	Export to Excel	Excel'e Dışa Aktar
+	Sheets	Sayfalar
+	One sheet for the whole document	Tüm belge için tek sayfa
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Birden çok sayfaya yayılan bir tablo bir arada kalır; sayfalar çalışma sayfasında alt alta sıralanır.
+	One sheet per page	Her sayfa için bir çalışma sayfası
+	Each page on its own sheet, named Page 1, Page 2…	Her sayfa kendi çalışma sayfasında, adları: Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Tablolar hücrelere dönüşür; sayılar, tutarlar, yüzdeler ve tarihler Excel'in hesaplayabileceği değerlere dönüşür ve sayfadaki gibi görünür.
+	Add printer marks…	Yazıcı işaretleri ekle…
+	Remove printer marks	Yazıcı işaretlerini kaldır
+	Marks	İşaretler
+	All marks	Tüm işaretler
+	Trim marks	Kesim işaretleri
+	Bleed marks	Taşma payı işaretleri
+	Registration marks	Hizalama işaretleri
+	Colour bars	Renk çubukları
+	Page information	Sayfa bilgisi
+	Line weight	Çizgi kalınlığı
+	Widen the page to make room	Yer açmak için sayfayı genişlet
+	Room on each side	Her kenarda boşluk
+	The trim box is kept where it is, so the printed page cuts the same.	Kesim kutusu yerinde kalır, böylece basılan sayfa aynı şekilde kesilir.
+	Printer marks added	Yazıcı işaretleri eklendi
+	printer marks	yazıcı işaretleri
+	Narrower than	Şundan daha ince
+	New width	Yeni genişlik
+	Zero-width lines always count as narrower.	Sıfır genişlikli çizgiler her zaman daha ince sayılır.
+	Also	Ayrıca
+	Type 3 font glyphs	Type 3 yazı tipi glifleri
+	Pattern strokes	Desen çizgileri
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Type 3 glifleri ve döşeme desenleri içinde çizilen çizgiler; varsayılan olarak kapalı.
+	No hairlines found on those pages	Bu sayfalarda ince çizgi bulunamadı
+	Fixed {n} hairlines on {p} pages	{p} sayfada {n} ince çizgi düzeltildi
+	Fix hairlines…	Kılcal çizgileri düzelt…

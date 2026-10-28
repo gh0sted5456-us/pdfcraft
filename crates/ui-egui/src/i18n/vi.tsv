@@ -904,8 +904,8 @@ theme	Appearance	Giao diện
 	Patterns (graphics objects)	Họa tiết (đối tượng đồ họa)
 	PdfCraft didn't shut down normally. These documents had changes that were autosaved:	PdfCraft không đóng bình thường. Các tài liệu này có thay đổi đã được tự động lưu:
 	PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.	PdfCraft hoạt động ngoại tuyến. Không thu thập dữ liệu sử dụng, không cần tài khoản, và không xử lý đám mây trừ khi bạn thêm nhà cung cấp.
-	PdfCraft {c} is up to date.	PdfCraft {c} đã là bản mới nhất.
-	PdfCraft {v} is available.	PdfCraft {v} đã có sẵn.
+	{app} {c} is up to date.	{app} {c} đã là bản mới nhất.
+	{app} {v} is available.	{app} {v} đã có sẵn.
 	Percentage	Phần trăm
 	Permissions password	Mật khẩu quyền hạn
 	Permitted actions after certifying	Các hành động được phép sau khi chứng nhận
@@ -2969,3 +2969,36 @@ key	Space	Space
 	Glass	Kính
 	Move Tab to New Window	Chuyển thẻ sang cửa sổ mới
 	Move Tab to This Window	Chuyển thẻ sang cửa sổ này
+	Export to Excel…	Xuất ra Excel…
+	Export to Excel	Xuất ra Excel
+	Sheets	Trang tính
+	One sheet for the whole document	Một trang tính cho toàn bộ tài liệu
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Bảng trải qua nhiều trang được giữ liền nhau; các trang nối tiếp nhau xuống dưới trang tính.
+	One sheet per page	Mỗi trang một trang tính
+	Each page on its own sheet, named Page 1, Page 2…	Mỗi trang trên một trang tính riêng, đặt tên Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Bảng trở thành các ô; số, số tiền, tỷ lệ phần trăm và ngày tháng trở thành giá trị Excel có thể tính toán, hiển thị như trên trang.
+	Add printer marks…	Thêm dấu máy in…
+	Remove printer marks	Gỡ dấu máy in
+	Marks	Dấu
+	All marks	Tất cả các dấu
+	Trim marks	Dấu xén
+	Bleed marks	Dấu tràn lề
+	Registration marks	Dấu chồng màu
+	Colour bars	Thanh màu
+	Page information	Thông tin trang
+	Line weight	Độ dày nét
+	Widen the page to make room	Mở rộng trang để có chỗ
+	Room on each side	Khoảng trống mỗi bên
+	The trim box is kept where it is, so the printed page cuts the same.	Hộp xén được giữ nguyên vị trí, nên trang in được xén như cũ.
+	Printer marks added	Đã thêm dấu máy in
+	printer marks	dấu máy in
+	Narrower than	Mảnh hơn
+	New width	Độ rộng mới
+	Zero-width lines always count as narrower.	Đường có độ rộng bằng 0 luôn được tính là mảnh hơn.
+	Also	Ngoài ra
+	Type 3 font glyphs	Glyph của phông chữ Type 3
+	Pattern strokes	Nét vẽ trong mẫu tô
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Các đường vẽ bên trong glyph Type 3 và mẫu tô lát; mặc định tắt.
+	No hairlines found on those pages	Không tìm thấy đường siêu mảnh nào trên các trang đó
+	Fixed {n} hairlines on {p} pages	Đã sửa {n} đường siêu mảnh trên {p} trang
+	Fix hairlines…	Sửa các đường siêu mảnh…

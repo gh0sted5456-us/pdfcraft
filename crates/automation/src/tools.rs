@@ -154,6 +154,17 @@ pub fn tools() -> Vec<ToolDef> {
                 "dpi": {"type":"number","minimum":72,"maximum":600},
                 "language": {"type":"string"}, "skip_text_pages": {"type":"boolean"}
             }), &["paths","out_dir","steps"])),
+        t("doc_fix_hairlines", "Fix hairlines", "Print production: strokes narrower than narrower_than points on the page (after every transformation; zero-width lines always) are given width points, in page content and form XObjects; Type 3 glyphs and tiling patterns only when asked. Returns fixed (strokes) and pages; nothing to fix gives 0 and no edit.")
+            .cmd("prepress.hairlines")
+            .with(schema(
+                json!({
+                    "doc": doc(), "pages": pages("to fix (default all)"),
+                    "narrower_than": { "type": "number", "minimum": 0, "description": "Points on the page (default 0.216)." },
+                    "width": { "type": "number", "exclusiveMinimum": 0, "description": "Points on the page (default 0.72)." },
+                    "type3": { "type": "boolean" }, "patterns": { "type": "boolean" },
+                }),
+                &["doc"],
+            )),
         t("attachment_add", "Attach a file", "Attach the file at path to the document (document level, the Attachments panel; not a paper-clip comment on a page). name defaults to the file's name; the attachment's key, unique in the document, is returned. Undoable.")
             .cmd("edit.attach")
             .with(schema(json!({"doc": doc(), "path": {"type": "string"}, "name": {"type": "string"}, "description": {"type": "string"}}), &["doc", "path"])),
@@ -526,7 +537,7 @@ pub fn tools() -> Vec<ToolDef> {
             }),
             &["doc"],
         )),
-        t("form_tab_order", "Set the tab order", "Set the tab order of pages (default all): row (top to bottom, left to right), column, structure, or annotations (unspecified). Or order tabs manually: `field` with `move` earlier|later moves that field one place on its page. Returns the resulting order of fields. Undoable.")
+        t("form_tab_order", "Set the tab order", "Set the tab order of pages (default all): row (top to bottom, left to right; right to left in a document bound on the right), column, structure, or annotations (unspecified). Or order tabs manually: `field` with `move` earlier|later moves that field one place on its page. Without `order` or `field` it only reads. Returns the resulting order of fields (`tab_order`) and each page's tab order (`page_tabs`, as Page properties ▸ Tab Order shows it). Undoable.")
             .with(schema(
                 json!({ "doc": doc(), "order": { "type": "string", "enum": ["row", "column", "structure", "annotations"] }, "pages": pages("to set (default: all)"), "field": { "type": "string" }, "move": { "type": "string", "enum": ["earlier", "later"] } }),
                 &["doc"],
@@ -1088,9 +1099,23 @@ pub fn tools() -> Vec<ToolDef> {
                 json!({ "doc": doc(), "pages": pages("to fill (default: all)"), "color": { "type": "string" }, "file": { "type": "string" }, "file_page": { "type": "integer", "minimum": 1 }, "scale": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }, "opacity": { "type": "number", "minimum": 0, "maximum": 1 }, "replace": { "type": "boolean" } }),
                 &["doc"],
             )),
-        t("doc_remove_marks", "Remove header & footer, watermark or background", "Remove every header and footer, watermark or background PdfCraft (or a compatible tool) added. Undoable.")
+        t("doc_printer_marks", "Add printer marks", "Print production: trim marks, bleed marks (dashed, at the bleed box), registration targets, colour bars and a page-information line (label, page n of N, date) drawn outside the trim box as a removable page mark; the page is widened by make_room points a side when the marks would fall outside it (the trim box stays). replace (default true) replaces marks added before. Undoable; doc_remove_marks kind printer_marks takes them off.")
+            .cmd("prepress.marks")
+            .with(schema(
+                json!({
+                    "doc": doc(), "pages": pages("the pages to mark (default all)"),
+                    "trim": { "type": "boolean" }, "bleed": { "type": "boolean" }, "registration": { "type": "boolean" }, "color_bars": { "type": "boolean" }, "page_info": { "type": "boolean" },
+                    "line_weight": { "type": "number", "exclusiveMinimum": 0, "maximum": 4, "description": "Points (Acrobat offers 0.25, 0.5 and 1)." },
+                    "make_room": { "type": "number", "description": "Points to widen the page by on each side when needed (default 36); negative leaves the page as it is." },
+                    "label": { "type": "string", "description": "The page-information line's label (default: the file's name)." },
+                    "date": { "type": "string", "description": "The page-information line's date (default: today)." },
+                    "replace": { "type": "boolean" },
+                }),
+                &["doc"],
+            )),
+        t("doc_remove_marks", "Remove header & footer, watermark, background or printer marks", "Remove every header and footer, watermark, background or printer marks PdfCraft (or a compatible tool) added. Undoable.")
             .destructive()
-            .with(schema(json!({ "doc": doc(), "kind": { "type": "string", "enum": ["header_footer", "watermark", "background"] } }), &["doc", "kind"])),
+            .with(schema(json!({ "doc": doc(), "kind": { "type": "string", "enum": ["header_footer", "watermark", "background", "printer_marks"] } }), &["doc", "kind"])),
         t("doc_export_images", "Export pages as images", "Write pages as PNG, JPEG or TIFF files (`<name>_page_<n>.png|jpg|tif`) into a folder, at a resolution (default 150 dpi). JPEG and TIFF are flattened onto white paper. A page too large for the renderer at that resolution is drawn at the most it allows, listed in `lower_dpi` ({page, dpi}). Includes unsaved edits.")
             .cmd("export.image")
             .with(schema(
@@ -1243,9 +1268,12 @@ pub fn tools() -> Vec<ToolDef> {
                 json!({ "doc": doc(), "field": { "type": "string" }, "event": { "type": "string", "enum": ["keystroke", "format", "validate", "calculate", "mouse_up"] }, "script": { "type": "string" } }),
                 &["doc", "field", "event"],
             )),
-        t("doc_export_office", "Export to Word, PowerPoint, HTML or RTF", "Export a PDF ▸ Word (.docx), PowerPoint (.pptx, one slide per page), HTML (.html, one file with images inline) or RTF (.rtf), chosen by path's extension: text, headings, bold and italic. Word uses borderless inferred tables and positioned editable shapes on pages with artwork, rotated or large text; each source page retains its size. Font matching and vector graphics remain limited. Export reads forms 50 deep and up to 50 000 a page, counting forms the page draws itself. Pages that go past either limit are listed in truncated_pages, with a warning; the text and images of the forms left out are missing.")
+        t("doc_export_office", "Export to Word, Excel, PowerPoint, HTML or RTF", "Export a PDF ▸ Word (.docx), Excel (.xlsx: detected tables as cells, paragraphs as rows; numbers, amounts, percentages and unambiguous dates become values Excel computes with, shown as on the page, anything else stays text; images left out), PowerPoint (.pptx, one slide per page), HTML (.html, one file with images inline) or RTF (.rtf), chosen by path's extension: text, headings, bold and italic. Word uses borderless inferred tables and positioned editable shapes on pages with artwork, rotated or large text; each source page retains its size. Font matching and vector graphics remain limited. Export reads forms 50 deep and up to 50 000 a page, counting forms the page draws itself. Pages that go past either limit are listed in truncated_pages, with a warning; the text and images of the forms left out are missing.")
             .cmd("export.docx")
-            .with(schema(json!({ "doc": doc(), "path": { "type": "string" } }), &["doc", "path"])),
+            .with(schema(
+                json!({ "doc": doc(), "path": { "type": "string" }, "sheets": { "type": "string", "enum": ["document", "page"], "description": "Excel only: one sheet for the whole document (default) or a sheet per page." } }),
+                &["doc", "path"],
+            )),
         t("pdfa_verify", "Verify PDF/A", "Standards ▸ Verify PDF/A compliance: the PDF/A-2b or 3b rules the document breaks (ISO 19005 clause, message, page, whether Save as PDF/A can fix it), plus what it declares.")
             .ro()
             .cmd("standards.pdfa")

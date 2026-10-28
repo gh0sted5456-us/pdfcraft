@@ -2657,7 +2657,7 @@ status = "shipped"
 commands = ["page.organize"]
 tools = []
 evidence = ["crates/ui-egui/tests/it/editing.rs::shift_click_selects_a_range_and_moves_it", "crates/ui-egui/tests/it/editing.rs::organize_tool_opens_the_overview_directly_and_can_be_reentered", "crates/ui-egui/tests/it/editing.rs::organize_opens_on_the_current_page", "crates/ui-egui/tests/it/control.rs::organize_overview_is_reachable_through_the_control_channel", "crates/ui-egui/tests/it/editing.rs::organize_panel_comes_with_the_grid_and_closes_it", "crates/ui-egui/tests/it/editing.rs::leaving_organize_goes_back_to_the_workspace_panel"]
-notes = "Opening the Organize pages tool enters the overview directly, on the current page: selected and scrolled into view (#1910). Hovered, focused and selected pages expose individual rotate/delete actions; the toolbar acts on the selection. The left panel is laid out as Acrobat's Organize pages panel: Pages selected (typed ranges, or All, Even, Odd, Landscape or Portrait pages; empty, it shows the current page), rotate, delete, extract, Insert (a blank page, pages from a file, duplicates), Replace, Split, Bates numbering, Set page boxes, Crop pages, Print pages and Page labels. Closing it, by its Close, the grid's Close or opening a page, returns to the workspace's own panel (Edit, Convert, E-Sign or All tools). Page transitions, Page templates and Page properties are listed but planned."
+notes = "Opening the Organize pages tool enters the overview directly, on the current page: selected and scrolled into view (#1910). Hovered, focused and selected pages expose individual rotate/delete actions; the toolbar acts on the selection. The left panel is laid out as Acrobat's Organize pages panel: Pages selected (typed ranges, or All, Even, Odd, Landscape or Portrait pages; empty, it shows the current page), rotate, delete, extract, Insert (a blank page, pages from a file, duplicates), Replace, Split, Bates numbering, Set page boxes, Crop pages, Print pages, Page labels and Page properties (the selected pages' tab order). Closing it, by its Close, the grid's Close or opening a page, returns to the workspace's own panel (Edit, Convert, E-Sign or All tools). Page transitions and Page templates are listed but planned."
 
 [[feature]]
 id = "organize.multi-select-pages"
@@ -3241,11 +3241,11 @@ title = "Page tab order property"
 area = "D"
 tier = "P1"
 milestone = "M6"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "shipped"
+commands = ["page.properties"]
+tools = ["form_tab_order"]
+evidence = ["crates/ui-egui/tests/it/editing.rs::page_properties_sets_the_tab_order_of_the_selected_pages", "crates/forms/src/tests.rs::tab_orders_are_read_for_each_page", "crates/forms/src/tests.rs::rows_and_columns_tab_right_to_left_in_a_document_bound_on_the_right", "crates/forms/src/tests.rs::an_indirect_tabs_value_orders_the_page", "crates/automation/tests/it/automation.rs::page_tab_orders_are_read_and_set_per_page_through_tools"]
+notes = "Organize pages ▸ Page properties ▸ Tab Order sets the selected pages' order: Use Row Order, Use Column Order, Use Document Structure or Unspecified, as one undo step. It opens on the pages' order, or with no choice when they differ. Rows and columns run right to left in a document bound on the right. form_tab_order reads each page's order (page_tabs) and sets it for chosen pages. Acrobat's Page Properties also has an Actions tab (organize.page-actions), still planned."
 
 [[feature]]
 id = "organize.page-actions"
@@ -7074,11 +7074,11 @@ title = "Export to Excel (.xlsx) with table detection"
 area = "J"
 tier = "P1"
 milestone = "M10"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "shipped"
+commands = ["export.xlsx"]
+tools = ["doc_export_office"]
+evidence = ["crates/export/src/xlsx.rs::xlsx_is_a_workbook_with_real_tables_and_numbers", "crates/export/src/xlsx.rs::xlsx_one_sheet_for_the_whole_document_or_one_per_page", "crates/export/src/xlsx.rs::xlsx_values_as_another_reader_sees_them", "crates/export/src/xlsx.rs::xlsx_stays_within_excels_limits", "crates/export/src/cells.rs::leading_zeros_and_long_numbers_stay_text", "crates/export/src/cells.rs::amounts_in_dollars_euros_and_pounds", "crates/export/src/cells.rs::unambiguous_dates_become_dates_and_the_rest_stay_text", "crates/ui-egui/tests/it/export.rs::export_to_excel_offers_the_sheets", "crates/automation/tests/it/automation.rs::exporting_to_word_html_and_rtf"]
+notes = "File > Export to Excel asks for the pages and the sheets: one sheet for the whole document (the default, named after it; a table that runs across pages stays together) or one sheet per page (Page N); doc_export_office takes the same choice as sheets document/page. The tables the Word/HTML export already detects become rows of cells (a cell spanning columns merged across them), paragraphs rows with their text in column A, in reading order; size, bold, italic and colour as cell fonts; column widths from the table grid; images left out. Each cell is read by crates/export/src/cells.rs: plain numbers become numbers; dollar, euro and pound amounts, negatives in parentheses or with a trailing minus, and percentages become numbers with a number format that shows the same text; ISO and English month-name dates become real dates; leading zeros, more than 15 significant digits and numeric dates that could be read two ways stay text. Excel limits hold (1,048,576 rows: the rest goes on on a new sheet; 16,384 columns; 32,767 characters a cell; sheet names by Excel rules); characters XML cannot hold are dropped. Written by hand like the Word export (no spreadsheet crate; calamine reads the result back in tests only). Missing: formulas, images, charts, font families and mixed formatting within a cell."
 
 [[feature]]
 id = "create.export-pptx"
@@ -8382,11 +8382,11 @@ title = "Add printer marks (crop, bleed, registration, colour bars)"
 area = "L"
 tier = "P1"
 milestone = "M11"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "shipped"
+commands = ["prepress.marks", "prepress.marks.remove"]
+tools = ["doc_printer_marks", "doc_remove_marks"]
+evidence = ["crates/edit/src/tests.rs::printer_marks_are_drawn_outside_the_trim_box_and_removable", "crates/ui-egui/tests/it/editing.rs::printer_marks_are_added_from_the_dialog_and_removed", "crates/automation/tests/it/automation.rs::printer_marks_through_tools"]
+notes = "Print production ▸ Add printer marks…: trim marks at the trim box's corners, dashed bleed marks at the bleed box, registration targets centred on each side, a C/M/Y/K + 75/50/25 % K colour bar and a page-information line (file name, page n of N, date), at 0.25/0.5/1 pt, outside the trim box as a removable page mark (Remove printer marks; adding again replaces); the page is widened by 36 pt a side when the marks would fall outside it, the trim box kept; all, current or a range of pages; tool doc_printer_marks and doc_remove_marks kind printer_marks. Still missing against Acrobat: the Japanese-style and Eastern-style mark variants, and the choice of marks per page box (always the trim box). Page information uses WinAnsi: unsupported text is refused; disabling Page information still permits marks on those files."
 
 [[feature]]
 id = "print.fix-hairlines"
@@ -8394,11 +8394,11 @@ title = "Fix hairlines"
 area = "L"
 tier = "P1"
 milestone = "M11"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "shipped"
+commands = ["prepress.hairlines"]
+tools = ["doc_fix_hairlines"]
+evidence = ["crates/edit/src/tests.rs::hairlines_are_widened_in_page_content_and_forms", "crates/ui-egui/tests/it/editing.rs::fix_hairlines_from_the_dialog", "crates/automation/tests/it/automation.rs::fix_hairlines_through_tools"]
+notes = "Print production ▸ Fix hairlines…: strokes narrower than a threshold (default 0.003 in; zero-width lines always) get a width (default 0.01 in), in page content and form XObjects, measured after every transformation; Type 3 glyphs and tiling patterns only when asked; all, current or a range of pages; the dialog says how many strokes changed and tells when there is nothing to fix (no edit, no undo step). Tool doc_fix_hairlines. Changed forms, glyphs and patterns are copied so unselected pages keep their original resources. Malformed, recursive or over-budget content refuses the whole edit. Limits: anisotropic transforms use the geometric-mean scale; optional Type 3 glyph repair uses a nominal 10 pt size, and nested forms in glyphs/patterns are not followed. Paths begun in an earlier content stream and annotation appearances are left alone."
 
 [[feature]]
 id = "print.flattener-preview"

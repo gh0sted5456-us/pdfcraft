@@ -776,9 +776,9 @@
 	Check for updates	Tarkista päivitykset
 	No check has run yet.	Tarkistusta ei ole vielä tehty.
 	Checking for a newer version…	Tarkistetaan uudempaa versiota…
-	PdfCraft {v} is available.	PdfCraft {v} on saatavilla.
+	{app} {v} is available.	{app} {v} on saatavilla.
 	You have version {c}. Download the new version from its release page.	Käytössä on versio {c}. Lataa uusi versio sen julkaisusivulta.
-	PdfCraft {c} is up to date.	PdfCraft {c} on ajan tasalla.
+	{app} {c} is up to date.	{app} {c} on ajan tasalla.
 	Couldn't check for updates: {e}	Päivitysten tarkistus epäonnistui: {e}
 	You have version {c}. All releases are listed at {page}.	Käytössä on versio {c}. Kaikki julkaisut on lueteltu sivulla {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	Kysyy uusinta julkaisua GitHubista. Mitään ei ladata tai asenneta automaattisesti.
@@ -2954,3 +2954,36 @@ theme	Appearance	Teema
 	Glass	Lasi
 	Move Tab to New Window	Siirrä välilehti uuteen ikkunaan
 	Move Tab to This Window	Siirrä välilehti tähän ikkunaan
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Taulukko, joka jatkuu usealle sivulle, pysyy yhtenä; sivut seuraavat toisiaan alaspäin arkilla.
+	Each page on its own sheet, named Page 1, Page 2…	Jokainen sivu omalle arkilleen, nimeltään Sivu 1, Sivu 2…
+	Export to Excel	Vie Exceliin
+	Export to Excel…	Vie Exceliin…
+	One sheet for the whole document	Yksi arkki koko asiakirjalle
+	One sheet per page	Yksi arkki sivua kohden
+	Sheets	Arkit
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Taulukot muuttuvat soluiksi; luvut, summat, prosentit ja päivämäärät muuttuvat arvoiksi, joilla Excel voi laskea ja jotka näytetään kuten sivulla.
+	Add printer marks…	Lisää painomerkit…
+	All marks	Kaikki merkit
+	Bleed marks	Leikkuuvaramerkit
+	Colour bars	Värikaistat
+	Line weight	Viivan paksuus
+	Marks	Merkit
+	Page information	Sivun tiedot
+	Printer marks added	Painomerkit lisätty
+	Registration marks	Rekisterimerkit
+	Remove printer marks	Poista painomerkit
+	Room on each side	Tilaa joka sivulla
+	The trim box is kept where it is, so the printed page cuts the same.	Leikkuulaatikko pidetään paikallaan, joten painettu sivu leikataan samoin.
+	Trim marks	Leikkuumerkit
+	Widen the page to make room	Levennä sivua tilan tekemiseksi
+	printer marks	painomerkit
+	Also	Myös
+	Fix hairlines…	Korjaa hiusviivat…
+	Fixed {n} hairlines on {p} pages	Korjattiin {n} hiusviivaa {p} sivulla
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Type 3 -glyfien ja laattakuvioiden sisään piirretyt viivat; oletuksena pois käytöstä.
+	Narrower than	Kapeampi kuin
+	New width	Uusi leveys
+	No hairlines found on those pages	Hiusviivoja ei löytynyt näiltä sivuilta
+	Pattern strokes	Kuvioviivat
+	Type 3 font glyphs	Type 3 -fonttien glyfit
+	Zero-width lines always count as narrower.	Nollaleveyksiset viivat lasketaan aina kapeammiksi.

@@ -5033,6 +5033,23 @@ fn the_calculation_order_is_read_fixed_and_set() {
 }
 
 #[test]
+fn page_tab_orders_are_read_and_set_per_page_through_tools() {
+    let dir = workdir("pagetabs");
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
+    let r = ok(&mut a, "form_tab_order", json!({ "doc": doc }));
+    assert_eq!(r["page_tabs"], json!(["annotations", "annotations", "annotations"]));
+    assert!(r["undo"].is_null(), "reading changes nothing: {r}");
+    let r = ok(&mut a, "form_tab_order", json!({ "doc": doc, "order": "column", "pages": [1, 3] }));
+    assert_eq!(r["page_tabs"], json!(["column", "annotations", "column"]));
+    assert_eq!((r["undo"].as_str(), r["dirty"].as_bool()), (Some("Set tab order"), Some(true)));
+    let r = ok(&mut a, "form_tab_order", json!({ "doc": doc, "order": "structure", "pages": [2] }));
+    assert_eq!(r["page_tabs"], json!(["column", "structure", "column"]));
+    let r = ok(&mut a, "form_tab_order", json!({ "doc": doc, "order": "unspecified", "pages": [1] }));
+    assert_eq!(r["page_tabs"], json!(["annotations", "structure", "column"]));
+}
+
+#[test]
 fn tab_order_and_field_appearance_through_tools() {
     let dir = workdir("taborder");
     let mut a = auto(&dir);
@@ -6948,7 +6965,7 @@ fn exporting_to_word_html_and_rtf() {
     let dir = workdir("office");
     let mut a = auto(&dir);
     let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
-    for ext in ["docx", "pptx", "html", "rtf"] {
+    for ext in ["docx", "xlsx", "pptx", "html", "rtf"] {
         let r = ok(&mut a, "doc_export_office", json!({ "doc": doc, "path": format!("a.{ext}") }));
         assert_eq!(r["format"], ext);
     }
@@ -6958,6 +6975,17 @@ fn exporting_to_word_html_and_rtf() {
     assert!(std::fs::read(dir.join("a.pptx")).unwrap().starts_with(b"PK"));
     assert!(std::fs::read_to_string(dir.join("a.rtf")).unwrap().contains("Page 2"));
     assert!(a.call("doc_export_office", &json!({ "doc": doc, "path": "a.xyz" })).is_err());
+    // Excel: one sheet for the whole document by default, a sheet per page when asked.
+    let has = |file: &str, name: &str| std::fs::read(dir.join(file)).unwrap().windows(name.len()).any(|w| w == name.as_bytes());
+    assert!(has("a.xlsx", "xl/worksheets/sheet1.xml") && !has("a.xlsx", "xl/worksheets/sheet2.xml"));
+    ok(&mut a, "doc_export_office", json!({ "doc": doc, "path": "pages.xlsx", "sheets": "page" }));
+    assert!(has("pages.xlsx", "xl/worksheets/sheet3.xml"));
+    for (path, sheets) in [("a.xlsx", "rows"), ("a.docx", "page")] {
+        match a.call("doc_export_office", &json!({ "doc": doc, "path": path, "sheets": sheets })) {
+            Err(ToolError::InvalidArgs(m)) => assert!(m.contains("sheets"), "{m}"),
+            other => panic!("{path} {sheets}: {other:?}"),
+        }
+    }
 }
 
 /// #3120: a PDF whose pages draw "Head", then a chain of `depths[page]` nested forms whose
@@ -8899,6 +8927,73 @@ fn encrypting_with_certificates_through_the_tools() {
     ok(&mut d, "identity_add", json!({ "path": "ada.p12", "password": "test" }));
     let d4 = ok(&mut d, "doc_open", json!({ "path": "secret2.pdf" }))["doc"].as_u64().unwrap();
     assert_eq!(ok(&mut d, "doc_info", json!({ "doc": d4 }))["subject"], "still private", "Ada reads the author's save");
+}
+
+/// Printer marks through the tools: added around the trim box (the page widened to make room),
+/// removable by kind.
+#[test]
+fn printer_marks_through_tools() {
+    let dir = workdir("printer-marks");
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
+    let width_before = ok(&mut a, "doc_info", json!({ "doc": doc }))["pages"][0]["width"].as_f64().unwrap_or(0.0);
+    let r = ok(&mut a, "doc_printer_marks", json!({ "doc": doc, "pages": [1], "color_bars": false, "line_weight": 0.5 }));
+    assert_eq!(r["undo"], "Add printer marks");
+    let info = ok(&mut a, "doc_info", json!({ "doc": doc }));
+    let width_after = info["pages"][0]["width"].as_f64().unwrap_or(0.0);
+    assert!(width_after > width_before + 70.0 || width_before == 0.0, "widened to make room: {width_before} → {width_after}; {info}");
+    let r = ok(&mut a, "doc_remove_marks", json!({ "doc": doc, "kind": "printer_marks" }));
+    assert_eq!(r["undo"], "Remove printer marks");
+    assert!(matches!(
+        a.call(
+            "doc_printer_marks",
+            &json!({ "doc": doc, "trim": false, "bleed": false, "registration": false, "color_bars": false, "page_info": false })
+        ),
+        Err(ToolError::Failed(_) | ToolError::InvalidArgs(_))
+    ));
+}
+
+/// Fix hairlines through the tools: counts what changed, and reports zero without an edit.
+#[test]
+fn fix_hairlines_through_tools() {
+    let dir = workdir("hairlines");
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
+    // The fixture's text pages have no strokes.
+    let r = ok(&mut a, "doc_fix_hairlines", json!({ "doc": doc }));
+    assert_eq!((r["fixed"].as_u64(), r["undo"].is_null()), (Some(0), true));
+    // A zero-width rule drawn by the page content tools counts as a hairline.
+    ok(&mut a, "comment_add", json!({ "doc": doc, "page": 1, "type": "line", "from": [10, 10], "to": [100, 10], "width": 0 }));
+    let r = ok(&mut a, "doc_fix_hairlines", json!({ "doc": doc, "pages": [1] }));
+    // Comments are annotations, not page content: still nothing in the page's own content.
+    assert_eq!(r["fixed"].as_u64(), Some(0), "{r}");
+    assert!(matches!(a.call("doc_fix_hairlines", &json!({ "doc": doc, "width": 0 })), Err(ToolError::InvalidArgs(_))));
+}
+
+#[test]
+fn fix_hairlines_saves_real_repairs_and_preserves_malformed_documents() {
+    use pdfcraft_cos::{Dict, Document, Object, Stream};
+    let dir = workdir("hairline-fidelity");
+    for (name, content) in [("lines.pdf", b"0 w 10 10 m 100 10 l S".as_slice()), ("malformed.pdf", b"0 w 10 10 m 100 10 l S (")] {
+        let mut cos = Document::open(std::sync::Arc::new(fixture(1))).unwrap();
+        let page = pdfcraft_model::pages(&cos).remove(0);
+        let stream = cos.add(Object::Stream(Stream::flate(Dict::new(), content)));
+        cos.update_dict(page.obj, |d| d.set(b"Contents".to_vec(), Object::Ref(stream))).unwrap();
+        std::fs::write(dir.join(name), pdfcraft_cos::write_full(&cos, &Default::default()).unwrap()).unwrap();
+    }
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({"path":"lines.pdf"}))["doc"].as_u64().unwrap();
+    let fixed = ok(&mut a, "doc_fix_hairlines", json!({"doc":doc}));
+    assert_eq!(fixed["fixed"], 1);
+    assert_eq!(fixed["undo"], "Fix hairlines");
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"fixed.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"fixed.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "doc_fix_hairlines", json!({"doc":reopened}))["fixed"], 0);
+    assert_eq!(ok(&mut a, "edit_undo", json!({"doc":doc}))["undone"], "Fix hairlines");
+    assert_eq!(ok(&mut a, "doc_fix_hairlines", json!({"doc":doc}))["fixed"], 1);
+    let bad = ok(&mut a, "doc_open", json!({"path":"malformed.pdf"}))["doc"].as_u64().unwrap();
+    assert!(matches!(a.call("doc_fix_hairlines", &json!({"doc":bad})), Err(ToolError::Failed(_))));
+    assert_eq!(ok(&mut a, "doc_info", json!({"doc":bad}))["document"]["dirty"], false);
 }
 
 #[test]

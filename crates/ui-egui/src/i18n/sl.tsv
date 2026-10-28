@@ -1359,8 +1359,8 @@
 	PdfCraft on GitHub	PdfCraft na GitHubu
 	PdfCraft web page	Spletna stran PdfCraft
 	PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.	PdfCraft deluje brez povezave. Brez telemetrije, brez računa in brez obdelave v oblaku, razen če dodate ponudnika.
-	PdfCraft {c} is up to date.	PdfCraft {c} je posodobljen.
-	PdfCraft {v} is available.	Na voljo je PdfCraft {v}.
+	{app} {c} is up to date.	{app} {c} je posodobljen.
+	{app} {v} is available.	Na voljo je {app} {v}.
 	People may need more time to respond. Check that nothing has a time limit.	Ljudje bodo morda potrebovali več časa za odziv. Preverite, da nič nima časovne omejitve.
 	Percentage	Odstotek
 	Perimeter	Obseg
@@ -2704,3 +2704,36 @@ animation effects	Off	Izklopljeni
 	Glass	Steklo
 	Move Tab to New Window	Premakni zavihek v novo okno
 	Move Tab to This Window	Premakni zavihek v to okno
+	Export to Excel…	Izvozi v Excel…
+	Export to Excel	Izvozi v Excel
+	Sheets	Listi
+	One sheet for the whole document	En list za ves dokument
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Tabela, ki se nadaljuje čez več strani, ostane skupaj; strani si na listu sledijo navzdol.
+	One sheet per page	En list na stran
+	Each page on its own sheet, named Page 1, Page 2…	Vsaka stran na svojem listu z imenom Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Tabele postanejo celice; števila, zneski, odstotki in datumi postanejo vrednosti, s katerimi Excel lahko računa, prikazane kot na strani.
+	Add printer marks…	Dodaj tiskarske oznake…
+	Remove printer marks	Odstrani tiskarske oznake
+	Marks	Oznake
+	All marks	Vse oznake
+	Trim marks	Oznake za obrez
+	Bleed marks	Oznake za dodatek za obrez
+	Registration marks	Oznake za poravnavo
+	Colour bars	Barvne lestvice
+	Page information	Podatki o strani
+	Line weight	Debelina črte
+	Widen the page to make room	Razširi stran, da bo prostor
+	Room on each side	Prostor na vsaki strani
+	The trim box is kept where it is, so the printed page cuts the same.	Okvir obreza ostane, kjer je, zato se natisnjena stran reže enako.
+	Printer marks added	Tiskarske oznake so dodane
+	printer marks	tiskarske oznake
+	Narrower than	Ožje od
+	New width	Nova širina
+	Zero-width lines always count as narrower.	Črte z ničelno širino vedno štejejo za ožje.
+	Also	Tudi
+	Type 3 font glyphs	Glifi pisav Type 3
+	Pattern strokes	Poteze vzorcev
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Črte, narisane znotraj glifov Type 3 in tlakovanih vzorcev; privzeto izklopljeno.
+	No hairlines found on those pages	Na teh straneh ni najdenih lasnih črt
+	Fixed {n} hairlines on {p} pages	Popravljenih {n} lasnih črt na {p} straneh
+	Fix hairlines…	Popravi tanke črte…

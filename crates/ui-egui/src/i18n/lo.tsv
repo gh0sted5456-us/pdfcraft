@@ -786,9 +786,9 @@
 	Check for updates	ກວດສອບການອັບເດດ
 	No check has run yet.	ຍັງບໍ່ທັນມີການກວດສອບເທື່ອ.
 	Checking for a newer version…	ກຳລັງກວດສອບເວີຊັນໃໝ່…
-	PdfCraft {v} is available.	ມີ PdfCraft {v} ພ້ອມໃຫ້ໃຊ້ງານແລ້ວ.
+	{app} {v} is available.	ມີ {app} {v} ພ້ອມໃຫ້ໃຊ້ງານແລ້ວ.
 	You have version {c}. Download the new version from its release page.	ທ່ານກຳລັງໃຊ້ເວີຊັນ {c}. ດາວໂຫຼດເວີຊັນໃໝ່ໄດ້ຈາກໜ້າ release.
-	PdfCraft {c} is up to date.	PdfCraft {c} ເປັນເວີຊັນລ່າສຸດແລ້ວ.
+	{app} {c} is up to date.	{app} {c} ເປັນເວີຊັນລ່າສຸດແລ້ວ.
 	Couldn't check for updates: {e}	ບໍ່ສາມາດກວດສອບການອັບເດດໄດ້: {e}
 	You have version {c}. All releases are listed at {page}.	ທ່ານກຳລັງໃຊ້ເວີຊັນ {c}. ລາຍການ release ທັງໝົດແມ່ນສະແດງຢູ່ທີ່ {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	ກວດສອບລຸ້ນລ່າສຸດຈາກ GitHub. ຈະບໍ່ມີການດາວໂຫຼດ ຫຼື ຕິດຕັ້ງໂດຍອັດຕະໂນມັດ.

@@ -43,6 +43,9 @@ fn settle(h: &mut Harness<'static, PdfCraftApp>) {
 fn versions_compare_by_number() {
     assert!(is_newer("v0.2.0", "0.1.1"));
     assert!(is_newer("fork-v0.14.1", "0.14.0"));
+    assert!(is_newer("fork-v1.0.0", "0.14.1"));
+    assert!(!is_newer("fork-v0.14.99", "1.0.0"));
+    assert!(is_newer("fork-v1.0.1", "1.0.0"));
     assert!(!is_newer("fork-v0.14.0", "0.14.0"));
     assert!(is_newer("v0.1.10", "0.1.9"));
     assert!(is_newer("1", "0.9.9"));
@@ -59,7 +62,7 @@ fn a_newer_release_is_offered_for_download() {
     let mut h = harness(Ok("v99.0.0"));
     h.state_mut().execute("help.check_updates");
     settle(&mut h);
-    h.get_by_label_contains("PdfCraft 99.0.0 is available");
+    h.get_by_label_contains("Lion PDF 99.0.0 is available");
     h.get_by_label("Download");
     h.get_by_label("Later").click();
     h.run_steps(3);
@@ -103,7 +106,7 @@ fn nothing_is_asked_until_the_user_checks() {
     h.state_mut().execute("help.check_updates");
     settle(&mut h);
     assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 1);
-    h.get_by_label_contains("PdfCraft 99.0.0 is available");
+    h.get_by_label_contains("Lion PDF 99.0.0 is available");
 }
 
 #[test]

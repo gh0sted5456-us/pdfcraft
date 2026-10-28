@@ -910,8 +910,8 @@
 	Patterns (graphics objects)	Šablonai (grafiniai objektai)
 	PdfCraft didn't shut down normally. These documents had changes that were autosaved:	„PdfCraft“ buvo uždaryta netinkamai. Šių dokumentų pakeitimai buvo automatiškai įrašyti:
 	PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.	„PdfCraft“ veikia neprisijungus. Nerenkami telemetrijos duomenys, nereikia paskyros ir nenaudojamos debesijos paslaugos, nebent pridėtumėte jų teikėją.
-	PdfCraft {c} is up to date.	Naudojate naujausią „PdfCraft“ versiją {c}.
-	PdfCraft {v} is available.	Išleista „PdfCraft“ versija {v}.
+	{app} {c} is up to date.	Naudojate naujausią „{app}“ versiją {c}.
+	{app} {v} is available.	Išleista „{app}“ versija {v}.
 	Percentage	Procentai
 	Permissions password	Teisių slaptažodis
 	Permitted actions after certifying	Po patvirtinimo leidžiami veiksmai
@@ -2965,3 +2965,36 @@ theme	Appearance	Išvaizda
 	Straighten scanned page	Ištiesinti nuskaitytą puslapį
 	Move Tab to New Window	Perkelti kortelę į naują langą
 	Move Tab to This Window	Perkelti kortelę į šį langą
+	Export to Excel…	Eksportuoti į „Excel“…
+	Export to Excel	Eksportuoti į „Excel“
+	Sheets	Lapai
+	One sheet for the whole document	Vienas lapas visam dokumentui
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Per kelis puslapius einanti lentelė lieka vientisa; puslapiai lape eina vienas po kito žemyn.
+	One sheet per page	Po vieną lapą kiekvienam puslapiui
+	Each page on its own sheet, named Page 1, Page 2…	Kiekvienas puslapis atskirame lape, pavadintame Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Lentelės tampa langeliais; skaičiai, sumos, procentai ir datos tampa reikšmėmis, su kuriomis „Excel“ gali skaičiuoti, rodomomis kaip puslapyje.
+	Add printer marks…	Pridėti spaudos žymes…
+	Remove printer marks	Pašalinti spaudos žymes
+	Marks	Žymės
+	All marks	Visos žymės
+	Trim marks	Apkirpimo žymės
+	Bleed marks	Užlaidos žymės
+	Registration marks	Sutapdinimo žymės
+	Colour bars	Spalvų juostos
+	Page information	Puslapio informacija
+	Line weight	Linijos storis
+	Widen the page to make room	Praplėsti puslapį, kad būtų vietos
+	Room on each side	Vieta kiekvienoje pusėje
+	The trim box is kept where it is, so the printed page cuts the same.	Apkirpimo rėmelis lieka vietoje, todėl atspausdintas puslapis kerpamas taip pat.
+	Printer marks added	Spaudos žymės pridėtos
+	printer marks	spaudos žymės
+	Narrower than	Siauresnės nei
+	New width	Naujas plotis
+	Zero-width lines always count as narrower.	Nulinio pločio linijos visada laikomos siauresnėmis.
+	Also	Taip pat
+	Type 3 font glyphs	Type 3 šriftų glifai
+	Pattern strokes	Raštų brūkšniai
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Linijos, nubrėžtos Type 3 glifuose ir mozaikiniuose raštuose; pagal numatytuosius nustatymus išjungta.
+	No hairlines found on those pages	Šiuose puslapiuose plaukelinių linijų nerasta
+	Fixed {n} hairlines on {p} pages	Pataisyta {n} plaukelinių linijų {p} puslapiuose
+	Fix hairlines…	Taisyti itin plonas linijas…

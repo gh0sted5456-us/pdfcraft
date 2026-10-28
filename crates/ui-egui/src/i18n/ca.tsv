@@ -777,9 +777,9 @@
 	Check for updates	Cerca actualitzacions
 	No check has run yet.	Encara no s'ha fet cap comprovació.
 	Checking for a newer version…	S'està cercant una versió més recent…
-	PdfCraft {v} is available.	PdfCraft {v} està disponible.
+	{app} {v} is available.	{app} {v} està disponible.
 	You have version {c}. Download the new version from its release page.	Tens la versió {c}. Baixa la versió nova des de la seva pàgina de publicació.
-	PdfCraft {c} is up to date.	PdfCraft {c} està actualitzat.
+	{app} {c} is up to date.	{app} {c} està actualitzat.
 	Couldn't check for updates: {e}	No s'han pogut cercar actualitzacions: {e}
 	You have version {c}. All releases are listed at {page}.	Tens la versió {c}. Totes les versions es llisten a {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	Consulta a GitHub la darrera versió. No es baixa ni s'instal·la res automàticament.
@@ -2945,3 +2945,36 @@ theme	Appearance	Aspecte
 	Glass	Vidre
 	Move Tab to New Window	Mou la pestanya a una finestra nova
 	Move Tab to This Window	Mou la pestanya a aquesta finestra
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Una taula que ocupa diverses pàgines es manté unida; les pàgines se succeeixen al llarg del full.
+	Each page on its own sheet, named Page 1, Page 2…	Cada pàgina en un full propi, amb el nom Pàgina 1, Pàgina 2…
+	Export to Excel	Exporta a Excel
+	Export to Excel…	Exporta a Excel…
+	One sheet for the whole document	Un full per a tot el document
+	One sheet per page	Un full per pàgina
+	Sheets	Fulls
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Les taules es converteixen en cel·les; els números, imports, percentatges i dates es converteixen en valors amb què Excel pot calcular, mostrats com a la pàgina.
+	Add printer marks…	Afegeix marques d'impressora…
+	All marks	Totes les marques
+	Bleed marks	Marques de sang
+	Colour bars	Barres de color
+	Line weight	Gruix de línia
+	Marks	Marques
+	Page information	Informació de la pàgina
+	Printer marks added	S'han afegit les marques d'impressora
+	Registration marks	Marques de registre
+	Remove printer marks	Elimina les marques d'impressora
+	Room on each side	Espai a cada costat
+	The trim box is kept where it is, so the printed page cuts the same.	El quadre de retall es manté on és, de manera que la pàgina impresa es talla igual.
+	Trim marks	Marques de retall
+	Widen the page to make room	Amplia la pàgina per fer-hi lloc
+	printer marks	marques d'impressora
+	Also	També
+	Fix hairlines…	Corregeix les línies de cabell…
+	Fixed {n} hairlines on {p} pages	S'han corregit {n} línies de cabell en {p} pàgines
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Línies dibuixades dins de glifs de tipus 3 i patrons de mosaic; desactivat per defecte.
+	Narrower than	Més estret que
+	New width	Amplada nova
+	No hairlines found on those pages	No s'han trobat línies de cabell en aquestes pàgines
+	Pattern strokes	Traços de patró
+	Type 3 font glyphs	Glifs de tipus de lletra Type 3
+	Zero-width lines always count as narrower.	Les línies de gruix zero sempre es consideren més estretes.

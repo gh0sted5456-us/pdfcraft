@@ -51,6 +51,7 @@ pub(crate) fn scope_of(edit: &Edit) -> Scope {
     match edit {
         Edit::ApplyScriptChanges { changes } if js::structural_changes(changes) => Scope::Full,
         Edit::SetInfo { .. } | Edit::SetAiConfidential { pages: None, .. } => Scope::Metadata,
+        Edit::AddPrinterMarks { .. } => Scope::Full,
         // The Attachments list is read from the whole document.
         Edit::AddAttachment { .. } | Edit::DeleteAttachment { .. } => Scope::Full,
         // A file attachment also changes the Attachments list.
@@ -96,7 +97,8 @@ pub(crate) fn scope_of(edit: &Edit) -> Scope {
         | Edit::AddHeaderFooter { .. }
         | Edit::AddWatermark { .. }
         | Edit::AddBackground { .. }
-        | Edit::RemoveMarks { .. } => Scope::Content,
+        | Edit::RemoveMarks { .. }
+        | Edit::FixHairlines { .. } => Scope::Content,
         Edit::Batch { edits, .. } => {
             let mut scopes = edits.iter().map(scope_of);
             let first = scopes.next().unwrap_or(Scope::Full);

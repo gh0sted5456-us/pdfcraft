@@ -1314,8 +1314,8 @@
 	PdfCraft on GitHub	PdfCraft në GitHub
 	PdfCraft web page	Faqja ueb e PdfCraft
 	PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.	PdfCraft funksionon pa internet. Pa telemetri, pa llogari dhe pa përpunim në re, përveçse nëse shton një ofrues.
-	PdfCraft {c} is up to date.	PdfCraft {c} është i përditësuar.
-	PdfCraft {v} is available.	PdfCraft {v} është i disponueshëm.
+	{app} {c} is up to date.	{app} {c} është i përditësuar.
+	{app} {v} is available.	{app} {v} është i disponueshëm.
 	People may need more time to respond. Check that nothing has a time limit.	Njerëzit mund të kenë nevojë për më shumë kohë për të përgjigjur. Kontrollo që asgjë të mos ketë kufi kohe.
 	Percentage	Përqindja
 	Perimeter	Perimetri
@@ -2667,3 +2667,36 @@ animation effects	Off	Joaktiv
 	Glass	Xham
 	Move Tab to New Window	Zhvendos skedën në një dritare të re
 	Move Tab to This Window	Zhvendos skedën në këtë dritare
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Një tabelë që shtrihet nëpër faqe mbetet e bashkuar; faqet vijojnë njëra pas tjetrës poshtë fletës.
+	Each page on its own sheet, named Page 1, Page 2…	Çdo faqe në fletën e vet, me emrat Faqja 1, Faqja 2…
+	Export to Excel	Eksporto në Excel
+	Export to Excel…	Eksporto në Excel…
+	One sheet for the whole document	Një fletë për gjithë dokumentin
+	One sheet per page	Një fletë për çdo faqe
+	Sheets	Fletët
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Tabelat bëhen qeliza; numrat, shumat, përqindjet dhe datat bëhen vlera me të cilat Excel mund të llogarisë, të shfaqura si në faqe.
+	Add printer marks…	Shto shenja shtypjeje…
+	All marks	Të gjitha shenjat
+	Bleed marks	Shenjat e bleed-it
+	Colour bars	Shiritat e ngjyrave
+	Line weight	Trashësia e vijës
+	Marks	Shenjat
+	Page information	Informacioni i faqes
+	Printer marks added	U shtuan shenjat e shtypjes
+	Registration marks	Shenjat e regjistrimit
+	Remove printer marks	Hiq shenjat e shtypjes
+	Room on each side	Hapësira në secilën anë
+	The trim box is kept where it is, so the printed page cuts the same.	Kutia e prerjes (trim) mbetet aty ku është, kështu që faqja e printuar pritet njësoj.
+	Trim marks	Shenjat e prerjes
+	Widen the page to make room	Zgjero faqen për të krijuar hapësirë
+	printer marks	shenja shtypjeje
+	Also	Gjithashtu
+	Fix hairlines…	Rregullo vijat e holla…
+	Fixed {n} hairlines on {p} pages	U rregulluan {n} vija të holla në {p} faqe
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Vija të vizatuara brenda glifeve Type 3 dhe modeleve me pllaka; të çaktivizuara si parazgjedhje.
+	Narrower than	Më e ngushtë se
+	New width	Gjerësia e re
+	No hairlines found on those pages	Nuk u gjetën vija të holla në ato faqe
+	Pattern strokes	Vijat e modeleve
+	Type 3 font glyphs	Glifet e shkronjave Type 3
+	Zero-width lines always count as narrower.	Vijat me gjerësi zero llogariten gjithmonë si më të ngushta.

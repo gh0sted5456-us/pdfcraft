@@ -810,9 +810,9 @@
 	Check for updates	Sprawdź aktualizacje
 	No check has run yet.	Nie sprawdzono jeszcze aktualizacji.
 	Checking for a newer version…	Sprawdzanie dostępności nowszej wersji…
-	PdfCraft {v} is available.	PdfCraft {v} jest dostępny.
+	{app} {v} is available.	{app} {v} jest dostępny.
 	You have version {c}. Download the new version from its release page.	Masz wersję {c}. Pobierz nową wersję ze strony wydania.
-	PdfCraft {c} is up to date.	PdfCraft {c} jest aktualny.
+	{app} {c} is up to date.	{app} {c} jest aktualny.
 	Couldn't check for updates: {e}	Nie można sprawdzić aktualizacji: {e}
 	You have version {c}. All releases are listed at {page}.	Masz wersję {c}. Wszystkie wydania są dostępne na {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	Sprawdza najnowsze wydanie na GitHubie. Nic nie jest pobierane ani instalowane automatycznie.
@@ -2794,3 +2794,36 @@ animation effects	Off	Wyłączone
 	Glass	Szkło
 	Move Tab to New Window	Przenieś kartę do nowego okna
 	Move Tab to This Window	Przenieś kartę do tego okna
+	Export to Excel…	Eksportuj do Excela…
+	Export to Excel	Eksportuj do Excela
+	Sheets	Arkusze
+	One sheet for the whole document	Jeden arkusz dla całego dokumentu
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Tabela biegnąca przez kilka stron pozostaje w całości; strony następują po sobie w dół arkusza.
+	One sheet per page	Jeden arkusz na stronę
+	Each page on its own sheet, named Page 1, Page 2…	Każda strona w osobnym arkuszu o nazwie Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Tabele stają się komórkami; liczby, kwoty, procenty i daty stają się wartościami, na których Excel może liczyć, wyświetlanymi tak jak na stronie.
+	Add printer marks…	Dodaj znaczniki drukarskie…
+	Remove printer marks	Usuń znaczniki drukarskie
+	Marks	Znaczniki
+	All marks	Wszystkie znaczniki
+	Trim marks	Znaczniki cięcia
+	Bleed marks	Znaczniki spadu
+	Registration marks	Pasery
+	Colour bars	Paski kolorów
+	Page information	Informacje o stronie
+	Line weight	Grubość linii
+	Widen the page to make room	Poszerz stronę, aby zrobić miejsce
+	Room on each side	Miejsce z każdej strony
+	The trim box is kept where it is, so the printed page cuts the same.	Ramka cięcia zostaje na miejscu, więc wydrukowana strona tnie się tak samo.
+	Printer marks added	Dodano znaczniki drukarskie
+	printer marks	znaczniki drukarskie
+	Narrower than	Węższe niż
+	New width	Nowa szerokość
+	Zero-width lines always count as narrower.	Linie o zerowej szerokości zawsze liczą się jako węższe.
+	Also	Także
+	Type 3 font glyphs	Glify fontów Type 3
+	Pattern strokes	Pociągnięcia wzorów
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Linie rysowane wewnątrz glifów Type 3 i wzorów kafelkowych; domyślnie wyłączone.
+	No hairlines found on those pages	Na tych stronach nie znaleziono linii włosowych
+	Fixed {n} hairlines on {p} pages	Poprawiono {n} linii włosowych na {p} stronach
+	Fix hairlines…	Popraw cienkie linie…

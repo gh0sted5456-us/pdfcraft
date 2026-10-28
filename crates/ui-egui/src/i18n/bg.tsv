@@ -480,9 +480,9 @@
 	Check for updates	Провери за актуализации
 	No check has run yet.	Още не е извършвана проверка.
 	Checking for a newer version…	Проверка за по-нова версия…
-	PdfCraft {v} is available.	Налична е PdfCraft {v}.
+	{app} {v} is available.	Налична е {app} {v}.
 	You have version {c}. Download the new version from its release page.	Имате версия {c}. Изтеглете новата версия от страницата на изданието.
-	PdfCraft {c} is up to date.	PdfCraft {c} е актуална.
+	{app} {c} is up to date.	{app} {c} е актуална.
 	Couldn't check for updates: {e}	Неуспешна проверка за актуализации: {e}
 	You have version {c}. All releases are listed at {page}.	Имате версия {c}. Всички издания са изброени на {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	Запитва GitHub за най-новото издание. Нищо не се изтегля и не се инсталира автоматично.
@@ -2661,3 +2661,36 @@ animation effects	Off	Изключени
 	Glass	Стъкло
 	Move Tab to New Window	Преместване на раздела в нов прозорец
 	Move Tab to This Window	Преместване на раздела в този прозорец
+	Export to Excel…	Експортирай в Excel…
+	Export to Excel	Експортиране в Excel
+	Sheets	Листове
+	One sheet for the whole document	Един лист за целия документ
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Таблица, която продължава на няколко страници, остава цяла; страниците следват една след друга надолу по листа.
+	One sheet per page	Един лист на страница
+	Each page on its own sheet, named Page 1, Page 2…	Всяка страница на свой лист, наречен Page 1, Page 2…
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Таблиците стават клетки; числата, сумите, процентите и датите стават стойности, с които Excel може да смята, показани както на страницата.
+	Add printer marks…	Добавяне на печатарски знаци…
+	Remove printer marks	Премахване на печатарските знаци
+	Marks	Знаци
+	All marks	Всички знаци
+	Trim marks	Знаци за обрязване
+	Bleed marks	Знаци за наддаване
+	Registration marks	Знаци за регистрация
+	Colour bars	Цветни ленти
+	Page information	Информация за страницата
+	Line weight	Дебелина на линията
+	Widen the page to make room	Разширяване на страницата, за да има място
+	Room on each side	Място от всяка страна
+	The trim box is kept where it is, so the printed page cuts the same.	Полето за обрязване остава на мястото си, така че отпечатаната страница се реже по същия начин.
+	Printer marks added	Печатарските знаци са добавени
+	printer marks	печатарски знаци
+	Narrower than	По-тънки от
+	New width	Нова дебелина
+	Zero-width lines always count as narrower.	Линиите с нулева дебелина винаги се броят за по-тънки.
+	Also	Също
+	Type 3 font glyphs	Глифи на шрифтове Type 3
+	Pattern strokes	Щрихи на шарки
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Линии, начертани в глифи Type 3 и в повтарящи се шарки; изключено по подразбиране.
+	No hairlines found on those pages	На тези страници не са намерени тънки линии
+	Fixed {n} hairlines on {p} pages	Поправени {n} тънки линии на {p} страници
+	Fix hairlines…	Поправи тънките линии…

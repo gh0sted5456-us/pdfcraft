@@ -6186,6 +6186,104 @@ fn removing_marks_strips_wrappers_that_closed_open_state() {
     assert_eq!(streams(&doc, 0), ["q 2 0 0 2 0 0 cm"]);
 }
 
+/// Printer marks: drawn outside the trim box as a removable page mark; the page
+/// is widened to make room when asked and the trim box stays; running again replaces them.
+#[test]
+fn printer_marks_are_drawn_outside_the_trim_box_and_removable() {
+    use crate::printer_marks::PrinterMarks;
+    let mut doc = fixture();
+    let page_content_text = |doc: &Document, page: usize| String::from_utf8_lossy(&page_content_bytes(doc, page)).into_owned();
+    let page = page_list(&doc)[0].clone();
+    // A trim box inside a letter-size page, 36 pt in: room for the marks, bleed marks included
+    // (the bleed box is 9 pt out, so they reach 33 pt beyond the trim box), without widening.
+    doc.update_dict(page.obj, |d| {
+        d.set(b"MediaBox".to_vec(), Object::Array([0.0, 0.0, 612.0, 792.0].iter().map(|v| Object::Real(*v)).collect()));
+        d.set(b"TrimBox".to_vec(), Object::Array([36.0, 36.0, 576.0, 756.0].iter().map(|v| Object::Real(*v)).collect()));
+        d.set(b"BleedBox".to_vec(), Object::Array([27.0, 27.0, 585.0, 765.0].iter().map(|v| Object::Real(*v)).collect()));
+    })
+    .unwrap();
+    let marks = PrinterMarks { label: "Quote 1042.pdf".into(), date: "2026-10-13".into(), ..PrinterMarks::default() };
+    let widened = add_printer_marks(&mut doc, &[0, 1], &marks, false).unwrap();
+    assert_eq!(widened, vec![1], "page 2 has no trim box inside its media box, so it was widened");
+    assert_eq!(marks_present(&doc), vec![MarkKind::PrinterMarks]);
+    let text = page_content_text(&doc, 0);
+    assert!(text.contains("/PCMark /PrinterMarks"), "{text}");
+    // A trim mark at the lower-left corner: vertical below the box, horizontal to its left.
+    assert!(text.contains("36 30 m 36 12 l S") && text.contains("30 36 m 12 36 l S"), "{text}");
+    assert!(text.contains("1 1 1 1 K"), "registration colour");
+    assert!(text.contains("[1 1] 0 d") && text.contains("27 21 m 27 3 l S"), "dashed bleed marks: {text}");
+    assert!(text.contains("1 0 0 0 k") && text.contains("0 0 0 0.25 k"), "colour bars: {text}");
+    assert!(text.contains("(Quote 1042.pdf  1 of 3  2026-10-13) Tj"), "page information: {text}");
+    // Page 2: the media box grew by 36 pt a side around its (whole-page) trim box.
+    let p2 = page_list(&doc)[1].clone();
+    let media: Vec<f64> = p2.dict.get(b"MediaBox").and_then(|m| m.as_array()).unwrap().iter().filter_map(|v| v.as_f64()).collect();
+    assert_eq!(media, vec![-36.0, -36.0, 636.0, 836.0]);
+    // Again with replace: still one set of marks per page; without replace, two.
+    add_printer_marks(&mut doc, &[0], &marks, true).unwrap();
+    assert_eq!(page_content_text(&doc, 0).matches("/PCMark /PrinterMarks").count(), 1);
+    add_printer_marks(&mut doc, &[0], &marks, false).unwrap();
+    assert_eq!(page_content_text(&doc, 0).matches("/PCMark /PrinterMarks").count(), 2);
+    assert_eq!(remove_marks(&mut doc, &[0, 1], MarkKind::PrinterMarks).unwrap(), 3);
+    assert!(marks_present(&doc).is_empty());
+    // Nothing chosen, or a bad weight, is refused.
+    let none = PrinterMarks { trim: false, bleed: false, registration: false, color_bars: false, page_info: false, ..PrinterMarks::default() };
+    assert!(add_printer_marks(&mut doc, &[0], &none, false).is_err());
+    assert!(add_printer_marks(&mut doc, &[0], &PrinterMarks { line_weight: 0.0, ..PrinterMarks::default() }, false).is_err());
+}
+
+/// Fix hairlines: zero-width strokes and strokes thinner than the threshold on
+/// the page (after the CTM) get the chosen width, in page content and the forms it draws; wider
+/// lines, and glyphs and patterns unless asked, are left alone.
+#[test]
+fn hairlines_are_widened_in_page_content_and_forms() {
+    use crate::hairlines::{Hairlines, fix_hairlines};
+    let mut doc = fixture();
+    let page = page_list(&doc)[0].clone();
+    // A form drawn at half scale with a 0.1 pt line (0.05 pt on the page) and a 4 pt line.
+    let mut fd = Dict::new();
+    fd.set(b"Type".to_vec(), Object::name("XObject"));
+    fd.set(b"Subtype".to_vec(), Object::name("Form"));
+    fd.set(b"BBox".to_vec(), Object::Array([0.0, 0.0, 100.0, 100.0].iter().map(|v| Object::Real(*v)).collect()));
+    let form = doc.add(Object::Stream(Stream::flate(fd, b"0.1 w 0 0 m 50 50 l S 4 w 0 50 m 50 0 l S")));
+    let content = b"0 w 10 10 m 100 10 l S 2 w 10 20 m 100 20 l S q 0.5 0 0 0.5 0 0 cm 0.2 w 0 0 m 10 10 l S /Fm1 Do Q 0.5 w 10 30 m 100 30 l S";
+    let cs = doc.add(Object::Stream(Stream::flate(Dict::new(), content)));
+    let mut xo = Dict::new();
+    xo.set(b"Fm1".to_vec(), Object::Ref(form));
+    let mut res = Dict::new();
+    res.set(b"XObject".to_vec(), Object::Dict(xo));
+    doc.update_dict(page.obj, |d| {
+        d.set(b"Contents".to_vec(), Object::Ref(cs));
+        d.set(b"Resources".to_vec(), Object::Dict(res));
+    })
+    .unwrap();
+    let fixed = fix_hairlines(&mut doc, &[0], &Hairlines::default()).unwrap();
+    // Page: the 0 w line and the 0.2 w line at half scale (0.1 pt); the 2 pt and 0.5 pt lines stay.
+    // Form: the 0.1 w line (0.05 pt on the page); the 4 pt line stays.
+    assert_eq!(fixed, crate::hairlines::Fixed { lines: 3, pages: 1 });
+    let flat = |b: &[u8]| String::from_utf8_lossy(b).split_whitespace().collect::<Vec<_>>().join(" ");
+    let text = flat(&page_content_bytes(&doc, 0));
+    assert!(text.contains("0.72 w 10 10 m 100 10 l S"), "zero width → 0.72 pt: {text}");
+    assert!(text.contains("2 w 10 20 m 100 20 l S") && text.contains("0.5 w 10 30 m 100 30 l S"), "wider lines untouched: {text}");
+    assert!(text.contains("1.44 w 0 0 m 10 10 l S"), "under a half-scale CTM the width is doubled: {text}");
+    let selected = page_list(&doc).remove(0);
+    let resources = doc.resolve(selected.dict.get(b"Resources").unwrap());
+    let xobjects = doc.resolve(resources.as_dict().unwrap().get(b"XObject").unwrap());
+    let repaired = xobjects.as_dict().unwrap().get(b"Fm1").and_then(Object::as_ref).unwrap();
+    assert_ne!(repaired, form);
+    let Object::Stream(original) = &*doc.get(form) else { panic!() };
+    assert_eq!(original.decoded().unwrap(), b"0.1 w 0 0 m 50 50 l S 4 w 0 50 m 50 0 l S");
+    let Object::Stream(fs) = &*doc.get(repaired) else { panic!() };
+    let ft = flat(&fs.decoded().unwrap());
+    assert!(ft.contains("1.44 w 0 0 m 50 50 l S") && ft.contains("4 w 0 50 m 50 0 l S"), "{ft}");
+    // Nothing left to fix: a second run changes nothing.
+    assert_eq!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).unwrap().lines, 0);
+    // A stricter threshold catches the 0.5 pt line too, with a custom width.
+    let fixed = fix_hairlines(&mut doc, &[0], &Hairlines { narrower_than: 0.6, width: 1.0, ..Hairlines::default() }).unwrap();
+    assert_eq!(fixed.lines, 1);
+    assert!(flat(&page_content_bytes(&doc, 0)).contains("1 w 10 30 m 100 30 l S"));
+    assert!(fix_hairlines(&mut doc, &[0], &Hairlines { width: 0.0, ..Hairlines::default() }).is_err());
+}
+
 /// #3087: flattening comments leaves alone what isn't a comment: links, and the non-markup
 /// multimedia and print-production annotations (3D, Screen, Movie, RichMedia, PrinterMark,
 /// TrapNet, Watermark), which it used to bake into the page and delete with their data.
@@ -7616,4 +7714,247 @@ fn a_run_of_spaces_in_a_subset_without_a_space_glyph_keeps_its_width() {
     assert_eq!(text::replace_block(&mut doc, 0, 0, "ab  ba   ab").unwrap().substituted, None);
     let content = String::from_utf8_lossy(&page_content_bytes(&reopen(&doc), 0)).into_owned();
     assert_eq!(content.matches("[-330] TJ").count(), 5, "{content}");
+}
+
+#[test]
+fn printer_marks_refuse_invalid_room_before_replacing_existing_marks() {
+    for room in [f64::NAN, f64::INFINITY, -1.0, f64::MAX] {
+        let mut doc = fixture();
+        add_printer_marks(&mut doc, &[0], &PrinterMarks::default(), false).unwrap();
+        let before = page_content_bytes(&doc, 0);
+        let bad = PrinterMarks { make_room: Some(room), ..PrinterMarks::default() };
+        assert!(add_printer_marks(&mut doc, &[0], &bad, true).is_err(), "room {room} must be refused");
+        assert_eq!(page_content_bytes(&doc, 0), before);
+    }
+}
+
+#[test]
+fn printer_marks_preserve_an_existing_font_resource() {
+    let mut doc = fixture();
+    let page = page_list(&doc)[0].clone();
+    let mut font = Dict::new();
+    font.set(b"Type".to_vec(), Object::name("Font"));
+    font.set(b"Subtype".to_vec(), Object::name("Type1"));
+    font.set(b"BaseFont".to_vec(), Object::name("Courier"));
+    let old = Object::Dict(font);
+    let mut fonts = Dict::new();
+    fonts.set(b"PCHelv".to_vec(), old.clone());
+    let mut res = Dict::new();
+    res.set(b"Font".to_vec(), Object::Dict(fonts));
+    doc.update_dict(page.obj, |d| d.set(b"Resources".to_vec(), Object::Dict(res))).unwrap();
+    add_printer_marks(&mut doc, &[0], &PrinterMarks::default(), false).unwrap();
+    let page = page_list(&doc)[0].clone();
+    let resources = doc.resolve(page.dict.get(b"Resources").unwrap());
+    let fonts = doc.resolve(resources.as_dict().unwrap().get(b"Font").unwrap());
+    assert_eq!(fonts.as_dict().unwrap().get(b"PCHelv"), Some(&old));
+    assert!(String::from_utf8_lossy(&page_content_bytes(&doc, 0)).contains("/PCHelv_1 "));
+}
+
+#[test]
+fn printer_marks_refuse_bad_boxes_and_unsupported_information_without_changing_the_document() {
+    for bad in [Object::Array(vec![Object::Int(0); 5]), Object::Array(vec![Object::Real(f64::MAX); 4]), Object::name("not-a-box")] {
+        let mut doc = fixture();
+        let page = page_list(&doc)[1].clone();
+        doc.update_dict(page.obj, |d| d.set(b"TrimBox".to_vec(), bad)).unwrap();
+        let before = pdfcraft_cos::write_full(&doc, &Default::default()).unwrap();
+        assert!(add_printer_marks(&mut doc, &[0, 1], &PrinterMarks::default(), true).is_err());
+        assert_eq!(pdfcraft_cos::write_full(&doc, &Default::default()).unwrap(), before);
+    }
+    let mut doc = fixture();
+    let marks = PrinterMarks { label: "日本語.pdf".into(), ..Default::default() };
+    assert!(add_printer_marks(&mut doc, &[0], &marks, false).is_err());
+    add_printer_marks(&mut doc, &[0], &PrinterMarks { page_info: false, ..marks }, false).unwrap();
+}
+
+#[test]
+fn printer_marks_keep_their_physical_size_on_pages_with_enlarged_units() {
+    for unit in [2.0, pdfcraft_model::MAX_USER_UNIT] {
+        let mut doc = fixture();
+        let page = page_list(&doc)[0].clone();
+        doc.update_dict(page.obj, |d| {
+            d.set(b"MediaBox".to_vec(), Object::Array(vec![Object::Int(0), Object::Int(0), Object::Int(612), Object::Int(792)]));
+            d.set(b"UserUnit".to_vec(), Object::Real(unit));
+        })
+        .unwrap();
+        let before = page_list(&doc)[0].display_size(&doc);
+        add_printer_marks(&mut doc, &[0], &PrinterMarks::default(), false).unwrap();
+        let after = page_list(&doc)[0].display_size(&doc);
+        assert!((after.0 - before.0 - 72.0).abs() < 0.001, "{before:?} -> {after:?}: room is 36 physical points per side");
+        let content = String::from_utf8_lossy(&page_content_bytes(&doc, 0)).into_owned();
+        let (_, marks) = content.split_once("/PCMark /PrinterMarks>> BDC\n").unwrap();
+        let parsed = pdfcraft_content::parse(marks.as_bytes());
+        let matrix = parsed.ops.iter().find(|op| op.op == b"cm").unwrap().nums::<6>().unwrap();
+        assert!((matrix[0] * unit - 1.0).abs() < 1e-10 && (matrix[3] * unit - 1.0).abs() < 1e-10);
+        assert!(marks.contains("0.25 w"), "the stroke stays a quarter point after the page's UserUnit is applied");
+        let widened = add_printer_marks(&mut doc, &[0], &PrinterMarks::default(), true).unwrap();
+        assert!(widened.is_empty());
+        assert_eq!(page_list(&doc)[0].display_size(&doc), after);
+    }
+}
+
+fn hairlines_safety_page(content: &[u8], unit: f64) -> Document {
+    let mut doc = fixture();
+    let page = page_list(&doc)[0].clone();
+    let stream = doc.add(Object::Stream(Stream::flate(Dict::new(), content)));
+    doc.update_dict(page.obj, |d| {
+        d.set(b"Contents".to_vec(), Object::Ref(stream));
+        d.set(b"UserUnit".to_vec(), Object::Real(unit));
+    })
+    .unwrap();
+    doc
+}
+
+#[test]
+fn hairlines_safety_refuses_malformed_content_without_rewriting_it() {
+    let content = b"0 w 0 0 m 20 0 l S (";
+    assert!(pdfcraft_content::parse(content).skipped > 0);
+    let mut doc = hairlines_safety_page(content, 1.0);
+    let before = write_full(&doc, &Default::default()).unwrap();
+    assert!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).is_err());
+    assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
+}
+
+#[test]
+fn hairlines_safety_refuses_a_width_that_overflows_under_the_transform() {
+    let mut doc = hairlines_safety_page(b"0.5 0 0 0.5 0 0 cm 0 w 0 0 m 20 0 l S", 1.0);
+    let before = write_full(&doc, &Default::default()).unwrap();
+    assert!(fix_hairlines(&mut doc, &[0], &Hairlines { width: f64::MAX, ..Default::default() }).is_err());
+    assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
+}
+
+#[test]
+fn hairlines_safety_measures_width_in_physical_page_units() {
+    let mut doc = hairlines_safety_page(b"0.15 w 0 0 m 20 0 l S", 2.0);
+    let before = write_full(&doc, &Default::default()).unwrap();
+    assert_eq!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).unwrap().lines, 0, "0.3 physical points is above the 0.216 point threshold");
+    assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
+}
+
+#[test]
+fn hairlines_safety_refuses_excessive_graphics_state_depth() {
+    let mut content = b"q ".repeat(513);
+    content.extend_from_slice(b"0 w 0 0 m 20 0 l S");
+    let mut doc = hairlines_safety_page(&content, 1.0);
+    let before = write_full(&doc, &Default::default()).unwrap();
+    assert!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).is_err());
+    assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
+}
+
+fn hairlines_safety_shared_resource(type3: bool) {
+    let mut doc = fixture();
+    let mut dict = Dict::new();
+    if !type3 {
+        dict.set(b"Type".to_vec(), Object::name("Pattern"));
+        for (key, value) in [
+            (b"PatternType".as_slice(), 1),
+            (b"PaintType".as_slice(), 1),
+            (b"TilingType".as_slice(), 1),
+            (b"XStep".as_slice(), 10),
+            (b"YStep".as_slice(), 10),
+        ] {
+            dict.set(key.to_vec(), Object::Int(value));
+        }
+    }
+    dict.set(b"BBox".to_vec(), Object::Array(vec![Object::Int(0), Object::Int(0), Object::Int(10), Object::Int(10)]));
+    dict.set(b"Resources".to_vec(), Object::Dict(Dict::new()));
+    let original = Object::Stream(Stream::flate(dict, b"0 w 0 0 m 10 0 l S"));
+    let target = doc.add(original.clone());
+    let mut resources = Dict::new();
+    let content: &[u8] = if type3 {
+        let mut font = Dict::new();
+        font.set(b"Type".to_vec(), Object::name("Font"));
+        font.set(b"Subtype".to_vec(), Object::name("Type3"));
+        font.set(
+            b"FontMatrix".to_vec(),
+            Object::Array(vec![Object::Real(0.001), Object::Int(0), Object::Int(0), Object::Real(0.001), Object::Int(0), Object::Int(0)]),
+        );
+        let mut procs = Dict::new();
+        procs.set(b"a".to_vec(), Object::Ref(target));
+        font.set(b"CharProcs".to_vec(), Object::Dict(procs));
+        let mut fonts = Dict::new();
+        fonts.set(b"HF".to_vec(), Object::Ref(doc.add(Object::Dict(font))));
+        resources.set(b"Font".to_vec(), Object::Dict(fonts));
+        b"BT /HF 10 Tf 1 0 0 1 10 10 Tm (a) Tj ET"
+    } else {
+        let mut patterns = Dict::new();
+        patterns.set(b"Pt".to_vec(), Object::Ref(target));
+        resources.set(b"Pattern".to_vec(), Object::Dict(patterns));
+        b"/Pattern cs /Pt scn 0 0 10 10 re f"
+    };
+    let resource = doc.add(Object::Dict(resources));
+    let contents = doc.add(Object::Stream(Stream::flate(Dict::new(), content)));
+    for page in page_list(&doc).into_iter().take(2) {
+        doc.update_dict(page.obj, |d| {
+            d.set(b"Resources".to_vec(), Object::Ref(resource));
+            d.set(b"Contents".to_vec(), Object::Ref(contents));
+        })
+        .unwrap();
+    }
+    let untouched = page_list(&doc)[1].clone();
+    let fixed = fix_hairlines(&mut doc, &[0], &Hairlines { type3, patterns: !type3, ..Default::default() }).unwrap();
+    assert_eq!(fixed.lines, 1);
+    assert_eq!(&*doc.get(target), &original, "the glyph or pattern used by the unselected page must keep its stream");
+    assert_eq!(page_list(&doc)[1], untouched, "the unselected page's resources stay unchanged");
+    assert_ne!(page_list(&doc)[0].dict.get(b"Resources"), Some(&Object::Ref(resource)), "selected resources must point at the repaired copy");
+}
+#[test]
+fn hairlines_safety_copies_shared_type3_glyphs() {
+    hairlines_safety_shared_resource(true);
+}
+#[test]
+fn hairlines_safety_copies_shared_patterns() {
+    hairlines_safety_shared_resource(false);
+}
+
+#[test]
+fn hairlines_safety_keeps_forms_used_indirectly_by_an_unselected_page() {
+    let mut doc = fixture();
+    let mut form_dict = Dict::new();
+    form_dict.set(b"Type".to_vec(), Object::name("XObject"));
+    form_dict.set(b"Subtype".to_vec(), Object::name("Form"));
+    form_dict.set(b"BBox".to_vec(), Object::Array(vec![Object::Int(0), Object::Int(0), Object::Int(10), Object::Int(10)]));
+    let original = Object::Stream(Stream::flate(form_dict, b"0 w 0 0 m 10 0 l S"));
+    let form = doc.add(original.clone());
+    let mut xobjects = Dict::new();
+    xobjects.set(b"Fm".to_vec(), Object::Ref(form));
+    let mut resources = Dict::new();
+    resources.set(b"XObject".to_vec(), Object::Dict(xobjects));
+    let selected_content = doc.add(Object::Stream(Stream::flate(Dict::new(), b"/Fm Do")));
+    let mut pattern = Dict::new();
+    pattern.set(b"PatternType".to_vec(), Object::Int(1));
+    pattern.set(b"Resources".to_vec(), Object::Dict(resources.clone()));
+    let pattern = doc.add(Object::Stream(Stream::flate(pattern, b"/Fm Do")));
+    let mut patterns = Dict::new();
+    patterns.set(b"Pt".to_vec(), Object::Ref(pattern));
+    let mut other_resources = Dict::new();
+    other_resources.set(b"Pattern".to_vec(), Object::Dict(patterns));
+    let pages = page_list(&doc);
+    doc.update_dict(pages[0].obj, |d| {
+        d.set(b"Contents".to_vec(), Object::Ref(selected_content));
+        d.set(b"Resources".to_vec(), Object::Dict(resources));
+    })
+    .unwrap();
+    doc.update_dict(pages[1].obj, |d| d.set(b"Resources".to_vec(), Object::Dict(other_resources))).unwrap();
+    assert_eq!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).unwrap().lines, 1);
+    assert_eq!(&*doc.get(form), &original, "a form may be shared through a pattern, glyph or other unknown object graph");
+}
+
+#[test]
+fn hairlines_safety_reapplying_a_lower_target_width_does_not_grow_content() {
+    let mut doc = hairlines_safety_page(b"0.5 w 0 0 m 20 0 l S", 1.0);
+    let settings = Hairlines { narrower_than: 1.0, width: 0.1, ..Default::default() };
+    assert_eq!(fix_hairlines(&mut doc, &[0], &settings).unwrap().lines, 1);
+    let before = write_full(&doc, &Default::default()).unwrap();
+    assert_eq!(fix_hairlines(&mut doc, &[0], &settings).unwrap().lines, 0);
+    assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
+}
+
+#[test]
+fn hairlines_safety_refuses_malformed_graphics_state_operands() {
+    for content in [b"(bad) w 0 w 0 0 m 20 0 l S".as_slice(), b"(bad) 0 0 1 0 0 cm 0 w 0 0 m 20 0 l S"] {
+        let mut doc = hairlines_safety_page(content, 1.0);
+        let before = write_full(&doc, &Default::default()).unwrap();
+        assert!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).is_err());
+        assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
+    }
 }

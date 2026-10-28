@@ -859,8 +859,8 @@
 	Patterns (graphics objects)	Pola (objek grafis)
 	PdfCraft didn't shut down normally. These documents had changes that were autosaved:	PdfCraft tidak berhenti secara normal. Dokumen-dokumen ini memiliki perubahan yang disimpan otomatis:
 	PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.	PdfCraft bekerja secara luring. Tidak ada telemetri, tidak ada akun, dan tidak ada pemrosesan awan kecuali Anda menambahkan penyedia.
-	PdfCraft {c} is up to date.	PdfCraft {c} sudah terbaru.
-	PdfCraft {v} is available.	PdfCraft {v} tersedia.
+	{app} {c} is up to date.	{app} {c} sudah terbaru.
+	{app} {v} is available.	{app} {v} tersedia.
 	Percentage	Persentase
 	Permissions password	Kata sandi izin
 	Permitted actions after certifying	Tindakan yang diizinkan setelah disertifikasi
@@ -2917,3 +2917,36 @@ theme	Appearance	Tampilan
 	Glass	Kaca
 	Move Tab to New Window	Pindahkan Tab ke Jendela Baru
 	Move Tab to This Window	Pindahkan Tab ke Jendela Ini
+	A table that runs across pages stays together; the pages follow one another down the sheet.	Tabel yang membentang di beberapa halaman tetap menyatu; halaman-halamannya berurutan ke bawah pada lembar.
+	Each page on its own sheet, named Page 1, Page 2…	Setiap halaman pada lembarnya sendiri, bernama Halaman 1, Halaman 2…
+	Export to Excel	Ekspor ke Excel
+	Export to Excel…	Ekspor ke Excel…
+	One sheet for the whole document	Satu lembar untuk seluruh dokumen
+	One sheet per page	Satu lembar per halaman
+	Sheets	Lembar
+	Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.	Tabel menjadi sel; angka, jumlah, persentase, dan tanggal menjadi nilai yang dapat dihitung Excel, ditampilkan seperti di halaman.
+	Add printer marks…	Tambahkan tanda printer…
+	All marks	Semua tanda
+	Bleed marks	Tanda bleed
+	Colour bars	Bilah warna
+	Line weight	Ketebalan garis
+	Marks	Tanda
+	Page information	Informasi halaman
+	Printer marks added	Tanda printer ditambahkan
+	Registration marks	Tanda registrasi
+	Remove printer marks	Hapus tanda printer
+	Room on each side	Ruang di setiap sisi
+	The trim box is kept where it is, so the printed page cuts the same.	Kotak pangkas tetap di tempatnya, sehingga halaman cetak terpotong sama persis.
+	Trim marks	Tanda pangkas
+	Widen the page to make room	Lebarkan halaman untuk memberi ruang
+	printer marks	tanda printer
+	Also	Juga
+	Fix hairlines…	Perbaiki garis rambut…
+	Fixed {n} hairlines on {p} pages	Memperbaiki {n} garis rambut pada {p} halaman
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Garis yang digambar di dalam glif Type 3 dan pola ubin; nonaktif secara default.
+	Narrower than	Lebih sempit dari
+	New width	Lebar baru
+	No hairlines found on those pages	Tidak ada garis rambut di halaman-halaman itu
+	Pattern strokes	Goresan pola
+	Type 3 font glyphs	Glif font Type 3
+	Zero-width lines always count as narrower.	Garis lebar nol selalu dianggap lebih sempit.

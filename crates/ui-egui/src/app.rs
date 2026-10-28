@@ -70,6 +70,7 @@ impl PdfCraftApp {
             theme: ThemeKind::Light,
             // A fresh install follows the desktop's appearance (#1248); saved settings override.
             theme_preference: ThemePreference::System,
+            show_community: false,
             glass: theme::GlassSettings::default(),
             glass_background: glass_background::GlassBackground::default(),
             #[cfg(target_os = "windows")]
@@ -223,6 +224,7 @@ impl PdfCraftApp {
             v_pressed: false,
             attach_override: None,
             duplicate_draft: None,
+            page_props_draft: None,
             field_table_draft: None,
             form_preview: false,
             window_title: String::new(),
@@ -289,6 +291,8 @@ impl PdfCraftApp {
             word_count_draft: word_count_ui::Draft::default(),
             assistant: assistant_ui::Draft::default(),
             dialog_shelf: Default::default(),
+            printer_marks_draft: Default::default(),
+            hairlines_draft: Default::default(),
         }
     }
 
@@ -612,7 +616,7 @@ impl eframe::App for PdfCraftApp {
             .active
             .and_then(|i| crate::canvas::tab_label(self, i))
             .or_else(|| self.combine_showing().then(|| tl!("Combine files").to_owned()))
-            .unwrap_or_else(|| "PdfCraft".to_owned());
+            .unwrap_or_else(|| crate::APP_NAME.to_owned());
         if title != self.window_title {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.window_title = title;

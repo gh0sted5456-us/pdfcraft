@@ -195,6 +195,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("create.save_template", "Save as template", FILE, None, Document, "file-output"),
     c("export.choose", "Export to", FILE, None, Copying, "file-output"),
     c("export.docx", "Export to Word…", FILE, None, Copying, "file-text"),
+    c("export.xlsx", "Export to Excel…", FILE, None, Copying, "grid-3x3"),
     c("export.pptx", "Export to PowerPoint…", FILE, None, Copying, "presentation"),
     c("export.rtf", "Export to RTF…", FILE, None, Copying, "file-text"),
     c("export.html", "Export to HTML…", FILE, None, Copying, "file-symlink"),
@@ -428,14 +429,18 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("page.split", "Split document…", PAGES, None, Assembly, "scissors"),
     c("bookmark.add", "New bookmark", PAGES, Some(Shortcut::cmd("B")), Assembly, "bookmark-plus"),
     c("bookmark.from_structure", "New bookmarks from structure", PAGES, None, Assembly, "list"),
+    c("page.properties", "Page properties…", PAGES, None, Modification, "info"),
     c("page.delete", "Delete pages", PAGES, None, Assembly, "trash-2"),
+    c("prepress.marks", "Add printer marks…", None, None, Modification, "ruler"),
+    c("prepress.marks.remove", "Remove printer marks", None, None, Marks(crate::MarkKind::PrinterMarks), "ruler"),
+    c("prepress.hairlines", "Fix hairlines…", None, None, Modification, "minus"),
     c("help.shortcuts", "Keyboard shortcuts", HELP, None, Nothing, "circle-help"),
     c("help.discord", "Join the ArtCraft Discord", HELP, None, Nothing, "messages-square"),
     c("help.app_page", "PdfCraft web page", HELP, None, Nothing, "globe"),
     c("help.github", "PdfCraft on GitHub", HELP, None, Nothing, "code-xml"),
     c("help.website", "ArtCraft website", HELP, None, Nothing, "external-link"),
     c("help.check_updates", "Check for updates…", HELP, None, Nothing, "cloud"),
-    c("help.about", "About PdfCraft", HELP, None, Nothing, "info"),
+    c("help.about", "About Lion PDF", HELP, None, Nothing, "info"),
 ];
 
 pub fn command(id: &str) -> Option<&'static CommandSpec> {

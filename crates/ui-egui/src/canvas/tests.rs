@@ -2047,3 +2047,25 @@ fn signature_hit_target_does_not_require_a_form_cache_row() {
     s.rect = Some([f64::NAN, 0.0, 50.0, 50.0]);
     assert!(signature_field_at(&[s], 0, hit).is_none());
 }
+
+#[test]
+fn closed_thumbnail_consumers_release_caches_while_main_pixels_are_pending() {
+    let ctx = egui::Context::default();
+    let info = thumbnail_info(2);
+    let mut v = DocView::new(DocId(1), &info, ViewDefaults::default());
+    v.need_thumbnail(0, true);
+    let first = v.prepare_render_queue(&info, 1.0)[0];
+    v.last_queue = vec![first];
+    assert!(v.receive_result(&ctx, solid_result(first, 132, 171)) > 0);
+    v.stale_thumbs.insert(0);
+    v.begin_render_frame();
+    let main = RenderRequest { page: 1, scale: 1.0, tag: 1000, ..Default::default() };
+    v.frame_queue.push(main);
+    v.frame_visible.insert(1);
+    let pending = v.prepare_render_queue(&info, 1.0);
+    assert_eq!(pending, vec![main], "visible page pixels keep priority");
+    assert!(v.thumbs.is_empty(), "closed consumers release their texture even while the main page is missing");
+    assert!(v.stale_thumbs.is_empty());
+    v.last_queue = pending;
+    assert_eq!(v.receive_result(&ctx, solid_result(first, 132, 171)), 0, "late obsolete results stay rejected");
+}
