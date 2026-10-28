@@ -788,9 +788,9 @@
 	Check for updates	Frissítések keresése
 	No check has run yet.	Még nem futott ellenőrzés.
 	Checking for a newer version…	Újabb verzió keresése…
-	PdfCraft {v} is available.	Elérhető a PdfCraft {v}.
+	{app} {v} is available.	Elérhető a {app} {v}.
 	You have version {c}. Download the new version from its release page.	A jelenlegi verzió: {c}. Töltsd le az újat a kiadási oldaláról.
-	PdfCraft {c} is up to date.	A PdfCraft {c} naprakész.
+	{app} {c} is up to date.	A {app} {c} naprakész.
 	Couldn't check for updates: {e}	A frissítések keresése nem sikerült: {e}
 	You have version {c}. All releases are listed at {page}.	A jelenlegi verzió: {c}. Minden kiadás itt található: {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	A GitHubtól kéri le a legújabb kiadást. Semmi sem töltődik le vagy települ automatikusan.

@@ -1,17 +1,18 @@
-# PdfCraft personal build
+# Lion PDF 1.0
 
 Personal daily-use fork by @gh0sted5456-us, based on [PdfCraft by the ArtCraft team and community](https://github.com/storytold/pdfcraft).
-Version 0.14.0 merges upstream through `d764a8eb` and retains the personal lion artwork, Windows PDF thumbnails with a lion badge, Delete-key object removal,
-automatic OCR page choices, and Windows title-bar colors matching the app. This is an unsigned personal build;
-upstream download and community links below refer to the original project.
 
+Lion PDF 1.0.0 brings together the personal interface, Glass theme, document editing, signing, templates and optional PdfCraft Printer, plus reviewed community implementations for Excel export, printer marks, page tab order and basic hairline repair.
 
+Download published Windows builds from [this fork's releases](https://github.com/gh0sted5456-us/pdfcraft/releases). Existing installations use the same update feed and settings identities. This remains an unsigned personal build; upstream download and community links below identify the original project.
+
+See [the 1.0 release notes](docs/lion-pdf-1.0.md) and [remaining tool integrations](docs/fork-tool-integration.md).
 
 <p align="center">
-  <img src="assets/app-icon/hicolor/256x256/apps/ai.storyteller.pdfcraft.png" width="128" height="128" alt="PdfCraft personal icon: original engraved lion">
+  <img src="assets/app-icon/hicolor/256x256/apps/ai.storyteller.pdfcraft.png" width="128" height="128" alt="Lion PDF: original engraved lion">
 </p>
 
-<h1 align="center">PdfCraft</h1>
+<h1 align="center">Lion PDF</h1>
 
 <p align="center">
   <b>The PDF workbench; an open-source, modern PDF reader and editor, built in pure Rust.</b><br>

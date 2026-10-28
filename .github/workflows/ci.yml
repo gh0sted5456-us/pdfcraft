@@ -35,6 +35,9 @@ jobs:
       - name: Windows font notice regressions
         shell: pwsh
         run: ./packaging/windows/test-font-notices.ps1
+      - name: Fork release version regressions
+        shell: pwsh
+        run: ./packaging/windows/test-fork-version.ps1
       - name: Fork release publication regressions
         shell: pwsh
         run: ./packaging/windows/test-fork-publish.ps1

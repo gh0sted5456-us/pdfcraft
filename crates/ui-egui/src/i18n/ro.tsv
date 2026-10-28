@@ -868,8 +868,8 @@
 	Patterns (graphics objects)	Modele (obiecte grafice)
 	PdfCraft didn't shut down normally. These documents had changes that were autosaved:	PdfCraft nu s-a închis normal. Aceste documente aveau modificări salvate automat:
 	PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.	PdfCraft funcționează offline. Fără telemetrie, fără cont și fără procesare în cloud, cu excepția cazului în care adăugați un furnizor.
-	PdfCraft {c} is up to date.	PdfCraft {c} este la zi.
-	PdfCraft {v} is available.	Este disponibil PdfCraft {v}.
+	{app} {c} is up to date.	{app} {c} este la zi.
+	{app} {v} is available.	Este disponibil {app} {v}.
 	Percentage	Procent
 	Permissions password	Parolă de permisiuni
 	Permitted actions after certifying	Acțiuni permise după certificare

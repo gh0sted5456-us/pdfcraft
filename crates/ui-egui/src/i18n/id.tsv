@@ -859,8 +859,8 @@
 	Patterns (graphics objects)	Pola (objek grafis)
 	PdfCraft didn't shut down normally. These documents had changes that were autosaved:	PdfCraft tidak berhenti secara normal. Dokumen-dokumen ini memiliki perubahan yang disimpan otomatis:
 	PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.	PdfCraft bekerja secara luring. Tidak ada telemetri, tidak ada akun, dan tidak ada pemrosesan awan kecuali Anda menambahkan penyedia.
-	PdfCraft {c} is up to date.	PdfCraft {c} sudah terbaru.
-	PdfCraft {v} is available.	PdfCraft {v} tersedia.
+	{app} {c} is up to date.	{app} {c} sudah terbaru.
+	{app} {v} is available.	{app} {v} tersedia.
 	Percentage	Persentase
 	Permissions password	Kata sandi izin
 	Permitted actions after certifying	Tindakan yang diizinkan setelah disertifikasi

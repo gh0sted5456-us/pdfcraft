@@ -439,9 +439,9 @@
 	Check for updates	檢驗更新
 	No check has run yet.	尚未執行檢驗。
 	Checking for a newer version…	正在檢驗新版本…
-	PdfCraft {v} is available.	PdfCraft {v} 可用。
+	{app} {v} is available.	{app} {v} 可用。
 	You have version {c}. Download the new version from its release page.	目前版本為 {c}。請從其釋出頁面下載新版本。
-	PdfCraft {c} is up to date.	PdfCraft {c} 已是最新。
+	{app} {c} is up to date.	{app} {c} 已是最新。
 	Couldn't check for updates: {e}	無法檢驗更新：{e}
 	You have version {c}. All releases are listed at {page}.	目前版本為 {c}。所有版本列在 {page}。
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	向 GitHub 搜尋最新版本。不會自動下載或安裝任何內容。

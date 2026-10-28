@@ -1314,8 +1314,8 @@
 	PdfCraft on GitHub	PdfCraft në GitHub
 	PdfCraft web page	Faqja ueb e PdfCraft
 	PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.	PdfCraft funksionon pa internet. Pa telemetri, pa llogari dhe pa përpunim në re, përveçse nëse shton një ofrues.
-	PdfCraft {c} is up to date.	PdfCraft {c} është i përditësuar.
-	PdfCraft {v} is available.	PdfCraft {v} është i disponueshëm.
+	{app} {c} is up to date.	{app} {c} është i përditësuar.
+	{app} {v} is available.	{app} {v} është i disponueshëm.
 	People may need more time to respond. Check that nothing has a time limit.	Njerëzit mund të kenë nevojë për më shumë kohë për të përgjigjur. Kontrollo që asgjë të mos ketë kufi kohe.
 	Percentage	Përqindja
 	Perimeter	Perimetri

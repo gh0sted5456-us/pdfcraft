@@ -395,9 +395,9 @@
 	Save Image As…	Αποθήκευση εικόνας ως…
 	No check has run yet.	Δεν έχει πραγματοποιηθεί ακόμη έλεγχος.
 	Checking for a newer version…	Έλεγχος για νεότερη έκδοση…
-	PdfCraft {v} is available.	Η έκδοση {v} του PdfCraft είναι διαθέσιμη.
+	{app} {v} is available.	Η έκδοση {v} του {app} είναι διαθέσιμη.
 	You have version {c}. Download the new version from its release page.	Έχετε την έκδοση {c}. Κάντε λήψη της νέας έκδοσης από τη σελίδα εκδόσεών της.
-	PdfCraft {c} is up to date.	Το PdfCraft {c} είναι ενημερωμένο.
+	{app} {c} is up to date.	Το {app} {c} είναι ενημερωμένο.
 	Couldn't check for updates: {e}	Δεν ήταν δυνατός ο έλεγχος για ενημερώσεις: {e}
 	You have version {c}. All releases are listed at {page}.	Έχετε την έκδοση {c}. Όλες οι εκδόσεις βρίσκονται στη διεύθυνση {page}.
 	Asks GitHub for the latest release. Nothing is downloaded or installed automatically.	Αναζητά την τελευταία έκδοση στο GitHub. Δεν γίνεται αυτόματα λήψη ή εγκατάσταση.

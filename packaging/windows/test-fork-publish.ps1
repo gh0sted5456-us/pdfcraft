@@ -14,15 +14,15 @@ if ($code.Count -lt 10) { throw 'Publication step was not found' }
 $publish = [scriptblock]::Create($code -join [Environment]::NewLine)
 $previousRepo = $env:GITHUB_REPOSITORY; $previousVersion = $env:FORK_VERSION
 try {
-  $env:FORK_VERSION = '0.14.1'
+  $env:FORK_VERSION = '1.0.0'
   function Get-FileHash {
     param([string] $LiteralPath, [string] $Algorithm)
-    if ($LiteralPath -ne 'dist/pdfcraft-0.14.1-with-printer-x64.exe' -or $Algorithm -ne 'SHA256') { throw 'Unexpected hash request' }
+    if ($LiteralPath -ne 'dist/pdfcraft-1.0.0-with-printer-x64.exe' -or $Algorithm -ne 'SHA256') { throw 'Unexpected hash request' }
     [pscustomobject]@{ Hash = $script:publicationTest.hash }
   }
   function Get-Item {
     param([string] $LiteralPath)
-    if ($LiteralPath -ne 'dist/pdfcraft-0.14.1-with-printer-x64.exe') { throw 'Unexpected file request' }
+    if ($LiteralPath -ne 'dist/pdfcraft-1.0.0-with-printer-x64.exe') { throw 'Unexpected file request' }
     [pscustomobject]@{ Length = $script:publicationTest.size }
   }
   function Set-Content {
@@ -55,7 +55,7 @@ try {
     if ($endpoint -eq 'repos/gh0sted5456-us/pdfcraft/releases?per_page=100') {
       if (($args -join ' ') -notmatch '--paginate --slurp') { throw 'All draft release pages must be read' }
       if ($state.scenario -eq 'list-failed') { $global:LASTEXITCODE = 1; return }
-      $draft = @{ id = 123; tag_name = 'fork-v0.14.1'; draft = $true; target_commitish = $state.head }
+      $draft = @{ id = 123; tag_name = 'fork-v1.0.0'; draft = $true; target_commitish = $state.head }
       if ($state.scenario -eq 'wrong-head') { $draft.target_commitish = 'b' * 40 }
       if ($state.scenario -eq 'bad-id') { $draft.id = 'not/an/id' }
       $draftEntries = @($draft)
@@ -73,7 +73,7 @@ try {
     if ($state.scenario -eq 'bad-size') { $bytes++ }
     if ($state.scenario -eq 'not-uploaded') { $uploaded = 'new' }
     if ($state.scenario -eq 'metadata-changed') { $target = 'b' * 40 }
-    return (@{ id = 123; tag_name = 'fork-v0.14.1'; draft = $true; target_commitish = $target; assets = @(@{ name = 'pdfcraft-0.14.1-with-printer-x64.exe'; digest = "sha256:$digest"; size = $bytes; state = $uploaded }) } | ConvertTo-Json -Depth 6)
+    return (@{ id = 123; tag_name = 'fork-v1.0.0'; draft = $true; target_commitish = $target; assets = @(@{ name = 'pdfcraft-1.0.0-with-printer-x64.exe'; digest = "sha256:$digest"; size = $bytes; state = $uploaded }) } | ConvertTo-Json -Depth 6)
   }
   foreach ($case in @(
       @('good', ''), @('stale-before', 'newer main'), @('stale-after', 'advanced'),
@@ -88,7 +88,7 @@ try {
     try { & $publish | Out-Null } catch { $failure = $_.Exception.Message }
     if ($case[0] -in @('stale-before','wrong-repo') -and $script:publicationTest.created -ne 0) { throw "Case $($case[0]) uploaded before checking its source" }
     if (-not $case[1]) {
-      if ($failure -or $script:publicationTest.published -ne 1 -or $script:publicationTest.checksum -ne (('c' * 64) + '  pdfcraft-0.14.1-with-printer-x64.exe')) { throw "Good draft must publish by ID: $failure" }
+      if ($failure -or $script:publicationTest.published -ne 1 -or $script:publicationTest.checksum -ne (('c' * 64) + '  pdfcraft-1.0.0-with-printer-x64.exe')) { throw "Good draft must publish by ID: $failure" }
     } elseif (-not $failure -or $failure -notmatch [regex]::Escape($case[1]) -or $script:publicationTest.published -ne 0) {
       throw "Case $($case[0]) did not fail safely: $failure"
     }
