@@ -116,6 +116,8 @@ pub enum Dialog {
     PageProps,
     /// Print production ▸ Add printer marks.
     PrinterMarks,
+    /// Print production ▸ Fix hairlines.
+    FixHairlines,
     /// Protect Using Password.
     Protect,
     /// Encrypt with Certificate.

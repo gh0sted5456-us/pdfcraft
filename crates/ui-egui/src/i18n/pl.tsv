@@ -2817,3 +2817,13 @@ animation effects	Off	Wyłączone
 	The trim box is kept where it is, so the printed page cuts the same.	Ramka cięcia zostaje na miejscu, więc wydrukowana strona tnie się tak samo.
 	Printer marks added	Dodano znaczniki drukarskie
 	printer marks	znaczniki drukarskie
+	Narrower than	Węższe niż
+	New width	Nowa szerokość
+	Zero-width lines always count as narrower.	Linie o zerowej szerokości zawsze liczą się jako węższe.
+	Also	Także
+	Type 3 font glyphs	Glify fontów Type 3
+	Pattern strokes	Pociągnięcia wzorów
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Linie rysowane wewnątrz glifów Type 3 i wzorów kafelkowych; domyślnie wyłączone.
+	No hairlines found on those pages	Na tych stronach nie znaleziono linii włosowych
+	Fixed {n} hairlines on {p} pages	Poprawiono {n} linii włosowych na {p} stronach
+	Fix hairlines…	Popraw cienkie linie…

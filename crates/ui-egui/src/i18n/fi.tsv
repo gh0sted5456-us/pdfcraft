@@ -2977,3 +2977,13 @@ theme	Appearance	Teema
 	Trim marks	Leikkuumerkit
 	Widen the page to make room	Levennä sivua tilan tekemiseksi
 	printer marks	painomerkit
+	Also	Myös
+	Fix hairlines…	Korjaa hiusviivat…
+	Fixed {n} hairlines on {p} pages	Korjattiin {n} hiusviivaa {p} sivulla
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Type 3 -glyfien ja laattakuvioiden sisään piirretyt viivat; oletuksena pois käytöstä.
+	Narrower than	Kapeampi kuin
+	New width	Uusi leveys
+	No hairlines found on those pages	Hiusviivoja ei löytynyt näiltä sivuilta
+	Pattern strokes	Kuvioviivat
+	Type 3 font glyphs	Type 3 -fonttien glyfit
+	Zero-width lines always count as narrower.	Nollaleveyksiset viivat lasketaan aina kapeammiksi.

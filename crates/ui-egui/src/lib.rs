@@ -87,6 +87,7 @@ use canvas::zoom_snap;
 use dialogs::appearance;
 use dialogs::comment_props;
 use dialogs::credits;
+use dialogs::hairlines_ui;
 use dialogs::marks_ui;
 use dialogs::pageboxes;
 use dialogs::palette;
@@ -611,6 +612,7 @@ pub struct PdfCraftApp {
     pub(crate) assistant: assistant_ui::Draft,
     pub(crate) dialog_shelf: dialog_windows::Shelf,
     pub printer_marks_draft: printer_marks_ui::PrinterMarksDraft,
+    pub hairlines_draft: hairlines_ui::HairlinesDraft,
     /// Protect Using Password dialog state.
     pub protect_draft: protect::ProtectDraft,
     pub certificate_draft: certificate_ui::CertificateDraft,

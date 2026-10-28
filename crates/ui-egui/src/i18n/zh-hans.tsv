@@ -2685,3 +2685,13 @@ animation effects	Off	关
 	The trim box is kept where it is, so the printed page cuts the same.	裁切框保持不变，打印页面的裁切位置相同。
 	Printer marks added	已添加打印标记
 	printer marks	打印标记
+	Narrower than	细于
+	New width	新宽度
+	Zero-width lines always count as narrower.	零宽度的线始终视为更细。
+	Also	同时
+	Type 3 font glyphs	Type 3 字体字形
+	Pattern strokes	图案描边
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	绘制在 Type 3 字形和平铺图案内部的线；默认关闭。
+	No hairlines found on those pages	这些页面上未找到细线
+	Fixed {n} hairlines on {p} pages	已修复 {p} 页上的 {n} 条细线
+	Fix hairlines…	修复细线…

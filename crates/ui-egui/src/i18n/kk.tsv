@@ -2720,3 +2720,13 @@ animation effects	Off	Өшірулі
 	The trim box is kept where it is, so the printed page cuts the same.	Кесу жақтауы орнында қалады, сондықтан басылған бет сол күйінде кесіледі.
 	Printer marks added	Басып шығару белгілері қосылды
 	printer marks	басып шығару белгілері
+	Narrower than	Мынадан жіңішке
+	New width	Жаңа ені
+	Zero-width lines always count as narrower.	Ені нөл сызықтар әрқашан жіңішке саналады.
+	Also	Сондай-ақ
+	Type 3 font glyphs	Type 3 қаріп глифтері
+	Pattern strokes	Өрнек штрихтары
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Type 3 глифтері мен қайталанатын өрнектер ішінде сызылған сызықтар; әдепкі бойынша өшірулі.
+	No hairlines found on those pages	Бұл беттерде жіңішке сызықтар табылмады
+	Fixed {n} hairlines on {p} pages	{p} бетте {n} жіңішке сызық түзетілді
+	Fix hairlines…	Жіңішке сызықтарды түзету…

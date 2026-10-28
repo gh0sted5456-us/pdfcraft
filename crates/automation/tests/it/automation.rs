@@ -8953,6 +8953,49 @@ fn printer_marks_through_tools() {
     ));
 }
 
+/// Fix hairlines through the tools: counts what changed, and reports zero without an edit.
+#[test]
+fn fix_hairlines_through_tools() {
+    let dir = workdir("hairlines");
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "a.pdf" }))["doc"].as_u64().unwrap();
+    // The fixture's text pages have no strokes.
+    let r = ok(&mut a, "doc_fix_hairlines", json!({ "doc": doc }));
+    assert_eq!((r["fixed"].as_u64(), r["undo"].is_null()), (Some(0), true));
+    // A zero-width rule drawn by the page content tools counts as a hairline.
+    ok(&mut a, "comment_add", json!({ "doc": doc, "page": 1, "type": "line", "from": [10, 10], "to": [100, 10], "width": 0 }));
+    let r = ok(&mut a, "doc_fix_hairlines", json!({ "doc": doc, "pages": [1] }));
+    // Comments are annotations, not page content: still nothing in the page's own content.
+    assert_eq!(r["fixed"].as_u64(), Some(0), "{r}");
+    assert!(matches!(a.call("doc_fix_hairlines", &json!({ "doc": doc, "width": 0 })), Err(ToolError::InvalidArgs(_))));
+}
+
+#[test]
+fn fix_hairlines_saves_real_repairs_and_preserves_malformed_documents() {
+    use pdfcraft_cos::{Dict, Document, Object, Stream};
+    let dir = workdir("hairline-fidelity");
+    for (name, content) in [("lines.pdf", b"0 w 10 10 m 100 10 l S".as_slice()), ("malformed.pdf", b"0 w 10 10 m 100 10 l S (")] {
+        let mut cos = Document::open(std::sync::Arc::new(fixture(1))).unwrap();
+        let page = pdfcraft_model::pages(&cos).remove(0);
+        let stream = cos.add(Object::Stream(Stream::flate(Dict::new(), content)));
+        cos.update_dict(page.obj, |d| d.set(b"Contents".to_vec(), Object::Ref(stream))).unwrap();
+        std::fs::write(dir.join(name), pdfcraft_cos::write_full(&cos, &Default::default()).unwrap()).unwrap();
+    }
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({"path":"lines.pdf"}))["doc"].as_u64().unwrap();
+    let fixed = ok(&mut a, "doc_fix_hairlines", json!({"doc":doc}));
+    assert_eq!(fixed["fixed"], 1);
+    assert_eq!(fixed["undo"], "Fix hairlines");
+    ok(&mut a, "doc_save", json!({"doc":doc,"path":"fixed.pdf"}));
+    let reopened = ok(&mut a, "doc_open", json!({"path":"fixed.pdf"}))["doc"].as_u64().unwrap();
+    assert_eq!(ok(&mut a, "doc_fix_hairlines", json!({"doc":reopened}))["fixed"], 0);
+    assert_eq!(ok(&mut a, "edit_undo", json!({"doc":doc}))["undone"], "Fix hairlines");
+    assert_eq!(ok(&mut a, "doc_fix_hairlines", json!({"doc":doc}))["fixed"], 1);
+    let bad = ok(&mut a, "doc_open", json!({"path":"malformed.pdf"}))["doc"].as_u64().unwrap();
+    assert!(matches!(a.call("doc_fix_hairlines", &json!({"doc":bad})), Err(ToolError::Failed(_))));
+    assert_eq!(ok(&mut a, "doc_info", json!({"doc":bad}))["document"]["dirty"], false);
+}
+
 #[test]
 fn attaching_and_deleting_files_through_the_tools() {
     let dir = workdir("attach");

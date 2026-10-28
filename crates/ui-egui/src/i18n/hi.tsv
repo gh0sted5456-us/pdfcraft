@@ -2939,3 +2939,13 @@ theme	Appearance	स्वरूप
 	Trim marks	ट्रिम मार्क
 	Widen the page to make room	जगह बनाने के लिए पृष्ठ चौड़ा करें
 	printer marks	प्रिंटर मार्क
+	Also	और
+	Fix hairlines…	हेयरलाइन ठीक करें…
+	Fixed {n} hairlines on {p} pages	{p} पृष्ठों पर {n} हेयरलाइन ठीक की गईं
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Type 3 ग्लिफ़ और टाइलिंग पैटर्न के भीतर खींची गई रेखाएँ; डिफ़ॉल्ट रूप से बंद।
+	Narrower than	इससे संकरी
+	New width	नई चौड़ाई
+	No hairlines found on those pages	इन पृष्ठों पर कोई हेयरलाइन नहीं मिली
+	Pattern strokes	पैटर्न स्ट्रोक
+	Type 3 font glyphs	Type 3 फ़ॉन्ट ग्लिफ़
+	Zero-width lines always count as narrower.	शून्य-चौड़ाई वाली रेखाएँ हमेशा संकरी मानी जाती हैं।

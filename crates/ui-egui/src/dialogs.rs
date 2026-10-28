@@ -10,6 +10,7 @@ use crate::{CloseRequest, Dialog, PdfCraftApp, PropsTab, panels::human_size, wid
 pub(super) mod appearance;
 pub(super) mod comment_props;
 pub(super) mod credits;
+pub(super) mod hairlines_ui;
 pub(super) mod marks_ui;
 pub(super) mod pageboxes;
 pub(super) mod palette;
@@ -99,6 +100,7 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let mut certificate_now = false;
     let mut boxes_now = false;
     let mut printer_marks_now = false;
+    let mut fix_hairlines_now = false;
     let mut marks_now = false;
     let mut export_now = false;
     let mut props_now = false;
@@ -1336,6 +1338,12 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 close = go || cancel;
                 return;
             }
+            Dialog::FixHairlines => {
+                let (go, cancel) = crate::hairlines_ui::body(ui, app, &t);
+                fix_hairlines_now = go;
+                close = go || cancel;
+                return;
+            }
             Dialog::NumberPages => {
                 use pdfcraft_engine::LabelStyle as L;
                 crate::widgets::dialog_heading(ui, tl!("Number pages"));
@@ -1742,6 +1750,9 @@ fn dialogs(app: &mut PdfCraftApp, ctx: &egui::Context) {
     }
     if printer_marks_now {
         app.add_printer_marks();
+    }
+    if fix_hairlines_now {
+        app.fix_hairlines();
     }
     if apply_number && let Some(edit) = number_now {
         app.apply_edit(edit);

@@ -3043,3 +3043,13 @@ theme	Appearance	Aspecto
 	The trim box is kept where it is, so the printed page cuts the same.	El cuadro de recorte se mantiene donde está, así que la página impresa se corta igual.
 	Printer marks added	Marcas de impresión añadidas
 	printer marks	marcas de impresión
+	Narrower than	Más finas que
+	New width	Ancho nuevo
+	Zero-width lines always count as narrower.	Las líneas de ancho cero siempre cuentan como más finas.
+	Also	También
+	Type 3 font glyphs	Glifos de fuentes Type 3
+	Pattern strokes	Trazos de patrones
+	Lines drawn inside Type 3 glyphs and tiling patterns; off by default.	Líneas dibujadas dentro de glifos Type 3 y patrones de mosaico; desactivado de forma predeterminada.
+	No hairlines found on those pages	No se encontraron líneas finas en esas páginas
+	Fixed {n} hairlines on {p} pages	Se corrigieron {n} líneas finas en {p} páginas
+	Fix hairlines…	Corregir líneas finas…

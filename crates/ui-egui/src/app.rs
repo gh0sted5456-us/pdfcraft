@@ -292,6 +292,7 @@ impl PdfCraftApp {
             assistant: assistant_ui::Draft::default(),
             dialog_shelf: Default::default(),
             printer_marks_draft: Default::default(),
+            hairlines_draft: Default::default(),
         }
     }
 
