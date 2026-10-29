@@ -1973,6 +1973,153 @@ fn bookmarks_from_structure_nest_the_headings_and_undo() {
     assert!(s.get(id).unwrap().info.outline.is_empty());
 }
 
+/// Three pages whose headings are set apart only by how they look (#1693): chapters in
+/// Helvetica-Bold 18, sections in Helvetica-Bold 14, text in Helvetica 11. Page 2's chapter title
+/// runs over two lines, its bold font is another subset of the same font, and one section is set
+/// with `1 Tf` and a text matrix 14 times larger. Page 3 has two sections on one row.
+fn styled_headings_fixture() -> Vec<u8> {
+    let page1 = "BT /FB 18 Tf 72 700 Td (Chapter One) Tj ET BT /FR 11 Tf 72 670 Td (Body text) Tj ET \
+                 BT /FB 14 Tf 72 640 Td (Section A) Tj ET BT /FR 11 Tf 72 620 Td (More body) Tj ET";
+    let page2 = "BT /FS 18 Tf 72 700 Td (Chapter Two) Tj ET BT /FS 18 Tf 72 680 Td (and its subtitle) Tj ET \
+                 BT /FB 1 Tf 14 0 0 14 72 640 Tm (Section B) Tj ET BT /FR 11 Tf 72 620 Td (Body) Tj ET \
+                 BT /FB 14 Tf 72 600 Td (Section C) Tj ET";
+    // Two sections on one row, the right one drawn first: read from the left.
+    let page3 = "BT /FB 14 Tf 300 500 Td (Right part) Tj ET BT /FB 14 Tf 72 500 Td (Left part) Tj ET";
+    let fonts = "/Font << /FB 6 0 R /FR 7 0 R /FS 8 0 R >>";
+    pdfcraft_testkit::Pdf::new()
+        .obj("<< /Type /Catalog /Pages 2 0 R >>")
+        .obj(format!("<< /Type /Pages /Kids [3 0 R 4 0 R 10 0 R] /Count 3 /MediaBox [0 0 612 792] /Resources << {fonts} >> >>"))
+        .obj("<< /Type /Page /Parent 2 0 R /Contents 5 0 R >>")
+        .obj("<< /Type /Page /Parent 2 0 R /Contents 9 0 R >>")
+        .stream("", page1)
+        .obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
+        .obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
+        .obj("<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+Helvetica-Bold /Encoding /WinAnsiEncoding >>")
+        .stream("", page2)
+        .obj("<< /Type /Page /Parent 2 0 R /Contents 11 0 R >>")
+        .stream("", page3)
+        .build()
+}
+
+/// #1693: the document's text styles, largest first, and bookmarks made from the chosen ones:
+/// chapters at level 1, sections nested under the chapter before them. A two-line title is one
+/// bookmark; a subset of the same font and a size set by the text matrix count as the style.
+/// Each bookmark goes to its heading's top. One undo step; no style, or none in use, is refused.
+#[test]
+fn bookmarks_from_text_styles_nest_the_headings_and_undo() {
+    let mut s = Session::new();
+    let id = s.open("styled.pdf", None, Arc::new(styled_headings_fixture()), None).unwrap();
+    let styles = s.get(id).unwrap().text_styles();
+    let listed: Vec<(String, f64, bool, usize, usize)> =
+        styles.iter().map(|u| (u.style.font.clone(), u.style.size, u.style.bold, u.lines, u.pages)).collect();
+    assert_eq!(
+        listed,
+        [
+            ("Helvetica-Bold".to_string(), 18.0, true, 3, 2),
+            ("Helvetica-Bold".to_string(), 14.0, true, 5, 3),
+            ("Helvetica".to_string(), 11.0, false, 3, 2),
+        ]
+    );
+    assert_eq!(styles[0].sample, "Chapter One");
+    let (chapter, section) = (styles[0].style.clone(), styles[1].style.clone());
+    s.apply(id, Edit::BookmarksFromTextStyles { levels: vec![chapter.clone(), section.clone()] }).unwrap();
+    let outline = s.get(id).unwrap().info.outline.clone();
+    assert_eq!(
+        outline_titles(&outline),
+        ["Untitled→0[Chapter One→1[Section A→1],Chapter Two and its subtitle→2[Section B→2,Section C→2,Left part→3,Right part→3]]"]
+    );
+    let first = &outline[0].children[0];
+    match first.view {
+        pdfcraft_render::DestView::Xyz { left: None, top: Some(top), zoom: None } => {
+            assert!((700.0..720.0).contains(&top), "the top of the heading's line: {top}")
+        }
+        ref v => panic!("{v:?}"),
+    }
+    assert_eq!(s.get(id).unwrap().can_undo(), Some("New bookmarks from text styles"));
+    s.undo(id).unwrap();
+    assert!(s.get(id).unwrap().info.outline.is_empty());
+    // One level is enough; the sections are then left out.
+    s.apply(id, Edit::BookmarksFromTextStyles { levels: vec![chapter] }).unwrap();
+    assert_eq!(outline_titles(&s.get(id).unwrap().info.outline), ["Untitled→0[Chapter One→1,Chapter Two and its subtitle→2]"]);
+    s.undo(id).unwrap();
+    // Nothing chosen, or a style no text is in: refused, nothing changes.
+    let err = s.apply(id, Edit::BookmarksFromTextStyles { levels: vec![] }).unwrap_err();
+    assert!(err.to_string().contains("at least one bookmark level"), "{err}");
+    let unused = pdfcraft_engine_style(&section, 30.0);
+    let err = s.apply(id, Edit::BookmarksFromTextStyles { levels: vec![unused] }).unwrap_err();
+    assert!(err.to_string().contains("no text is set in the chosen styles"), "{err}");
+    assert!(s.get(id).unwrap().info.outline.is_empty());
+}
+
+/// CodeRabbit on #4560: a line goes to the first level whose style it is in, so the same style
+/// for two levels (or one within the size tolerance of the other) would leave the later level
+/// empty. Refused at the edit, for the dialog and automation alike; nothing changes.
+#[test]
+fn bookmarks_from_text_styles_refuse_one_style_for_two_levels() {
+    let mut s = Session::new();
+    let id = s.open("styled.pdf", None, Arc::new(styled_headings_fixture()), None).unwrap();
+    let styles = s.get(id).unwrap().text_styles();
+    let (chapter, section) = (styles[0].style.clone(), styles[1].style.clone());
+    let near = pdfcraft_engine_style(&section, section.size + 0.1);
+    for levels in [vec![chapter.clone(), chapter.clone()], vec![chapter.clone(), section.clone(), near]] {
+        let n = levels.len();
+        let err = s.apply(id, Edit::BookmarksFromTextStyles { levels }).unwrap_err();
+        assert!(err.to_string().contains(&format!("levels {} and {n} have the same text style", n - 1)), "{err}");
+        assert!(s.get(id).unwrap().info.outline.is_empty());
+    }
+}
+
+/// CodeRabbit on #4560: bookmark titles from text styles are the document's text, so a document
+/// that forbids copying lists no styles and refuses the edit, as it refuses other extraction.
+#[test]
+fn bookmarks_from_text_styles_need_copying_permission() {
+    let mut doc = pdfcraft_cos::Document::open(Arc::new(styled_headings_fixture())).unwrap();
+    doc.set_encryption(&pdfcraft_cos::NewEncryption {
+        algorithm: pdfcraft_cos::Algorithm::Aes256,
+        user_password: "",
+        owner_password: "owner",
+        permissions: -1 ^ 0b1_0000,
+        encrypt_metadata: true,
+        seed: [7; 32],
+    })
+    .unwrap();
+    let bytes = Arc::new(pdfcraft_cos::write_full(&doc, &Default::default()).unwrap());
+    let mut s = Session::new();
+    let id = s.open("r.pdf", None, bytes.clone(), None).unwrap();
+    assert!(s.get(id).unwrap().allows_assembly() && !s.get(id).unwrap().allows_copying());
+    assert!(s.get(id).unwrap().text_styles().is_empty(), "no samples of text that may not be copied");
+    let style = text_style_bookmarks::TextStyle { font: "Helvetica-Bold".into(), size: 18.0, bold: true, italic: false };
+    let err = s.apply(id, Edit::BookmarksFromTextStyles { levels: vec![style.clone()] }).unwrap_err();
+    assert_eq!(err, EditError::NotPermitted("copying text and images"));
+    let owner = s.open("r.pdf", None, bytes, Some("owner")).unwrap();
+    assert!(!s.get(owner).unwrap().text_styles().is_empty());
+    assert!(s.apply(owner, Edit::BookmarksFromTextStyles { levels: vec![style] }).is_ok(), "the owner may");
+}
+
+/// CodeRabbit on #4560: two headings in one style in two columns, the right one a little lower,
+/// are two bookmarks, not one heading run on across the columns.
+#[test]
+fn headings_in_two_columns_are_two_bookmarks() {
+    let page = "BT /FB 14 Tf 72 700 Td (Left heading) Tj ET BT /FB 14 Tf 320 690 Td (Right heading) Tj ET";
+    let bytes = pdfcraft_testkit::Pdf::new()
+        .obj("<< /Type /Catalog /Pages 2 0 R >>")
+        .obj("<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] /Resources << /Font << /FB 5 0 R >> >> >>")
+        .obj("<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>")
+        .stream("", page)
+        .obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>")
+        .build();
+    let mut s = Session::new();
+    let id = s.open("cols.pdf", None, Arc::new(bytes), None).unwrap();
+    let style = s.get(id).unwrap().text_styles()[0].style.clone();
+    s.apply(id, Edit::BookmarksFromTextStyles { levels: vec![style] }).unwrap();
+    assert_eq!(outline_titles(&s.get(id).unwrap().info.outline), ["Untitled→0[Left heading→1,Right heading→1]"]);
+}
+
+/// `style` at another size.
+fn pdfcraft_engine_style(style: &text_style_bookmarks::TextStyle, size: f64) -> text_style_bookmarks::TextStyle {
+    text_style_bookmarks::TextStyle { size, ..style.clone() }
+}
+
 #[test]
 fn number_pages_shows_in_the_viewer_and_undoes() {
     let (mut s, id) = session_with(5);
@@ -3610,6 +3757,70 @@ fn pages_export_as_png_jpeg_and_tiff() {
     let compression = tags.get_tag_u32(tiff::tags::Tag::Compression).unwrap();
     let predictor = tags.get_tag_u32(tiff::tags::Tag::Predictor).unwrap();
     assert_eq!((compression, predictor), (5, 1), "LZW, without a predictor");
+}
+
+/// Export ▸ Image draws several pages at once: each file is the one exporting that page alone
+/// writes, handed over in the order asked for, whatever the number of pages drawn at once.
+#[test]
+fn pages_exported_at_once_are_the_files_each_page_exports_alone_in_order() {
+    use crate::export::{Exporter, ImageFormat};
+    let (s, id) = session_with(12);
+    let pages = [3, 0, 11, 5, 5, 7, 1, 2, 10, 9, 8, 6, 4];
+    for format in [ImageFormat::Png, ImageFormat::Jpeg { quality: 85 }, ImageFormat::Tiff] {
+        let alone: Vec<(usize, Vec<u8>)> = pages.iter().map(|&p| (p, Exporter::new(s.get(id).unwrap()).image(p, 96.0, format).unwrap())).collect();
+        for workers in [1, 2, 4, 8] {
+            let mut got = Vec::new();
+            let mut ex = Exporter::new(s.get(id).unwrap());
+            ex.images_on(workers, &pages, 96.0, format, |p, img| {
+                got.push((p, img));
+                Ok(())
+            })
+            .unwrap();
+            assert!(got == alone, "{} with {workers} workers", format.label());
+        }
+        let mut got = Vec::new();
+        Exporter::new(s.get(id).unwrap())
+            .images(&pages, 96.0, format, |p, img| {
+                got.push((p, img));
+                Ok(())
+            })
+            .unwrap();
+        assert!(got == alone, "{}", format.label());
+    }
+}
+
+/// A page that can't be exported, or a file that can't be written, stops the export there with
+/// its error: every page before it is handed over, none after it.
+#[test]
+fn exporting_pages_at_once_stops_at_the_first_error() {
+    use crate::export::{Exporter, ImageFormat};
+    let (s, id) = session_with(6);
+    for workers in [1, 4] {
+        let mut ex = Exporter::new(s.get(id).unwrap());
+        let mut got = Vec::new();
+        let result = ex.images_on(workers, &[0, 1, 99, 2, 3], 72.0, ImageFormat::Png, |p, _| {
+            got.push(p);
+            Ok(())
+        });
+        assert_eq!(result, Err("page 100 does not exist".to_string()), "{workers} workers");
+        assert_eq!(got, [0, 1], "{workers} workers");
+
+        let mut got = Vec::new();
+        let result = ex.images_on(workers, &[0, 1, 2, 3, 4, 5], 72.0, ImageFormat::Png, |p, _| {
+            got.push(p);
+            if p == 2 { Err("disk full".to_string()) } else { Ok(()) }
+        });
+        assert_eq!(result, Err("disk full".to_string()), "{workers} workers");
+        assert_eq!(got, [0, 1, 2], "{workers} workers");
+        // The exporter is still usable afterwards.
+        assert!(ex.image(5, 72.0, ImageFormat::Png).is_ok());
+    }
+    // A panicking sink stops the workers rather than leaving them waiting for it.
+    let mut ex = Exporter::new(s.get(id).unwrap());
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        ex.images_on(4, &[0, 1, 2, 3, 4, 5], 72.0, ImageFormat::Png, |p, _| if p == 1 { panic!("sink") } else { Ok(()) })
+    }));
+    assert!(panicked.is_err());
 }
 
 /// A TIFF's resolution unit (2 = inch) and its horizontal and vertical resolution.
@@ -9392,5 +9603,41 @@ fn saving_after_cutting_pages_preserves_password_security() {
         let id = reopened.open("saved.pdf", None, saved.clone(), Some(password)).unwrap();
         assert_eq!(page_texts(&reopened, id), ["Page 1"]);
         assert!(reopened.get(id).unwrap().info.encrypted);
+    }
+}
+
+#[test]
+fn deleting_one_widget_respects_page_locks() {
+    let (mut session, id) = session_with(1);
+    session
+        .apply(
+            id,
+            Edit::AddField { page: 0, rect: [20.0, 30.0, 120.0, 55.0], kind: NewField::Text { multiline: false }, name: Some("protected".into()) },
+        )
+        .unwrap();
+    session.apply(id, Edit::SetPageLocks { pages: vec![0], locked: true }).unwrap();
+    let before = session.get(id).unwrap().bytes.clone();
+    let result = session.apply(id, Edit::DeleteWidget { name: "protected".into(), widget: 0 });
+    assert!(result.is_err(), "widget deletion cannot change a locked page");
+    let doc = session.get(id).unwrap();
+    assert_eq!(doc.bytes, before);
+    assert_eq!(doc.form.len(), 1);
+    assert_eq!(doc.can_undo(), Some("Lock pages"));
+    session.apply(id, Edit::SetPageLocks { pages: vec![0], locked: false }).unwrap();
+    session.apply(id, Edit::DeleteWidget { name: "protected".into(), widget: 0 }).unwrap();
+    assert!(session.get(id).unwrap().form.is_empty());
+}
+
+#[test]
+fn image_export_rejects_maximum_page_without_panicking() {
+    let (session, id) = session_with(1);
+    for workers in [2, 1] {
+        let mut exporter = export::Exporter::new(session.get(id).unwrap());
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            exporter
+                .images_on(workers, &[usize::MAX], 72.0, export::ImageFormat::Png, |_, _| panic!("an invalid page must not reach the output sink"))
+        }));
+        assert!(result.is_ok(), "invalid page numbers must return an error for {workers} workers");
+        assert!(result.unwrap().is_err());
     }
 }

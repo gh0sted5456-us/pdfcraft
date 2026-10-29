@@ -420,6 +420,39 @@ pub fn tools() -> Vec<ToolDef> {
             "Make bookmarks from the document's tagged headings (H, H1-H6), nested by level under a new first bookmark titled \"Untitled\". Fails if the document has no tagged headings. Returns the first page of the bookmark tree (see bookmark_list). Undoable.",
         )
         .with(schema(json!({ "doc": doc() }), &["doc"])),
+        t(
+            "text_styles",
+            "List text styles",
+            "The styles the document's text is set in, the largest first: font (without its subset tag), the size it is shown at in points, bold, italic, how many lines and pages use it, and the first line in it as a sample. For choosing the styles bookmark_from_text_styles makes bookmarks from (headings are usually the larger, rarer styles). Reads the first 5000 pages.",
+        )
+        .ro()
+        .with(schema(json!({ "doc": doc() }), &["doc"])),
+        t(
+            "bookmark_from_text_styles",
+            "New bookmarks from text styles",
+            "Make bookmarks from the lines set in chosen text styles, for documents whose headings are not tagged: levels lists one style per bookmark level ({font, size, bold, italic} as text_styles gives them; sizes within a quarter point match), the first level 1, the next nested under the bookmark before it, and so on. A heading set on several lines is one bookmark, and each goes to the top of its heading. They go under a new first bookmark titled \"Untitled\". Fails if no text is set in the styles. Returns the first page of the bookmark tree (see bookmark_list). Undoable.",
+        )
+        .with(schema(
+            json!({
+                "doc": doc(),
+                "levels": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 9,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "font": { "type": "string", "minLength": 1 },
+                            "size": { "type": "number", "exclusiveMinimum": 0 },
+                            "bold": { "type": "boolean" },
+                            "italic": { "type": "boolean" }
+                        },
+                        "required": ["font", "size"]
+                    }
+                }
+            }),
+            &["doc", "levels"],
+        )),
         t("page_number", "Number pages", "Label a range of pages (e.g. i, ii, iii for front matter, or A-1, A-2 for an appendix). Later pages keep their labels. Undoable.").with(schema(
             json!({
                 "doc": doc(),
@@ -553,9 +586,9 @@ pub fn tools() -> Vec<ToolDef> {
             .with(schema(json!({ "doc": doc(), "path": { "type": "string" }, "what": { "type": "string", "enum": ["all", "comments", "fields"] } }), &["doc", "path"])),
         t("doc_import_data", "Import comments or form data", "Import comments and/or field values from an XFDF, FDF, XML, CSV or tab-delimited text file (detected from its content). Comments with the same name are replaced; values go through the form's formats and validation. For an XFA form, an XDP, datasets or data XML file replaces the form's data: a laid-out form is laid out again from it (rows included) and its calculations run. Undoable.")
             .with(schema(json!({ "doc": doc(), "path": { "type": "string" } }), &["doc", "path"])),
-        t("form_delete_field", "Delete a field", "Delete a form field and all its widgets. Undoable.")
+        t("form_delete_field", "Delete a field", "Delete a form field and all its widgets, or with widget only that one: one radio button of a group (widget n is the nth of the radio group's options in form_fields), or one copy of a duplicated field. A field's last widget takes the field with it. Undoable.")
             .destructive()
-            .with(schema(json!({ "doc": doc(), "field": { "type": "string" } }), &["doc", "field"])),
+            .with(schema(json!({ "doc": doc(), "field": { "type": "string" }, "widget": { "type": "integer", "minimum": 1, "description": "Delete only this widget (1-based)." } }), &["doc", "field"])),
         t(
             "redact_mark",
             "Mark for redaction",

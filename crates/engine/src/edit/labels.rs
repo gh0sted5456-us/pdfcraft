@@ -41,6 +41,7 @@ pub const EDIT_LABELS: &[&str] = &[
     "Colour",
     "Style",
     "New bookmarks from structure",
+    "New bookmarks from text styles",
     "Number pages",
     "Measure distance",
     "Measure perimeter",
@@ -200,6 +201,7 @@ impl Edit {
             Edit::SetBookmarkColor { .. } => Label::of("Colour"),
             Edit::SetBookmarkStyle { .. } => Label::of("Style"),
             Edit::BookmarksFromStructure => Label::of("New bookmarks from structure"),
+            Edit::BookmarksFromTextStyles { .. } => Label::of("New bookmarks from text styles"),
             Edit::NumberPages { .. } => Label::of("Number pages"),
             // What was measured is part of the wording too, for the same reason.
             Edit::AddMeasurement(m) => Label::of(match m.kind {
@@ -238,7 +240,7 @@ impl Edit {
             Edit::ResetForm { .. } => Label::of("Clear form"),
             Edit::AddField { .. } => Label::of("Add field"),
             Edit::SetFieldProps { .. } => Label::of("Change field properties"),
-            Edit::DeleteField { .. } => Label::of("Delete field"),
+            Edit::DeleteField { .. } | Edit::DeleteWidget { .. } => Label::of("Delete field"),
             Edit::SetPageLocks { locked, .. } => Label::of(if *locked { "Lock pages" } else { "Unlock pages" }),
             Edit::ClearSignature { field, .. } => Label::with("Remove the signature {name}", field.as_str()),
             Edit::DuplicateField { .. } => Label::of("Duplicate field"),
