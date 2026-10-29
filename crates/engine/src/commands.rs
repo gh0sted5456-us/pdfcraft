@@ -429,6 +429,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("page.split", "Split document…", PAGES, None, Assembly, "scissors"),
     c("bookmark.add", "New bookmark", PAGES, Some(Shortcut::cmd("B")), Assembly, "bookmark-plus"),
     c("bookmark.from_structure", "New bookmarks from structure", PAGES, None, Assembly, "list"),
+    c("bookmark.from_text_styles", "New bookmarks from text styles…", PAGES, None, Assembly, "list"),
     c("page.properties", "Page properties…", PAGES, None, Modification, "info"),
     c("page.delete", "Delete pages", PAGES, None, Assembly, "trash-2"),
     c("prepress.marks", "Add printer marks…", None, None, Modification, "ruler"),

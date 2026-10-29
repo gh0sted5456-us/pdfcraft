@@ -122,6 +122,8 @@ pub enum Dialog {
     Protect,
     /// Encrypt with Certificate.
     EncryptCertificate,
+    /// Bookmarks ▸ New bookmarks from text styles (#1693).
+    BookmarksFromTextStyles,
     /// Set Page Boxes (crop, trim, bleed, art, media).
     PageBoxes,
     /// Add / Update Header and Footer, Watermark, Background.

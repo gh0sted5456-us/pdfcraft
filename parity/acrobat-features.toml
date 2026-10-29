@@ -3380,6 +3380,18 @@ evidence = ["crates/a11y/src/tests.rs::headings_are_found_with_their_levels_titl
 notes = "Bookmark options ▸ New bookmarks from structure: tagged headings (H1–H6 through the role map; a plain H takes its Sect/Part/Art nesting) become bookmarks nested by level under a new first \"Untitled\" bookmark, each linked to its element (/SE). Titles come from /ActualText, the marked text drawn directly on the page (not inside Form XObjects; words split where the glyphs are apart, so text placed glyph by glyph, as Chromium writes it, keeps its words; vertical line breaks use the absolute font size independently of Tz), /Alt or /T. Not yet: Acrobat's choice of element types (only headings), and destinations go to the heading's page rather than its position on it"
 
 [[feature]]
+id = "organize.bookmarks-from-text-styles"
+title = "Generate bookmarks from text styles"
+area = "D"
+tier = "P2"
+milestone = "M4"
+status = "shipped"
+commands = ["bookmark.from_text_styles"]
+tools = ["text_styles", "bookmark_from_text_styles"]
+evidence = ["crates/engine/src/tests.rs::bookmarks_from_text_styles_nest_the_headings_and_undo", "crates/engine/src/text_style_bookmarks.rs::subset_tags_are_left_out_of_the_font_name", "crates/engine/src/text_style_bookmarks.rs::styles_match_within_a_quarter_point", "crates/automation/tests/it/automation.rs::bookmarks_from_text_styles_through_tools", "crates/ui-egui/tests/it/bookmarks.rs::new_bookmarks_from_text_styles_from_the_bookmark_options"]
+notes = "Bookmark options (and Pages) ▸ New bookmarks from text styles…, for documents whose headings aren't tagged (#1693): the dialog lists the document's text styles (font without its subset tag, the size shown at, bold, italic, line count and a sample), the largest first and offered for level 1; one style per level, up to four levels (nine headlessly). Every line in a level's style becomes a bookmark of that level under a new first \"Untitled\" bookmark, a heading set on several rows is one bookmark, and each goes to the top of its heading (/XYZ). Lines are read down each page, then left to right, so a multi-column page's headings are taken row by row across the columns; sizes within a quarter point match. Not yet: several styles for one level, colour as part of a style, and the first 5000 pages only. Acrobat has no such command (its bookmarks come from structure); this is beyond it"
+
+[[feature]]
 id = "organize.attachments-add"
 title = "Add file attachments"
 area = "D"
@@ -4548,8 +4560,8 @@ milestone = "M6"
 status = "partial"
 commands = ["form.fields"]
 tools = ["form_fill", "form_set_props"]
-evidence = ["crates/forms/src/tests.rs::text_fields_get_new_appearances", "crates/forms/src/tests.rs::auto_text_size_fits_single_and_multiline_text", "crates/forms/src/tests.rs::choices_accept_exports_or_display_text", "crates/forms/src/tests.rs::rotated_fields_draw_in_their_quadrant", "crates/engine/tests/it/form_rotation.rs::a_rotated_field_draws_along_the_vertical_edge", "crates/automation/tests/it/automation.rs::rotating_a_field_through_tools", "crates/ui-egui/tests/it/prepare.rs::position_tab_rotates_a_field", "crates/ui-egui/tests/it/prepare.rs::dropdown_alignment_is_editable_and_preserved", "crates/ui-egui/tests/it/prepare.rs::list_box_alignment_is_editable_and_preserved"]
-notes = "auto-size, comb, multiline, password, quadding (text, dropdown and list-box Options controls), /MK colours and /MK /R rotation (0, 90, 180, 270); approximate Helvetica metrics"
+evidence = ["crates/forms/src/tests.rs::text_fields_get_new_appearances", "crates/forms/src/tests.rs::auto_text_size_fits_single_and_multiline_text", "crates/automation/tests/it/automation.rs::auto_sized_text_follows_a_tall_field", "crates/forms/src/tests.rs::choices_accept_exports_or_display_text", "crates/forms/src/tests.rs::rotated_fields_draw_in_their_quadrant", "crates/engine/tests/it/form_rotation.rs::a_rotated_field_draws_along_the_vertical_edge", "crates/automation/tests/it/automation.rs::rotating_a_field_through_tools", "crates/ui-egui/tests/it/prepare.rs::position_tab_rotates_a_field", "crates/ui-egui/tests/it/prepare.rs::dropdown_alignment_is_editable_and_preserved", "crates/ui-egui/tests/it/prepare.rs::list_box_alignment_is_editable_and_preserved"]
+notes = "auto-size, comb, multiline, password, quadding (text, dropdown and list-box Options controls), /MK colours and /MK /R rotation (0, 90, 180, 270); approximate Helvetica metrics. Single-line auto-size follows the field height with no 12 pt cap, as Acrobat Reader draws it; multiline and comb auto-size still stop at 12 pt, not yet checked against Acrobat"
 
 [[feature]]
 id = "form.rich-text-fields"
@@ -4728,7 +4740,7 @@ milestone = "M6"
 status = "shipped"
 commands = ["form.clear"]
 tools = ["form_reset"]
-evidence = ["crates/forms/src/tests.rs::reset_restores_defaults", "crates/ui-egui/tests/it/forms.rs::check_boxes_radios_and_choices"]
+evidence = ["crates/forms/src/tests.rs::reset_restores_defaults", "crates/ui-egui/tests/it/forms.rs::check_boxes_radios_and_choices", "crates/forms/src/tests.rs::clearing_a_kids_value_does_not_bring_back_its_parents"]
 notes = "back to /DV; undoable"
 
 [[feature]]
@@ -4812,8 +4824,8 @@ milestone = "M6"
 status = "shipped"
 commands = ["form.prepare"]
 tools = ["form_add_field", "form_set_props", "form_delete_field"]
-evidence = ["crates/ui-egui/tests/it/prepare.rs::placing_moving_editing_and_deleting_a_field", "crates/ui-egui/tests/it/prepare.rs::arrow_keys_nudge_the_selected_field_instead_of_turning_the_page", "crates/ui-egui/src/tools/prepare.rs::corner_drags_stretch_freely_and_keep_proportions_with_shift", "crates/ui-egui/tests/it/prepare.rs::deleting_several_selected_fields_and_detecting_fields_from_the_panel", "crates/engine/src/tests.rs::preparing_a_form_adds_renames_and_deletes_fields", "crates/ui-egui/tests/it/bulk_fields.rs::shared_properties_preserve_mixed_values_and_undo_the_whole_change", "crates/ui-egui/tests/it/bulk_fields.rs::select_all_in_prepare_a_form_selects_only_the_current_pages_fields", "crates/ui-egui/tests/it/bulk_fields.rs::dragging_an_empty_page_area_selects_fields_without_moving_them"]
-notes = "fields shown with blue fill and name tags; select, move (drag, or the arrow keys: a point, Shift ten points, #2608), resize by corners (Shift keeps the field's proportions, #2199), Delete (every selected field, one undo step); field tools return to Select after one field. Shared General, Appearance and applicable Options edits are atomic and opt-in; Ctrl/Command+A selects the current page, rectangle and panel selection are supported. Names, positions, choices/defaults and script tabs remain individual GUI edits"
+evidence = ["crates/ui-egui/tests/it/prepare.rs::placing_moving_editing_and_deleting_a_field", "crates/ui-egui/tests/it/prepare.rs::deleting_one_radio_button_keeps_the_rest_of_its_group", "crates/ui-egui/tests/it/prepare.rs::deleting_two_radio_buttons_of_a_group_at_once", "crates/forms/src/tests.rs::deleting_one_radio_button_keeps_the_group_and_its_other_buttons", "crates/forms/src/tests.rs::deleting_the_chosen_radio_button_turns_the_group_off", "crates/forms/src/tests.rs::deleting_one_copy_of_a_field_keeps_the_field_and_its_value", "crates/automation/tests/it/automation.rs::deleting_one_radio_button_through_tools_keeps_the_group", "crates/ui-egui/tests/it/prepare.rs::arrow_keys_nudge_the_selected_field_instead_of_turning_the_page", "crates/ui-egui/src/tools/prepare.rs::corner_drags_stretch_freely_and_keep_proportions_with_shift", "crates/ui-egui/tests/it/prepare.rs::deleting_several_selected_fields_and_detecting_fields_from_the_panel", "crates/engine/src/tests.rs::preparing_a_form_adds_renames_and_deletes_fields", "crates/ui-egui/tests/it/bulk_fields.rs::shared_properties_preserve_mixed_values_and_undo_the_whole_change", "crates/ui-egui/tests/it/bulk_fields.rs::select_all_in_prepare_a_form_selects_only_the_current_pages_fields", "crates/ui-egui/tests/it/bulk_fields.rs::dragging_an_empty_page_area_selects_fields_without_moving_them"]
+notes = "fields shown with blue fill and name tags; select, move (drag, or the arrow keys: a point, Shift ten points, #2608), resize by corners (Shift keeps the field's proportions, #2199), Delete (every selected field, one undo step; a selected radio button or copy of a duplicated field goes on its own and the rest of its group stays, a field's last widget takes the field, #4609); field tools return to Select after one field. Shared General, Appearance and applicable Options edits are atomic and opt-in; Ctrl/Command+A selects the current page, rectangle and panel selection are supported. Names, positions, choices/defaults and script tabs remain individual GUI edits"
 
 [[feature]]
 id = "form.add-text-field"
@@ -4848,8 +4860,8 @@ milestone = "M6"
 status = "shipped"
 commands = ["form.add.radio"]
 tools = ["form_add_field"]
-evidence = ["crates/forms/src/tests.rs::every_field_type_can_be_added_named_and_drawn", "crates/automation/tests/it/automation.rs::preparing_a_form_through_tools"]
-notes = "new group Group1… or join the selected group with the next ChoiceN"
+evidence = ["crates/forms/src/tests.rs::every_field_type_can_be_added_named_and_drawn", "crates/automation/tests/it/automation.rs::preparing_a_form_through_tools", "crates/forms/src/tests.rs::a_radio_button_renamed_to_a_groups_name_joins_the_group", "crates/forms/src/tests.rs::a_joining_radio_button_with_a_taken_export_value_takes_a_free_one", "crates/forms/src/tests.rs::radio_fields_that_are_their_own_widget_join_and_are_joined", "crates/automation/tests/it/automation.rs::renaming_a_radio_button_to_a_groups_name_joins_the_group_through_tools"]
+notes = "new group Group1… or join the selected group with the next ChoiceN; renaming a radio button (Properties or form_set_props) to another radio group's name moves its buttons into that group (#4949), a clashing export value becoming the next free ChoiceN; refused when either group lists its values in /Opt; a button's export value is not yet editable in Properties"
 
 [[feature]]
 id = "form.check-box-style"
@@ -4992,8 +5004,8 @@ milestone = "M6"
 status = "shipped"
 commands = ["form.field.properties"]
 tools = ["form_set_props"]
-evidence = ["crates/forms/src/tests.rs::button_caption_preserves_other_widgets_and_shared_dictionaries", "crates/forms/src/tests.rs::a_button_caption_is_drawn_in_its_fields_font_size_and_color", "crates/ui-egui/tests/it/prepare.rs::button_label_is_editable_without_renaming_the_field", "crates/automation/tests/it/button_caption.rs::button_caption_can_be_changed_after_creation", "crates/forms/src/tests.rs::properties_rename_and_delete", "crates/automation/tests/it/automation.rs::preparing_a_form_through_tools", "crates/forms/src/tests.rs::options_tab_flags_alignment_and_defaults", "crates/ui-egui/tests/it/prepare.rs::options_tab_sets_flags_alignment_and_defaults", "crates/automation/tests/it/form_bulk.rs::bulk_options_apply_per_field_and_refuse_an_invalid_comb_atomically"]
-notes = "push buttons: per-widget normal label independent of the field name, including clearing and save/reopen, drawn in the font, size and color of the button's /DA (the form's /DR font, else Helvetica; an automatic size fits the button) and centered by Helvetica's widths; icon-only layout retained, rollover/down labels and icon layout editing remain unavailable; text: alignment, default, multi-line, scroll, rich text flag, limit, password, file selection, spell check, comb; choices: items, default, sort, custom text, multiple selection, commit immediately; check boxes and radios: checked by default, radios in unison. Shared GUI offers applicable text/choice flags, alignment, text limits and check styles; choices/defaults remain individual GUI edits"
+evidence = ["crates/forms/src/tests.rs::button_caption_preserves_other_widgets_and_shared_dictionaries", "crates/forms/src/tests.rs::a_button_caption_is_drawn_in_its_fields_font_size_and_color", "crates/ui-egui/tests/it/prepare.rs::button_label_is_editable_without_renaming_the_field", "crates/automation/tests/it/button_caption.rs::button_caption_can_be_changed_after_creation", "crates/forms/src/tests.rs::properties_rename_and_delete", "crates/automation/tests/it/automation.rs::preparing_a_form_through_tools", "crates/forms/src/tests.rs::options_tab_flags_alignment_and_defaults", "crates/ui-egui/tests/it/prepare.rs::options_tab_sets_flags_alignment_and_defaults", "crates/automation/tests/it/form_bulk.rs::bulk_options_apply_per_field_and_refuse_an_invalid_comb_atomically", "crates/forms/src/tests.rs::changing_a_lists_options_repoints_its_selected_indices", "crates/forms/src/tests.rs::shrinking_a_lists_options_scrolls_a_widget_with_its_own_top_row", "crates/forms/src/tests.rs::each_widget_with_its_own_top_row_scrolls_by_itself", "crates/forms/src/tests.rs::a_list_boxs_top_row_follows_a_font_size_changed_with_its_items", "crates/forms/src/tests.rs::sorting_a_combo_boxs_items_repoints_its_selected_index", "crates/automation/tests/it/automation.rs::changing_a_lists_options_through_tools_keeps_its_saved_selection_on_the_same_items", "crates/forms/src/tests.rs::clearing_a_kids_default_does_not_bring_back_its_parents", "crates/forms/src/tests.rs::clearing_a_buttons_default_under_a_parent_with_one_leaves_it_off", "crates/automation/tests/it/automation.rs::clearing_a_kids_default_through_tools_does_not_bring_back_its_parents"]
+notes = "push buttons: per-widget normal label independent of the field name, including clearing and save/reopen, drawn in the font, size and color of the button's /DA (the form's /DR font, else Helvetica; an automatic size fits the button) and centered by Helvetica's widths; icon-only layout retained, rollover/down labels and icon layout editing remain unavailable; text: alignment, default (clearing it leaves none, not a parent field's), multi-line, scroll, rich text flag, limit, password, file selection, spell check, comb; choices: items (the selected indices /I follow their items when the list is edited or sorted), default, sort, custom text, multiple selection, commit immediately; check boxes and radios: checked by default, radios in unison. Shared GUI offers applicable text/choice flags, alignment, text limits and check styles; choices/defaults remain individual GUI edits"
 
 [[feature]]
 id = "form.props-actions"

@@ -27,3 +27,6 @@ mod production;
 mod attachment_key;
 mod protect_certificate_command;
 mod protect_certificate_schema;
+
+mod redact_after_stray_q_form;
+mod redact_text_after_q;

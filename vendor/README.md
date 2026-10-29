@@ -138,3 +138,14 @@ is built in memory.
 Its manifest uses explicit pinned dependencies to make `default-features = false`
 valid under Cargo 1.95. The upstream workspace declaration is rejected by Cargo;
 no Cargo-cache files are patched. See `craft-menu/PATCHES.md`.
+
+## KenM76 integration patches
+
+| PR | Vendored change | Regression coverage |
+|---|---|---|
+| #4841 | Ignore unmatched Q operators at each content-stream floor. | `stray_q_in_a_form`, `redact_after_stray_q_form` |
+| #4898 | Preserve non-isolated knockout-group backdrops across blend-mode passes, masks, and shading. | `knockout_backdrop` |
+| #4913 | Discard invalid stroke outlines without losing valid path segments. | `stroke_degenerate_cubic` |
+| #5178 | Read OpenType-wrapped CFF programs for embedded simple fonts. | `open_type_cff_simple_font` |
+| #5199 | Preserve gray under nonseparable Color blending in vello_cpu. | `nonseparable_gray` |
+| #5228 | Blend supported isolated DeviceCMYK groups in their ink space. | `raster::tests::isolated_cmyk_groups` |
