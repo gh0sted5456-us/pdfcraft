@@ -7958,3 +7958,48 @@ fn hairlines_safety_refuses_malformed_graphics_state_operands() {
         assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
     }
 }
+
+#[test]
+fn replacing_grouped_artwork_keeps_its_frame_transform_clip_and_other_placements() {
+    let mut doc = fixture();
+    let mut form = Dict::new();
+    form.set(b"Subtype".to_vec(), Object::name("Form"));
+    form.set(b"BBox".to_vec(), Object::Array([10, 20, 110, 70].map(Object::Int).to_vec()));
+    form.set(b"Matrix".to_vec(), Object::Array([0, 2, -3, 0, 210, -20].map(Object::Int).to_vec()));
+    let artwork = doc.add(Object::Stream(Stream::flate(form, b"1 0 0 rg 10 20 100 50 re f")));
+    doc.update_dict(pdfcraft_cos::ObjRef::new(6, 0), |dict| {
+        let mut xo = Dict::new();
+        xo.set(b"Figure".to_vec(), Object::Ref(artwork));
+        dict.set(b"XObject".to_vec(), Object::Dict(xo));
+    })
+    .unwrap();
+    let content = b"q 50 70 200 180 re W n 1 .25 .15 1 40 60 cm /Figure Do Q q 1 0 0 1 300 400 cm /Figure Do Q BT /F1 9 Tf (Caption) Tj ET";
+    doc.set(pdfcraft_cos::ObjRef::new(7, 0), Object::Stream(Stream::flate(Dict::new(), content)));
+    let mut doc = reopen(&doc);
+    let before = images::page_images(&doc, 0).unwrap();
+    let sibling = images::page_images(&doc, 1).unwrap();
+    let original = doc.get(artwork);
+    let mut image = Dict::new();
+    image.set(b"Subtype".to_vec(), Object::name("Image"));
+    image.set(b"Width".to_vec(), Object::Int(3));
+    image.set(b"Height".to_vec(), Object::Int(2));
+    image.set(b"ColorSpace".to_vec(), Object::name("DeviceRGB"));
+    image.set(b"BitsPerComponent".to_vec(), Object::Int(8));
+    let replacement = doc.add(Object::Stream(Stream::from_raw(image, [20, 80, 220].repeat(6))));
+    images::change_image(&mut doc, 0, 0, &images::ImageChange::Replace(replacement)).unwrap();
+    let doc = reopen(&doc);
+    let after = images::page_images(&doc, 0).unwrap();
+    assert_eq!(after.len(), before.len());
+    assert!(!after[0].is_form);
+    assert_eq!((after[0].width, after[0].height), (3, 2));
+    assert!(close(after[0].rect, before[0].rect));
+    assert!(close(after[0].visible_rect.unwrap(), before[0].visible_rect.unwrap()));
+    let expected = pdfcraft_content::Matrix([100.0, 0.0, 0.0, 50.0, 10.0, 20.0]).then(&pdfcraft_content::Matrix(before[0].matrix));
+    for (actual, expected) in after[0].matrix.iter().zip(expected.0) {
+        assert!((actual - expected).abs() < 1e-6);
+    }
+    assert_eq!((after[1].rect, after[1].object), (before[1].rect, before[1].object));
+    assert_eq!(images::page_images(&doc, 1).unwrap(), sibling);
+    assert_eq!(*doc.get(artwork), *original);
+    assert_eq!(text::text_lines(&doc, 0).unwrap()[0].text, "Caption");
+}

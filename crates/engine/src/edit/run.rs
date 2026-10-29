@@ -539,14 +539,7 @@ pub(crate) fn run_edit(doc: &mut pdfcraft_cos::Document, edit: &Edit, cx: &mut E
                     *horizontal,
                     !*horizontal,
                 )),
-                ImageEdit::Replace { name, bytes } => {
-                    if img.is_form {
-                        return Err(EditError::Edit(pdfcraft_edit::EditError::Invalid(
-                            "grouped Form artwork cannot be replaced with a bitmap".into(),
-                        )));
-                    }
-                    pdfcraft_edit::ImageChange::Replace(embed_image(doc, name, bytes)?.0)
-                }
+                ImageEdit::Replace { name, bytes } => pdfcraft_edit::ImageChange::Replace(embed_image(doc, name, bytes)?.0),
                 ImageEdit::Crop(keep) => pdfcraft_edit::ImageChange::Crop(*keep),
                 ImageEdit::Delete => pdfcraft_edit::ImageChange::Delete,
             };

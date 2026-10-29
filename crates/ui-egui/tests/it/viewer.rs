@@ -1895,35 +1895,7 @@ fn right_click_on_a_picture_copies_it_at_full_size() {
 /// scanners with OCR write them): one click still selects it, and ⌘C copies the picture.
 #[test]
 fn a_picture_inside_form_artwork_under_text_is_selected_and_copied() {
-    let stream = |dict: &str, data: &[u8]| {
-        let mut o = format!("<< {dict} /Length {} >>\nstream\n", data.len()).into_bytes();
-        o.extend_from_slice(data);
-        o.extend_from_slice(b"\nendstream");
-        o
-    };
-    let objs: Vec<Vec<u8>> = vec![
-        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
-        b"<< /Type /Pages /Kids [4 0 R] /Count 1 /MediaBox [0 0 200 300] >>".to_vec(),
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_vec(),
-        b"<< /Type /Page /Parent 2 0 R /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> /XObject << /Fm1 6 0 R >> >> >>".to_vec(),
-        stream("", b"q 180 0 0 280 10 10 cm /Fm1 Do Q BT /F1 40 Tf 15 130 Td (WWWWWWW) Tj ET"),
-        stream("/Type /XObject /Subtype /Form /BBox [0 0 1 1] /Resources << /XObject << /Im1 7 0 R >> >>", b"/Im1 Do"),
-        stream("/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8", &[255, 0, 0, 0, 0, 255]),
-    ];
-    let mut pdf = b"%PDF-1.7\n".to_vec();
-    let mut offsets = Vec::new();
-    for (i, o) in objs.iter().enumerate() {
-        offsets.push(pdf.len());
-        pdf.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
-        pdf.extend_from_slice(o);
-        pdf.extend_from_slice(b"\nendobj\n");
-    }
-    let xref = pdf.len();
-    pdf.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", objs.len() + 1).as_bytes());
-    for o in offsets {
-        pdf.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
-    }
-    pdf.extend_from_slice(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objs.len() + 1).as_bytes());
+    let pdf = grouped_picture_fixture();
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(move |_cc| {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
@@ -2328,4 +2300,89 @@ fn the_accessible_window_has_the_window_title_as_its_name() {
     h.run_steps(2);
     assert_eq!(name(&h).as_deref(), Some("Quarterly report"));
     assert_eq!(name(&h), Some(h.state().window_title.clone()));
+}
+
+fn grouped_picture_fixture() -> Vec<u8> {
+    let stream = |dict: &str, data: &[u8]| {
+        let mut o = format!("<< {dict} /Length {} >>\nstream\n", data.len()).into_bytes();
+        o.extend_from_slice(data);
+        o.extend_from_slice(b"\nendstream");
+        o
+    };
+    let objs: Vec<Vec<u8>> = vec![
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [4 0 R] /Count 1 /MediaBox [0 0 200 300] >>".to_vec(),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> /XObject << /Fm1 6 0 R >> >> >>".to_vec(),
+        stream("", b"q 180 0 0 280 10 10 cm /Fm1 Do Q BT /F1 40 Tf 15 130 Td (WWWWWWW) Tj ET"),
+        stream("/Type /XObject /Subtype /Form /BBox [0 0 1 1] /Resources << /XObject << /Im1 7 0 R >> >>", b"/Im1 Do"),
+        stream("/Type /XObject /Subtype /Image /Width 2 /Height 1 /ColorSpace /DeviceRGB /BitsPerComponent 8", &[255, 0, 0, 0, 0, 255]),
+    ];
+    let mut pdf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, o) in objs.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
+        pdf.extend_from_slice(o);
+        pdf.extend_from_slice(b"\nendobj\n");
+    }
+    let xref = pdf.len();
+    pdf.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", objs.len() + 1).as_bytes());
+    for o in offsets {
+        pdf.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objs.len() + 1).as_bytes());
+    pdf
+}
+
+#[test]
+fn an_image_menu_does_not_draw_the_page_menu_on_top() {
+    let (_, h) = picture_menu();
+    for label in ["Add a sticky note here", "Comments panel"] {
+        assert!(h.query_by_label(label).is_none(), "overlapping page menu: {label}");
+    }
+}
+
+#[test]
+fn replace_image_accepts_grouped_artwork_and_keeps_its_dimensions() {
+    let path = std::env::temp_dir().join(format!(
+        "lion-replace-{}-{}.png",
+        std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()
+    ));
+    image::RgbaImage::from_pixel(3, 7, image::Rgba([30, 90, 220, 200])).save(&path).unwrap();
+    let pdf = grouped_picture_fixture();
+    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 1500.0)).build_eframe(move |_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.set_option("auto_ocr", "off").unwrap();
+        app.open_bytes("grouped.pdf", None, pdf).unwrap();
+        app
+    });
+    crate::support::settle(&mut h);
+    h.state_mut().save_override = Some(path.to_string_lossy().into_owned());
+    h.state_mut().set_option("quick", "edit-text").unwrap();
+    h.run_steps(4);
+    let id = h.state().views[0].id;
+    let original = h.state().session.get(id).unwrap().page_images(0)[0].clone();
+    assert!(original.is_form);
+    let page = h.state().views[0].page_screen_rect(0).unwrap();
+    let at = egui::pos2(page.left() + page.width() * 0.2, page.bottom() - page.height() * 0.2);
+    press(&mut h, at, egui::PointerButton::Secondary);
+    h.run_steps(3);
+    assert!(!h.get_by_label("Replace Image…").accesskit_node().is_disabled());
+    h.get_by_label("Replace Image…").click();
+    h.run_steps(4);
+    let replaced = h.state().session.get(id).unwrap().page_images(0);
+    assert!(!replaced[0].is_form);
+    assert_eq!((replaced[0].width, replaced[0].height), (3, 7));
+    assert_eq!(replaced[0].rect, original.rect);
+    assert_eq!(replaced[0].visible_rect, original.visible_rect);
+    h.state_mut().undo();
+    h.run_steps(2);
+    assert!(h.state().session.get(id).unwrap().page_images(0)[0].is_form);
+    h.state_mut().redo();
+    h.run_steps(2);
+    assert_eq!(h.state().session.get(id).unwrap().page_images(0)[0].width, 3);
+    std::fs::remove_file(path).unwrap();
 }

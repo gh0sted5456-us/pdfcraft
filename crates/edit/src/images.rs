@@ -37,6 +37,8 @@ pub struct PageImage {
     op: usize,
     /// CTM before `Do`, excluding a Form's own Matrix.
     draw_matrix: [f64; 6],
+    /// Image unit square to the original local frame, including a Form's Matrix.
+    replacement_matrix: [f64; 6],
     clips: Vec<ClipPath>,
 }
 
@@ -237,7 +239,7 @@ pub fn page_images(doc: &Document, page: usize) -> Result<Vec<PageImage>, EditEr
             let obj = doc.resolve(resource);
             let Object::Stream(s) = &*obj else { continue };
             let is_form = s.dict.name(b"Subtype") == Some(b"Form");
-            let (matrix, bounds) = if is_form {
+            let (matrix, bounds, replacement_matrix) = if is_form {
                 let Some(bounds) = s.dict.get(b"BBox").map(|v| doc.resolve(v)).and_then(|v| {
                     v.as_array().and_then(|a| {
                         if a.len() != 4 {
@@ -260,9 +262,9 @@ pub fn page_images(doc: &Document, page: usize) -> Result<Vec<PageImage>, EditEr
                     }
                     None => Matrix::IDENTITY,
                 };
-                (matrix.then(&ctm), bounds)
+                (matrix.then(&ctm), bounds, Matrix(rect_to_rect([0.0, 0.0, 1.0, 1.0], bounds)).then(&matrix).0)
             } else if s.dict.name(b"Subtype") == Some(b"Image") {
-                (ctm, [0.0, 0.0, 1.0, 1.0])
+                (ctm, [0.0, 0.0, 1.0, 1.0], Matrix::IDENTITY.0)
             } else {
                 continue;
             };
@@ -291,6 +293,7 @@ pub fn page_images(doc: &Document, page: usize) -> Result<Vec<PageImage>, EditEr
                 stream: pieces.piece_of(op.span.start),
                 op: i,
                 draw_matrix: ctm.0,
+                replacement_matrix,
                 clips: state.placement.clips.clone(),
             });
         }
@@ -367,6 +370,7 @@ pub fn reading_images(doc: &Document, page: usize) -> Result<Vec<PageImage>, Edi
                     stream: stream(op),
                     op: i,
                     draw_matrix: ctm.0,
+                    replacement_matrix: Matrix::IDENTITY.0,
                     clips: st.placement.clips.clone(),
                 });
             }
@@ -496,10 +500,8 @@ pub fn change_image(doc: &mut Document, page: usize, index: usize, change: &Imag
             return crop_image(doc, &p, &all, &img, *keep);
         }
         ImageChange::Replace(r) => {
-            if img.is_form {
-                return Err(EditError::Invalid(
-                    "grouped Form artwork can be moved, resized, rotated, flipped or deleted; replacing it with a bitmap is not supported".into(),
-                ));
+            if !matches!(&*doc.get(*r), Object::Stream(stream) if stream.dict.name(b"Subtype") == Some(b"Image")) {
+                return Err(EditError::Invalid("the replacement must be an image XObject".into()));
             }
             let name = format!("PCImg{}", r.num);
             let mut res = p.dict.get(b"Resources").map(|x| doc.resolve(x)).and_then(|x| x.as_dict().cloned()).unwrap_or_default();
@@ -507,7 +509,16 @@ pub fn change_image(doc: &mut Document, page: usize, index: usize, change: &Imag
             xo.set(name.clone().into_bytes(), Object::Ref(*r));
             res.set(b"XObject".to_vec(), Object::Dict(xo));
             resources = Some(res);
-            vec![Op::new("Do", vec![Object::name(&name)])]
+            let paint = Op::new("Do", vec![Object::name(&name)]);
+            if img.is_form {
+                if !img.replacement_matrix.iter().all(|value| value.is_finite()) {
+                    return Err(EditError::Invalid("the artwork placement is not finite".into()));
+                }
+                // An image paints a unit square; keep the Form's frame and rotation under the existing clip.
+                vec![Op::new("q", vec![]), Op::new("cm", img.replacement_matrix.map(Object::Real).to_vec()), paint, Op::new("Q", vec![])]
+            } else {
+                vec![paint]
+            }
         }
     };
     let changed = crate::text::splice(&pieces, &ops, |index| if index == img.op { (replacement.clone(), false) } else { (Vec::new(), true) });
