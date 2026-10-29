@@ -17,16 +17,19 @@ this object using its `BBox` and optional `Matrix` and edits it as a whole. Its 
 content, resources, clipping box, and transparency settings remain intact. Moving or
 deleting one use of a shared figure does not alter its other placements or pages.
 
-**Replace Image** and **Save Image As** apply only to raster Image XObjects; these menu
-items are disabled for grouped Form artwork. The tool does not ungroup Forms, edit their
-individual internal elements, select arbitrary ungrouped vector paths, or edit inline
-images (`BI`/`ID`/`EI`). A Form's bounding box may include whitespace.
+**Replace Image** opens the native image picker and replaces the selected raster image or
+grouped Form artwork with the chosen picture. The picture stretches to the original frame,
+retaining its position, size, rotation and page/path clipping. Replacing one placement leaves
+other uses of the artwork intact and supports Undo/Redo. **Save Image As** remains available
+only for raster Image XObjects. The tool does not ungroup Forms, edit their individual internal
+elements, select arbitrary ungrouped vector paths, or edit inline images (`BI`/`ID`/`EI`).
+A Form's bounding box may include whitespace.
 
 For automation, `page_images` lists both kinds with `kind: "image"` or `kind: "form"`.
 Forms have `pixels: [0, 0]`, since they have no single bitmap resolution. Use the returned
-number with `image_edit` (move, rotate, flip_horizontal, flip_vertical, delete).
-Coordinates are top-left-origin page points. `image_save` and `image_edit`'s replace action
-return a clear error for Form artwork.
+number with `image_edit` (move, rotate, flip_horizontal, flip_vertical, replace, delete).
+Coordinates are top-left-origin page points. `image_save` returns a clear error for Form
+artwork; `image_edit` with `action: "replace"` and an image-file `path` replaces the whole group.
 
 Selection frames follow the visible portion of artwork after page and path clipping. Clicking
 editable text takes precedence over overlapping artwork, including labels inside an image's

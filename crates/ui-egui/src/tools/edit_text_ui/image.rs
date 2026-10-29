@@ -288,6 +288,7 @@ pub(crate) fn image_input(
     images: &[pdfcraft_engine::PageImage],
     view: &mut DocView,
     action: &mut Option<ImageAction>,
+    menu_shown: &mut bool,
     allow_interaction: bool,
 ) -> bool {
     let boxes: Vec<Rect> = images.iter().map(|im| im.visible_rect.map_or(Rect::NOTHING, |r| xf.user_rect(info, page, r.map(|v| v as f32)))).collect();
@@ -528,7 +529,7 @@ pub(crate) fn image_input(
         && resp.context_menu_opened()
         && ui.ctx().data(|d| d.get_temp::<bool>(menu_key)).unwrap_or(false)
     {
-        resp.context_menu(|ui| image_menu(ui, page, sel, images, view, action));
+        *menu_shown |= resp.context_menu(|ui| image_menu(ui, page, sel, images, view, action)).is_some();
         menu_drawn = true;
     }
     let Some(p) = hover_pos.filter(|p| xf.rect.contains(*p)) else { return false };
@@ -551,7 +552,7 @@ pub(crate) fn image_input(
         ui.ctx().data_mut(|d| d.insert_temp(menu_key, true));
     }
     if selected == Some(hit) && !menu_drawn {
-        resp.context_menu(|ui| image_menu(ui, page, hit, images, view, action));
+        *menu_shown |= resp.context_menu(|ui| image_menu(ui, page, hit, images, view, action)).is_some();
     }
     true
 }
@@ -594,7 +595,7 @@ fn image_menu(
         ui.close();
     }
     let raster = images.get(hit).is_some_and(|image| !image.is_form);
-    if ui.add_enabled(raster, egui::Button::new(tl!("Replace Image…"))).clicked() {
+    if ui.button(tl!("Replace Image…")).clicked() {
         *action = Some(ImageAction::Replace(page, hit));
         ui.close();
     }

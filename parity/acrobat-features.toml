@@ -2106,8 +2106,8 @@ milestone = "M7"
 status = "shipped"
 commands = ["edit.edit_text", "edit.image"]
 tools = ["image_edit"]
-evidence = ["crates/edit/src/tests.rs::page_images_move_turn_replace_and_delete", "crates/ui-egui/tests/it/editing.rs::editing_existing_images_on_the_page", "crates/automation/tests/it/automation.rs::editing_page_images_through_tools"]
-notes = "existing page images (right-click ▸ Replace Image) and added images: the new picture is drawn in the same place"
+evidence = ["crates/edit/src/tests.rs::replacing_grouped_artwork_keeps_its_frame_transform_clip_and_other_placements", "crates/ui-egui/tests/it/viewer.rs::replace_image_accepts_grouped_artwork_and_keeps_its_dimensions", "crates/ui-egui/tests/it/viewer.rs::an_image_menu_does_not_draw_the_page_menu_on_top", "crates/edit/src/tests.rs::page_images_move_turn_replace_and_delete", "crates/ui-egui/tests/it/editing.rs::editing_existing_images_on_the_page", "crates/automation/tests/it/automation.rs::editing_page_images_through_tools"]
+notes = "Right-click Replace Image uses the native image picker for existing raster images and grouped Form artwork, retaining the frame, Form Matrix and page/path clipping, with undo/redo and no change to other placements. The image popup suppresses the overlapping generic page menu. Added images also retain their placement. Replacing a Form replaces the whole group, not its individual internal elements; Save Image As remains raster-only. Native file picking remains unavailable on the web."
 
 [[feature]]
 id = "edit.image-rotate-free"
