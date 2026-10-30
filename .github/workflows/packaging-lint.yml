@@ -21,3 +21,12 @@ jobs:
   lint:
     # Pin shared workflows; review suite-wide changes with each fork integration.
     uses: storytold/craft-common-actions/.github/workflows/packaging-lint.yml@86bc2ce420c548d7b171874b67814217532a1648
+
+  printing-regressions:
+    name: Printing packaging regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Check CUPS routing and FreeBSD build targets
+        run: python3 packaging/test-print-packaging.py

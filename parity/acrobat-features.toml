@@ -4776,8 +4776,8 @@ milestone = "M6"
 status = "shipped"
 commands = ["form.export_data"]
 tools = ["doc_export_data"]
-evidence = ["crates/xfdf/src/tests.rs::fdf_export_counts_emitted_field_values_before_allocating_lists", "crates/xfdf/src/tests.rs::xfdf_round_trips_comments_and_values", "crates/automation/tests/it/automation.rs::comments_and_form_data_travel_as_xfdf_fdf_and_text", "crates/xfdf/src/tests.rs::xml_exports_preserve_whitespace_in_field_names"]
-notes = "XFDF, FDF; FDF counts emitted field values, including every multi-select list entry, before allocating the output list and refuses exports beyond its shared 100,000-value budget. Existing source-field parsing limits remain unchanged. XFA forms also export their data as XML or XDP (form.xfa-data). XML/XFDF exports retain tabs and line breaks in field identities through character references."
+evidence = ["crates/xfdf/src/tests.rs::exported_csv_cells_never_start_a_formula_and_import_back_unchanged", "crates/xfdf/src/tests.rs::fdf_export_counts_emitted_field_values_before_allocating_lists", "crates/xfdf/src/tests.rs::xfdf_round_trips_comments_and_values", "crates/automation/tests/it/automation.rs::comments_and_form_data_travel_as_xfdf_fdf_and_text", "crates/xfdf/src/tests.rs::xml_exports_preserve_whitespace_in_field_names"]
+notes = "XFDF, FDF; FDF counts emitted field values, including every multi-select list entry, before allocating the output list and refuses exports beyond its shared 100,000-value budget. Existing source-field parsing limits remain unchanged. XFA forms also export their data as XML or XDP (form.xfa-data). XML/XFDF exports retain tabs and line breaks in field identities through character references. CSV export guards formula-like field names and values with an apostrophe; import restores exported values, including existing leading apostrophes."
 
 [[feature]]
 id = "form.data-xml-csv-txt"
@@ -4812,8 +4812,8 @@ milestone = "M6"
 status = "shipped"
 commands = ["form.flatten"]
 tools = ["doc_flatten"]
-evidence = ["crates/edit/src/tests.rs::flattening_draws_appearances_into_the_page_and_removes_the_comments", "crates/edit/src/tests.rs::flattening_keeps_a_valued_widget_it_cannot_draw", "crates/engine/src/tests.rs::flattening_keeps_the_look_and_drops_the_objects", "crates/automation/tests/it/automation.rs::flattening_through_tools"]
-notes = "widgets drawn into content and pruned from the field tree; a widget with no appearance to draw (none stored, or none for its selected state) stays a live field rather than losing its value, so a form with such fields is not fully flattened — Acrobat regenerates appearances first, which PdfCraft does not yet do here"
+evidence = ["crates/edit/src/tests.rs::flattening_keeps_a_no_rotate_widget_upright_on_a_rotated_page", "crates/edit/src/tests.rs::flattening_draws_appearances_into_the_page_and_removes_the_comments", "crates/edit/src/tests.rs::flattening_keeps_a_valued_widget_it_cannot_draw", "crates/engine/src/tests.rs::flattening_keeps_the_look_and_drops_the_objects", "crates/automation/tests/it/automation.rs::flattening_through_tools"]
+notes = "widgets drawn into content and pruned from the field tree; a widget with no appearance to draw (none stored, or none for its selected state) stays a live field rather than losing its value, so a form with such fields is not fully flattened — Acrobat regenerates appearances first, which PdfCraft does not yet do here NoRotate widgets stay upright at the same anchor on quarter-turned pages when flattened."
 
 [[feature]]
 id = "form.prepare-form-mode"
