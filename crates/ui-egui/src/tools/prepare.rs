@@ -12,6 +12,7 @@ use pdfcraft_render::DocInfo;
 
 use crate::canvas::{DocView, PageXform};
 use crate::comments;
+use crate::forms_ui::widget_rect as screen_rect;
 use crate::page_pointer::PagePointer;
 use crate::theme;
 use crate::widgets;
@@ -191,10 +192,6 @@ impl PrepareView {
     }
 }
 
-fn screen_rect(xf: &PageXform, info: &DocInfo, page: usize, r: [f64; 4]) -> Rect {
-    xf.user_rect(info, page, [r[0] as f32, r[1] as f32, r[2] as f32, r[3] as f32])
-}
-
 fn to_user(xf: &PageXform, info: &DocInfo, page: usize, p: Pos2) -> [f64; 2] {
     let (vx, vy) = xf.screen_to_view(p);
     let u = info.pages[page].view_to_user(vx, vy);
@@ -297,7 +294,7 @@ pub(crate) fn page_input(
                     let rect = Rect::from_two_pos(from, end).intersect(xf.rect);
                     for f in form {
                         for (wi, w) in f.widgets.iter().enumerate().filter(|(_, w)| w.page == Some(page)) {
-                            if screen_rect(xf, info, page, w.rect).intersects(rect) {
+                            if screen_rect(xf, info, page, w).intersects(rect) {
                                 let key = (f.name.clone(), wi);
                                 if prep.selected.is_none() {
                                     prep.selected = Some(key);
@@ -336,8 +333,9 @@ pub(crate) fn page_input(
                     let delta = end - start;
                     if delta.length() >= 1.0 {
                         let shift = ui.input(|i| i.modifiers.shift);
-                        let r = dragged(screen_rect(xf, info, page, w.rect), grab, delta, shift);
-                        let rect = user_rect(xf, info, page, r);
+                        let r = dragged(screen_rect(xf, info, page, w), grab, delta, shift);
+                        let shown = user_rect(xf, info, page, r);
+                        let rect = if w.no_rotate { pdfcraft_render::rect_from_upright(shown, info.pages[page].rotation) } else { shown };
                         view.pending_edit =
                             Some(Edit::SetFieldProps { name, props: Box::new(FieldProps { rect: Some((wi, rect)), ..Default::default() }) });
                     }
@@ -379,7 +377,7 @@ pub(crate) fn page_input(
     // Right-click a field: select it (the context menu acts on it).
     if resp.secondary_clicked()
         && let Some((f, wi)) = form.iter().find_map(|f| {
-            f.widgets.iter().enumerate().find(|(_, w)| w.page == Some(page) && screen_rect(xf, info, page, w.rect).contains(p)).map(|(i, _)| (f, i))
+            f.widgets.iter().enumerate().find(|(_, w)| w.page == Some(page) && screen_rect(xf, info, page, w).contains(p)).map(|(i, _)| (f, i))
         })
     {
         let key = (f.name.clone(), wi);
@@ -399,10 +397,10 @@ pub(crate) fn page_input(
         .selected
         .as_ref()
         .and_then(|(n, wi)| form.iter().find(|f| &f.name == n)?.widgets.get(*wi).filter(|w| w.page == Some(page)))
-        .map(|w| screen_rect(xf, info, page, w.rect));
+        .map(|w| screen_rect(xf, info, page, w));
     let corner = selected_rect.and_then(|r| handles(r).into_iter().find(|(c, ..)| c.distance(p) <= 6.0));
     let hit = form.iter().find_map(|f| {
-        f.widgets.iter().enumerate().find(|(_, w)| w.page == Some(page) && screen_rect(xf, info, page, w.rect).contains(p)).map(|(i, _)| (f, i))
+        f.widgets.iter().enumerate().find(|(_, w)| w.page == Some(page) && screen_rect(xf, info, page, w).contains(p)).map(|(i, _)| (f, i))
     });
     if let Some((_, left, top)) = corner {
         ui.ctx().set_cursor_icon(if left == top { egui::CursorIcon::ResizeNwSe } else { egui::CursorIcon::ResizeNeSw });
@@ -415,11 +413,7 @@ pub(crate) fn page_input(
             prep.grab = Some((page, Grab::Corner(left, top), origin));
             out.consumed = true;
         } else if let Some((f, wi)) = form.iter().find_map(|f| {
-            f.widgets
-                .iter()
-                .enumerate()
-                .find(|(_, w)| w.page == Some(page) && screen_rect(xf, info, page, w.rect).contains(origin))
-                .map(|(i, _)| (f, i))
+            f.widgets.iter().enumerate().find(|(_, w)| w.page == Some(page) && screen_rect(xf, info, page, w).contains(origin)).map(|(i, _)| (f, i))
         }) {
             prep.selected = Some((f.name.clone(), wi));
             prep.grab = Some((page, Grab::Move, origin));
@@ -572,7 +566,7 @@ pub(crate) fn paint_page(
     let zoom = xf.zoom().clamp(0.5, 3.0);
     for f in form {
         for (wi, w) in f.widgets.iter().enumerate().filter(|(_, w)| w.page == Some(page)) {
-            let mut r = screen_rect(xf, info, page, w.rect);
+            let mut r = screen_rect(xf, info, page, w);
             let selected = prep.selected.as_ref().is_some_and(|(n, i)| n == &f.name && *i == wi);
             let also = prep.also.iter().any(|(n, i)| n == &f.name && *i == wi);
             if selected && let (Some((_, g, start)), Some(p)) = (grab, pointer) {

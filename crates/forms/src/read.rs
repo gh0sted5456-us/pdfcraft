@@ -503,7 +503,8 @@ fn walk(
             let wo = doc.get(w);
             let wd = wo.as_dict()?;
             let rect = nums(doc, wd.get(b"Rect")).filter(|r| r.len() == 4).unwrap_or_else(|| vec![0.0; 4]);
-            let annot_flags = wd.get(b"F").and_then(|f| doc.resolve(f).as_int()).unwrap_or(0);
+            // Match the renderer: truncate numeric flags and reject values outside u32.
+            let annot_flags = wd.get(b"F").and_then(|f| doc.resolve(f).as_f64()).and_then(|f| u32::try_from(f as i64).ok()).unwrap_or(0);
             let own_ff = if w == r { 0 } else { field_flags(doc, wd).unwrap_or(0) };
             let on_state = wd
                 .get(b"AP")
@@ -518,6 +519,7 @@ fn walk(
                 on_state: on_state.filter(|_| matches!(kind, FieldKind::CheckBox | FieldKind::Radio)),
                 state: wd.name(b"AS").map(name_text),
                 tab: usize::MAX,
+                no_rotate: annot_flags & 16 != 0,
                 locked: annot_flags & 128 != 0,
                 hidden: annot_flags & (2 | 32) != 0,
                 read_only: (ff | own_ff) & flags::READ_ONLY != 0,

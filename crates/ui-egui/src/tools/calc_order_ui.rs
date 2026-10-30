@@ -706,10 +706,12 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui, t: &Tokens) {
         }
         Some(Act::Select(name)) => {
             // Where its first widget is, to show it there.
-            let shown = app
-                .session
-                .get(id)
-                .and_then(|doc| doc.form.iter().find(|g| g.name == name).and_then(|g| g.widgets.first()).and_then(|w| Some((w.page?, w.rect))));
+            let shown = app.session.get(id).and_then(|doc| {
+                let w = doc.form.iter().find(|g| g.name == name)?.widgets.first()?;
+                let page = w.page?;
+                let rect = if w.no_rotate { pdfcraft_render::upright_rect(w.rect, doc.info.pages.get(page)?.rotation) } else { w.rect };
+                Some((page, rect))
+            });
             if let Some(view) = app.views.get_mut(index) {
                 view.prepare.select((name, 0), false);
                 if let Some((page, rect)) = shown {
@@ -743,8 +745,7 @@ pub(crate) fn paint_page(
     let mut on_page: Vec<(&str, Rect)> = Vec::new();
     for f in form {
         if let Some(w) = f.widgets.iter().find(|w| w.page == Some(page) && !w.hidden) {
-            let r = w.rect;
-            on_page.push((&f.name, xf.user_rect(info, page, [r[0] as f32, r[1] as f32, r[2] as f32, r[3] as f32])));
+            on_page.push((&f.name, crate::forms_ui::widget_rect(xf, info, page, w)));
         }
     }
     if on_page.is_empty() {

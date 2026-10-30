@@ -393,7 +393,7 @@ impl Annotation {
 /// top-left is that corner, the rectangle's width runs across and its height down, as on an
 /// unturned page. `rect` itself for 0 or anything that isn't a quarter turn. The vendored
 /// renderer draws the appearance there (hayro-interpret patch 37).
-fn upright_rect(rect: [f64; 4], rotation: u16) -> [f64; 4] {
+pub fn upright_rect(rect: [f64; 4], rotation: u16) -> [f64; 4] {
     let [x0, y0, x1, y1] = [rect[0].min(rect[2]), rect[1].min(rect[3]), rect[0].max(rect[2]), rect[1].max(rect[3])];
     let (w, h) = (x1 - x0, y1 - y0);
     match rotation {
@@ -406,7 +406,7 @@ fn upright_rect(rect: [f64; 4], rotation: u16) -> [f64; 4] {
 
 /// The `/Rect` whose [`upright_rect`] is `shown`: `shown` turned back about the corner that
 /// stays put.
-fn rect_from_upright(shown: [f64; 4], rotation: u16) -> [f64; 4] {
+pub fn rect_from_upright(shown: [f64; 4], rotation: u16) -> [f64; 4] {
     let [s0, s1, s2, s3] = [shown[0].min(shown[2]), shown[1].min(shown[3]), shown[0].max(shown[2]), shown[1].max(shown[3])];
     let (sw, sh) = (s2 - s0, s3 - s1);
     // The upper-left corner of `/Rect` and the rectangle's width and height.

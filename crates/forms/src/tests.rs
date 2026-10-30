@@ -5323,3 +5323,15 @@ endstream".into(),
         assert!(f.value.iter().all(String::is_empty), "{kind:?}: reset leaves it off, not the parent's Yes: {:?}", f.value);
     }
 }
+
+#[test]
+fn reading_no_rotate_widgets_preserves_the_annotation_flag() {
+    let mut doc = fixture();
+    let obj = field(&fields(&doc), "name").widgets[0].obj;
+    assert!(!field(&fields(&doc), "name").widgets[0].no_rotate);
+    for (flags, upright) in [(Object::Int(20), true), (Object::Real(20.75), true), (Object::Int(-16), false), (Object::Int(4_294_967_296), false)] {
+        let flags = doc.add(flags);
+        doc.update_dict(obj, |d| d.set(b"F".to_vec(), Object::Ref(flags))).unwrap();
+        assert_eq!(field(&fields(&doc), "name").widgets[0].no_rotate, upright);
+    }
+}

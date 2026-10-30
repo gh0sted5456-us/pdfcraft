@@ -187,7 +187,8 @@ impl Automation {
                 let w = f.widgets.first();
                 let rect = w.and_then(|w| {
                     let p = doc.info.pages.get(w.page?)?;
-                    let (a, b) = (p.user_to_view(w.rect[0] as f32, w.rect[1] as f32), p.user_to_view(w.rect[2] as f32, w.rect[3] as f32));
+                    let shown = if w.no_rotate { pdfcraft_render::upright_rect(w.rect, p.rotation) } else { w.rect };
+                    let (a, b) = (p.user_to_view(shown[0] as f32, shown[1] as f32), p.user_to_view(shown[2] as f32, shown[3] as f32));
                     Some([a[0].min(b[0]), a[1].min(b[1]), a[0].max(b[0]), a[1].max(b[1])].map(|v| (v * 100.0).round() / 100.0))
                 });
                 let mut v = json!({
@@ -494,10 +495,12 @@ impl Automation {
             Some(v) => {
                 let r: Vec<f64> = v.as_array().map(|x| x.iter().filter_map(Value::as_f64).collect()).unwrap_or_default();
                 let r = <[f64; 4]>::try_from(r).map_err(|_| ToolError::InvalidArgs("rect must be 4 numbers".into()))?;
-                let page = f.widgets.first().and_then(|w| w.page).ok_or_else(|| failed(format!("{name} is not on a page")))?;
+                let w = f.widgets.first().ok_or_else(|| failed(format!("{name} has no widgets")))?;
+                let page = w.page.ok_or_else(|| failed(format!("{name} is not on a page")))?;
                 let p = doc.info.pages.get(page).ok_or_else(|| failed(format!("{name} is on page {}, which could not be read", page + 1)))?;
                 let (u0, u1) = (p.view_to_user(r[0] as f32, r[1] as f32), p.view_to_user(r[2] as f32, r[3] as f32));
-                Some((0, [u0[0].min(u1[0]) as f64, u0[1].min(u1[1]) as f64, u0[0].max(u1[0]) as f64, u0[1].max(u1[1]) as f64]))
+                let shown = [u0[0].min(u1[0]) as f64, u0[1].min(u1[1]) as f64, u0[0].max(u1[0]) as f64, u0[1].max(u1[1]) as f64];
+                Some((0, if w.no_rotate { pdfcraft_render::rect_from_upright(shown, p.rotation) } else { shown }))
             }
         };
         Ok(FieldProps {

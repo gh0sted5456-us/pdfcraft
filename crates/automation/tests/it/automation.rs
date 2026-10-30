@@ -9956,3 +9956,32 @@ fn deleting_one_radio_button_through_tools_keeps_the_group() {
     ok(&mut a, "edit_undo", json!({ "doc": doc }));
     assert_eq!(size(&mut a)["options"], json!(["S", "M", "L"]), "one undo step brings it back");
 }
+
+#[test]
+fn no_rotate_widget_rectangles_follow_the_drawing_through_tools() {
+    let dir = workdir("no-rotate-widget-tools");
+    for (rotation, corner) in [(0, [40.0, 70.0]), (90, [70.0, 40.0]), (180, [160.0, 70.0]), (270, [70.0, 160.0])] {
+        let pages = format!("<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 200 140] /Rotate {rotation} >>");
+        let bytes = pdf_of(&[
+            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] >> >>",
+            &pages,
+            "<< /Type /Page /Parent 2 0 R /UserUnit 2 /Annots [4 0 R] >>",
+            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (upright) /F 20 /Rect [40 50 70 70] /P 3 0 R >>",
+        ]);
+        std::fs::write(dir.join("source.pdf"), bytes).unwrap();
+        let mut a = auto(&dir);
+        let id = ok(&mut a, "doc_open", json!({"path":"source.pdf"}))["doc"].as_u64().unwrap();
+        let rect = [corner[0] * 2.0, corner[1] * 2.0, (corner[0] + 30.0) * 2.0, (corner[1] + 20.0) * 2.0];
+        let read = |a: &mut Automation, doc| ok(a, "form_fields", json!({"doc":doc}))["fields"][0]["rect"].clone();
+        assert_eq!(read(&mut a, id), json!(rect), "rotation {rotation}");
+        let moved = [rect[0] + 12.0, rect[1] + 8.0, rect[2] + 12.0, rect[3] + 8.0];
+        ok(&mut a, "form_set_props", json!({"doc":id,"field":"upright","rect":moved}));
+        assert_eq!(read(&mut a, id), json!(moved));
+        ok(&mut a, "edit_undo", json!({"doc":id}));
+        assert_eq!(read(&mut a, id), json!(rect));
+        ok(&mut a, "edit_redo", json!({"doc":id}));
+        ok(&mut a, "doc_save", json!({"doc":id,"path":"saved.pdf"}));
+        let reopened = ok(&mut a, "doc_open", json!({"path":"saved.pdf"}))["doc"].as_u64().unwrap();
+        assert_eq!(read(&mut a, reopened), json!(moved));
+    }
+}
