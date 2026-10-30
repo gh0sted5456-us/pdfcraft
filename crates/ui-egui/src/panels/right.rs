@@ -559,7 +559,14 @@ fn fields(
             if resp.clicked()
                 && let (Some(p), Some(r)) = (f.page, f.rect)
             {
-                *nav = Some(Nav::Flash(p, r));
+                let mut shown = r;
+                if let Some(w) = form.iter().find(|field| field.name == f.name).and_then(|field| field.widgets.iter().find(|w| w.page == Some(p)))
+                    && w.no_rotate
+                    && let Some(page) = info.pages.get(p)
+                {
+                    shown = pdfcraft_render::upright_rect(r.map(f64::from), page.rotation).map(|v| v as f32);
+                }
+                *nav = Some(Nav::Flash(p, shown));
             }
         }
     }

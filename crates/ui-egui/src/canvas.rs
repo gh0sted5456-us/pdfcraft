@@ -2057,8 +2057,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
                 for f in form.iter() {
                     let required = f.has(pdfcraft_engine::field_flags::REQUIRED);
                     for w in f.widgets.iter().filter(|w| w.page == Some(i) && !w.hidden && !w.read_only) {
-                        let r = w.rect;
-                        let sr = xf.user_rect(info, i, [r[0] as f32, r[1] as f32, r[2] as f32, r[3] as f32]);
+                        let sr = crate::forms_ui::widget_rect(&xf, info, i, w);
                         let tint = Color32::from_rgba_unmultiplied(0x6E, 0x8E, 0xF5, 48);
                         let (width, color) =
                             if required { (2.0, Color32::from_rgb(0xE3, 0x22, 0x22)) } else { (1.0, Color32::from_rgb(0x6E, 0x8E, 0xF5)) };
@@ -2244,7 +2243,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
                                     widget.page == Some(*page)
                                         && !widget.hidden
                                         && widget.rect.iter().all(|n| n.is_finite() && n.abs() < f32::MAX as f64)
-                                        && xf.user_rect(info, *page, widget.rect.map(|n| n as f32)).contains(at)
+                                        && crate::forms_ui::widget_rect(xf, info, *page, widget).contains(at)
                                 })
                         })
                         .map(|field| field.name.clone())

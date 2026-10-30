@@ -338,13 +338,9 @@ fn is_standard_annotation_type(subtype: &[u8]) -> bool {
     )
 }
 
-/// PdfCraft patch (59): whether the NoRotate flag turns this annotation's appearance. Form fields
-/// and links are left in `/Rect`: PdfCraft takes their click targets from it.
+/// PdfCraft patch (59): links stay in `/Rect` until their click targets follow NoRotate.
 fn no_rotate_applies(annot: &Dict<'_>) -> bool {
-    !matches!(
-        annot.get::<hayro_syntax::object::Name<'_>>(SUBTYPE).as_deref(),
-        Some(b"Widget" | b"Link")
-    )
+    !matches!(annot.get::<hayro_syntax::object::Name<'_>>(SUBTYPE).as_deref(), Some(b"Link"))
 }
 
 /// PdfCraft patch (59): the user-space turn that keeps a NoRotate annotation upright on a page

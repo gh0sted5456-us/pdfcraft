@@ -130,6 +130,8 @@ pub struct Widget {
     pub locked: bool,
     /// The widget's Hidden or NoView flag (`/F` bit 2 or 6): it isn't shown and takes no input.
     pub hidden: bool,
+    /// NoRotate (`/F` bit 5): the appearance stays upright about its upper-left corner.
+    pub no_rotate: bool,
     /// Read-only: the field is, or the widget's own `/Ff` says so (a radio button of a group can
     /// be locked on its own, as an XFA exclusion group's layout writes it).
     pub read_only: bool,

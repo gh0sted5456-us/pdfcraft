@@ -1,3 +1,5 @@
+> **Last updated:** 2026-10-29 · Lion PDF candidate: NoRotate form-widget drawing and interaction geometry; upstream #4718 updates mark previews without their previous marks, and #4595 imports comments from another PDF. Imports retain source copy restrictions and destination page locks. Browser file picking, NoRotate links and native platform qualification remain limited; estimates unchanged.
+
 > **Last updated:** 2026-10-27 · Personal fork: printer marks and basic hairline repair have engine, automation and popup coverage. Malformed or over-budget hairline content refuses the atomic edit; original shared resources stay untouched. Remaining unfinished tools and proposal review requirements are inventoried in `fork-tool-integration.md`. Estimates unchanged.
 
 > **Last updated:** 2026-10-27 · Personal fork: integrate upstream vector/Type 3 redaction cleanup, eleven dependency updates and nextest 0.9.150. Preserve Type 3 glyphs used by surviving annotation appearances; exercise print controls through the scroll viewport with a controlled empty printer list. Larger egui/menu/updater migrations are deferred. Estimates unchanged.
