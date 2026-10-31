@@ -277,3 +277,21 @@ a match of the `CobaltStrikeBeacon` family rule.
 7. **Report.** To the scanner, send the file's SHA-256, the release URL, the rule name and revision,
    and the matched identifiers and offsets. Report PdfCraft problems at
    <https://github.com/storytold/pdfcraft/issues> with the same facts.
+
+### Movable local project inputs
+
+The local project boundary is the folder containing this checkout, "craft-fonts/",
+"pdfcraft-build-tools/", "dependencies/" and "DependencyManifest.json". The Windows
+package entry points resolve these inputs relative to the checkout. WiX is invoked
+through its owned DLL so the dotnet tool shim cannot retain the old installation path;
+its native runtime files and license must travel with it. Cargo's parent project
+configuration replaces locked registry/Git sources with "dependencies/cargo/" and
+keeps generated targets under ".build/" (or an explicit non-C cache). OCR model inputs
+live in "assets/models/" and are rechecked against "ATTRIBUTION.toml" before packaging.
+
+Move the entire boundary, including dot folders, rather than just this source folder.
+Run packaging from this checkout with the documented "package.ps1" entry point.
+The manifest records exact machine prerequisites and validation coverage. Machine
+compiler/SDK installations, user settings, credentials and old build outputs do not
+travel as project dependencies. Validate with an empty Cargo home and offline source
+resolution before declaring a copied project ready.

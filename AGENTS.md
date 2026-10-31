@@ -138,3 +138,23 @@ Follow `CLAUDE.md`. It covers quality gates, layering, commit rules and how to r
   GitHub profiles). Never hand-edit `contributors.json`.
 - Maintainers refresh the stats with `python3 ../../craftrules/scripts/contributors.py .` (it also
   re-verifies who wrote each `people.toml` entry; `--check` only verifies).
+
+## Relocatable local project
+
+The local project boundary contains this source checkout plus `craft-fonts/`,
+`pdfcraft-build-tools/`, `dependencies/` and its `DependencyManifest.json` in the parent
+folder. Keep every required non-system input inside that boundary as real files,
+with versions, hashes, licences and Git provenance. Do not rely on another project's
+junctions, absolute paths, credentials or caches. Keep donor folders until their
+other consumers have migrated. Use the existing packaging entry points: they resolve
+owned inputs relative to the checkout. Rust/Visual Studio/Windows SDK/.NET/Git are
+pinned, discoverable machine prerequisites, not copied installations. Build output
+must stay on a non-C drive and is disposable. Before declaring relocation complete,
+run the current entry point from a copied project with an empty Cargo home, offline
+source resolution and the former project inputs absent from its resolver; record
+actual results and remaining exceptions in the project manifest and readiness JSON.
+
+The local archive/authoring lifecycle is documented in the parent project's
+PROJECT-WORKFLOW.md: H:\Project-Archives\Lion-PDF is the complete archive, and
+F:\Projects\Lion-PDF is the standalone working copy. New authoring/build work must
+use F:; after verified archival to H:, clear only that work copy.

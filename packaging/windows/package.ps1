@@ -12,8 +12,8 @@
   zip needs the Visual C++ redistributable. Signing is delegated to sign.ps1 (skipped with a
   warning when no signing secrets are set).
 
-  Needs: Rust (MSVC toolchain + the target), curl and the network (the OCR models), the Windows SDK (rc.exe, signtool.exe),
-  and WiX v5: dotnet tool install --global wix --version 5.0.2
+  Needs: Rust (MSVC toolchain + the target), curl and the network only for uncached OCR inputs, the Windows SDK (rc.exe, signtool.exe),
+  and project-owned WiX v5 (or in CI: dotnet tool install --global wix --version 5.0.2)
 
 .EXAMPLE
   pwsh packaging/windows/package.ps1 -Arch x64
@@ -31,6 +31,11 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+. (Join-Path $PSScriptRoot 'project-inputs.ps1')
+$Root = Join-Path (Get-ProjectRoot $Root) (Split-Path $Root -Leaf)
+Set-ProjectBuildEnvironment $Root -WithoutCraftFonts:$BuiltWithoutCraftFonts
+Push-Location $Root
+try {
 
 if ($BuiltWithoutCraftFonts -and -not $SkipBuild) {
   throw '-BuiltWithoutCraftFonts describes an existing build made without CRAFT_FONTS_DIR; use it only with -SkipBuild.'
@@ -126,6 +131,9 @@ Copy-Item (Join-Path $Root 'assets\icons\LICENSE-simple-icons.txt') $Stage
 # the MSI and the portable zip take the whole folder, so new models ship without naming them here.
 $Models = Join-Path $Stage 'models'
 New-Item -ItemType Directory -Force -Path $Models | Out-Null
+# Seed from project-owned, hash-checked inputs; xtask verifies them again before packaging.
+$LocalModels = Join-Path $Root 'assets/models'
+if (Test-Path -LiteralPath $LocalModels) { Copy-Item (Join-Path $LocalModels '*') $Models }
 Push-Location $Root
 try { Invoke-Native 'cargo xtask models' { cargo xtask models $Models } } finally { Pop-Location }
 Remove-Item -Force (Join-Path $Models '*.part') -ErrorAction SilentlyContinue
@@ -153,7 +161,7 @@ if ($env:CRAFT_FONTS_DIR) {
 # ---- MSI ---------------------------------------------------------------------------------------
 $Msi = Join-Path $Dist "pdfcraft-$Version-windows-$Arch.msi"
 Invoke-Native 'wix build' {
-  wix build (Join-Path $PSScriptRoot 'pdfcraft.wxs') -arch $Arch `
+  Invoke-ProjectWix build (Join-Path $PSScriptRoot 'pdfcraft.wxs') -arch $Arch `
     (Join-Path $PSScriptRoot 'installer-ui.wxs') `
     -d "Version=$MsiVersion" -d "BinDir=$Stage" -d "ModelsDir=$Models" -d "IconPath=$(Join-Path $Root 'assets\app-icon\pdfcraft.ico')" `
     -d "DocsDir=$Docs" -d "HasCraftFontLicences=$HasCraftFontLicences" -d "HasPrinterPackage=$HasPrinterPackage" `
@@ -204,3 +212,5 @@ if ($Arch -ne 'arm64' -or $HostArch -eq 'arm64') {
   Write-Output "skipping pdfcraft-cli --version: an $Arch build doesn't run on this $HostArch machine"
 }
 Get-Item $Msi, $Zip | Format-Table Name, Length
+
+} finally { Pop-Location }
