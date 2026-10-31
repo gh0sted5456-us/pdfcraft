@@ -31,7 +31,7 @@ $BuildArgs = @('build','--locked','-p','pdfcraft-printer','-j2')
 if (-not $Online) { $BuildArgs += '--offline' }
 if ($Profile -eq 'release') { $BuildArgs += '--release' }
 if ($TargetTriple) { $BuildArgs += @('--target',$TargetTriple) }
-$Dist = Join-Path $Root 'dist'
+$Dist = if ($env:DIST) { $env:DIST } else { Join-Path $Root 'dist' }
 New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 $Stage = Join-Path $TargetDir ('printer-package-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $Stage | Out-Null

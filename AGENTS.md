@@ -149,7 +149,7 @@ junctions, absolute paths, credentials or caches. Keep donor folders until their
 other consumers have migrated. Use the existing packaging entry points: they resolve
 owned inputs relative to the checkout. Rust/Visual Studio/Windows SDK/.NET/Git are
 pinned, discoverable machine prerequisites, not copied installations. Build output
-must stay on a non-C drive and is disposable. Before declaring relocation complete,
+must physically stay on D: or F: and is disposable; H: is archive-only. Before declaring relocation complete,
 run the current entry point from a copied project with an empty Cargo home, offline
 source resolution and the former project inputs absent from its resolver; record
 actual results and remaining exceptions in the project manifest and readiness JSON.
@@ -158,3 +158,11 @@ The local archive/authoring lifecycle is documented in the parent project's
 PROJECT-WORKFLOW.md: H:\Project-Archives\Lion-PDF is the complete archive, and
 F:\Projects\Lion-PDF is the standalone working copy. New authoring/build work must
 use F:; after verified archival to H:, clear only that work copy.
+
+Use the parent Invoke-Project.ps1 for local Cargo commands, or call the existing
+Set-ProjectBuildEnvironment helper before child tools. It routes current outputs,
+TEMP/TMP, Cargo/.NET/NuGet/sccache caches and packaging to owned D:/F: paths each
+invocation and rejects archive builds. Never trust the Codex app's inherited C:
+environment. All archived/history/rollback copies belong on H: only. Preserve live
+jobs and shared donors; do not move roots without full hashes and stable-source
+verification. Keep at least 40 GiB active-drive headroom.

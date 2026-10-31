@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'project-inputs.ps1')
 $fixture = Join-Path ([IO.Path]::GetTempPath()) ('lion-project-inputs-' + [guid]::NewGuid().ToString('N'))
 $before = @{}
-foreach ($name in 'CRAFT_FONTS_DIR','CRAFT_FONTS_REQUIRED','CARGO_TARGET_DIR') { $before[$name] = [Environment]::GetEnvironmentVariable($name) }
+foreach ($name in 'CRAFT_FONTS_DIR','CRAFT_FONTS_REQUIRED','CARGO_TARGET_DIR','CARGO_BUILD_BUILD_DIR','CARGO_HOME','TEMP','TMP','DIST','DOTNET_CLI_HOME','NUGET_PACKAGES','NUGET_HTTP_CACHE_PATH','NUGET_SCRATCH','XDG_CACHE_HOME','SCCACHE_DIR') { $before[$name] = [Environment]::GetEnvironmentVariable($name) }
 try {
   $source = Join-Path $fixture 'pdfcraft-converter'
   New-Item -ItemType Directory -Path $source -Force | Out-Null
@@ -27,7 +27,28 @@ try {
   Remove-Item Env:CRAFT_FONTS_DIR -ErrorAction SilentlyContinue
   Set-ProjectBuildEnvironment $source -WithoutCraftFonts
   if ($env:CRAFT_FONTS_DIR) { throw 'The explicit font-free build must remain font-free' }
-  Write-Output 'Project input regression checks passed'
+
+  $vars = 'CARGO_TARGET_DIR','CARGO_BUILD_BUILD_DIR','CARGO_HOME','TEMP','TMP','DIST','DOTNET_CLI_HOME','NUGET_PACKAGES','NUGET_HTTP_CACHE_PATH','NUGET_SCRATCH','XDG_CACHE_HOME','SCCACHE_DIR'
+  $drive = [IO.Path]::GetPathRoot($fixture)
+  @{ storageRouting = @{ activeDriveRoots = @($drive); activeCacheRoots = @((Join-Path $fixture 'explicit-cache')); minimumFreeBytes = 0 } } |
+    ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $fixture 'DependencyManifest.json')
+  foreach ($name in $vars) { [Environment]::SetEnvironmentVariable($name, (Join-Path $drive 'stale-unrelated-output')) }
+  Set-ProjectBuildEnvironment $source
+  foreach ($name in $vars) {
+    $value = [Environment]::GetEnvironmentVariable($name)
+    if (-not $value.StartsWith((Join-Path $fixture '.build') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw "Inherited output escaped project: $name=$value" }
+    if (-not (Test-Path -LiteralPath $value -PathType Container)) { throw "Output directory missing: $name" }
+  }
+  $env:CARGO_TARGET_DIR = Join-Path $fixture 'explicit-cache'
+  Set-ProjectBuildEnvironment $source
+  if ($env:CARGO_TARGET_DIR -ne (Join-Path $fixture 'explicit-cache')) { throw 'Owned explicit cache override was lost' }
+  @{ storageRouting = @{ activeDriveRoots = @('Z:\'); activeCacheRoots = @(); minimumFreeBytes = 0 } } |
+    ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $fixture 'DependencyManifest.json')
+  $rejected = $false
+  try { Set-ProjectBuildEnvironment $source } catch { $rejected = $true }
+  if (-not $rejected) { throw 'Archive drive must be rejected before any build' }
+
+  Write-Output 'Project input and storage routing regression checks passed'
 } finally {
   foreach ($name in $before.Keys) { [Environment]::SetEnvironmentVariable($name,$before[$name]) }
   $resolved = [IO.Path]::GetFullPath($fixture)

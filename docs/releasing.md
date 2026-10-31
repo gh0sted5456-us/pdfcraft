@@ -295,3 +295,13 @@ The manifest records exact machine prerequisites and validation coverage. Machin
 compiler/SDK installations, user settings, credentials and old build outputs do not
 travel as project dependencies. Validate with an empty Cargo home and offline source
 resolution before declaring a copied project ready.
+
+### Personal project storage routing
+
+Use the parent `Invoke-Project.ps1` for local Cargo, and the existing Windows
+packaging scripts for MSI/MSIX/combined setup. The owned manifest opts this project
+into D:/F: active storage (F: preferred) and H:-only archives. The helper replaces
+inherited C: outputs and sets child TEMP/TMP, Cargo, .NET, NuGet and compiler-cache
+paths on every invocation, validates physical paths, and refuses archive builds.
+The printer packager honors `DIST`, matching desktop packaging. Ordinary CI
+checkouts without this local manifest keep their normal runner configuration.
