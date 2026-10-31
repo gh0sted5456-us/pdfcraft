@@ -38,6 +38,9 @@ jobs:
       - name: Portable project input regressions
         shell: pwsh
         run: ./packaging/windows/test-project-inputs.ps1
+      - name: Desktop-only installer regression
+        shell: pwsh
+        run: ./packaging/windows/test-desktop-setup.ps1
       - name: Fork release version regressions
         shell: pwsh
         run: ./packaging/windows/test-fork-version.ps1

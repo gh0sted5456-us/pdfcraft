@@ -305,3 +305,15 @@ inherited C: outputs and sets child TEMP/TMP, Cargo, .NET, NuGet and compiler-ca
 paths on every invocation, validates physical paths, and refuses archive builds.
 The printer packager honors `DIST`, matching desktop packaging. Ordinary CI
 checkouts without this local manifest keep their normal runner configuration.
+
+### Desktop-only personal releases
+
+The fork release builds the desktop MSI without `-PrinterPackage`, then invokes
+`package-setup.ps1` with `desktop-only`. No printer MSIX, virtual-printer runtime
+or Windows printer activation is bundled. The bootstrapper retains the existing
+download verification, parent-process acknowledgement, MSI logs and session
+restart flow. Its internal product name is Lion PDF setup. The historical
+`with-printer-x64.exe` asset name remains solely for installed updater compatibility.
+Driver source and its dedicated Linux workflow are retained for manual historical
+checks; the workflow no longer runs automatically. Existing registered printers
+are not removed by this packaging change.
