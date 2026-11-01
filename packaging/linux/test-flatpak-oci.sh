@@ -44,6 +44,9 @@ bash "$FIXTURE/packaging/linux/flatpak-oci.sh" --push > "$FIXTURE/push.log"
 [[ "$(wc -l < "$OCI_TEST_LOG")" -eq 3 ]]
 grep -q 'docker://ghcr.io/gh0sted5456-us/pdfcraft:1.0.2-x86_64' "$OCI_TEST_LOG"
 grep -q 'docker://ghcr.io/gh0sted5456-us/pdfcraft:stable-x86_64' "$OCI_TEST_LOG"
-! grep -q synthetic-test-token "$OCI_TEST_LOG" "$FIXTURE/push.log"
+if grep -q synthetic-test-token "$OCI_TEST_LOG" "$FIXTURE/push.log"; then
+  echo 'Token leaked into command arguments or output' >&2
+  exit 1
+fi
 [[ -z "$(find "$FIXTURE/out" -name 'ghcr-auth.*' -print -quit)" ]]
 echo 'Flatpak OCI regression: build-only default, fork registry, stdin authentication and temporary credential cleanup passed'
