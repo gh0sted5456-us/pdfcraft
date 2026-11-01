@@ -7,8 +7,7 @@ mod setup;
 
 fn main() -> std::process::ExitCode {
     #[cfg(windows)]
-    let result =
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(setup::run)).unwrap_or_else(|_| Err("PdfCraft printer setup could not finish".into()));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(setup::run)).unwrap_or_else(|_| Err("Lion PDF setup could not finish".into()));
     #[cfg(not(windows))]
     let result: Result<(), String> = Err("The PdfCraft printer plugin requires Windows 11 24H2 or newer".into());
     match result {

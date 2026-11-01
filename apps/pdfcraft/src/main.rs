@@ -61,6 +61,7 @@ Usage: pdfcraft [options] [files…]
 Opens the files in the PdfCraft desktop app.
 
 Options:
+  --two-paged                 open command-line PDFs in noncontinuous two-page view
   --new-window                open a window of its own instead of passing the files to a running PdfCraft
   --refresh-thumbnails        refresh Windows thumbnail caches and exit (no-op elsewhere)
   --create-images [images…]   put the images in one PDF and ask for the page DPI
@@ -216,6 +217,7 @@ fn main() -> eframe::Result {
     let mut options: Vec<(String, String)> = Vec::new();
     let mut control_file: Option<String> = None;
     let mut create_images = false;
+    let mut two_paged = false;
     let mut new_window = false;
     let mut resume_update = None;
     let mut args = std::env::args_os().skip(1).map(text_arg);
@@ -227,6 +229,8 @@ fn main() -> eframe::Result {
             "-h" | "--help" => return print_and_exit(USAGE),
             "--control" => control_file = args.next().flatten(),
             "--create-images" => create_images = true,
+            "--two-paged" => two_paged = true,
+            flag if flag.starts_with("--two-paged=") => log::warn!("{flag}: use --two-paged without a value"),
             "--new-window" => new_window = true,
             "--resume-update" => {
                 resume_update = args.next().flatten();
@@ -265,7 +269,7 @@ fn main() -> eframe::Result {
     // Explorer double-click, a file manager or `xdg-open`) hands them to the PdfCraft already
     // running and exits (#282, #317, #1726). Any option means the caller wants this launch's own
     // window.
-    let may_hand_off = !new_window && !files.is_empty() && options.is_empty() && control_file.is_none() && !create_images;
+    let may_hand_off = !new_window && !files.is_empty() && options.is_empty() && control_file.is_none() && !create_images && !two_paged;
     // Absolute for this instance too: links relative to a document resolve against its folder,
     // never the working directory.
     let files = single_instance::absolute(&files);
@@ -275,7 +279,7 @@ fn main() -> eframe::Result {
         single_instance::Claim::Alone => None,
     };
     let choice = renderer_choice(std::env::var("PDFCRAFT_RENDERER").ok().as_deref());
-    let launch = Launch { files, options, control_file, create_images, integrated, window_controls, resume_update };
+    let launch = Launch { files, options, control_file, create_images, two_paged, integrated, window_controls, resume_update };
     // Finder, Open With and the Dock deliver files as Apple events, not arguments; catch the one
     // that launched us as well as later ones. Lives until the event loop returns.
     #[cfg(target_os = "macos")]
@@ -382,6 +386,7 @@ struct Launch {
     options: Vec<(String, String)>,
     control_file: Option<String>,
     create_images: bool,
+    two_paged: bool,
     integrated: bool,
     /// The window buttons the app draws, when the desktop leaves the frame to it.
     window_controls: Option<pdfcraft_ui_egui::window_controls::Layout>,
@@ -405,7 +410,7 @@ fn app_creator<'a>(
     instance: Option<&'a single_instance::Server>,
     #[cfg(target_os = "macos")] apple_events: &'a apple_events::AppleEvents,
 ) -> eframe::AppCreator<'a> {
-    let Launch { files, options, control_file, create_images, integrated, window_controls, resume_update } = launch;
+    let Launch { files, options, control_file, create_images, two_paged, integrated, window_controls, resume_update } = launch;
     Box::new(move |cc| {
         started.set(true);
         let mut app = PdfCraftApp::new();
@@ -479,6 +484,7 @@ fn app_creator<'a>(
         {
             app.notify(error);
         }
+        let use_launch_layout = two_paged && !create_images && !files.is_empty();
         if create_images {
             if let Err(e) = app.begin_image_import_paths(&files) {
                 app.notify(e);
@@ -488,11 +494,16 @@ fn app_creator<'a>(
             // the command line open after them, in front (#442).
             app.reopen_last_files(&files);
             for f in files {
-                app.open_path(&f);
+                if two_paged {
+                    app.open_path_with_display(&f, pdfcraft_ui_egui::canvas::PageLayout::TwoUp, false);
+                } else {
+                    app.open_path(&f);
+                }
             }
         }
         for (k, v) in options {
-            if let Err(e) = app.set_option(&k, &v) {
+            let result = if use_launch_layout && k == "layout" { app.set_launch_layout(&v) } else { app.set_option(&k, &v) };
+            if let Err(e) = result {
                 log::warn!("--{k} {v}: {e}");
             }
         }

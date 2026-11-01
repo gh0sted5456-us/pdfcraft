@@ -890,8 +890,8 @@ milestone = "M3"
 status = "shipped"
 commands = ["view.layout.two_up"]
 tools = []
-evidence = ["crates/ui-egui/tests/it/view.rs::two_up_layout_places_pages_side_by_side", "crates/ui-egui/tests/it/viewer.rs::two_page_view_steps_a_spread_at_a_time"]
-notes = "next/previous page step a spread at a time"
+evidence = ["crates/ui-egui/tests/it/view.rs::two_up_layout_places_pages_side_by_side", "crates/ui-egui/tests/it/viewer.rs::two_page_view_steps_a_spread_at_a_time", "crates/ui-egui/tests/it/editing.rs::launch_display_override_survives_password_retry_without_changing_defaults", "crates/ui-egui/src/platform/open_worker/tests.rs::flagged_startup_opens_wait_for_password_ownership_before_the_first_frame"]
+notes = "Next/previous page step a spread at a time. Optional desktop --two-paged opens named files in noncontinuous two-page view without changing saved defaults or unrelated restored tabs. Explicit --layout wins after flagged background/password opens settle; cancellation does not affect later files."
 
 [[feature]]
 id = "view.layout-two-up-scrolling"
@@ -7026,11 +7026,11 @@ title = "Print to PDF from other applications"
 area = "J"
 tier = "P3"
 milestone = "M14"
-status = "partial"
+status = "na"
 commands = []
 tools = []
 evidence = ["apps/pdfcraft-printer/src/setup.rs::extracted_msi_preserves_its_registered_source_filename", "apps/pdfcraft-printer/src/lib.rs::printer_entry_preserves_unicode_text_and_rejects_bad_jobs", "apps/pdfcraft-printer/src/cups.rs::pdf_bytes_survive_and_repeated_jobs_never_overwrite"]
-notes = "Personal experimental PdfCraft Printer: Windows 11 24H2+ x64 Print Support App and Linux CUPS 2.x backend. Windows converts supported OpenXPS using the independent writer; Linux preserves incoming PDF bytes. Windows queue registration/default preservation and private synthetic Word conversion checked locally. Linux target compilation/lints pass; native CUPS queue smoke workflow is provided but not run on this Windows host. No universal Office fidelity, Linux Save As dialog, CUPS 3.x or public signing claim. Combined Windows setup retains the MSI source filename for repair after direct MSI installs and persists verbose MSI logs. See apps/pdfcraft-printer/README.md."
+notes = "Retired from Lion PDF releases at the owner's request on 2026-10-31. Future desktop installers omit the virtual printer MSIX/runtime and registration. Historical Windows/Linux source and tests remain for manual use; normal printing from the application is unchanged. The installer bootstrapper is reused with desktop-only for guarded MSI updates and restart. Existing registered printers are not automatically uninstalled. See apps/pdfcraft-printer/README.md."
 
 [[feature]]
 id = "create.distiller"
@@ -9905,8 +9905,8 @@ milestone = "M14"
 status = "partial"
 commands = []
 tools = []
-evidence = ["crates/ui-egui/tests/it/view.rs::default_page_display_is_used_for_new_documents", "crates/ui-egui/tests/it/view.rs::default_zoom_is_used_for_new_documents", "crates/ui-egui/tests/it/view.rs::preferences_set_the_default_zoom", "crates/ui-egui/tests/it/view.rs::always_use_my_default_zoom_and_page_layout_ignores_what_the_pdf_asks_for"]
-notes = "Preferences ▸ Documents and view: Default page display and Default zoom (Fit to width, Zoom to page level or a percentage) for every new tab; a PDF that asks for a layout or zoom gets it, unless Always use my default zoom and page layout is on. Missing: Acrobat's resolution, rendering and page-content options"
+evidence = ["crates/ui-egui/tests/page_shadows.rs::viewer_shadows_follow_the_preference_without_moving_pages", "crates/ui-egui/tests/page_shadows.rs::organize_shadows_follow_the_preference", "crates/ui-egui/tests/page_shadows.rs::rendered_page_content_is_identical_with_and_without_decoration", "crates/ui-egui/tests/it/control.rs::page_shadows_are_an_observable_app_wide_preference", "crates/ui-egui/tests/it/view.rs::default_page_display_is_used_for_new_documents", "crates/ui-egui/tests/it/view.rs::default_zoom_is_used_for_new_documents", "crates/ui-egui/tests/it/view.rs::preferences_set_the_default_zoom", "crates/ui-egui/tests/it/view.rs::always_use_my_default_zoom_and_page_layout_ignores_what_the_pdf_asks_for"]
+notes = "Preferences ▸ Pages: Default page display and Default zoom (Fit to width, Zoom to page level or a percentage) for every new tab; a PDF that asks for a layout or zoom gets it, unless Always use my default zoom and page layout is on. Preferences ▸ Appearance also has a persistent app-wide Show Page Edge Shadows checkbox, including viewport fades, exposed through ui.set/ui.state. It changes viewer/organizer decoration only; document bytes, dimensions and history are unchanged. Missing: Acrobat's resolution, rendering and page-content options"
 
 [[feature]]
 id = "misc.prefs-documents"

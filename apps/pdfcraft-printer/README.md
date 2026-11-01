@@ -1,5 +1,13 @@
 # PdfCraft Printer (personal build, experimental)
 
+**Retired from Lion PDF releases, 2026-10-31:** the fork no longer bundles or
+registers this virtual printer. Its historical implementation and manual checks
+remain here. `desktop-only` reuses only the MSI installation and guarded
+update/restart bootstrapper; it needs no MSIX or printer capability. The legacy
+`with-printer-x64.exe` release filename is retained so already-installed updaters
+can receive desktop-only updates. Existing printer installations are not removed
+automatically, and normal printing from Lion PDF is unaffected.
+
 The optional native printer appears as **PdfCraft Printer** in other applications.
 It never deliberately renders a whole page into an image. Source applications can still
 send text as outlines or pixels; those inputs cannot become selectable text automatically.

@@ -61,6 +61,9 @@ impl PdfCraftApp {
                 let rgb = u32::from_str_radix(hex, 16).map_err(|_| "glass-tint must be #rrggbb")?;
                 self.set_glass_settings(theme::GlassSettings { tint: [(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8], ..self.glass });
             }
+            ("show_page_edge_shadows", _) => {
+                self.show_page_edge_shadows = value.parse::<bool>().map_err(|_| "show_page_edge_shadows must be true or false")?;
+            }
             ("scroll_speed", _) => {
                 self.scroll_speed = scroll_speed::ScrollSpeed::parse(value).ok_or("scroll_speed must be slow, normal, or fast")?;
             }

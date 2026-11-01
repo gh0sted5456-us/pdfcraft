@@ -20,6 +20,8 @@ path = "src/cups_main.rs"
 # Owner approved the two ABI exports for the local personal printer build on 2026-10-23.
 winrt-server = []
 bundle = []
+# Reuse the guarded MSI/restart bootstrapper without deploying a virtual printer.
+desktop-only = ["bundle"]
 
 [lints.rust]
 unsafe_code = "deny"

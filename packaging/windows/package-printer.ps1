@@ -12,6 +12,9 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'pe.ps1')
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
+. (Join-Path $PSScriptRoot 'project-inputs.ps1')
+$Root = Join-Path (Get-ProjectRoot $Root) (Split-Path $Root -Leaf)
+Set-ProjectBuildEnvironment $Root
 if (-not $PluginOnly -and -not $MainInstaller) { throw 'MainInstaller is required when bundling the installer' }
 if ($MainInstaller) { $MainInstaller = (Resolve-Path -LiteralPath $MainInstaller).Path }
 $Version = (Select-String -LiteralPath (Join-Path $Root 'Cargo.toml') -Pattern '^version = "([0-9]+\.[0-9]+\.[0-9]+)"' | Select-Object -First 1).Matches.Groups[1].Value
@@ -28,7 +31,7 @@ $BuildArgs = @('build','--locked','-p','pdfcraft-printer','-j2')
 if (-not $Online) { $BuildArgs += '--offline' }
 if ($Profile -eq 'release') { $BuildArgs += '--release' }
 if ($TargetTriple) { $BuildArgs += @('--target',$TargetTriple) }
-$Dist = Join-Path $Root 'dist'
+$Dist = if ($env:DIST) { $env:DIST } else { Join-Path $Root 'dist' }
 New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 $Stage = Join-Path $TargetDir ('printer-package-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $Stage | Out-Null

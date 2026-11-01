@@ -2,7 +2,7 @@
 
 use windows::Management::Deployment::PackageManager;
 use windows_core::HSTRING;
-#[cfg(any(feature = "bundle", test))]
+#[cfg(any(all(feature = "bundle", not(feature = "desktop-only")), test))]
 use winsafe::prelude::Handle;
 
 const NAME: &str = "PdfCraft.Printer.Personal";
@@ -15,7 +15,12 @@ pub fn message(title: &str, text: &str, error: bool) {
 
 pub fn run() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).collect();
-    #[cfg(feature = "bundle")]
+    if cfg!(feature = "desktop-only")
+        && args.iter().any(|a| matches!(a.as_str(), "--status" | "--remove-printer" | "--printer-only" | "--register-printer"))
+    {
+        return Err("This Lion PDF installer does not include or manage a virtual printer.".into());
+    }
+    #[cfg(all(feature = "bundle", not(feature = "desktop-only")))]
     if args.first().is_some_and(|a| a == "--register-printer") {
         if args.len() != 3 || args.get(2).map(String::as_str) != Some("--quiet") {
             return Err("Invalid printer activation arguments".into());
@@ -89,11 +94,14 @@ fn stage_msi(folder: &std::path::Path, source: &std::path::Path, bytes: &[u8]) -
 
 #[cfg(feature = "bundle")]
 fn install(args: &[String]) -> Result<(), String> {
-    use windows::Foundation::Metadata::ApiInformation;
-    if !ApiInformation::IsTypePresent(&HSTRING::from("Windows.Graphics.Printing.Workflow.PrintWorkflowVirtualPrinterSession"))
-        .map_err(|e| e.to_string())?
+    #[cfg(not(feature = "desktop-only"))]
     {
-        return Err("PdfCraft Printer requires Windows 11 24H2 (build 26100) or newer. This installer did not change your system.".into());
+        use windows::Foundation::Metadata::ApiInformation;
+        if !ApiInformation::IsTypePresent(&HSTRING::from("Windows.Graphics.Printing.Workflow.PrintWorkflowVirtualPrinterSession"))
+            .map_err(|e| e.to_string())?
+        {
+            return Err("PdfCraft Printer requires Windows 11 24H2 (build 26100) or newer. This installer did not change your system.".into());
+        }
     }
     let temporary = tempfile::Builder::new().prefix("craftpdf-setup-").tempdir().map_err(|e| e.to_string())?;
     if !args.iter().any(|a| a == "--printer-only") {
@@ -119,17 +127,22 @@ fn install(args: &[String]) -> Result<(), String> {
             .map_err(|e| format!("Could not start Windows Installer: {e}. Setup log: {}", log_path.display()))?;
         if !matches!(status.code(), Some(0 | 3010)) {
             return Err(format!(
-                "Lion PDF installation did not finish (Windows Installer result {}). Printer setup did not run. Setup log: {}",
+                "Lion PDF installation did not finish (Windows Installer result {}). Setup log: {}",
                 status.code().map_or_else(|| "unavailable".to_string(), |code| code.to_string()),
                 log_path.display()
             ));
         }
     }
-    register_printer_with_elevation()?;
-    status(false)
+    #[cfg(not(feature = "desktop-only"))]
+    {
+        register_printer_with_elevation()?;
+        status(false)
+    }
+    #[cfg(feature = "desktop-only")]
+    Ok(())
 }
 
-#[cfg(feature = "bundle")]
+#[cfg(all(feature = "bundle", not(feature = "desktop-only")))]
 fn register_printer() -> Result<(), String> {
     use std::io::Write as _;
     use windows::Foundation::Uri;
@@ -168,7 +181,7 @@ fn printer_ready() -> bool {
     windows::Devices::Printers::IppPrintDevice::IsIppPrinter(&HSTRING::from("PdfCraft Printer")).unwrap_or(false)
 }
 
-#[cfg(feature = "bundle")]
+#[cfg(all(feature = "bundle", not(feature = "desktop-only")))]
 fn default_printer() -> Result<Option<String>, String> {
     let key = windows_registry::CURRENT_USER
         .open(r"Software\Microsoft\Windows NT\CurrentVersion\Windows")
@@ -182,13 +195,13 @@ fn default_printer() -> Result<Option<String>, String> {
     }
 }
 
-#[cfg(any(feature = "bundle", test))]
+#[cfg(any(all(feature = "bundle", not(feature = "desktop-only")), test))]
 fn default_device_name(device: &str) -> Option<String> {
     let separator = device.to_ascii_lowercase().rfind(",winspool,")?;
     device.get(..separator).filter(|s| !s.is_empty()).map(str::to_owned)
 }
 
-#[cfg(feature = "bundle")]
+#[cfg(all(feature = "bundle", not(feature = "desktop-only")))]
 fn restore_default(previous: Option<&str>) -> Result<(), String> {
     let Some(previous) = previous else {
         return Ok(());
@@ -365,7 +378,7 @@ mod update_tests {
     }
 }
 
-#[cfg(any(feature = "bundle", test))]
+#[cfg(any(all(feature = "bundle", not(feature = "desktop-only")), test))]
 fn printer_event_names(token: &str) -> Result<(String, String), String> {
     if token.len() != 32 || !token.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err("Invalid printer activation token".into());
@@ -373,7 +386,7 @@ fn printer_event_names(token: &str) -> Result<(String, String), String> {
     Ok((format!(r"Local\LionPDF-Printer-{token}-ok"), format!(r"Local\LionPDF-Printer-{token}-failed")))
 }
 
-#[cfg(feature = "bundle")]
+#[cfg(all(feature = "bundle", not(feature = "desktop-only")))]
 fn register_printer_with_elevation() -> Result<(), String> {
     let packages = PackageManager::new()
         .and_then(|p| p.FindPackagesByUserSecurityIdNamePublisher(&HSTRING::new(), &HSTRING::from(NAME), &HSTRING::from(PUBLISHER)))
@@ -420,7 +433,7 @@ fn register_printer_with_elevation() -> Result<(), String> {
     result.and(restored)
 }
 
-#[cfg(feature = "bundle")]
+#[cfg(all(feature = "bundle", not(feature = "desktop-only")))]
 fn register_printer_child(token: &str) -> Result<(), String> {
     let (done_name, failed_name) = printer_event_names(token)?;
     let done = winsafe::HEVENT::NULL.OpenEvent(winsafe::co::EVENT_RIGHTS::MODIFY_STATE, false, &done_name).map_err(|e| e.to_string())?;

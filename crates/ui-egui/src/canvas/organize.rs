@@ -210,7 +210,14 @@ fn gap_button(ui: &mut egui::Ui, gap: usize, at: Pos2, height: f32, label: Strin
     resp.on_hover_text(label).clicked()
 }
 
-pub(super) fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, unobstructed: bool, ui: &mut egui::Ui, t: &Tokens) {
+pub(super) fn organize_grid(
+    view: &mut DocView,
+    doc: &pdfcraft_engine::Document,
+    unobstructed: bool,
+    show_page_edge_shadows: bool,
+    ui: &mut egui::Ui,
+    t: &Tokens,
+) {
     let info = &doc.info;
     let editable = doc.allows_assembly() && doc.certification().is_none() && !view.organize_pick;
     let dirty = doc.dirty;
@@ -240,6 +247,10 @@ pub(super) fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document,
     let (mut in_view, mut sharper): (Vec<(usize, f32)>, Vec<RenderRequest>) = (Vec::new(), Vec::new());
     // The source cell can scroll out of the virtualized rows during a drag.
     let mut drop = view.org_drag.is_some() && ui.input(|i| i.pointer.primary_released());
+    let fade_strength = ui.spacing().scroll.fade.strength;
+    if !show_page_edge_shadows {
+        ui.spacing_mut().scroll.fade.strength = 0.0;
+    }
     egui::ScrollArea::vertical().auto_shrink([false, false]).show_viewport(ui, |ui, clip| {
         if (view.org_drag.is_some() || crate::page_transfer_ui::incoming(ui.ctx(), view.id))
             && let Some(p) = ui.input(|i| i.pointer.hover_pos()).filter(|p| viewport.contains(*p))
@@ -316,7 +327,9 @@ pub(super) fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document,
                 if view.selected.contains(&i) {
                     ui.painter().rect_stroke(c.shrink(6.0), CornerRadius::same(8), Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
                 }
-                ui.painter().rect_filled(pr.translate(vec2(0.0, 1.5)), CornerRadius::same(1), t.page_shadow);
+                if show_page_edge_shadows {
+                    ui.painter().rect_filled(pr.translate(vec2(0.0, 1.5)), CornerRadius::same(1), t.page_shadow);
+                }
                 ui.painter().rect_filled(pr, CornerRadius::ZERO, Color32::WHITE);
                 // A page drawn larger than its thumbnail gets a render at the size drawn, while
                 // it is in view; until that arrives the thumbnail stands in.
@@ -541,6 +554,7 @@ pub(super) fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document,
             view.org_drag = None;
         }
     });
+    ui.spacing_mut().scroll.fade.strength = fade_strength;
     crate::window_drop::grid(ui, view.id, viewport, &cells, editable && unobstructed);
     // Files dragged in from outside go to the gap under the pointer. Some platforms don't say
     // where the pointer is until the files are dropped; then the whole grid is the target.

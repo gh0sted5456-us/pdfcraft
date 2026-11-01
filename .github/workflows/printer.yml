@@ -1,12 +1,6 @@
-name: PdfCraft Printer (Linux)
+name: Legacy PdfCraft Printer (manual only)
 on:
   workflow_dispatch:
-  pull_request:
-    paths:
-      - 'apps/pdfcraft-printer/**'
-      - 'packaging/linux/**'
-      - 'crates/create/**'
-      - '.github/workflows/printer.yml'
 jobs:
   linux-printer:
     runs-on: ubuntu-24.04
