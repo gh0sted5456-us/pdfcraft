@@ -146,6 +146,7 @@ impl Host for crate::PdfCraftApp {
             "palette_open": self.palette_open,
             "theme": format!("{:?}", self.theme),
             "theme_preference": self.theme_preference,
+            "show_page_edge_shadows": self.show_page_edge_shadows,
             "glass": self.glass,
             "glass_background": {"enabled": self.glass_background.has_image(), "opacity": self.glass_background.opacity},
             "language": self.language,

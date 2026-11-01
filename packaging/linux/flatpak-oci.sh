@@ -6,8 +6,8 @@
 #   packaging/linux/flatpak-oci.sh [--push] [TARBALL]
 #
 # Environment variables:
-#   REGISTRY       Target registry image (default: ghcr.io/storytold/pdfcraft)
-#   TAG            Target image tag (default: $VERSION-$ARCH, also tags stable and latest)
+#   REGISTRY       Target registry image (default: ghcr.io/gh0sted5456-us/pdfcraft)
+#   TAG            Target image tag (default: $VERSION-$ARCH, also tags stable-$ARCH)
 #   GITHUB_TOKEN   Token for GHCR authentication when --push is used
 set -euo pipefail
 # shellcheck source=../env.sh
@@ -40,7 +40,7 @@ echo "==> Building Flatpak OCI layout for $BASENAME"
 
 [[ -d "$OUT_OCI" ]] || { echo "error: $OUT_OCI layout not generated" >&2; exit 1; }
 
-REGISTRY="${REGISTRY:-ghcr.io/storytold/pdfcraft}"
+REGISTRY="${REGISTRY:-ghcr.io/${GITHUB_REPOSITORY:-gh0sted5456-us/pdfcraft}}"
 TAG="${TAG:-$VERSION-$ARCH}"
 
 echo "==> OCI layout ready at $OUT_OCI (Target: $REGISTRY:$TAG)"
@@ -50,7 +50,12 @@ if [[ "$PUSH" = 1 ]]; then
 
   AUTH_ARGS=()
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    AUTH_ARGS=(--dest-creds "${GITHUB_ACTOR:-storytold}:$GITHUB_TOKEN")
+    umask 077
+    AUTH_FILE="$(mktemp "$DIST/ghcr-auth.XXXXXXXX")"
+    trap 'rm -f "$AUTH_FILE"' EXIT
+    printf '%s\n' '{"auths":{}}' > "$AUTH_FILE"
+    printf '%s' "$GITHUB_TOKEN" | skopeo login --authfile "$AUTH_FILE" --username "${GITHUB_ACTOR:-gh0sted5456-us}" --password-stdin "${REGISTRY%%/*}"
+    AUTH_ARGS=(--dest-authfile "$AUTH_FILE")
   fi
 
   echo "==> Pushing to $REGISTRY:$TAG"

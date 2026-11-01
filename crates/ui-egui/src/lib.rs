@@ -233,6 +233,7 @@ struct PendingOpen {
     after_open: Option<pdfcraft_render::RemoteDestination>,
     recovered: Option<RecoveryMeta>,
     then: Option<&'static str>,
+    display_override: Option<(canvas::PageLayout, bool)>,
 }
 
 pub struct PdfCraftApp {
@@ -297,6 +298,8 @@ pub struct PdfCraftApp {
     /// The reading-colours preference (Preferences ▸ Reading colours): applied to every open
     /// document, and documents open with it (Acrobat's Replace Document Colors).
     pub reading_colors: pdfcraft_render::ReadingColors,
+    /// App-wide page decoration only; never part of a PDF edit or render request.
+    pub show_page_edge_shadows: bool,
     /// The Linux portal is enabled only by the native host, and starts on the first System choice.
     #[cfg(target_os = "linux")]
     desktop_theme: Option<pdfcraft_platform::desktop_theme::DesktopTheme>,
@@ -385,6 +388,11 @@ pub struct PdfCraftApp {
     /// The folder scan behind File ▸ Open next / previous PDF in folder, while it runs.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) folder_step: Option<folder_step::FolderStep>,
+    /// Explicit CLI layout waits for flagged launch opens, never targeting restored tabs.
+    #[cfg(not(target_arch = "wasm32"))]
+    launch_layout: Option<(canvas::PageLayout, bool)>,
+    #[cfg(not(target_arch = "wasm32"))]
+    launch_display_target: Option<DocId>,
     #[cfg(all(test, not(target_arch = "wasm32")))]
     open_prepare_gate: Option<std::sync::Arc<open_worker::PrepareGate>>,
     /// Folders pinned to Home, and what they held when last listed.

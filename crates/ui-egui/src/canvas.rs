@@ -945,7 +945,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
     if view.organize {
         // One remembered grid size for every document, kept in the settings.
         view.set_grid_zoom(organize_zoom);
-        organize_grid(view, doc, unobstructed, ui, &t);
+        organize_grid(view, doc, unobstructed, app.show_page_edge_shadows, ui, &t);
         app.organize_zoom = view.grid_zoom();
         return;
     }
@@ -1377,6 +1377,11 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         }
     }
     let selection_wheel = view.selection_drag && navigation_enabled && unobstructed && !single_paging && ui.rect_contains_pointer(avail);
+    let fade_strength = ui.spacing().scroll.fade.strength;
+    if !app.show_page_edge_shadows {
+        ui.spacing_mut().scroll.fade.strength = 0.0;
+    }
+    let show_page_edge_shadows = app.show_page_edge_shadows;
     let out = page_scroll(ui, scroll, egui::Id::unique(("page-view-scope", view.id)), |ui, viewport| {
         // egui's drag responses accept every pointer button. Keep a wheel gesture from also
         // selecting text, drawing a mark, or panning with the Hand tool.
@@ -1473,7 +1478,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
             }
             let xf = PageXform { rect: r, rot: view.rotation, pw: info.pages[i].width.max(1.0), ph: info.pages[i].height.max(1.0) };
             // Shadows would darken the preceding page when pages touch.
-            if view.show_page_gaps {
+            if view.show_page_gaps && show_page_edge_shadows {
                 painter.add(egui::epaint::Shadow { offset: [0, 3], blur: 14, spread: 0, color: t.page_shadow }.as_shape(r, CornerRadius::ZERO));
             }
             painter.rect_filled(r, CornerRadius::ZERO, paper);
@@ -2376,6 +2381,7 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
         }
         (wanted, visible_now)
     });
+    ui.spacing_mut().scroll.fade.strength = fade_strength;
     view.single_edges = visible_pages.first().copied().filter(|_| !view.continuous).map(|page| {
         // At the top once the page's top edge shows where going to a page puts it (a gap
         // below the window's top). Within a point, as for wheel paging, so layout rounding

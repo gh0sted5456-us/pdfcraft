@@ -76,6 +76,7 @@ impl PdfCraftApp {
             #[cfg(target_os = "windows")]
             native_frame_theme: None,
             reading_colors: Default::default(),
+            show_page_edge_shadows: true,
             #[cfg(target_os = "linux")]
             desktop_theme: None,
             #[cfg(target_os = "linux")]
@@ -124,6 +125,10 @@ impl PdfCraftApp {
             next_open_token: 0,
             #[cfg(not(target_arch = "wasm32"))]
             folder_step: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            launch_layout: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            launch_display_target: None,
             #[cfg(all(test, not(target_arch = "wasm32")))]
             open_prepare_gate: None,
             pinned: Default::default(),
