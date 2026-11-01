@@ -17,7 +17,7 @@ merge. The source Git history remains available for provenance.
 | Markdown export | #5208, `bcaead54`, `20d396d1`; Adrian | Add native Export to/menu/picker command as well as engine/automation output. Preserve Excel, copy permissions and confined writes. |
 | Individual reply actions | #4719, `42da7f24`, safety follow-ups `28a31aeb`, `6a178359`; alehel | Keep house Save/Cancel buttons and spelling marks. Share locked-descendant preflight with the fork's bulk deletion; lift annotations only on preview copies. |
 | Calculation diagnostics | #4325, `4cfd5927` through `2055f48f`; Grzegorz Martens | Keep NoRotate widget geometry and the existing canvas architecture; focus by field object when malformed fields share names. Missing/built field names are diagnosed and rejected formulas stay editable. |
-| Monochrome images | #4384 stack `f175beb2` through `1ad951e2`; Grzegorz Martens; later reviewed images/regressions from integration #5426 (`fa5f9f8c`, FredApps and contributors) | Group 4/Retain, optional downsampling, safe 1-bit packing, Group 3 handling and shared bounded image decoding across Create/Export/Redaction. Unknown palette polarity, local halftones and unsafe resource colour-space conversion retain content. JBIG2 encoding is removed from the reviewed stack. |
+| Monochrome images | #4384 stack `f175beb2` through `1ad951e2`; Grzegorz Martens; later reviewed images/regressions from integration #5426 (`fa5f9f8c`, FredApps and contributors), plus `af03f084` (Combiler01) | Group 4/Retain, optional downsampling, safe 1-bit packing, Group 3 handling and shared bounded image decoding across Create/Export/Redaction. Unknown palette polarity, local halftones and unsafe resource colour-space conversion retain content. JBIG2 encoding is removed from the reviewed stack. |
 | Offline licensing validator | #2212, `74eef8cc`, `19c96011`; JM and review by FredApps/Combiler01 | Keep fork icon/Discord attribution and the approved spellchecker exception. Re-audit NOTICE/icon text hashes and map existing CC0 documentation. No asset or font downloads. |
 | Update-result presentation | Equivalent to the result/retry UX of #5527 | Reuse the existing Lion dialog/icon/buttons. Preserve the fork's verified download, staging, installer activation and restart backend; no shared-library repin or provider replacement. |
 
@@ -61,3 +61,7 @@ No CJK fallback, JBIG2 encoder, selected-line paragraph alignment or unrelated U
 migration is included. Whole upstream integration remains deliberately selective.
 
 Revision history: 2026-10-31 — source selection, fork adaptations and local qualification.
+FreeBSD qualification exposed a codec-specific assertion in the monochrome retention test.
+The later upstream fix `af03f084` accepts either Flate or Group 4 while checking decoded samples;
+the fork also checks unchanged dimensions and non-increasing compressed size. Runtime selection
+remains unchanged. The full platform jobs are rerun for this follow-up.
