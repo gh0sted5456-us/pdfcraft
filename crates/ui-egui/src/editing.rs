@@ -37,6 +37,12 @@ impl PdfCraftApp {
         } else {
             (None, 0, false)
         };
+        // A deletion moves the comments after it on the page: these say where the selected one,
+        // and the one open in the panel's editor, went.
+        let annots_before = match (&edit, self.session.get(id)) {
+            (Edit::DeleteAnnotation { page, .. }, Some(d)) => d.info.annotations.iter().filter(|a| a.page == *page).cloned().collect(),
+            _ => Vec::new(),
+        };
         match self.session.apply(id, edit.clone()) {
             Ok(()) => {
                 let Some(doc) = self.session.get(id) else { return true };
@@ -164,7 +170,7 @@ impl PdfCraftApp {
                             view.comments.open_editor(a.page, n, String::new());
                         }
                     }
-                    Edit::DeleteAnnotation { .. } => view.comments.selected = None,
+                    Edit::DeleteAnnotation { page, index } => view.comments.annotation_deleted(&annots_before, &info.annotations, (page, index)),
                     _ => {}
                 }
                 if std::mem::take(&mut view.comments.tool_done) && !self.comment_prefs.pinned {
@@ -211,21 +217,70 @@ impl PdfCraftApp {
         }
         if self.combine_showing() {
             self.combine_history_step(true);
-        } else {
+        } else if !self.undo_in_page_box() {
             self.history_step(true);
         }
+    }
+
+    /// Undo from the menu or toolbar while a box on the page holds typing the page doesn't have
+    /// yet: the box takes the step, as it does for the key, one step of its typing at a time.
+    /// Applying the typing first was a new edit, which dropped the document's Redo, and then the
+    /// typing was taken back all at once. True when the box took the step.
+    fn undo_in_page_box(&mut self) -> bool {
+        let Some(ctx) = self.ctx.clone() else { return false };
+        let Some(view) = self.active.and_then(|i| self.views.get_mut(i)) else { return false };
+        let doc = view.id;
+        if let Some(ed) = view.line_editor.as_mut().filter(|ed| ed.has_unsaved_text()) {
+            ed.claim_typing(&ctx, doc);
+            let Some(text) = typing_step(&ctx, crate::edit_text_ui::input_id(), &ed.text, true) else { return false };
+            ed.text = text;
+            return true;
+        }
+        if let Some(d) = view.content.draft.as_mut().filter(|d| d.has_unapplied_typing()) {
+            d.claim_typing(&ctx, doc);
+            let Some(text) = typing_step(&ctx, crate::content_ui::editor_id(doc), &d.text, true) else { return false };
+            d.text = text;
+            return true;
+        }
+        false
     }
 
     pub fn redo(&mut self) {
         if self.combine_showing() {
             self.combine_history_step(false);
-        } else {
+        } else if !self.redo_in_page_box() {
             self.history_step(false);
         }
     }
 
+    /// Redo from the menu or toolbar while a box on the page has typing of its own: the step is
+    /// the box's, as the key's is. What Undo took back in the box comes back; typing the page
+    /// doesn't have yet stays as it is, since applying it first is a new edit, which drops the
+    /// document's Redo. True when the box took the step.
+    fn redo_in_page_box(&mut self) -> bool {
+        let Some(ctx) = self.ctx.clone() else { return false };
+        let Some(view) = self.active.and_then(|i| self.views.get_mut(i)) else { return false };
+        let doc = view.id;
+        if let Some(ed) = view.line_editor.as_mut() {
+            ed.claim_typing(&ctx, doc);
+            let Some(text) = typing_step(&ctx, crate::edit_text_ui::input_id(), &ed.text, false) else { return ed.has_unsaved_text() };
+            ed.text = text;
+            return true;
+        }
+        if let Some(d) = view.content.draft.as_mut() {
+            d.claim_typing(&ctx, doc);
+            let Some(text) = typing_step(&ctx, crate::content_ui::editor_id(doc), &d.text, false) else { return d.has_unapplied_typing() };
+            d.text = text;
+            return true;
+        }
+        false
+    }
+
     fn history_step(&mut self, undo: bool) {
         let Some((i, id)) = self.active_ids() else { return };
+        if !self.close_text_editors(i, id) {
+            return;
+        }
         let result = if undo { self.session.undo(id) } else { self.session.redo(id) };
         match result {
             Ok(label) => {
@@ -242,6 +297,64 @@ impl PdfCraftApp {
             }
             Err(e) => self.notify_error(e),
         }
+    }
+
+    /// Commit current typing before history changes; rejected edits keep their editor open.
+    pub(crate) fn close_text_editors(&mut self, i: usize, id: pdfcraft_engine::DocId) -> bool {
+        if !self.commit_typing_in(id) {
+            return false;
+        }
+        if let Some(view) = self.views.get_mut(i) {
+            view.line_editor = None;
+        }
+        true
+    }
+    /// Whether the keyboard is in a box typed into on the page: a paragraph being edited, or added
+    /// text.
+    pub(crate) fn page_box_focused(&self, ctx: &egui::Context) -> bool {
+        let focused = ctx.memory(|m| m.focused());
+        focused == Some(crate::edit_text_ui::input_id())
+            || self.active.and_then(|i| self.views.get(i)).is_some_and(|v| focused == Some(crate::content_ui::editor_id(v.id)))
+    }
+
+    /// Whether the focused box on the page has typing its own Redo would put back: after Undo in
+    /// the box restores what the page has, Redo still belongs to the box, not the document. The
+    /// same test egui makes when it handles the key.
+    pub(crate) fn page_box_can_redo(&self, ctx: &egui::Context) -> bool {
+        let Some(view) = self.active.and_then(|i| self.views.get(i)) else { return false };
+        let focused = ctx.memory(|m| m.focused());
+        let (id, text) = if focused == Some(crate::edit_text_ui::input_id())
+            && let Some(ed) = &view.line_editor
+        {
+            (crate::edit_text_ui::input_id(), &ed.text)
+        } else if focused == Some(crate::content_ui::editor_id(view.id))
+            && let Some(d) = &view.content.draft
+        {
+            (crate::content_ui::editor_id(view.id), &d.text)
+        } else {
+            return false;
+        };
+        has_typing_to_redo(ctx, id, text)
+    }
+
+    /// Whether the box open on the page has a Redo of its own, the step
+    /// [`Self::redo_in_page_box`] takes for Redo from the menu or toolbar: focus has moved to the
+    /// menu by then, so unlike [`Self::page_box_can_redo`] this doesn't ask for it.
+    pub(crate) fn open_box_can_redo(&self) -> bool {
+        let Some(ctx) = &self.ctx else { return false };
+        let Some(view) = self.active.and_then(|i| self.views.get(i)) else { return false };
+        if let Some(ed) = &view.line_editor {
+            return has_typing_to_redo(ctx, crate::edit_text_ui::input_id(), &ed.text);
+        }
+        view.content.draft.as_ref().is_some_and(|d| has_typing_to_redo(ctx, crate::content_ui::editor_id(view.id), &d.text))
+    }
+
+    /// Typing in a box on the page (a paragraph being edited, added text) that the page doesn't
+    /// have yet: Undo and Redo keys take it back in the box first.
+    pub(crate) fn page_typing_unapplied(&self) -> bool {
+        self.active.and_then(|i| self.views.get(i)).is_some_and(|v| {
+            v.line_editor.as_ref().is_some_and(|ed| ed.has_unsaved_text()) || v.content.draft.as_ref().is_some_and(|d| d.has_unapplied_typing())
+        })
     }
 
     /// Apply any edit a view queued this frame (organize toolbar, keys).
@@ -764,6 +877,26 @@ fn bookmark_at<'a>(items: &'a [pdfcraft_render::OutlineItem], path: &[usize]) ->
     if rest.is_empty() { Some(item) } else { bookmark_at(&item.children, rest) }
 }
 
+/// Whether the page text box `id`, showing `text`, has typing its own Redo would put back: the
+/// test egui makes when it handles the key.
+fn has_typing_to_redo(ctx: &egui::Context, id: egui::Id, text: &str) -> bool {
+    egui::TextEdit::load_state(ctx, id)
+        .is_some_and(|state| state.cursor.char_range().is_some_and(|range| state.undoer().has_redo(&(range, text.to_owned()))))
+}
+
+/// The box's own Undo (or Redo), as the key does it: the box's text one step back (or forward) in
+/// its typing, with the box's history and cursor moved along. None when there is no such step.
+fn typing_step(ctx: &egui::Context, id: egui::Id, text: &str, undo: bool) -> Option<String> {
+    let mut state = egui::TextEdit::load_state(ctx, id)?;
+    let mut undoer = state.undoer();
+    let current = (state.cursor.char_range()?, text.to_owned());
+    let (range, stepped) = if undo { undoer.undo(&current) } else { undoer.redo(&current) }?.clone();
+    state.set_undoer(undoer);
+    state.cursor.set_char_range(Some(range));
+    egui::TextEdit::store_state(ctx, id, state);
+    Some(stepped)
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -877,7 +1010,15 @@ mod revert_draft_tests {
     fn text_typed_into_a_new_text_box_counts_as_unsaved_work() {
         use crate::content_ui::{TextDraft, default_style};
         let mut app = app();
-        let draft = |text: &str| TextDraft { page: 0, index: None, rect: [0.0; 4], text: text.into(), style: default_style(), focus: true };
+        let draft = |text: &str| TextDraft {
+            page: 0,
+            index: None,
+            rect: [0.0; 4],
+            text: text.into(),
+            style: default_style(),
+            focus: true,
+            typing_from: None,
+        };
         assert!(!app.has_unsaved_work(0));
         app.views[0].content.draft = Some(draft("  \n"));
         assert!(!app.has_unsaved_work(0));
@@ -902,7 +1043,8 @@ mod revert_draft_tests {
             let mut app = PdfCraftApp::new();
             app.open_bytes("source.pdf", Some(path.clone()), bytes).unwrap();
             let rect = [72.0, 72.0, 272.0, 92.0];
-            app.views[0].content.draft = Some(TextDraft { page: 0, index: None, rect, text: "Typed".into(), style: default_style(), focus: true });
+            app.views[0].content.draft =
+                Some(TextDraft { page: 0, index: None, rect, text: "Typed".into(), style: default_style(), focus: true, typing_from: None });
             let ctx = egui::Context::default();
             if quit {
                 assert!(!app.request_quit(&ctx));

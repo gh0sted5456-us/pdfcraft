@@ -3021,3 +3021,31 @@ theme	Appearance	Aparência
 	Fixed {n} hairlines on {p} pages	{n} linhas finas corrigidas em {p} páginas
 	Fix hairlines…	Corrigir linhas finas…
 	Show Page Edge Shadows	Mostrar sombras nas bordas das páginas
+
+	Options for this reply	Opções desta resposta
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Lê {name}, que não existe no formulário, então não recebe nenhum valor dali.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Seu script também lê campos cujos nomes monta durante a execução, então essas leituras não podem ser verificadas.
+
+	Missing field	Campo ausente
+
+	Unchecked reads	Leituras não verificadas
+
+	{field} reads fields named as it runs	{field} lê campos nomeados durante a execução
+
+	Some names are built as it runs	Alguns nomes são montados durante a execução
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} fórmula lê um campo que não existe no formulário|{n} fórmulas leem campos que não existem no formulário
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} lê {fields}, que não existe no formulário.|{field} lê {fields}, que não existem no formulário.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Mais {n} fórmula lê um campo ausente.|Mais {n} fórmulas leem campos ausentes.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} monta alguns nomes de campo durante a execução, então essas leituras não são verificadas.|{fields} montam alguns nomes de campo durante a execução, então essas leituras não são verificadas.
+
+@plural	{fields} is missing|{fields} are missing	{fields} não existe|{fields} não existem
+
+	Monochrome Images	Imagens monocromáticas
+
+	CCITT Group 4	CCITT grupo 4

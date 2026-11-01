@@ -28,6 +28,7 @@ pub(crate) fn context_menu(
     prefs: &CommentPrefs,
     allowed: bool,
     can_modify: bool,
+    can_delete: bool,
 ) -> Option<CanvasAction> {
     let mut action = None;
     let selected = view.comments.selected.and_then(|(p, i)| info.annotations.iter().find(|a| a.page == p && a.index == i && !a.is_reply()));
@@ -86,7 +87,7 @@ pub(crate) fn context_menu(
                 ui.close();
             }
             ui.separator();
-            if ui.add_enabled(allowed && !a.locked, egui::Button::new(tl!("Delete"))).clicked() {
+            if ui.add_enabled(allowed && can_delete, egui::Button::new(tl!("Delete"))).clicked() {
                 view.comments.selected = None;
                 action = Some(CanvasAction::Edit(Box::new(Edit::DeleteAnnotation { page, index })));
                 ui.close();

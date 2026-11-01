@@ -162,10 +162,12 @@ pub(crate) fn dialog(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let current = env!("CARGO_PKG_VERSION");
     let mut close = false;
     let mut download: Option<String> = None;
+    let mut retry = false;
+    let mut releases = false;
     let modal = crate::widgets::show_modal(ctx, "updates", |ui| {
         ui.set_width(420.0);
         ui.vertical_centered(|ui| {
-            ui.add(crate::icons::image("cloud", 22.0, t.accent));
+            widgets::app_icon(ui, 36.0);
         });
         crate::widgets::dialog_heading(ui, tl!("Check for updates"));
         ui.add_space(8.0);
@@ -206,6 +208,9 @@ pub(crate) fn dialog(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 );
             }
         }
+        if matches!(app.updates.check, Check::Done(Err(_))) && ui.link(tl!("All releases")).clicked() {
+            releases = true;
+        }
         ui.add_space(10.0);
         ui.label(
             egui::RichText::new(tl!("Asks GitHub for the latest release. Nothing is downloaded or installed automatically."))
@@ -219,11 +224,22 @@ pub(crate) fn dialog(app: &mut PdfCraftApp, ctx: &egui::Context) {
                 let later = widgets::dialog_button(ui, tl!("Later"), widgets::DialogAction::Cancel).clicked();
                 close = get || later;
                 download = get.then_some(url);
-            } else if widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked() {
-                close = true;
+            } else {
+                if matches!(app.updates.check, Check::Done(_)) {
+                    retry = widgets::dialog_button(ui, tl!("Check Again"), widgets::DialogAction::Confirm).clicked();
+                }
+                if widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked() {
+                    close = true;
+                }
             }
         });
     });
+    if retry {
+        app.check_for_updates();
+    }
+    if releases {
+        app.open_url(RELEASES_PAGE);
+    }
     if modal.should_close() {
         close = true;
         download = None;

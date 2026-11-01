@@ -813,3 +813,16 @@ pub fn erase_ink(doc: &mut Document, page: usize, index: usize, path: &[[f64; 2]
     set_appearance(doc, r)?;
     Ok(true)
 }
+
+pub fn lift_annotation(doc: &mut Document, page: usize, index: usize) -> Result<(), AnnotError> {
+    let p = page_ref(doc, page)?;
+    let list = annots(doc, p);
+    let target = list.get(index).ok_or(AnnotError::NoSuchAnnotation { page, index })?;
+    let doomed = with_replies_and_popups(doc, &list, seed(target));
+    let kept: Vec<Object> = list.iter().enumerate().filter(|(i, e)| *i != index && !goes_with(e, &doomed)).map(|(_, e)| e.clone()).collect();
+    Ok(set_annots(doc, p, kept)?)
+}
+
+fn seed(target: &Object) -> Option<ObjRef> {
+    target.as_ref().or_else(|| target.as_dict().and_then(|d| d.reference(b"Popup")))
+}

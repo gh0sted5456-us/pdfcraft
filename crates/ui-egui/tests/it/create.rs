@@ -312,6 +312,12 @@ fn the_pdf_optimizer_dialog_saves_an_optimized_copy() {
     h.run_steps(2);
     h.get_by_label("PDF Optimizer");
     h.get_by_label("Color Images");
+    h.get_by_label("Monochrome Images");
+    assert_eq!(h.state().optimize_draft.settings.mono, pdfcraft_engine::optimize::MonoSettings::REDUCE);
+    // Monochrome Images ▸ Downsample to can be turned off.
+    h.get_by_role_and_label(egui::accesskit::Role::CheckBox, "Downsample to").click();
+    h.run_steps(2);
+    assert!(!h.state().optimize_draft.settings.mono.downsample);
     h.get_by_label("Discard Objects").click();
     h.run_steps(2);
     h.get_by_label("Discard document tags").click();
@@ -627,4 +633,38 @@ fn template_gallery_shows_a_wide_grid_instead_of_a_narrow_list() {
         })
         .count();
     assert!(visible >= 9, "only {visible} templates visible");
+}
+
+#[test]
+fn monochrome_optimizer_controls_are_named_and_preserve_colour_settings() {
+    use egui_kittest::{
+        Harness,
+        kittest::{NodeT, Queryable},
+    };
+    use pdfcraft_engine::optimize::MonoCompression;
+
+    for theme in ["light", "dark"] {
+        let mut h = Harness::builder().with_size(egui::vec2(1200.0, 800.0)).with_accessibility_check(true).build_eframe(move |_| {
+            let mut app = PdfCraftApp::new();
+            app.set_option("language", "en").unwrap();
+            app.set_option("theme", theme).unwrap();
+            app.open_bytes("Synthetic.txt", None, b"Synthetic optimizer check".to_vec()).unwrap();
+            app.set_option("dialog", "optimize").unwrap();
+            app
+        });
+        h.run_steps(3);
+        assert_eq!(h.get_by_value("CCITT Group 4").accesskit_node().label().as_deref(), Some("Compression"));
+        let before = h.state().optimize_draft.settings.clone();
+        h.get_by_value("CCITT Group 4").click();
+        h.run_steps(2);
+        h.get_by_label("Retain existing").click();
+        h.run_steps(2);
+        assert_eq!(h.state().optimize_draft.settings.mono.compression, MonoCompression::Retain);
+        h.get_by_role_and_label(egui::accesskit::Role::CheckBox, "Downsample to").click();
+        h.run_steps(2);
+        let after = &h.state().optimize_draft.settings;
+        assert!(!after.mono.downsample);
+        assert_eq!(after.gray, before.gray);
+        assert_eq!(after.color, before.color);
+    }
 }

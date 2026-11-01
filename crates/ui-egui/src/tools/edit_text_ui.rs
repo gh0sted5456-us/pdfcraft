@@ -80,6 +80,51 @@ pub struct LineEditor {
     /// horizontal scale (%), and what they were.
     pub extras: Extras,
     extras0: Extras,
+    /// The text the box's own Undo history starts from; see [`forget_typing_before`].
+    typing_from: Option<String>,
+}
+
+/// The paragraph editor's text box.
+pub(crate) fn input_id() -> egui::Id {
+    egui::Id::unique("edit-text-line-input")
+}
+
+/// The page text box `id` keeps its own Undo history, across every paragraph or box it has shown
+/// in every tab (they share the id). Once the page has `text` (the box opened on it, or formatting
+/// applied it), that history is cleared: Undo in the box takes back only what was typed since, and
+/// then reaches the document. Kept, it put back text from another paragraph, or the whole paragraph
+/// as it was before a format change, into a box showing the page as it is now. `from` is the box's
+/// own record of that; which document `doc` last used the history is kept beside it, since a box
+/// in another tab on the same text would otherwise take that document's typing with its Redo.
+/// When another document's box takes the text box, the box it leaves keeps its history (and
+/// caret) aside, and gets it back on its return, so its typing can still be undone there. Each
+/// box claims the text box when it is drawn, and Undo and Redo from the menu claim it first too,
+/// since they can run before the box is drawn again after a tab switch.
+pub(crate) fn forget_typing_before(ctx: &egui::Context, id: egui::Id, doc: pdfcraft_engine::DocId, from: &mut Option<String>, text: &str) {
+    let owner = id.with("typing-doc");
+    let last = ctx.data(|d| d.get_temp::<pdfcraft_engine::DocId>(owner));
+    if from.as_deref() == Some(text) && last == Some(doc) {
+        return;
+    }
+    let aside = |doc: pdfcraft_engine::DocId| id.with(("typing-aside", doc));
+    if let Some(left) = last.filter(|l| *l != doc)
+        && let Some(state) = egui::TextEdit::load_state(ctx, id)
+    {
+        // A copy of its own: a state's history is shared between its clones, and the next box
+        // clears it in place.
+        let mut kept = egui::text_edit::TextEditState::default();
+        kept.cursor = state.cursor;
+        kept.set_undoer(state.undoer());
+        ctx.data_mut(|d| d.insert_temp(aside(left), kept));
+    }
+    // Only the same box, still on the text it opened on, takes its history back.
+    let back = ctx.data_mut(|d| d.remove_temp::<egui::text_edit::TextEditState>(aside(doc))).filter(|_| from.as_deref() == Some(text));
+    // A box new to the text box starts with nothing of the last one's: no history, caret or
+    // selection.
+    let state = back.unwrap_or_default();
+    egui::TextEdit::store_state(ctx, id, state);
+    ctx.data_mut(|d| d.insert_temp(owner, doc));
+    *from = Some(text.to_owned());
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -196,7 +241,16 @@ impl LineEditor {
         self.look0 = self.look.clone();
         self.extras0 = self.extras;
         self.original = self.text.clone();
+        // The page now has this text: the box's history restarts, even when the format left the
+        // text as it was, so a Redo from before can't put undone typing back on top of it.
+        self.typing_from = None;
         self.focus = true;
+    }
+
+    /// Take the shared text box for this paragraph ([`forget_typing_before`]): its own history,
+    /// or none once the page has its text.
+    pub(crate) fn claim_typing(&mut self, ctx: &egui::Context, doc: pdfcraft_engine::DocId) {
+        forget_typing_before(ctx, input_id(), doc, &mut self.typing_from, &self.original);
     }
 
     /// Adopt the rewritten paragraph's current geometry before the next overlay frame.
@@ -336,6 +390,7 @@ fn open_editor(
         family_chosen: false,
         extras: Extras::default(),
         extras0: Extras::default(),
+        typing_from: None,
     });
 }
 
@@ -496,6 +551,7 @@ pub(crate) fn page_input(
 
 /// The inline editor; returns the edit once the text is applied.
 pub(crate) fn overlay(ctx: &egui::Context, view: &mut DocView, info: &DocInfo) -> Option<Edit> {
+    let view_id = view.id;
     // Clicks outside the document (the Format text panel) keep the paragraph open. Where the
     // click landed is `interact_pos`: `latest_pos` is gone on the frame a tap lifts.
     let outside = ctx.input(|i| i.pointer.interact_pos()).is_some_and(|p| !view.viewport_rect().contains(p));
@@ -616,8 +672,10 @@ pub(crate) fn overlay(ctx: &egui::Context, view: &mut DocView, info: &DocInfo) -
                     let galley = editor_galley(ui, &snapshot, text.as_str(), scale, wrap_width);
                     if snapshot.changes_with(text.as_str()) { galley } else { unseen(galley) }
                 };
+                let input = input_id();
+                ed.claim_typing(ui.ctx(), view_id);
                 let mut output = egui::TextEdit::multiline(&mut ed.text)
-                    .id(egui::Id::unique("edit-text-line-input"))
+                    .id(input)
                     .font(font.clone())
                     .margin(egui::Margin::ZERO)
                     .layouter(&mut layouter)
@@ -756,6 +814,7 @@ mod tests {
             family_chosen: false,
             extras: Extras::default(),
             extras0: Extras::default(),
+            typing_from: None,
         };
         (app, ed)
     }
@@ -823,6 +882,7 @@ mod tests {
             text: "Typed text".into(),
             style: crate::content_ui::default_style(),
             focus: true,
+            typing_from: None,
         };
         app.views[0].content.draft = Some(draft.clone());
 

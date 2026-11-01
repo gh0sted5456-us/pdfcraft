@@ -2645,3 +2645,31 @@ animation effects	Off	Выкл
 	Fixed {n} hairlines on {p} pages	Исправлено {n} тонких линий на {p} страницах
 	Fix hairlines…	Исправить тонкие линии…
 	Show Page Edge Shadows	Показывать тени по краям страниц
+
+	Options for this reply	Параметры этого ответа
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Читает {name}, которого нет в форме, поэтому не получает оттуда значения.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Его скрипт также читает поля, имена которых составляет во время выполнения, поэтому эти чтения нельзя проверить.
+
+	Missing field	Нет поля
+
+	Unchecked reads	Непроверенные чтения
+
+	{field} reads fields named as it runs	{field} читает поля, имена которых задаются при выполнении
+
+	Some names are built as it runs	Некоторые имена составляются при выполнении
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} формула читает поле, которого нет в форме|{n} формулы читают поля, которых нет в форме|{n} формул читают поля, которых нет в форме
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} читает {fields}, которого нет в форме.|{field} читает {fields}, которых нет в форме.|{field} читает {fields}, которых нет в форме.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Ещё {n} формула читает отсутствующее поле.|Ещё {n} формулы читают отсутствующие поля.|Ещё {n} формул читают отсутствующие поля.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} составляет некоторые имена полей при выполнении, поэтому эти чтения не проверяются.|{fields} составляют некоторые имена полей при выполнении, поэтому эти чтения не проверяются.|{fields} составляют некоторые имена полей при выполнении, поэтому эти чтения не проверяются.
+
+@plural	{fields} is missing|{fields} are missing	{fields} отсутствует|{fields} отсутствуют|{fields} отсутствуют
+
+	Monochrome Images	Монохромные изображения
+
+	CCITT Group 4	CCITT группа 4

@@ -2963,3 +2963,31 @@ certificate	SHA-256 digest	Impronta SHA-256
 	Fixed {n} hairlines on {p} pages	Corrette {n} linee sottili in {p} pagine
 	Fix hairlines…	Correggi linee sottilissime…
 	Show Page Edge Shadows	Mostra le ombre ai bordi delle pagine
+
+	Options for this reply	Opzioni per questa risposta
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Legge {name}, che non esiste nel modulo, quindi da lì non riceve alcun valore.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Il suo script legge anche campi i cui nomi costruisce durante l'esecuzione, quindi queste letture non possono essere verificate.
+
+	Missing field	Campo mancante
+
+	Unchecked reads	Letture non verificate
+
+	{field} reads fields named as it runs	{field} legge campi nominati durante l'esecuzione
+
+	Some names are built as it runs	Alcuni nomi vengono costruiti durante l'esecuzione
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} formula legge un campo che non esiste nel modulo|{n} formule leggono campi che non esistono nel modulo
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} legge {fields}, che non esiste nel modulo.|{field} legge {fields}, che non esistono nel modulo.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Ancora {n} formula legge un campo mancante.|Altre {n} formule leggono campi mancanti.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} costruisce alcuni nomi di campo durante l'esecuzione, quindi queste letture non vengono verificate.|{fields} costruiscono alcuni nomi di campo durante l'esecuzione, quindi queste letture non vengono verificate.
+
+@plural	{fields} is missing|{fields} are missing	{fields} manca|{fields} mancano
+
+	Monochrome Images	Immagini monocromatiche
+
+	CCITT Group 4	CCITT gruppo 4

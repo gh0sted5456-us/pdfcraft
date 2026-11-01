@@ -184,6 +184,7 @@ fn cut_stack_dialog_previews_saves_and_refuses_duplex() {
     h.state_mut().open_bytes("numbered.pdf", None, bytes.as_ref().clone()).unwrap();
     h.state_mut().execute("print.dialog");
     h.run_steps(3);
+    crate::support::wait_until(&mut h, "controlled printer list", |app| !app.print_draft.printers_loading);
     h.get_by_label("Multiple").click();
     h.run_steps(2);
     // Pick the new order through the actual widgets.
@@ -212,6 +213,7 @@ fn cut_stack_dialog_previews_saves_and_refuses_duplex() {
     h.run_steps(2);
     h.get_by_label("Save as PDF").click();
     h.run_steps(3);
+    crate::support::wait_until(&mut h, "controlled printer list", |app| !app.print_draft.printers_loading);
     assert_eq!(h.state().dialog, None);
     let printed = pdfcraft_cos::Document::open(std::sync::Arc::new(std::fs::read(&out).unwrap())).unwrap();
     assert_eq!(pdfcraft_model::pages(&printed).len(), 3);

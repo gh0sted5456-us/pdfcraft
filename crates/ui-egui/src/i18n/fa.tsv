@@ -2807,3 +2807,31 @@ theme	Appearance	ظاهر
 
 	Glass	شیشه‌ای
 	Hide community card	پنهان کردن کارت انجمن
+
+	Options for this reply	گزینه‌های این پاسخ
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	{name} را می‌خواند که در فرم وجود ندارد، پس از آن مقداری نمی‌گیرد.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	اسکریپت آن فیلد‌هایی را هم می‌خواند که نامشان را هنگام اجرا می‌سازد، پس این خواندن‌ها قابل بررسی نیستند.
+
+	Missing field	فیلد ناموجود
+
+	Unchecked reads	خواندن‌های بررسی‌نشده
+
+	{field} reads fields named as it runs	{field} فیلد‌هایی را می‌خواند که نامشان هنگام اجرا ساخته می‌شود
+
+	Some names are built as it runs	برخی نام‌ها هنگام اجرا ساخته می‌شوند
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} فرمول فیلدی را می‌خواند که در فرم وجود ندارد|{n} فرمول فیلد‌هایی را می‌خوانند که در فرم وجود ندارند
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} {fields} را می‌خواند که در فرم وجود ندارد.|{field} {fields} را می‌خواند که در فرم وجود ندارند.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	{n} فرمول دیگر یک فیلد ناموجود را می‌خواند.|{n} فرمول دیگر فیلد‌های ناموجود را می‌خوانند.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} برخی نام‌های فیلد را هنگام اجرا می‌سازد، پس این خواندن‌ها بررسی نمی‌شوند.|{fields} برخی نام‌های فیلد را هنگام اجرا می‌سازند، پس این خواندن‌ها بررسی نمی‌شوند.
+
+@plural	{fields} is missing|{fields} are missing	{fields} وجود ندارد|{fields} وجود ندارند
+
+	Monochrome Images	تصاویر تک‌رنگ
+
+	CCITT Group 4	CCITT گروه ۴

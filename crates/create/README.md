@@ -6,7 +6,9 @@ Layer L4. Create a PDF (Acrobat's Create a PDF tool), execution plan M10.2:
 - `from_images(&[(name, bytes)])`: one page per image, sized from the image's resolution
   (PNG `pHYs`, JPEG JFIF density; 72 dpi when absent). JPEG data is embedded as is
   (`/DCTDecode`, grey, RGB or Adobe-inverted CMYK); PNG is decoded and stored with Flate,
-  with transparency as a soft mask. An ICC profile in the file (JPEG `APP2 ICC_PROFILE`, PNG
+  with transparency as a soft mask. A picture of only pure black and white (a 1-bit PNG or TIFF,
+  eight-bit grey, a two-colour palette, RGB without a profile) is stored at one bit per pixel, as
+  CCITT Group 4 or Flate, whichever is smaller as stored (`pdfcraft_filters::encode_g4`). An ICC profile in the file (JPEG `APP2 ICC_PROFILE`, PNG
   `iCCP`) that matches the image's colour space is kept as an `/ICCBased` colour space with
   the device space as `/Alternate`; images with the same profile share one profile object.
   JPEG metadata scanning skips marker fill bytes and reads application segments after the
@@ -38,3 +40,10 @@ JPEG image Decode handling remains limited.
 ICC transforms and calibrated color conversion remain outside this export path.
 
 `templates` contains 35 contributor-original starter layouts and bounded field specifications. The engine installs real AcroForm widgets and writes checked output. Templates are editable text/vector PDFs with no bundled raster artwork; see [starter templates](../../docs/pdf-templates.md).
+
+CCITT fax images (Group 3 and 4) are decoded for export through `pdfcraft_cos::Document::decoded_image` with their
+`/DecodeParms` (`/Columns` has to be the image's width; up to `/Height` rows, whatever `/Rows` says), behind other filters such as
+`ASCII85Decode` too. Byte-aligned Group 3 rows are read by their end-of-line codes, whether the fill starts each code on a byte or
+ends it on one, when the data starts with one (T.4 sends one before the first row), and on bytes otherwise, whatever `/EndOfLine`
+says; data that comes up short is reported. Data with codes but none before the first row is read on bytes, and is reported or,
+at `/K 0`, may come out wrong. JPEG 2000 and JBIG2 images are still reported, not exported.

@@ -140,6 +140,7 @@ const EXPORT: &[&str] = &[
     "export.pptx",
     "export.rtf",
     "export.html",
+    "export.markdown",
     "export.text",
     SEP,
     "export.image",

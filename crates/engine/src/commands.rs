@@ -199,6 +199,7 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("export.pptx", "Export to PowerPoint…", FILE, None, Copying, "presentation"),
     c("export.rtf", "Export to RTF…", FILE, None, Copying, "file-text"),
     c("export.html", "Export to HTML…", FILE, None, Copying, "file-symlink"),
+    c("export.markdown", "Export to Markdown…", FILE, None, Copying, "file-text"),
     c("export.text", "Export to text…", FILE, None, Copying, "type"),
     c("file.detach_tab", "Move Tab to New Window", FILE, None, Document, "external-link"),
     ct("edit.undo", "Undo", EDIT, Some(Shortcut::cmd("Z")), Undo, "undo-2"),

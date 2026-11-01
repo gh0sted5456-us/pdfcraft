@@ -478,8 +478,8 @@ milestone = "M4"
 status = "shipped"
 commands = ["edit.undo", "edit.redo"]
 tools = ["edit_undo", "edit_redo"]
-evidence = ["crates/engine/src/tests.rs::undo_and_redo_restore_exact_states", "crates/ui-egui/tests/it/editing.rs::organize_delete_then_undo_and_redo_with_keys"]
-notes = ""
+evidence = ["crates/engine/src/tests.rs::undo_and_redo_restore_exact_states", "crates/ui-egui/tests/it/editing.rs::organize_delete_then_undo_and_redo_with_keys", "crates/ui-egui/tests/it/editing.rs::undo_with_the_paragraph_open_undoes_the_formatting", "crates/ui-egui/tests/it/editing.rs::undo_after_a_round_trip_through_another_tab_takes_back_the_typing", "crates/ui-egui/tests/it/editing.rs::redo_from_the_menu_is_enabled_for_the_boxs_own_typing"]
+notes = "Open paragraph and added-text boxes consume their own typing history before document history. Formatting restarts local history; menu Undo/Redo shares ownership with keyboard shortcuts. Switching documents preserves each box history and caret without transferring typing to another tab."
 
 [[feature]]
 id = "core.undo-labels"
@@ -3979,9 +3979,9 @@ tier = "P0"
 milestone = "M5"
 status = "shipped"
 commands = ["comment.list"]
-tools = ["comment_reply"]
-evidence = ["crates/ui-egui/tests/it/comments.rs::the_panel_posts_comments_and_replies", "crates/ui-egui/tests/it/comments.rs::ctrl_enter_posts_a_reply_and_shift_enter_adds_a_line", "crates/annot/src/tests.rs::replies_and_status_thread_onto_the_parent"]
-notes = "multiline reply field: Enter or Ctrl+Enter (also Command+Enter) posts, Shift+Enter adds a newline; empty replies are not posted"
+tools = ["comment_reply", "comment_edit", "comment_delete", "comment_list"]
+evidence = ["crates/ui-egui/tests/it/comments.rs::the_panel_posts_comments_and_replies", "crates/ui-egui/tests/it/comments.rs::ctrl_enter_posts_a_reply_and_shift_enter_adds_a_line", "crates/ui-egui/tests/it/comments.rs::one_reply_is_deleted_from_its_menu_and_the_thread_stays", "crates/annot/src/tests.rs::a_locked_reply_keeps_what_it_answers"]
+notes = "Multiline replies; Enter/Ctrl+Enter posts, Shift+Enter adds a line. Individual Edit/Copy/Delete menus retain the parent and sibling replies. A locked descendant refuses parent or group deletion through the same read-only preflight used by menus. Preview-only copies can lift locked threads without changing the source."
 
 [[feature]]
 id = "comment.set-status"
@@ -4681,7 +4681,7 @@ status = "shipped"
 commands = ["form.field.properties", "form.calculation_order"]
 tools = ["form_set_props", "form_fill", "form_calculation_order"]
 evidence = ["crates/forms/src/tests.rs::formats_validation_and_calculations_run_like_acrobat", "crates/forms/src/tests.rs::the_calculation_order_is_checked_fixed_and_kept", "crates/forms/src/tests.rs::a_calculation_order_with_gaps_and_extra_entries", "crates/forms/src/tests.rs::two_fields_with_one_name_keep_their_places_in_the_order", "crates/engine/src/tests.rs::setting_the_calculation_order_recalculates_and_undoes", "crates/automation/tests/it/automation.rs::the_calculation_order_is_read_fixed_and_set", "crates/ui-egui/tests/it/prepare.rs::the_calculation_order_is_moved_dragged_and_fixed", "crates/engine/src/tests.rs::checkbox_and_rank_changes_recalculate_ordered_dependents", "crates/engine/src/tests.rs::dynamic_calculation_reads_and_side_effects_reach_later_fields"]
-notes = "/CO order, then other calculated fields; recalculated after every fill and Clear form. Order editing: Prepare a form ▸ Calculation order lists the calculated fields in order with their formulas and values, Up/Down arrows (as Acrobat's Set Field Calculation Order dialog), Alt+Up/Down and drag, says which fields read a field calculated later, which read each other in a loop and which /CO leaves out, and Fix order moves only what must move; on the page it numbers each calculated field's step and draws arrows from the fields the focused field reads and to the fields that read it; form_calculation_order reads, sets, moves and fixes it. A new calculation joins the end of /CO and an edited one keeps its place. Acrobat's dialog is known from Adobe's help summary only, not yet observed."
+notes = "/CO order, then other calculated fields; recalculated after every fill and Clear form. Order editing: Prepare a form ▸ Calculation order lists the calculated fields in order with their formulas and values, Up/Down arrows (as Acrobat's Set Field Calculation Order dialog), Alt+Up/Down and drag, says which fields read a field calculated later, which read each other in a loop and which /CO leaves out, and Fix order moves only what must move; on the page it numbers each calculated field's step and draws arrows from the fields the focused field reads and to the fields that read it; form_calculation_order reads, sets, moves and fixes it. A new calculation joins the end of /CO and an edited one keeps its place. Acrobat's dialog is known from Adobe's help summary only, not yet observed. Missing literal field reads are diagnosed; scripts that build names report built_names without claiming those reads were checked. Focus distinguishes field objects sharing a name, and rejected Field Properties formulas keep their draft open."
 
 [[feature]]
 id = "form.event-order"
@@ -7080,6 +7080,18 @@ tools = ["doc_export_office"]
 evidence = ["crates/export/src/tests.rs::table_spans_do_not_consume_text_they_do_not_emit", "crates/export/src/tests.rs::rtf_escapes_and_sizes", "crates/export/src/tests.rs::text_colour_survives_every_format", "crates/export/src/tests.rs::word_opens_text_with_control_characters_and_long_pages", "crates/automation/tests/it/automation.rs::exporting_to_word_html_and_rtf", "crates/ui-egui/tests/it/compare.rs::export_to_word_html_and_rtf"]
 notes = "Text in slots covered by a preceding table-cell span remains in paragraph flow instead of being discarded. Paragraphs with sizes, bold, italic, text colour (colortbl), Unicode; a block that continues another on its line is a formatted group inside that paragraph (#4158), though a style change that wraps onto the next line still splits it; page breaks. Images are left out."
 
+
+[[feature]]
+id = "create.export-markdown"
+title = "Export to Markdown"
+area = "J"
+tier = "P3"
+milestone = "M10"
+status = "partial"
+commands = ["export.markdown"]
+tools = ["doc_export_office"]
+evidence = ["crates/export/src/tests.rs::markdown_has_headings_paragraphs_and_page_rules_in_order", "crates/export/src/tests.rs::markdown_escapes_markup_and_keeps_emphasis_and_tables", "crates/automation/tests/it/automation.rs::exporting_to_word_html_and_rtf", "crates/ui-egui/tests/it/commands.rs::markdown_export_is_available_in_the_picker_and_writes_reviewable_text"]
+notes = "CommonMark with GitHub pipe tables through Export to, File menu, command picker and confined doc_export_office (.md/.markdown). Copy restrictions apply. Headings, paragraphs, emphasis, tables and page rules; no images, list/link reconstruction or text colour."
 [[feature]]
 id = "create.export-xlsx"
 title = "Export to Excel (.xlsx) with table detection"
@@ -7382,11 +7394,11 @@ title = "Monochrome compression (JBIG2, CCITT G4)"
 area = "K"
 tier = "P1"
 milestone = "M11"
-status = "planned"
-commands = []
-tools = []
-evidence = []
-notes = ""
+status = "partial"
+commands = ["optimize.reduce", "optimize.advanced"]
+tools = ["doc_optimize", "doc_batch"]
+evidence = ["crates/optimize/tests/optimize.rs::black_and_white_images_become_ccitt_group_4", "crates/optimize/tests/optimize.rs::ambiguous_monochrome_text_is_recompressed_without_lossy_reduction", "crates/optimize/tests/optimize.rs::mixed_text_and_small_halftone_regions_keep_their_tones_with_wide_white_margins", "crates/optimize/tests/optimize.rs::indexed_thin_rules_keep_their_samples_for_both_palette_orders_and_decodes", "crates/automation/tests/it/automation.rs::doc_optimize_stores_black_and_white_images_as_ccitt_group_4"]
+notes = "Group 4 or Retain, optional bounded downsampling, 1-bit packing of eligible grey/RGB/two-colour indexed images. Unknown polarity, dense ambiguous tones, local halftones and unsafe colour-space/resource uses retain samples/resolution. Group 3 recompression; smaller results only. No JBIG2 encoding or independent decoder qualification of such an encoder."
 
 [[feature]]
 id = "optimize.only-if-smaller"

@@ -2732,3 +2732,31 @@ animation effects	Off	オフ
 	Fixed {n} hairlines on {p} pages	{p} ページで {n} 本のヘアラインを修正しました
 	Fix hairlines…	極細線を修正…
 	Show Page Edge Shadows	ページ端の影を表示
+
+	Options for this reply	この返信のオプション
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	フォームにない {name} を読み取るため、そこからは値を得られません。
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	スクリプトが実行中に名前を組み立てるフィールドも読み取るため、それらの読み取りは確認できません。
+
+	Missing field	フィールドがない
+
+	Unchecked reads	未確認の読み取り
+
+	{field} reads fields named as it runs	{field} は実行中に名前が決まるフィールドを読み取ります
+
+	Some names are built as it runs	一部の名前は実行中に組み立てられます
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} 個の数式がフォームにないフィールドを読み取ります
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} はフォームにない {fields} を読み取ります。
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	ほかに {n} 個の数式が存在しないフィールドを読み取ります。
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} は一部のフィールド名を実行中に組み立てるため、それらの読み取りは確認されません。
+
+@plural	{fields} is missing|{fields} are missing	{fields} がありません
+
+	Monochrome Images	白黒画像
+
+	CCITT Group 4	CCITT グループ 4

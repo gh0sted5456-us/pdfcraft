@@ -2999,3 +2999,31 @@ theme	Appearance	Išvaizda
 	Fixed {n} hairlines on {p} pages	Pataisyta {n} plaukelinių linijų {p} puslapiuose
 	Fix hairlines…	Taisyti itin plonas linijas…
 	Show Page Edge Shadows	Rodyti puslapių kraštų šešėlius
+
+	Options for this reply	Šio atsakymo parinktys
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Skaito {name}, kurio formoje nėra, todėl iš ten negauna jokios reikšmės.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Jo scenarijus taip pat skaito laukus, kurių pavadinimus sudaro vykdymo metu, todėl šių skaitymų patikrinti negalima.
+
+	Missing field	Trūksta lauko
+
+	Unchecked reads	Nepatikrinti skaitymai
+
+	{field} reads fields named as it runs	{field} skaito laukus, pavadinamus vykdymo metu
+
+	Some names are built as it runs	Kai kurie pavadinimai sudaromi vykdymo metu
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} formulė skaito lauką, kurio formoje nėra|{n} formulės skaito laukus, kurių formoje nėra|{n} formulių skaito laukus, kurių formoje nėra
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} skaito {fields}, kurio formoje nėra.|{field} skaito {fields}, kurių formoje nėra.|{field} skaito {fields}, kurių formoje nėra.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Dar {n} formulė skaito trūkstamą lauką.|Dar {n} formulės skaito trūkstamus laukus.|Dar {n} formulių skaito trūkstamus laukus.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} kai kuriuos laukų pavadinimus sudaro vykdymo metu, todėl šie skaitymai netikrinami.|{fields} kai kuriuos laukų pavadinimus sudaro vykdymo metu, todėl šie skaitymai netikrinami.|{fields} kai kuriuos laukų pavadinimus sudaro vykdymo metu, todėl šie skaitymai netikrinami.
+
+@plural	{fields} is missing|{fields} are missing	Trūksta {fields}|Trūksta {fields}|Trūksta {fields}
+
+	Monochrome Images	Vienspalviai paveikslėliai
+
+	CCITT Group 4	CCITT 4 grupė

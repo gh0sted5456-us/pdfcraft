@@ -36,8 +36,8 @@ use lookup::{annots, page_ref};
 pub use lookup::{has_visible_fill_sign, is_fill_sign, isolate_annotation, page_refs, picture_rotation, set_annots, signature_image};
 pub(crate) use modify::n;
 pub use modify::{
-    add_reply, add_text_replacement, delete_annotation, erase_ink, fillable, goes_with, move_annotation, set_contents, set_fill, set_font_size,
-    set_locked, set_marked, set_points, set_rect, set_review_state, set_style, with_replies_and_popups,
+    add_reply, add_text_replacement, delete_annotation, erase_ink, fillable, goes_with, lift_annotation, move_annotation, set_contents, set_fill,
+    set_font_size, set_locked, set_marked, set_points, set_rect, set_review_state, set_style, with_replies_and_popups,
 };
 pub use types::{
     AttachIcon, FillMark, LineEnding, Markup, Meta, NOTE_SIZE, NewAnnotation, NoteIcon, OverlayFont, OverlayLook, ReviewState, Rgb, Shape,
@@ -74,6 +74,16 @@ pub enum AnnotError {
 
 /// Delete a group addressed in the original `/Annots` array, including pop-ups and replies.
 pub fn delete_annotations(doc: &mut Document, page: usize, indices: &[usize]) -> Result<(), AnnotError> {
+    let (p, kept) = deletion(doc, page, indices)?;
+    Ok(set_annots(doc, p, kept)?)
+}
+
+/// Read-only preflight shared by individual and group deletion.
+pub fn deletable(doc: &Document, page: usize, index: usize) -> Result<(), AnnotError> {
+    deletion(doc, page, &[index]).map(|_| ())
+}
+
+fn deletion(doc: &Document, page: usize, indices: &[usize]) -> Result<(ObjRef, Vec<Object>), AnnotError> {
     if indices.is_empty() || indices.len() > 1_000 {
         return Err(AnnotError::Invalid("select between 1 and 1000 comments to delete".into()));
     }
@@ -98,8 +108,19 @@ pub fn delete_annotations(doc: &mut Document, page: usize, indices: &[usize]) ->
         }
     }
     let doomed = with_replies_and_popups(doc, &list, doomed);
+    for (i, entry) in list.iter().enumerate() {
+        if !selected.contains(&i) && goes_with(entry, &doomed) {
+            let object = doc.resolve(entry);
+            if let Some(d) = object.as_dict()
+                && d.name(b"Subtype") != Some(b"Popup")
+                && annotation_flags(doc, d) & FLAG_LOCKED != 0
+            {
+                return Err(AnnotError::Invalid("a reply to it is locked".into()));
+            }
+        }
+    }
     let kept: Vec<Object> = list.into_iter().enumerate().filter(|(i, e)| !selected.contains(i) && !goes_with(e, &doomed)).map(|(_, e)| e).collect();
-    Ok(set_annots(doc, p, kept)?)
+    Ok((p, kept))
 }
 
 use lookup::annotation_flags;

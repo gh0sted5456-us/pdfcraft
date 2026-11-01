@@ -2987,3 +2987,31 @@ theme	Appearance	Teema
 	Pattern strokes	Kuvioviivat
 	Type 3 font glyphs	Type 3 -fonttien glyfit
 	Zero-width lines always count as narrower.	Nollaleveyksiset viivat lasketaan aina kapeammiksi.
+
+	Options for this reply	Tämän vastauksen asetukset
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Lukee kenttää {name}, jota lomakkeessa ei ole, joten se ei saa siitä arvoa.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Sen komentosarja lukee myös kenttiä, joiden nimet se muodostaa suorituksen aikana, joten näitä viittauksia ei voi tarkistaa.
+
+	Missing field	Puuttuva kenttä
+
+	Unchecked reads	Tarkistamattomat viittaukset
+
+	{field} reads fields named as it runs	{field} lukee kenttiä, joiden nimet muodostuvat suorituksen aikana
+
+	Some names are built as it runs	Osa nimistä muodostuu suorituksen aikana
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} kaava lukee kenttää, jota lomakkeessa ei ole|{n} kaavaa lukee kenttiä, joita lomakkeessa ei ole
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} lukee kenttää {fields}, jota lomakkeessa ei ole.|{field} lukee kenttiä {fields}, joita lomakkeessa ei ole.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	{n} muu kaava lukee puuttuvaa kenttää.|{n} muuta kaavaa lukee puuttuvia kenttiä.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} muodostaa osan kenttien nimistä suorituksen aikana, joten näitä viittauksia ei tarkisteta.|{fields} muodostavat osan kenttien nimistä suorituksen aikana, joten näitä viittauksia ei tarkisteta.
+
+@plural	{fields} is missing|{fields} are missing	{fields} puuttuu|{fields} puuttuvat
+
+	Monochrome Images	Mustavalkokuvat
+
+	CCITT Group 4	CCITT ryhmä 4

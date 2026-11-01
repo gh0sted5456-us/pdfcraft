@@ -2764,3 +2764,21 @@ theme	Appearance	ลักษณะที่ปรากฏ
 	Glass	กระจก
 	Move Tab to New Window	ย้ายแท็บไปยังหน้าต่างใหม่
 	Move Tab to This Window	ย้ายแท็บไปยังหน้าต่างนี้
+
+	Options for this reply	ตัวเลือกของการตอบกลับนี้
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Reads {name}, which the form doesn't have, so it gets no value there.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.
+
+	Missing field	Missing field
+
+	Unchecked reads	Unchecked reads
+
+	{field} reads fields named as it runs	{field} reads fields named as it runs
+
+	Some names are built as it runs	Some names are built as it runs
+
+	Monochrome Images	รูปภาพขาวดำ
+
+	CCITT Group 4	CCITT กลุ่ม 4

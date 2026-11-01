@@ -3003,3 +3003,31 @@ key	Space	Space
 	Fixed {n} hairlines on {p} pages	Đã sửa {n} đường siêu mảnh trên {p} trang
 	Fix hairlines…	Sửa các đường siêu mảnh…
 	Show Page Edge Shadows	Hiển thị bóng viền trang
+
+	Options for this reply	Tùy chọn cho câu trả lời này
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Đọc {name}, nhưng biểu mẫu không có trường này, nên không nhận được giá trị nào từ đó.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Tập lệnh của nó còn đọc các trường có tên được tạo ra khi chạy, nên không thể kiểm tra các lần đọc đó.
+
+	Missing field	Thiếu trường
+
+	Unchecked reads	Lần đọc chưa kiểm tra
+
+	{field} reads fields named as it runs	{field} đọc các trường được đặt tên khi chạy
+
+	Some names are built as it runs	Một số tên được tạo ra khi chạy
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} công thức đọc trường không có trong biểu mẫu
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} đọc {fields}, nhưng biểu mẫu không có.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Còn {n} công thức khác đọc trường bị thiếu.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} tạo một số tên trường khi chạy, nên các lần đọc đó không được kiểm tra.
+
+@plural	{fields} is missing|{fields} are missing	Thiếu {fields}
+
+	Monochrome Images	Ảnh đơn sắc
+
+	CCITT Group 4	CCITT nhóm 4

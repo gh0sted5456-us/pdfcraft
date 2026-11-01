@@ -2824,3 +2824,31 @@ key	Space	Mellomrom
 	Glass	Glassaktig
 	Move Tab to New Window	Flytt fane til nytt vindu
 	Move Tab to This Window	Flytt fane til dette vinduet
+
+	Options for this reply	Alternativer for dette svaret
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Reads {name}, which the form doesn't have, so it gets no value there.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.
+
+	Missing field	Missing field
+
+	Unchecked reads	Unchecked reads
+
+	{field} reads fields named as it runs	{field} reads fields named as it runs
+
+	Some names are built as it runs	Some names are built as it runs
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	{n} more formula reads a missing field.|{n} more formulas read missing fields.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.
+
+@plural	{fields} is missing|{fields} are missing	{fields} is missing|{fields} are missing
+
+	Monochrome Images	Svart-hvitt-bilder
+
+	CCITT Group 4	CCITT gruppe 4

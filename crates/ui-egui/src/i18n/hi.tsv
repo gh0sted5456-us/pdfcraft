@@ -2949,3 +2949,21 @@ theme	Appearance	स्वरूप
 	Pattern strokes	पैटर्न स्ट्रोक
 	Type 3 font glyphs	Type 3 फ़ॉन्ट ग्लिफ़
 	Zero-width lines always count as narrower.	शून्य-चौड़ाई वाली रेखाएँ हमेशा संकरी मानी जाती हैं।
+
+	Options for this reply	इस जवाब के विकल्प
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Reads {name}, which the form doesn't have, so it gets no value there.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.
+
+	Missing field	Missing field
+
+	Unchecked reads	Unchecked reads
+
+	{field} reads fields named as it runs	{field} reads fields named as it runs
+
+	Some names are built as it runs	Some names are built as it runs
+
+	Monochrome Images	मोनोक्रोम छवियाँ
+
+	CCITT Group 4	CCITT समूह 4

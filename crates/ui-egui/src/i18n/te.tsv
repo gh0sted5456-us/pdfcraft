@@ -2633,3 +2633,31 @@ animation effects	Off	ఆఫ్
 	Fixed {n} hairlines on {p} pages	{p} పేజీలలో {n} హెయిర్‌లైన్‌లు సరిచేయబడ్డాయి
 	Fix hairlines…	అతి సన్నని గీతలను సరిచేయి…
 	Show Page Edge Shadows	పేజీ అంచుల నీడలను చూపించు
+
+	Options for this reply	ఈ ప్రత్యుత్తరం ఎంపికలు
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	{name}ను చదువుతుంది, కానీ అది ఫారమ్‌లో లేదు, కాబట్టి దాని నుండి విలువ రాదు.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	దీని స్క్రిప్ట్ నడుస్తున్నప్పుడు పేర్లను కూర్చే ఫీల్డ్‌లను కూడా చదువుతుంది, కాబట్టి ఆ చదువులను తనిఖీ చేయలేము.
+
+	Missing field	ఫీల్డ్ లేదు
+
+	Unchecked reads	తనిఖీ చేయని చదువులు
+
+	{field} reads fields named as it runs	{field} నడుస్తున్నప్పుడు పేరు పెట్టే ఫీల్డ్‌లను చదువుతుంది
+
+	Some names are built as it runs	కొన్ని పేర్లు నడుస్తున్నప్పుడు కూర్చబడతాయి
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} సూత్రం ఫారమ్‌లో లేని ఫీల్డ్‌ను చదువుతుంది|{n} సూత్రాలు ఫారమ్‌లో లేని ఫీల్డ్‌లను చదువుతాయి
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} ఫారమ్‌లో లేని {fields}‌ను చదువుతుంది.|{field} ఫారమ్‌లో లేని {fields}‌ను చదువుతుంది.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	మరో {n} సూత్రం లేని ఫీల్డ్‌ను చదువుతుంది.|మరో {n} సూత్రాలు లేని ఫీల్డ్‌లను చదువుతాయి.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} నడుస్తున్నప్పుడు కొన్ని ఫీల్డ్ పేర్లను కూర్చుతుంది, కాబట్టి ఆ చదువులు తనిఖీ చేయబడవు.|{fields} నడుస్తున్నప్పుడు కొన్ని ఫీల్డ్ పేర్లను కూర్చుతాయి, కాబట్టి ఆ చదువులు తనిఖీ చేయబడవు.
+
+@plural	{fields} is missing|{fields} are missing	{fields} లేదు|{fields} లేవు
+
+	Monochrome Images	మోనోక్రోమ్ చిత్రాలు
+
+	CCITT Group 4	CCITT గ్రూప్ 4
