@@ -41,13 +41,15 @@ PDFs are changed by these checks.
 - Scoped all-target strict Clippy passes. Layering and offline licensing validation pass.
 - WebAssembly UI/automation compilation passes with 11 existing native-only/dead-code warnings;
   this is compilation coverage, not browser runtime qualification.
-- Native UI: 1,314 passed, 10 existing ignored. Automation: 328 passed. Engine: 445 passed,
+- Native UI: 1,315 passed, 10 existing ignored. Automation: 328 passed. Engine: 445 passed,
   two existing ignored. Comment unit tests: 17 passed; calculation UI units: 11 passed; licensing
   units: 11 passed. The licensing check covers all seven existing OCR model/dictionary inputs.
 - Desktop and CLI builds pass. A confined CLI script created a synthetic PDF, exported Markdown
   and rendered a page. The real portable desktop accepted the export command; its native
   inspection contains Markdown and its screenshot at 1000x780 shows a centered, legible dialog.
-  Synthetic previews were visually inspected. The preview was closed through its control channel.
+  Synthetic previews were visually inspected. The rebuilt optimizer was also inspected and captured
+  at 1100x900; its monochrome controls fit and remain legible. The preview exited after the control
+  channel quit request (the final acknowledgement reported a connection reset during teardown).
 
 Markdown reconstructs headings, paragraph emphasis and detected tables; it omits images,
 list/link reconstruction and text colour. Monochrome downsampling is lossy when enabled;
@@ -65,3 +67,9 @@ FreeBSD qualification exposed a codec-specific assertion in the monochrome reten
 The later upstream fix `af03f084` accepts either Flate or Group 4 while checking decoded samples;
 the fork also checks unchanged dimensions and non-increasing compressed size. Runtime selection
 remains unchanged. The full platform jobs are rerun for this follow-up.
+
+Linux CI ran 5,885 tests and exposed a missing accessible name on the monochrome compression
+selector. Its selector and resolution controls now reference their visible labels, matching
+the colour/grayscale rows, and wrap at narrow widths. A focused light/dark regression checks
+the resolved accessible name and confirms that monochrome changes preserve colour settings;
+it failed on the unnamed selector before the fix. Accessibility checks remain enabled.

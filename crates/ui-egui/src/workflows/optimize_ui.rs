@@ -154,23 +154,27 @@ fn image_row(ui: &mut egui::Ui, id: &str, title: &str, s: &mut ImageSettings) {
 /// Monochrome Images: how black-and-white images and image masks are resampled and stored.
 fn mono_row(ui: &mut egui::Ui, m: &mut MonoSettings) {
     ui.label(egui::RichText::new(tl!("Monochrome Images")).font(theme::semibold(13.0)));
-    ui.horizontal(|ui| {
-        ui.add(widgets::checkbox(&mut m.downsample, tl!("Downsample to")));
-        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.target_ppi).range(9.0..=2400.0).suffix(" ppi"));
-        ui.label(tl!("for images above"));
-        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.above_ppi).range(9.0..=2400.0).suffix(" ppi"));
+    ui.horizontal_wrapped(|ui| {
+        let target = ui.add(widgets::checkbox(&mut m.downsample, tl!("Downsample to")));
+        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.target_ppi).range(9.0..=2400.0).suffix(" ppi")).labelled_by(target.id);
+        let above = ui.label(tl!("for images above"));
+        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.above_ppi).range(9.0..=2400.0).suffix(" ppi")).labelled_by(above.id);
     });
     m.above_ppi = m.above_ppi.max(m.target_ppi);
-    ui.horizontal(|ui| {
-        ui.label(tl!("Compression"));
+    ui.horizontal_wrapped(|ui| {
+        let compression_label = ui.label(tl!("Compression"));
         let label = match m.compression {
             MonoCompression::CcittG4 => tl!("CCITT Group 4"),
             MonoCompression::Retain => tl!("Retain existing"),
         };
-        egui::ComboBox::from_id_salt(("mono", "compression")).selected_text(label).show_ui(ui, |ui| {
-            ui.selectable_value(&mut m.compression, MonoCompression::CcittG4, tl!("CCITT Group 4"));
-            ui.selectable_value(&mut m.compression, MonoCompression::Retain, tl!("Retain existing"));
-        });
+        egui::ComboBox::from_id_salt(("mono", "compression"))
+            .selected_text(label)
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut m.compression, MonoCompression::CcittG4, tl!("CCITT Group 4"));
+                ui.selectable_value(&mut m.compression, MonoCompression::Retain, tl!("Retain existing"));
+            })
+            .response
+            .labelled_by(compression_label.id);
     });
     ui.add_space(8.0);
 }
