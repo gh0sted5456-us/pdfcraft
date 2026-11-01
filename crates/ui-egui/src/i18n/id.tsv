@@ -2950,3 +2950,21 @@ theme	Appearance	Tampilan
 	Pattern strokes	Goresan pola
 	Type 3 font glyphs	Glif font Type 3
 	Zero-width lines always count as narrower.	Garis lebar nol selalu dianggap lebih sempit.
+
+	Options for this reply	Opsi untuk balasan ini
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Reads {name}, which the form doesn't have, so it gets no value there.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.
+
+	Missing field	Missing field
+
+	Unchecked reads	Unchecked reads
+
+	{field} reads fields named as it runs	{field} reads fields named as it runs
+
+	Some names are built as it runs	Some names are built as it runs
+
+	Monochrome Images	Gambar Monokrom
+
+	CCITT Group 4	CCITT Grup 4

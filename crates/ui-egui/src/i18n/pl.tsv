@@ -2828,3 +2828,31 @@ animation effects	Off	Wyłączone
 	Fixed {n} hairlines on {p} pages	Poprawiono {n} linii włosowych na {p} stronach
 	Fix hairlines…	Popraw cienkie linie…
 	Show Page Edge Shadows	Pokaż cienie krawędzi stron
+
+	Options for this reply	Opcje tej odpowiedzi
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Odczytuje {name}, którego nie ma w formularzu, więc nie dostaje stamtąd żadnej wartości.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Jego skrypt odczytuje też pola, których nazwy tworzy w trakcie działania, więc tych odczytów nie da się sprawdzić.
+
+	Missing field	Brak pola
+
+	Unchecked reads	Niesprawdzone odczyty
+
+	{field} reads fields named as it runs	{field} odczytuje pola nazywane w trakcie działania
+
+	Some names are built as it runs	Niektóre nazwy powstają w trakcie działania
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} formuła odczytuje pole, którego nie ma w formularzu|{n} formuły odczytują pola, których nie ma w formularzu|{n} formuł odczytuje pola, których nie ma w formularzu
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} odczytuje {fields}, którego nie ma w formularzu.|{field} odczytuje {fields}, których nie ma w formularzu.|{field} odczytuje {fields}, których nie ma w formularzu.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Jeszcze {n} formuła odczytuje brakujące pole.|Jeszcze {n} formuły odczytują brakujące pola.|Jeszcze {n} formuł odczytuje brakujące pola.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} tworzy część nazw pól w trakcie działania, więc te odczyty nie są sprawdzane.|{fields} tworzą część nazw pól w trakcie działania, więc te odczyty nie są sprawdzane.|{fields} tworzą część nazw pól w trakcie działania, więc te odczyty nie są sprawdzane.
+
+@plural	{fields} is missing|{fields} are missing	Brak {fields}|Brak {fields}|Brak {fields}
+
+	Monochrome Images	Obrazy monochromatyczne
+
+	CCITT Group 4	CCITT grupa 4

@@ -2738,3 +2738,31 @@ animation effects	Off	Izklopljeni
 	Fixed {n} hairlines on {p} pages	Popravljenih {n} lasnih črt na {p} straneh
 	Fix hairlines…	Popravi tanke črte…
 	Show Page Edge Shadows	Prikaži sence robov strani
+
+	Options for this reply	Možnosti tega odgovora
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Bere {name}, ki ga v obrazcu ni, zato od tam ne dobi vrednosti.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Njegov skript bere tudi polja, katerih imena sestavi med izvajanjem, zato teh branj ni mogoče preveriti.
+
+	Missing field	Manjka polje
+
+	Unchecked reads	Nepreverjena branja
+
+	{field} reads fields named as it runs	{field} bere polja, poimenovana med izvajanjem
+
+	Some names are built as it runs	Nekatera imena se sestavijo med izvajanjem
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} formula bere polje, ki ga v obrazcu ni|{n} formuli bereta polja, ki ju v obrazcu ni|{n} formule berejo polja, ki jih v obrazcu ni|{n} formul bere polja, ki jih v obrazcu ni
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} bere {fields}, ki ga v obrazcu ni.|{field} bere {fields}, ki ju v obrazcu ni.|{field} bere {fields}, ki jih v obrazcu ni.|{field} bere {fields}, ki jih v obrazcu ni.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Še {n} formula bere manjkajoče polje.|Še {n} formuli bereta manjkajoča polja.|Še {n} formule berejo manjkajoča polja.|Še {n} formul bere manjkajoča polja.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} nekatera imena polj sestavi med izvajanjem, zato ta branja niso preverjena.|{fields} nekatera imena polj sestavita med izvajanjem, zato ta branja niso preverjena.|{fields} nekatera imena polj sestavijo med izvajanjem, zato ta branja niso preverjena.|{fields} nekatera imena polj sestavijo med izvajanjem, zato ta branja niso preverjena.
+
+@plural	{fields} is missing|{fields} are missing	{fields} manjka|{fields} manjkata|{fields} manjkajo|{fields} manjka
+
+	Monochrome Images	Enobarvne slike
+
+	CCITT Group 4	CCITT skupina 4

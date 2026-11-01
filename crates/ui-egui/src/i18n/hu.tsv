@@ -2731,3 +2731,31 @@ animation effects	Off	Ki
 	Fixed {n} hairlines on {p} pages	{n} hajszálvonal javítva {p} oldalon
 	Fix hairlines…	Hajszálvonalak javítása…
 	Show Page Edge Shadows	Oldalszéli árnyékok megjelenítése
+
+	Options for this reply	A válasz beállításai
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Ezt olvassa: {name}, amely nincs az űrlapon, így onnan nem kap értéket.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	A szkriptje olyan mezőket is olvas, amelyek nevét futás közben állítja össze, így ezek az olvasások nem ellenőrizhetők.
+
+	Missing field	Hiányzó mező
+
+	Unchecked reads	Ellenőrizetlen olvasások
+
+	{field} reads fields named as it runs	{field} futás közben elnevezett mezőket olvas
+
+	Some names are built as it runs	Néhány név futás közben áll össze
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} képlet olyan mezőt olvas, amely nincs az űrlapon|{n} képlet olyan mezőket olvas, amelyek nincsenek az űrlapon
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} ezt olvassa: {fields}, amely nincs az űrlapon.|{field} ezeket olvassa: {fields}, amelyek nincsenek az űrlapon.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	További {n} képlet hiányzó mezőt olvas.|További {n} képlet hiányzó mezőket olvas.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} futás közben állít össze néhány mezőnevet, így ezek az olvasások nincsenek ellenőrizve.|{fields} futás közben állítanak össze néhány mezőnevet, így ezek az olvasások nincsenek ellenőrizve.
+
+@plural	{fields} is missing|{fields} are missing	{fields} hiányzik|{fields} hiányoznak
+
+	Monochrome Images	Monokróm képek
+
+	CCITT Group 4	CCITT 4. csoport

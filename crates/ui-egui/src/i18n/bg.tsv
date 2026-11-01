@@ -2695,3 +2695,31 @@ animation effects	Off	Изключени
 	Fixed {n} hairlines on {p} pages	Поправени {n} тънки линии на {p} страници
 	Fix hairlines…	Поправи тънките линии…
 	Show Page Edge Shadows	Показване на сенки по краищата на страниците
+
+	Options for this reply	Опции за този отговор
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Чете {name}, което го няма във формуляра, затова не получава стойност оттам.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Скриптът му чете и полета, чиито имена съставя по време на изпълнение, затова тези четения не могат да бъдат проверени.
+
+	Missing field	Липсващо поле
+
+	Unchecked reads	Непроверени четения
+
+	{field} reads fields named as it runs	{field} чете полета, именувани по време на изпълнение
+
+	Some names are built as it runs	Някои имена се съставят по време на изпълнение
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} формула чете поле, което го няма във формуляра|{n} формули четат полета, които ги няма във формуляра
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} чете {fields}, което го няма във формуляра.|{field} чете {fields}, които ги няма във формуляра.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Още {n} формула чете липсващо поле.|Още {n} формули четат липсващи полета.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} съставя някои имена на полета по време на изпълнение, затова тези четения не се проверяват.|{fields} съставят някои имена на полета по време на изпълнение, затова тези четения не се проверяват.
+
+@plural	{fields} is missing|{fields} are missing	{fields} липсва|{fields} липсват
+
+	Monochrome Images	Монохромни изображения
+
+	CCITT Group 4	CCITT група 4

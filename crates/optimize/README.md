@@ -11,7 +11,9 @@ let report = optimize_with_progress(&mut doc, &settings, &mut |stage| keep_going
 ```
 
 - **Presets:** Standard (Reduce File Size's choices: images above 225 ppi to 150 ppi, JPEG
-  medium) and Mobile (above 144 ppi to 96 ppi, JPEG high), as in Acrobat's Settings menu.
+  medium) and Mobile (above 144 ppi to 96 ppi, JPEG high), as in Acrobat's Settings menu. In
+  both, eligible black-and-white images can be averaged down to 300 ppi above 450 ppi, and stored as CCITT
+  Group 4 whenever that is smaller.
 - **Merge image fragments** (`fragments`, on by default): some PDF printers draw a page picture
   as thousands of images one pixel row high. Runs of upright 8-bit grey or RGB images in one
   colour space, sharing their left and right edges and stacked edge to edge (at least four,
@@ -27,11 +29,34 @@ let report = optimize_with_progress(&mut doc, &settings, &mut |stage| keep_going
   measured (forms nested deeper, or drawn too many times), no image is resampled. Colour and grayscale images above a
   threshold are resampled with a bicubic (Catmull-Rom) filter to a target resolution and
   stored as JPEG (Acrobat's quality steps) or ZIP; soft masks are resampled with their image.
-  An image is replaced only if the result is smaller. Left alone: CMYK and other colour spaces,
-  image masks, decode arrays, more than 8 bits, JPEG 2000, JBIG2 and CCITT. A JPEG is read with
+  An image is replaced only if the result is smaller. Left alone by these colour and grey
+  settings: CMYK and other colour spaces, image masks, decode arrays, more than 8 bits, JPEG 2000,
+  JBIG2 and CCITT (black-and-white images, CCITT among them, are below). A JPEG is read with
   its colour transform (an Adobe marker's, else `/ColorTransform`, ISO 32000-2 §7.4.8), so one
   stored untransformed keeps its colours; one whose marker and `/ColorTransform` disagree is left
-  alone, since readers differ on which wins.
+  alone, since readers differ on which wins. Samples are read with `/DecodeParms` given by
+  reference too, the numbers inside included (`Document::with_direct_parms`), here and below:
+  without them a predictor's tag bytes would shift every row of an image written back.
+- **Monochrome images** (`Settings::mono`, `MonoSettings::REDUCE` by default: to 300 ppi above
+  450 ppi, CCITT Group 4). One-component 1-bit images and image masks can be stored losslessly
+  as Group 4. Eight-bit black/white grey or RGB images, and qualifying two-colour indexed
+  images, can be packed to one bit. Colour-key masks, unsupported decode arrays, non-binary
+  samples, unknown resource uses and DefaultGray/DefaultRGB substitutions prevent unsafe
+  colour-space conversion. Original palettes, decode arrays and masks retain their meaning.
+  Eight-bit inputs can instead follow the separate colour/grayscale settings when those produce
+  a smaller result; their downsampling and lossy compression remain governed by those controls.
+  - **Downsampling:** optional majority-area resampling takes the dark sample on a tie to
+    retain thin rules. Unknown palette polarity, soft masks, local mixed-sample halftones,
+    dense ambiguous text, overwide rows and unmeasured uses retain their original resolution.
+    Conservative retention can cost file size; it avoids turning small screened regions solid.
+    Setting `downsample: false` disables this lossy step independently of compression.
+  - **Compression:** Group 4 or, for newly packed/resampled samples, smaller 1-bit Flate.
+    Group 3 and filtered fax streams can be recompressed as Group 4 without downsampling.
+    Retain keeps the original filter chain when no resampling occurs; eligible resampled images
+    retain Flate or CCITT compression. Every replacement must be smaller as stored. All decoding
+    is bounded by expected image/fax sizes, including filters wrapping fax data.
+  - Not included: JBIG2 encoding, inline images, visiting an image's own mask as an independent
+    page image, or Group 4 encoding above 32,767 columns. Existing JBIG2 reading is unchanged.
 - **Discard objects:** thumbnails, alternate images, document tags, print settings.
 - **Clean up:** Flate for streams with no filter; for streams with an outer ASCII85 or ASCIIHex
   layer, that layer is removed when the result is smaller (the inner filters keep their encoded

@@ -90,6 +90,7 @@ const PICKERS: &[&str] = &[
     "export.pptx",
     "export.html",
     "export.rtf",
+    "export.markdown",
     "measure.export",
 ];
 
@@ -882,4 +883,27 @@ fn audit_space_command_opens_the_read_only_audit() {
     assert!(!h.state().space_audit.is_empty());
     assert_eq!(h.state().session.get(id).unwrap().edit_generation(), generation);
     h.get_by_label("Space Audit");
+}
+
+#[test]
+fn markdown_export_is_available_in_the_picker_and_writes_reviewable_text() {
+    let _gpu = crate::gpu();
+    let mut h = harness();
+    assert!(h.state_mut().execute("export.choose"));
+    h.run_steps(3);
+    h.get_by_label("Markdown (.md)");
+    if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+        h.render().unwrap().save(format!("{dir}/markdown-export.png")).unwrap();
+    }
+    h.state_mut().dialog = None;
+    let dir = std::env::temp_dir().join(format!("lion-markdown-ui-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("export.md");
+    h.state_mut().save_override = Some(path.to_string_lossy().into_owned());
+    assert!(h.state_mut().execute("export.markdown"));
+    h.run_steps(3);
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.contains("Page 1") && text.contains("Page 3") && text.matches("\n---\n").count() == 2, "{text}");
+    assert!(!h.state().session.get(h.state().views[0].id).unwrap().dirty);
+    std::fs::remove_dir_all(dir).unwrap();
 }

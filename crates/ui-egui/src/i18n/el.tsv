@@ -2732,3 +2732,31 @@ animation effects	Off	Ανενεργά
 	Fixed {n} hairlines on {p} pages	Διορθώθηκαν {n} λεπτές γραμμές σε {p} σελίδες
 	Fix hairlines…	Διόρθωση πολύ λεπτών γραμμών…
 	Show Page Edge Shadows	Εμφάνιση σκιών στα άκρα των σελίδων
+
+	Options for this reply	Επιλογές για αυτήν την απάντηση
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Διαβάζει το {name}, που δεν υπάρχει στη φόρμα, οπότε δεν παίρνει τιμή από εκεί.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Η δέσμη ενεργειών του διαβάζει επίσης πεδία των οποίων τα ονόματα σχηματίζει κατά την εκτέλεση, οπότε αυτές οι αναγνώσεις δεν μπορούν να ελεγχθούν.
+
+	Missing field	Λείπει πεδίο
+
+	Unchecked reads	Μη ελεγμένες αναγνώσεις
+
+	{field} reads fields named as it runs	Το {field} διαβάζει πεδία που ονομάζονται κατά την εκτέλεση
+
+	Some names are built as it runs	Ορισμένα ονόματα σχηματίζονται κατά την εκτέλεση
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} τύπος διαβάζει πεδίο που δεν υπάρχει στη φόρμα|{n} τύποι διαβάζουν πεδία που δεν υπάρχουν στη φόρμα
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	Το {field} διαβάζει το {fields}, που δεν υπάρχει στη φόρμα.|Το {field} διαβάζει τα {fields}, που δεν υπάρχουν στη φόρμα.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Ακόμη {n} τύπος διαβάζει πεδίο που λείπει.|Ακόμη {n} τύποι διαβάζουν πεδία που λείπουν.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	Το {fields} σχηματίζει ορισμένα ονόματα πεδίων κατά την εκτέλεση, οπότε αυτές οι αναγνώσεις δεν ελέγχονται.|Τα {fields} σχηματίζουν ορισμένα ονόματα πεδίων κατά την εκτέλεση, οπότε αυτές οι αναγνώσεις δεν ελέγχονται.
+
+@plural	{fields} is missing|{fields} are missing	Το {fields} λείπει|Τα {fields} λείπουν
+
+	Monochrome Images	Μονόχρωμες εικόνες
+
+	CCITT Group 4	CCITT Ομάδα 4

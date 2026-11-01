@@ -2759,3 +2759,31 @@ animation effects	Off	Вимкнено
 	Fixed {n} hairlines on {p} pages	Виправлено {n} тонких ліній на {p} сторінках
 	Fix hairlines…	Виправити надтонкі лінії…
 	Show Page Edge Shadows	Показувати тіні на краях сторінок
+
+	Options for this reply	Параметри цієї відповіді
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Читає {name}, якого немає у формі, тому не отримує звідти значення.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Його сценарій також читає поля, імена яких складає під час виконання, тому ці читання неможливо перевірити.
+
+	Missing field	Немає поля
+
+	Unchecked reads	Неперевірені читання
+
+	{field} reads fields named as it runs	{field} читає поля, імена яких задаються під час виконання
+
+	Some names are built as it runs	Деякі імена складаються під час виконання
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} формула читає поле, якого немає у формі|{n} формули читають поля, яких немає у формі|{n} формул читають поля, яких немає у формі
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} читає {fields}, якого немає у формі.|{field} читає {fields}, яких немає у формі.|{field} читає {fields}, яких немає у формі.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Ще {n} формула читає відсутнє поле.|Ще {n} формули читають відсутні поля.|Ще {n} формул читають відсутні поля.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} складає деякі імена полів під час виконання, тому ці читання не перевіряються.|{fields} складають деякі імена полів під час виконання, тому ці читання не перевіряються.|{fields} складають деякі імена полів під час виконання, тому ці читання не перевіряються.
+
+@plural	{fields} is missing|{fields} are missing	Немає {fields}|Немає {fields}|Немає {fields}
+
+	Monochrome Images	Монохромні зображення
+
+	CCITT Group 4	CCITT група 4

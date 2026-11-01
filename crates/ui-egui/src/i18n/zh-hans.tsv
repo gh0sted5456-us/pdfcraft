@@ -2696,3 +2696,31 @@ animation effects	Off	关
 	Fixed {n} hairlines on {p} pages	已修复 {p} 页上的 {n} 条细线
 	Fix hairlines…	修复细线…
 	Show Page Edge Shadows	显示页面边缘阴影
+
+	Options for this reply	此回复的选项
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	读取表单中不存在的 {name}，因此从中得不到值。
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	其脚本还会读取运行时才拼出名称的字段，因此无法检查这些读取。
+
+	Missing field	缺少字段
+
+	Unchecked reads	未检查的读取
+
+	{field} reads fields named as it runs	{field} 读取运行时才确定名称的字段
+
+	Some names are built as it runs	部分名称在运行时才拼出
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} 个公式读取了表单中不存在的字段
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} 读取表单中不存在的 {fields}。
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	另有 {n} 个公式读取了缺失的字段。
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} 在运行时才拼出部分字段名称，因此这些读取不会被检查。
+
+@plural	{fields} is missing|{fields} are missing	缺少 {fields}
+
+	Monochrome Images	单色图像
+
+	CCITT Group 4	CCITT 第 4 组

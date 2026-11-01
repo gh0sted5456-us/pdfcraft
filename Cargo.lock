@@ -5539,9 +5539,11 @@ version = "1.0.2"
 dependencies = [
  "encoding_rs",
  "flate2",
+ "hayro-ccitt",
  "hayro-syntax",
  "image",
  "pdfcraft-cos",
+ "pdfcraft-filters",
  "pdfcraft-fonts",
  "pdfcraft-model",
  "pdfcraft-xfa",
@@ -5643,7 +5645,9 @@ dependencies = [
 name = "pdfcraft-filters"
 version = "1.0.2"
 dependencies = [
+ "fax",
  "flate2",
+ "hayro-ccitt",
  "proptest",
  "thiserror 2.0.21",
  "weezl 0.2.1",
@@ -5728,6 +5732,7 @@ dependencies = [
  "pdfcraft-filters",
  "pdfcraft-model",
  "pdfcraft-render",
+ "proptest",
  "thiserror 2.0.21",
  "zune-jpeg",
 ]
@@ -5820,6 +5825,7 @@ dependencies = [
  "pdfcraft-content",
  "pdfcraft-cos",
  "pdfcraft-edit",
+ "pdfcraft-filters",
  "pdfcraft-fonts",
  "pdfcraft-forms",
  "pdfcraft-model",

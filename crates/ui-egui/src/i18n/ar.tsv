@@ -3007,3 +3007,31 @@ certificate	Version	الإصدار
 	Fixed {n} hairlines on {p} pages	تم إصلاح {n} خطًا شعريًا في {p} صفحة
 	Fix hairlines…	إصلاح الخطوط الرفيعة…
 	Show Page Edge Shadows	إظهار ظلال حواف الصفحات
+
+	Options for this reply	خيارات هذا الرد
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	يقرأ {name}، وهو غير موجود في النموذج، لذا لا يحصل منه على أي قيمة.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	يقرأ سكربته أيضًا حقولًا يبني أسماءها أثناء التشغيل، لذا لا يمكن التحقق من هذه القراءات.
+
+	Missing field	حقل مفقود
+
+	Unchecked reads	قراءات غير مفحوصة
+
+	{field} reads fields named as it runs	يقرأ {field} حقولًا تُسمّى أثناء التشغيل
+
+	Some names are built as it runs	تُبنى بعض الأسماء أثناء التشغيل
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} من الصيغ تقرأ حقولًا غير موجودة في النموذج|صيغة واحدة ({n}) تقرأ حقلًا غير موجود في النموذج|صيغتان ({n}) تقرآن حقولًا غير موجودة في النموذج|{n} صيغ تقرأ حقولًا غير موجودة في النموذج|{n} صيغة تقرأ حقولًا غير موجودة في النموذج|{n} من الصيغ تقرأ حقولًا غير موجودة في النموذج
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	يقرأ {field} الحقول {fields}، وهي غير موجودة في النموذج.|يقرأ {field} الحقل {fields}، وهو غير موجود في النموذج.|يقرأ {field} الحقلين {fields}، وهما غير موجودين في النموذج.|يقرأ {field} الحقول {fields}، وهي غير موجودة في النموذج.|يقرأ {field} الحقول {fields}، وهي غير موجودة في النموذج.|يقرأ {field} الحقول {fields}، وهي غير موجودة في النموذج.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	{n} من الصيغ الأخرى تقرأ حقولًا مفقودة.|صيغة أخرى ({n}) تقرأ حقلًا مفقودًا.|صيغتان أخريان ({n}) تقرآن حقولًا مفقودة.|{n} صيغ أخرى تقرأ حقولًا مفقودة.|{n} صيغة أخرى تقرأ حقولًا مفقودة.|{n} من الصيغ الأخرى تقرأ حقولًا مفقودة.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	يبني {fields} بعض أسماء الحقول أثناء التشغيل، لذا لا يتم التحقق من هذه القراءات.|يبني {fields} بعض أسماء الحقول أثناء التشغيل، لذا لا يتم التحقق من هذه القراءات.|يبني {fields} بعض أسماء الحقول أثناء التشغيل، لذا لا يتم التحقق من هذه القراءات.|يبني {fields} بعض أسماء الحقول أثناء التشغيل، لذا لا يتم التحقق من هذه القراءات.|يبني {fields} بعض أسماء الحقول أثناء التشغيل، لذا لا يتم التحقق من هذه القراءات.|يبني {fields} بعض أسماء الحقول أثناء التشغيل، لذا لا يتم التحقق من هذه القراءات.
+
+@plural	{fields} is missing|{fields} are missing	{fields} مفقودة|{fields} مفقود|{fields} مفقودان|{fields} مفقودة|{fields} مفقودة|{fields} مفقودة
+
+	Monochrome Images	الصور أحادية اللون
+
+	CCITT Group 4	CCITT المجموعة 4

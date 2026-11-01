@@ -2731,3 +2731,31 @@ animation effects	Off	Өшірулі
 	Fixed {n} hairlines on {p} pages	{p} бетте {n} жіңішке сызық түзетілді
 	Fix hairlines…	Жіңішке сызықтарды түзету…
 	Show Page Edge Shadows	Бет жиектерінің көлеңкелерін көрсету
+
+	Options for this reply	Осы жауаптың параметрлері
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	{name} өрісін оқиды, бірақ ол пішінде жоқ, сондықтан одан мән алмайды.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Оның скрипті атауларын орындалу кезінде құрастыратын өрістерді де оқиды, сондықтан бұл оқуларды тексеру мүмкін емес.
+
+	Missing field	Өріс жоқ
+
+	Unchecked reads	Тексерілмеген оқулар
+
+	{field} reads fields named as it runs	{field} орындалу кезінде аталатын өрістерді оқиды
+
+	Some names are built as it runs	Кейбір атаулар орындалу кезінде құрастырылады
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} формула пішінде жоқ өрісті оқиды|{n} формула пішінде жоқ өрістерді оқиды
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} пішінде жоқ {fields} өрісін оқиды.|{field} пішінде жоқ {fields} өрістерін оқиды.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Тағы {n} формула жоқ өрісті оқиды.|Тағы {n} формула жоқ өрістерді оқиды.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} кейбір өріс атауларын орындалу кезінде құрастырады, сондықтан бұл оқулар тексерілмейді.|{fields} кейбір өріс атауларын орындалу кезінде құрастырады, сондықтан бұл оқулар тексерілмейді.
+
+@plural	{fields} is missing|{fields} are missing	{fields} жоқ|{fields} жоқ
+
+	Monochrome Images	Монохромды кескіндер
+
+	CCITT Group 4	CCITT 4-топ

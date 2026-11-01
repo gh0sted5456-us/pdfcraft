@@ -228,3 +228,26 @@ fn updater_cancel_save_and_launch_failure_preserve_unsaved_documents() {
     std::fs::remove_file(path).unwrap();
     std::fs::remove_dir(folder).unwrap();
 }
+
+#[test]
+fn a_failed_update_check_can_retry_without_closing_the_document() {
+    let _gpu = crate::gpu();
+    let mut h = harness(Err("temporary connection failure"));
+    let bytes = h.state_mut().session.create_blank(300.0, 400.0, 1).unwrap();
+    h.state_mut().open_bytes("open.pdf", None, bytes.as_ref().clone()).unwrap();
+    h.state_mut().execute("help.check_updates");
+    settle(&mut h);
+    h.get_by_label_contains("temporary connection failure");
+    h.get_by_label("All releases");
+    if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
+        h.render().unwrap().save(format!("{dir}/update-result.png")).unwrap();
+    }
+    h.state_mut().update_source = Some(source(Ok(env!("CARGO_PKG_VERSION"))));
+    h.get_by_label("Check Again").click();
+    settle(&mut h);
+    h.get_by_label_contains("is up to date");
+    assert!(h.query_by_label_contains("temporary connection failure").is_none());
+    assert_eq!(h.state().views.len(), 1);
+    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().name, "open.pdf");
+    assert!(h.query_by_label("Download").is_none());
+}

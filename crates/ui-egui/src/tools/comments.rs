@@ -12,6 +12,8 @@
 //! Everything is turned into `pdfcraft_engine::Edit`s, queued on the view as `pending_edit` and
 //! applied by the app, so each change is one undo step.
 
+use std::collections::HashMap;
+
 use egui::{Color32, CornerRadius, Pos2, Rect, Sense, Stroke, pos2, vec2};
 use pdfcraft_engine::{Edit, LineEnding, Markup, NewAnnotation, NoteIcon, ReviewState, Rgb, Shape, Style};
 use pdfcraft_render::{Annotation, DocInfo, PageInfo, PageText};
@@ -392,3 +394,60 @@ pub fn tool_for(a: &Annotation) -> Option<CommentTool> {
 
 #[cfg(test)]
 mod tests;
+
+impl CommentView {
+    /// The annotation at `gone` was just deleted; `before` and `after` are the document's
+    /// annotations until then and now. The selection and the inline editor stay on what they
+    /// were on, where it now is (deleting a reply keeps its comment selected), and close when it
+    /// went too.
+    pub(crate) fn annotation_deleted(&mut self, before: &[Annotation], after: &[Annotation], gone: (usize, usize)) {
+        self.selected = self.selected.and_then(|k| after_delete(before, after, gone, k));
+        self.editing = self.editing.take().and_then(|(p, i, text)| after_delete(before, after, gone, (p, i)).map(|(p, i)| (p, i, text)));
+        if self.editing.is_none() {
+            self.editor_focus = None;
+        }
+    }
+}
+
+/// Where the annotation at `keep` is once the one at `gone` was deleted, or `None` when it went
+/// with it. Deleting takes the annotation's replies (at any depth) and pop-ups out of its page's
+/// `/Annots` (`pdfcraft_annot::delete_annotation`), and everything after them moves up, so `keep`
+/// is found by its place among the page's annotations that stay. When the page lost other
+/// annotations than those, or the one in that place reads differently, it is not guessed at.
+fn after_delete(before: &[Annotation], after: &[Annotation], gone: (usize, usize), keep: (usize, usize)) -> Option<(usize, usize)> {
+    if keep == gone {
+        return None;
+    }
+    if keep.0 != gone.0 {
+        return Some(keep);
+    }
+    let (old, new) = (on_page(before, gone.0), on_page(after, gone.0));
+    // Only replies on the page go with it: `/IRT` is followed through the page's `/Annots`.
+    let parents: HashMap<usize, usize> = old.iter().filter_map(|a| a.parent.filter(|p| p.0 == gone.0).map(|p| (a.index, p.1))).collect();
+    let goes = |mut i: usize| {
+        // `link_replies` settles every chain within 64 steps.
+        for _ in 0..=64 {
+            if i == gone.1 {
+                return true;
+            }
+            let Some(&up) = parents.get(&i) else { return false };
+            i = up;
+        }
+        false
+    };
+    let stays: Vec<&Annotation> = old.iter().copied().filter(|a| !goes(a.index)).collect();
+    if stays.len() != new.len() {
+        return None;
+    }
+    let rank = stays.iter().position(|a| a.index == keep.1)?;
+    let (was, now) = (stays.get(rank)?, new.get(rank)?);
+    let same = (&was.subtype, &was.name, &was.author, &was.contents, was.rect) == (&now.subtype, &now.name, &now.author, &now.contents, now.rect);
+    same.then_some((now.page, now.index))
+}
+
+/// The annotations listed on `page`, in `/Annots` order.
+fn on_page(list: &[Annotation], page: usize) -> Vec<&Annotation> {
+    let mut v: Vec<&Annotation> = list.iter().filter(|a| a.page == page).collect();
+    v.sort_by_key(|a| a.index);
+    v
+}

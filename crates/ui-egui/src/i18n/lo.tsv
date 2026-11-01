@@ -2509,3 +2509,21 @@ animation effects	Off	ປິດ
 	Glass	ແກ້ວ
 	Move Tab to New Window	ຍ້າຍແຖບໄປຫາປ່ອງຢ້ຽມໃໝ່
 	Move Tab to This Window	ຍ້າຍແຖບໄປຫາປ່ອງຢ້ຽມນີ້
+
+	Options for this reply	ຕົວເລືອກຂອງການຕອບກັບນີ້
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Reads {name}, which the form doesn't have, so it gets no value there.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.
+
+	Missing field	Missing field
+
+	Unchecked reads	Unchecked reads
+
+	{field} reads fields named as it runs	{field} reads fields named as it runs
+
+	Some names are built as it runs	Some names are built as it runs
+
+	Monochrome Images	ຮູບພາບຂາວດຳ
+
+	CCITT Group 4	CCITT ກຸ່ມ 4

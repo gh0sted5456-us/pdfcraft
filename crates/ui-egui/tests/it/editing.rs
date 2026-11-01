@@ -3099,7 +3099,17 @@ fn copying_out_of_a_document_honours_its_security() {
     let mut h = open("pw");
     assert!(!copy(&mut h), "⌘C copies nothing");
     assert_eq!(h.state().toast.as_ref().map(|t| t.0.as_str()), refused);
-    for command in ["edit.snapshot", "export.image", "export.text", "export.docx", "export.pptx", "export.html", "export.rtf", "export.all_images"] {
+    for command in [
+        "edit.snapshot",
+        "export.image",
+        "export.text",
+        "export.docx",
+        "export.pptx",
+        "export.html",
+        "export.rtf",
+        "export.markdown",
+        "export.all_images",
+    ] {
         h.state_mut().toast = None;
         assert!(!h.state_mut().execute(command), "{command} is refused");
         assert_eq!(h.state().toast.as_ref().map(|t| t.0.as_str()), refused, "{command} says why");
@@ -7128,4 +7138,345 @@ fn page_properties_refuses_stale_page_choices_after_taskbar_restore() {
     assert!(h.state().toast.as_ref().unwrap().0.contains("The PDF changed while this dialog was minimized"));
     let doc = h.state().session.get(h.state().views[0].id).unwrap();
     assert_eq!(doc.tab_orders(), [pdfcraft_engine::TabOrder::Annotations; 2]);
+}
+
+/// The paragraph opened for typing, as a person opens it: a click on its text.
+fn open_paragraph(h: &mut Harness<'static, PdfCraftApp>) {
+    let r = h.state().views[0].page_screen_rect(0).expect("on screen");
+    let at = egui::pos2(r.left() + 40.0 / 200.0 * r.width(), r.top() + (300.0 - 158.0) / 300.0 * r.height());
+    click_at(h, at);
+    assert!(h.state().views[0].line_editor.is_some(), "the paragraph opens for typing");
+}
+
+/// Ctrl+Z after a formatting change, with the paragraph still open: the change is undone and
+/// the editor closes. The box's own Undo used to take the key, putting back the text it had
+/// before the change into a box laid out for the page after it, and the document kept the change.
+#[test]
+fn undo_with_the_paragraph_open_undoes_the_formatting() {
+    let mut h = harness(1, |_| {});
+    assert!(h.state_mut().execute("edit.edit_text"));
+    h.run_steps(2);
+    open_paragraph(&mut h);
+    h.get_by_label("Bold").click();
+    h.run_steps(4);
+    {
+        let s = h.state();
+        let doc = s.session.get(s.views[0].id).unwrap();
+        assert_eq!(doc.can_undo(), Some("Edit text"));
+        assert_eq!(doc.text_blocks(0)[0].base_font, "Helvetica-Bold");
+        assert!(s.views[0].line_editor.is_some(), "still editing");
+    }
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+    let s = h.state();
+    let doc = s.session.get(s.views[0].id).unwrap();
+    assert_eq!(doc.can_undo(), None, "the formatting is undone");
+    assert_eq!(doc.text_blocks(0)[0].base_font, "Helvetica");
+    assert!(s.views[0].line_editor.is_none(), "the editor closed with the step it showed");
+}
+
+/// Undo while typing takes back the typing in the box first; the document is left alone.
+#[test]
+fn undo_while_typing_takes_back_the_typing_first() {
+    let mut h = harness(1, |_| {});
+    assert!(h.state_mut().execute("edit.edit_text"));
+    h.run_steps(2);
+    open_paragraph(&mut h);
+    let original = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.event(egui::Event::Text(" more".into()));
+    h.run_steps(2);
+    assert_ne!(h.state().views[0].line_editor.as_ref().unwrap().text, original);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(3);
+    let s = h.state();
+    let ed = s.views[0].line_editor.as_ref().expect("still typing");
+    assert_eq!(ed.text, original, "the typing is taken back");
+    assert_eq!(s.session.get(s.views[0].id).unwrap().can_undo(), None, "the document is untouched");
+}
+
+#[test]
+fn redo_after_undoing_typing_puts_the_typing_back() {
+    let mut h = harness(1, |_| {});
+    assert!(h.state_mut().execute("edit.edit_text"));
+    h.run_steps(2);
+    open_paragraph(&mut h);
+    h.get_by_label("Bold").click();
+    h.run_steps(4);
+    // Undo the bold (closing the editor), so the document has it to redo.
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().can_redo(), Some("Edit text"));
+    open_paragraph(&mut h);
+    let original = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.event(egui::Event::Text(" more".into()));
+    h.run_steps(2);
+    let typed = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].line_editor.as_ref().unwrap().text, original, "the typing is taken back");
+    h.key_press_modifiers(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z);
+    h.run_steps(3);
+    let s = h.state();
+    let ed = s.views[0].line_editor.as_ref().expect("still typing");
+    assert_eq!(ed.text, typed, "Redo puts the typing back");
+    let doc = s.session.get(s.views[0].id).unwrap();
+    assert_eq!((doc.can_redo(), doc.text_blocks(0)[0].base_font.as_str()), (Some("Edit text"), "Helvetica"), "the document's Redo still waits");
+}
+
+#[test]
+fn typing_in_one_tab_never_reaches_another_tabs_paragraph() {
+    let mut h = harness(1, |app| {
+        app.open_bytes("copy.pdf", None, fixture(1)).expect("the copy opens");
+    });
+    let open_in = |h: &mut Harness<'static, PdfCraftApp>, tab: usize| {
+        h.state_mut().active = Some(tab);
+        h.run_steps(2);
+        assert!(h.state_mut().execute("edit.edit_text"));
+        h.run_steps(2);
+        let r = h.state().views[tab].page_screen_rect(0).expect("on screen");
+        click_at(h, egui::pos2(r.left() + 40.0 / 200.0 * r.width(), r.top() + (300.0 - 158.0) / 300.0 * r.height()));
+        assert!(h.state().views[tab].line_editor.is_some(), "the paragraph opens for typing");
+    };
+    open_in(&mut h, 1);
+    let original = h.state().views[1].line_editor.as_ref().unwrap().text.clone();
+    open_in(&mut h, 0);
+    assert_eq!(h.state().views[0].line_editor.as_ref().unwrap().text, original, "the same paragraph");
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.event(egui::Event::Text(" secret".into()));
+    h.run_steps(2);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].line_editor.as_ref().unwrap().text, original, "taken back");
+    // The copy, its paragraph still open: Redo there has nothing of its own to put back.
+    h.state_mut().active = Some(1);
+    h.run_steps(3);
+    assert!(h.state().views[1].line_editor.is_some(), "the copy's paragraph is still open");
+    h.key_press_modifiers(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z);
+    h.run_steps(3);
+    let s = h.state();
+    let text = &s.views[1].line_editor.as_ref().expect("the copy's paragraph stays open through Redo").text;
+    assert!(!text.contains("secret"), "the other tab's typing came in: {text:?}");
+    assert_eq!(s.session.get(s.views[1].id).unwrap().text_blocks(0)[0].text, s.session.get(s.views[0].id).unwrap().text_blocks(0)[0].text);
+}
+
+#[test]
+fn redo_from_the_menu_with_typing_in_the_box_keeps_the_documents_redo() {
+    let mut h = harness(1, |_| {});
+    assert!(h.state_mut().execute("edit.edit_text"));
+    h.run_steps(2);
+    open_paragraph(&mut h);
+    h.get_by_label("Bold").click();
+    h.run_steps(4);
+    // Undo the bold (closing the editor), so the document has it to redo.
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+    open_paragraph(&mut h);
+    let original = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.event(egui::Event::Text(" more".into()));
+    h.run_steps(2);
+    let typed = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    assert!(h.state_mut().execute("edit.redo"));
+    h.run_steps(3);
+    {
+        let s = h.state();
+        let ed = s.views[0].line_editor.as_ref().expect("the box stays open");
+        assert_eq!(ed.text, typed, "the typing stays in the box, unapplied");
+        let doc = s.session.get(s.views[0].id).unwrap();
+        assert_eq!((doc.can_redo(), doc.text_blocks(0)[0].base_font.as_str()), (Some("Edit text"), "Helvetica"), "the document's Redo still waits");
+    }
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].line_editor.as_ref().unwrap().text, original, "Undo takes the typing back in the box");
+    assert!(h.state_mut().execute("edit.redo"));
+    h.run_steps(3);
+    let s = h.state();
+    assert_eq!(s.views[0].line_editor.as_ref().expect("still open").text, typed, "Redo from the menu puts the typing back");
+    assert_eq!(s.session.get(s.views[0].id).unwrap().can_redo(), Some("Edit text"), "the document's Redo still waits");
+}
+
+#[test]
+fn redo_from_the_menu_is_enabled_for_the_boxs_own_typing() {
+    let mut h = harness(1, |_| {});
+    assert!(h.state_mut().execute("edit.edit_text"));
+    h.run_steps(2);
+    open_paragraph(&mut h);
+    let original = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.event(egui::Event::Text(" more".into()));
+    h.run_steps(2);
+    let typed = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].line_editor.as_ref().unwrap().text, original, "the typing is taken back");
+    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().can_redo(), None, "the document has nothing to redo");
+    assert!(h.state_mut().execute("edit.redo"), "Redo is enabled for the box's own step");
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].line_editor.as_ref().expect("still open").text, typed, "Redo puts the typing back");
+}
+
+#[test]
+fn undo_from_the_menu_takes_back_typing_in_the_box() {
+    let mut h = harness(1, |_| {});
+    assert!(h.state_mut().execute("edit.edit_text"));
+    h.run_steps(2);
+    open_paragraph(&mut h);
+    h.get_by_label("Bold").click();
+    h.run_steps(4);
+    // Undo the bold (closing the editor), so the document has it to redo and nothing to undo.
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+    open_paragraph(&mut h);
+    let original = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.event(egui::Event::Text(" more".into()));
+    h.run_steps(2);
+    assert!(h.state_mut().execute("edit.undo"), "Undo is enabled for the box's typing");
+    h.run_steps(3);
+    let s = h.state();
+    let ed = s.views[0].line_editor.as_ref().expect("the box stays open");
+    assert_eq!(ed.text, original, "the typing is taken back in the box");
+    let doc = s.session.get(s.views[0].id).unwrap();
+    assert_eq!((doc.can_redo(), doc.can_undo()), (Some("Edit text"), None), "the document is untouched");
+}
+
+#[test]
+fn undo_after_a_round_trip_through_another_tab_takes_back_the_typing() {
+    let mut h = harness(1, |app| {
+        app.open_bytes("copy.pdf", None, fixture(1)).expect("the copy opens");
+    });
+    let open_in = |h: &mut Harness<'static, PdfCraftApp>, tab: usize| {
+        h.state_mut().active = Some(tab);
+        h.run_steps(2);
+        if h.state().views[tab].line_editor.is_none() {
+            assert!(h.state_mut().execute("edit.edit_text"));
+            h.run_steps(2);
+        }
+        let r = h.state().views[tab].page_screen_rect(0).expect("on screen");
+        click_at(h, egui::pos2(r.left() + 40.0 / 200.0 * r.width(), r.top() + (300.0 - 158.0) / 300.0 * r.height()));
+        assert!(h.state().views[tab].line_editor.is_some(), "the paragraph opens for typing");
+    };
+    open_in(&mut h, 0);
+    h.get_by_label("Bold").click();
+    h.run_steps(4);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(4);
+    open_in(&mut h, 0);
+    let original = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.event(egui::Event::Text(" more".into()));
+    h.run_steps(2);
+    assert!(h.state().views[0].line_editor.as_ref().unwrap().text.ends_with(" more"));
+    open_in(&mut h, 1);
+    h.state_mut().active = Some(0);
+    h.run_steps(3);
+    assert!(h.state().views[0].line_editor.is_some(), "A's paragraph is still open after the round trip");
+    assert!(h.state_mut().execute("edit.undo"), "Undo is enabled");
+    h.run_steps(3);
+    let s = h.state();
+    let ed = s.views[0].line_editor.as_ref().expect("the box stays open: Undo takes back the typing");
+    assert_eq!(ed.text, original, "the typing is taken back in the box");
+    assert_eq!(s.session.get(s.views[0].id).unwrap().can_redo(), Some("Edit text"), "the document's Redo still waits");
+}
+
+#[test]
+fn redo_after_formatting_never_brings_back_typing_undone_before_it() {
+    let mut h = harness(1, |_| {});
+    assert!(h.state_mut().execute("edit.edit_text"));
+    h.run_steps(2);
+    open_paragraph(&mut h);
+    let original = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.event(egui::Event::Text(" more".into()));
+    h.run_steps(2);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].line_editor.as_ref().unwrap().text, original, "the typing is taken back");
+    h.get_by_label("Bold").click();
+    h.run_steps(4);
+    assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().can_undo(), Some("Edit text"), "the bold is applied");
+    h.key_press_modifiers(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z);
+    h.run_steps(3);
+    let text = h.state().views[0].line_editor.as_ref().map(|ed| ed.text.clone());
+    assert_eq!(text.as_deref(), Some(original.as_str()), "the typing undone before the bold stays undone");
+    // Nor through what the menu's Redo runs.
+    h.state_mut().redo();
+    h.run_steps(3);
+    let s = h.state();
+    let text = s.views[0].line_editor.as_ref().map(|ed| ed.text.clone());
+    assert!(!text.as_deref().unwrap_or_default().contains("more"), "the menu's Redo brings it back: {text:?}");
+    assert_eq!(s.session.get(s.views[0].id).unwrap().text_blocks(0)[0].base_font, "Helvetica-Bold", "the bold stays");
+}
+
+#[test]
+fn undo_in_the_frame_of_the_switch_back_takes_back_the_typing() {
+    let mut h = harness(1, |app| {
+        app.open_bytes("copy.pdf", None, fixture(1)).expect("the copy opens");
+    });
+    let open_in = |h: &mut Harness<'static, PdfCraftApp>, tab: usize| {
+        h.state_mut().active = Some(tab);
+        h.run_steps(2);
+        if h.state().views[tab].line_editor.is_none() {
+            assert!(h.state_mut().execute("edit.edit_text"));
+            h.run_steps(2);
+        }
+        let r = h.state().views[tab].page_screen_rect(0).expect("on screen");
+        click_at(h, egui::pos2(r.left() + 40.0 / 200.0 * r.width(), r.top() + (300.0 - 158.0) / 300.0 * r.height()));
+        assert!(h.state().views[tab].line_editor.is_some(), "the paragraph opens for typing");
+    };
+    open_in(&mut h, 0);
+    let original = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.event(egui::Event::Text(" more".into()));
+    h.run_steps(2);
+    // In B, a paragraph whose text differs from A's ("Page 1 B", applied with Bold), so B's
+    // history can't pass for A's.
+    open_in(&mut h, 1);
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.event(egui::Event::Text(" B".into()));
+    h.run_steps(2);
+    h.get_by_label("Bold").click();
+    h.run_steps(4);
+    assert_eq!(h.state().views[1].line_editor.as_ref().map(|ed| ed.text.as_str()), Some("Page 1 B"), "B's paragraph is open on its own text");
+    // Back to A and Undo at once: no frame draws A's box in between.
+    h.state_mut().active = Some(0);
+    assert!(h.state_mut().execute("edit.undo"), "Undo is enabled");
+    h.run_steps(3);
+    let ed = h.state().views[0].line_editor.clone().expect("the box stays open: Undo takes back the typing");
+    assert_eq!(ed.text, original, "the typing is taken back in A's box");
+}
+
+#[test]
+fn redo_in_the_frame_of_a_tab_switch_never_brings_another_tabs_typing() {
+    let mut h = harness(1, |app| {
+        app.open_bytes("copy.pdf", None, fixture(1)).expect("the copy opens");
+    });
+    let open_in = |h: &mut Harness<'static, PdfCraftApp>, tab: usize| {
+        h.state_mut().active = Some(tab);
+        h.run_steps(2);
+        assert!(h.state_mut().execute("edit.edit_text"));
+        h.run_steps(2);
+        let r = h.state().views[tab].page_screen_rect(0).expect("on screen");
+        click_at(h, egui::pos2(r.left() + 40.0 / 200.0 * r.width(), r.top() + (300.0 - 158.0) / 300.0 * r.height()));
+        assert!(h.state().views[tab].line_editor.is_some(), "the paragraph opens for typing");
+    };
+    open_in(&mut h, 1);
+    open_in(&mut h, 0);
+    let original = h.state().views[0].line_editor.as_ref().unwrap().text.clone();
+    h.key_press_modifiers(Modifiers::COMMAND, Key::End);
+    h.event(egui::Event::Text(" secret".into()));
+    h.run_steps(2);
+    assert!(h.state_mut().execute("edit.undo"));
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].line_editor.as_ref().unwrap().text, original, "taken back in A");
+    // To B and Redo at once: no frame draws B's box in between.
+    h.state_mut().active = Some(1);
+    h.state_mut().redo();
+    h.run_steps(3);
+    let s = h.state();
+    let b = s.views[1].line_editor.as_ref().map(|ed| ed.text.clone());
+    assert!(!b.as_deref().unwrap_or_default().contains("secret"), "A's typing came back in B: {b:?}");
+    assert!(!s.session.get(s.views[1].id).unwrap().text_blocks(0)[0].text.contains("secret"), "A's typing reached B's page");
 }

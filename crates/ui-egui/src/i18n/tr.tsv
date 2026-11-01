@@ -2729,3 +2729,31 @@ animation effects	Off	Kapalı
 	Fixed {n} hairlines on {p} pages	{p} sayfada {n} ince çizgi düzeltildi
 	Fix hairlines…	Kılcal çizgileri düzelt…
 	Show Page Edge Shadows	Sayfa kenarı gölgelerini göster
+
+	Options for this reply	Bu yanıtın seçenekleri
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Formda olmayan {name} alanını okur, bu yüzden oradan değer alamaz.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Komut dosyası, adlarını çalışırken oluşturduğu alanları da okur; bu okumalar denetlenemez.
+
+	Missing field	Eksik alan
+
+	Unchecked reads	Denetlenmeyen okumalar
+
+	{field} reads fields named as it runs	{field}, çalışırken adlandırılan alanları okuyor
+
+	Some names are built as it runs	Bazı adlar çalışırken oluşturuluyor
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} formül formda olmayan alanları okuyor
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field}, formda olmayan {fields} alanını okuyor.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	{n} formül daha eksik alanları okuyor.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields}, bazı alan adlarını çalışırken oluşturuyor; bu okumalar denetlenmiyor.
+
+@plural	{fields} is missing|{fields} are missing	{fields} eksik
+
+	Monochrome Images	Tek Renkli Resimler
+
+	CCITT Group 4	CCITT Grup 4

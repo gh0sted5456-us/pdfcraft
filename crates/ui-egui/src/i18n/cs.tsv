@@ -3038,3 +3038,31 @@ certificate	Version	Verze
 	Fixed {n} hairlines on {p} pages	Opraveno {n} vlasových čar na {p} stránkách
 	Fix hairlines…	Opravit vlasové čáry…
 	Show Page Edge Shadows	Zobrazovat stíny okrajů stránek
+
+	Options for this reply	Možnosti této odpovědi
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Čte {name}, které formulář nemá, takže odtud nedostane žádnou hodnotu.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Jeho skript čte i pole, jejichž názvy sestavuje za běhu, takže tato čtení nelze zkontrolovat.
+
+	Missing field	Chybí pole
+
+	Unchecked reads	Neověřená čtení
+
+	{field} reads fields named as it runs	{field} čte pole pojmenovaná za běhu
+
+	Some names are built as it runs	Některé názvy se sestavují za běhu
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} vzorec čte pole, které formulář nemá|{n} vzorce čtou pole, která formulář nemá|{n} vzorců čte pole, která formulář nemá
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} čte {fields}, které formulář nemá.|{field} čte {fields}, která formulář nemá.|{field} čte {fields}, která formulář nemá.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	Ještě {n} vzorec čte chybějící pole.|Ještě {n} vzorce čtou chybějící pole.|Ještě {n} vzorců čte chybějící pole.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} sestavuje některé názvy polí za běhu, takže tato čtení nejsou ověřena.|{fields} sestavují některé názvy polí za běhu, takže tato čtení nejsou ověřena.|{fields} sestavují některé názvy polí za běhu, takže tato čtení nejsou ověřena.
+
+@plural	{fields} is missing|{fields} are missing	{fields} chybí|{fields} chybí|{fields} chybí
+
+	Monochrome Images	Monochromatické obrázky
+
+	CCITT Group 4	CCITT skupina 4

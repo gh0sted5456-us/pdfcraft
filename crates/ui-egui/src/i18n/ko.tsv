@@ -2949,3 +2949,21 @@ theme	Appearance	모양
 	Pattern strokes	패턴 선
 	Type 3 font glyphs	Type 3 글꼴 글리프
 	Zero-width lines always count as narrower.	너비가 0인 선은 항상 더 좁은 것으로 간주됩니다.
+
+	Options for this reply	이 답글의 옵션
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Reads {name}, which the form doesn't have, so it gets no value there.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.
+
+	Missing field	Missing field
+
+	Unchecked reads	Unchecked reads
+
+	{field} reads fields named as it runs	{field} reads fields named as it runs
+
+	Some names are built as it runs	Some names are built as it runs
+
+	Monochrome Images	흑백 이미지
+
+	CCITT Group 4	CCITT 그룹 4

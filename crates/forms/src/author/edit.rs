@@ -88,6 +88,12 @@ pub fn set_props(doc: &mut Document, name: &str, props: &FieldProps) -> Result<S
         }
         patch.validate()?;
     }
+    // Refused here, before anything is written, rather than stored as a different formula.
+    if let Some(crate::af::Calculate::Notation(n)) = &props.calculate
+        && !crate::af::notation_storable(n)
+    {
+        return invalid(crate::af::NOTATION_NOT_STORABLE);
+    }
     let all = fields(doc);
     let f = all.iter().find(|f| f.name == name).ok_or_else(|| FormError::NoSuchField(name.into()))?.clone();
     // Refuse a wrong type/index before any other requested property is written.

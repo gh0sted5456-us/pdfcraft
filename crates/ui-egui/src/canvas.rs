@@ -2376,7 +2376,8 @@ pub fn document_area(app: &mut PdfCraftApp, index: usize, ui: &mut egui::Ui) {
                         ui.separator();
                     }
                 }
-                canvas_action = comments::context_menu(ui, view, info, prefs, allowed, can_modify).or(copy_image);
+                let can_delete = view.comments.selected.is_some_and(|(p, i)| doc.annotation_deletable(p, i));
+                canvas_action = comments::context_menu(ui, view, info, prefs, allowed, can_modify, can_delete).or(copy_image);
             });
         }
         (wanted, visible_now)

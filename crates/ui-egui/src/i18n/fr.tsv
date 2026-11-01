@@ -2997,3 +2997,31 @@ certificate	Version	Version
 	Fixed {n} hairlines on {p} pages	{n} lignes fines corrigées sur {p} pages
 	Fix hairlines…	Corriger les filets…
 	Show Page Edge Shadows	Afficher les ombres des bords des pages
+
+	Options for this reply	Options de cette réponse
+
+	Reads {name}, which the form doesn't have, so it gets no value there.	Lit {name}, qui n'existe pas dans le formulaire : aucune valeur n'en provient.
+
+	Its script also reads fields whose names it builds as it runs, so those reads can't be checked.	Son script lit aussi des champs dont il construit les noms à l'exécution : ces lectures ne peuvent pas être vérifiées.
+
+	Missing field	Champ manquant
+
+	Unchecked reads	Lectures non vérifiées
+
+	{field} reads fields named as it runs	{field} lit des champs nommés à l'exécution
+
+	Some names are built as it runs	Certains noms sont construits à l'exécution
+
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} formule lit un champ absent du formulaire|{n} formules lisent des champs absents du formulaire
+
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field} lit {fields}, absent du formulaire.|{field} lit {fields}, absents du formulaire.
+
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	{n} autre formule lit un champ manquant.|{n} autres formules lisent des champs manquants.
+
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields} construit certains noms de champs à l'exécution : ces lectures ne sont pas vérifiées.|{fields} construisent certains noms de champs à l'exécution : ces lectures ne sont pas vérifiées.
+
+@plural	{fields} is missing|{fields} are missing	{fields} est absent|{fields} sont absents
+
+	Monochrome Images	Images monochromes
+
+	CCITT Group 4	CCITT groupe 4
