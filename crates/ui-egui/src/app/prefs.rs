@@ -92,6 +92,7 @@ impl PdfCraftApp {
             "pinned_folders": self.pinned.folders,
             "theme": self.theme_preference,
             "glass": self.glass,
+            "graphics": self.graphics,
             "glass_background": self.glass_background.persist(),
             "scroll_speed": self.scroll_speed,
             "animation_effects": self.animation_effects,
@@ -223,6 +224,13 @@ impl PdfCraftApp {
             self.show_secured_notice = on;
         }
         self.pinned.restore(&v["pinned_folders"]);
+        if let Ok(graphics) = serde_json::from_value::<crate::graphics::GraphicsSettings>(v["graphics"].clone()) {
+            self.graphics = graphics.validated();
+            #[cfg(not(target_arch = "wasm32"))]
+            if let Some(runtime) = &self.graphics_runtime {
+                runtime.set_limit(self.graphics.fps_limit);
+            }
+        }
         if let Ok(glass) = serde_json::from_value::<theme::GlassSettings>(v["glass"].clone()) {
             self.set_glass_settings(glass);
         }

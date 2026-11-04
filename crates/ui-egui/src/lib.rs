@@ -289,6 +289,9 @@ pub struct PdfCraftApp {
     /// Resolved colours, including the current OS theme when following the system.
     pub theme: ThemeKind,
     pub theme_preference: ThemePreference,
+    pub graphics: graphics::GraphicsSettings,
+    #[cfg(not(target_arch = "wasm32"))]
+    pub graphics_runtime: Option<std::sync::Arc<graphics::GraphicsRuntime>>,
     /// Show the optional community shortcut in the application header.
     pub show_community: bool,
     pub glass: theme::GlassSettings,
@@ -697,6 +700,7 @@ mod dialog_windows;
 
 mod paper_ui;
 
+pub mod graphics;
 mod preferences_ui;
 
 mod production_ui;

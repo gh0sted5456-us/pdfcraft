@@ -35,6 +35,7 @@ impl PdfCraftApp {
         self.ocr_draft.deskew = source.ocr_draft.deskew;
         self.ocr_draft.auto_crop = source.ocr_draft.auto_crop;
         self.ocr_draft.crop_margin = source.ocr_draft.crop_margin;
+        self.graphics = source.graphics;
         self.glass_background.clone_from(&source.glass_background);
         if self.glass != source.glass {
             self.set_glass_settings(source.glass);
@@ -232,6 +233,7 @@ impl PdfCraftApp {
         }
         let index = self.views.iter().position(|v| v.id == id)?;
         let mut child = Self::new();
+        child.graphics_runtime = self.graphics_runtime.clone();
         child.restore(&self.persist());
         child.mode = self.mode;
         child.mode_override = self.mode_override;
@@ -469,6 +471,9 @@ impl eframe::App for NativeWindows {
                 .with_min_inner_size([640.0, 420.0])
                 .with_transparent(true)
                 .with_decorations(!window.app.draws_window_frame());
+            if let Some(graphics) = &window.app.graphics_runtime {
+                builder = graphics.viewport(builder);
+            }
             if let Some(position) = window.position.take() {
                 builder = builder.with_position(visible_position(position, ctx.pixels_per_point()));
             }
@@ -538,6 +543,8 @@ mod tests {
         use eframe::App as _;
         let mut host = NativeWindows::new(app());
         host.root.set_option("theme", "glass").unwrap();
+        host.root.graphics_runtime = Some(std::sync::Arc::new(crate::graphics::GraphicsRuntime::new(0, false)));
+        host.root.set_option("fps-limit", "120").unwrap();
         host.root.set_option("glass-opacity", "42").unwrap();
         host.root.auto_ocr = false;
         host.root.ocr_draft.language = "fr".into();
@@ -549,11 +556,14 @@ mod tests {
         let (mut child, _) = host.root.take_detached_tab().unwrap();
         assert_eq!(child.theme_preference, crate::ThemePreference::Glass);
         assert_eq!(child.glass, host.root.glass);
+        assert_eq!(child.graphics, host.root.graphics);
+        assert!(std::sync::Arc::ptr_eq(child.graphics_runtime.as_ref().unwrap(), host.root.graphics_runtime.as_ref().unwrap()));
         assert_eq!(child.glass_background.opacity, 27);
         assert!(!child.auto_ocr);
         assert_eq!(child.ocr_draft.language, "fr");
         assert_eq!(child.spelling.words, ["pdfcraft"]);
         assert_eq!(child.assistant.settings.model, "test-model");
+        child.set_option("fps-limit", "60").unwrap();
         child.set_option("glass-opacity", "55").unwrap();
         child.set_option("glass-popup-opacity", "72").unwrap();
         child.set_option("glass-tool-opacity", "29").unwrap();
@@ -561,6 +571,8 @@ mod tests {
         child.glass_background.opacity = 19;
         host.root.copy_shared_settings_from(&child);
         assert_eq!(host.clear_color(&egui::Visuals::dark()), child.clear_color(&egui::Visuals::dark()));
+        assert_eq!(host.root.graphics, child.graphics);
+        assert_eq!(host.root.graphics.fps_limit, 60);
         assert_eq!(host.root.glass, child.glass);
         assert_eq!(host.root.glass_background.opacity, 19);
         let saved: serde_json::Value = serde_json::from_str(&host.root.persist()).unwrap();

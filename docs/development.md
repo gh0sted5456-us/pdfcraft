@@ -225,3 +225,24 @@ The imported Type 3 cleanup is extended to scan surviving annotation appearance
 states, including inherited page resources, before removing glyph programs.
 Print UI checks explicitly use an empty printer list and scroll Advanced and
 sheet navigation into view before clicking, reproducing the headless CI layout.
+
+## Graphics and frame pacing
+
+Preferences > Graphics selects Automatic, the native GPU backend (Direct3D 12 on
+Windows), or OpenGL compatibility mode. Renderer changes apply on restart.
+Automatic uses the native GPU backend and retries OpenGL only if initialization
+fails. The PDFCRAFT_RENDERER environment override takes precedence over a saved
+choice. Windows keeps DirectComposition and removes the redundant redirection
+bitmap at creation on each native viewport so Glass can reveal the desktop.
+The pinned framework backports emilk/egui#8749; runtime style changes cannot
+enable this flag. OpenGL compatibility windows retain their redirection surface.
+
+The frame-rate limit offers Match display (default), 30, 60, 90, 120, 144, 165 and
+240 FPS. It applies immediately to native windows, preserves input events and
+paces each viewport independently. It is an upper limit while interacting, not
+continuous animation: idle windows remain event driven. Web builds leave pacing
+to the browser.
+
+The opt-in control channel accepts ui.set graphics-renderer auto|wgpu|gl,
+ui.set fps-limit display|0|30|60|90|120|144|165|240 and
+ui.set preferences-category graphics; ui.state reports the graphics preferences.

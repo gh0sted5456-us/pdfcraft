@@ -10436,3 +10436,15 @@ commands = ["app.dialog_minimize", "app.dialog_restore", "app.dialog_maximize", 
 tools = []
 evidence = ["crates/ui-egui/src/dialog_windows.rs::taskbar_preserves_separate_dialog_drafts_and_restores_their_source", "crates/ui-egui/src/dialog_windows.rs::minimizing_a_save_confirmation_never_discards_or_approves_changes", "crates/ui-egui/src/dialog_windows.rs::stale_signing_and_save_requests_do_not_resume_against_changed_documents", "crates/ui-egui/src/assistant_ui.rs::minimized_ai_restores_as_a_popup_without_old_pdf_context"]
 notes = "Personal suite: internal popup shelf, shared title controls, moving/maximizing windows, preserved per-dialog drafts and AI popup restoration over the current PDF. Opt-in ui.command and ui.state.dialog_windows give headless UI control. Main dialog drafts remain in memory, max 16; document-specific dialogs stay with their native window, and stale save/signing snapshots cannot resume against changed source. Native OS file/security dialogs and provider UI remain outside this shell; context menus remain transient. No minimized-layout persistence or cross-native-window dialog transfer."
+
+[[feature]]
+id = "misc.graphics-frame-pacing"
+title = "Desktop graphics backend and frame-rate limits"
+area = "N"
+tier = "P2"
+milestone = "M14"
+status = "partial"
+commands = []
+tools = []
+evidence = ["crates/ui-egui/src/graphics.rs::settings_round_trip_and_invalid_input_preserves_the_choice", "crates/ui-egui/src/graphics.rs::native_cap_waits_for_the_frame_boundary_without_losing_input", "crates/ui-egui/src/graphics.rs::viewport_clocks_are_independent_and_closed_windows_are_retired", "apps/pdfcraft/src/tests.rs::saved_renderer_is_used_unless_a_valid_environment_override_is_present", "apps/pdfcraft/src/tests.rs::native_composition_window_has_no_redirection_surface_after_maximize_and_restore"]
+notes = "Preferences > Graphics selects Automatic/native GPU/OpenGL, with restart required for backend changes. Match display and 30/60/90/120/144/165/240 FPS limits apply immediately to native viewports without dropping input. ui.set graphics-renderer and fps-limit expose the same preferences. Windows defaults to native GPU rendering with initialization-only OpenGL fallback; DirectComposition creates windows without a redirection bitmap for transparent Glass (reviewed egui #8749 backport). Windows style creation/restore and live frame pacing passed; user confirmed Windows desktop transparency, maximize/restore and smooth pointer interaction; installer and non-Windows runtime qualification remain open; web pacing stays browser-managed."

@@ -7,18 +7,21 @@ fn locked_package(root: &std::path::Path, name: &str) -> String {
         .unwrap_or_else(|| panic!("{name} is not in Cargo.lock"))
 }
 
-/// Interim graph check for the window stack while the reviewed fork revision is not yet
-/// published. The old `vendor/winit` / `vendor/egui-wgpu` path patches were removed from the
-/// published manifest; local integration supplies the reviewed worktrees through an external
-/// Cargo config patch. A git source must name the public storytold fork; a path source is the
-/// local integration graph. Behaviour (surface fitting, error scopes, scroll phases) is tested
-/// directly elsewhere; the retained vendor copies keep provenance until the fork revision is
-/// pinned. No public revision is invented here.
+/// Verify the pinned framework identity while retained vendor files document earlier patches.
+/// The Lion fork is the reviewed storytold base plus the creation-time Glass backport.
 fn assert_window_stack_graph(root: &std::path::Path, name: &str, version: &str) -> String {
     let package = locked_package(root, name);
     assert!(package.contains(&format!("\nversion = \"{version}\"\n")), "{name} must resolve to {version}: {package}");
     if let Some(source) = package.lines().find_map(|line| line.strip_prefix("source = ")) {
-        assert!(source.contains("github.com/storytold/"), "{name} must come from the reviewed storytold fork once published, not {source}");
+        if name == "egui-wgpu" {
+            assert_eq!(
+                source,
+                "\"git+https://github.com/gh0sted5456-us/egui.git?rev=4aa7a0993e4f003c4cdc5ea297e59d749ef98523#4aa7a0993e4f003c4cdc5ea297e59d749ef98523\"",
+                "reviewed Glass backport must stay pinned"
+            );
+        } else {
+            assert!(source.contains("github.com/storytold/"), "{name} must come from the reviewed storytold fork, not {source}");
+        }
         assert!(
             source.split(|c: char| !c.is_ascii_hexdigit()).any(|part| part.len() == 40),
             "{name} must pin the fork's 40-character revision, not {source}"
@@ -113,15 +116,15 @@ fn path_from_arg_leaves_plain_paths_and_other_schemes_alone() {
 #[test]
 fn opengl_is_the_fallback_unless_a_renderer_was_chosen() {
     use super::{RendererChoice, native_options, renderer_choice, retry_with_gl};
-    assert_eq!(renderer_choice(None), RendererChoice::Auto);
-    assert_eq!(renderer_choice(Some("")), RendererChoice::Auto);
-    assert_eq!(renderer_choice(Some("vulkan")), RendererChoice::Auto);
-    assert_eq!(renderer_choice(Some(" WGPU ")), RendererChoice::Wgpu);
+    assert_eq!(renderer_choice(None, RendererChoice::Auto), RendererChoice::Auto);
+    assert_eq!(renderer_choice(Some(""), RendererChoice::Auto), RendererChoice::Auto);
+    assert_eq!(renderer_choice(Some("vulkan"), RendererChoice::Auto), RendererChoice::Auto);
+    assert_eq!(renderer_choice(Some(" WGPU "), RendererChoice::Auto), RendererChoice::Wgpu);
     for gl in ["gl", "OpenGL", "glow"] {
-        assert_eq!(renderer_choice(Some(gl)), RendererChoice::Gl);
+        assert_eq!(renderer_choice(Some(gl), RendererChoice::Auto), RendererChoice::Gl);
     }
     // Retried with OpenGL only when wgpu failed to start by default, never after the app ran.
-    assert_eq!(retry_with_gl(RendererChoice::Auto, false), !cfg!(target_os = "windows"));
+    assert!(retry_with_gl(RendererChoice::Auto, false));
     assert!(!retry_with_gl(RendererChoice::Auto, true));
     assert!(!retry_with_gl(RendererChoice::Wgpu, false));
     assert!(!retry_with_gl(RendererChoice::Gl, false));
@@ -688,11 +691,71 @@ fn start_up_and_the_panic_hook_never_use_eprintln() {
 #[test]
 fn windows_default_supports_transparency_and_keeps_renderer_overrides() {
     use super::{RendererChoice, initial_renderer};
-    assert_eq!(initial_renderer(RendererChoice::Auto), if cfg!(target_os = "windows") { eframe::Renderer::Glow } else { eframe::Renderer::Wgpu });
+    assert_eq!(initial_renderer(RendererChoice::Auto), eframe::Renderer::Wgpu);
     assert_eq!(initial_renderer(RendererChoice::Gl), eframe::Renderer::Glow);
     assert_eq!(initial_renderer(RendererChoice::Wgpu), eframe::Renderer::Wgpu);
-    assert_eq!(super::retry_with_wgpu(RendererChoice::Auto, false), cfg!(target_os = "windows"));
-    assert!(!super::retry_with_wgpu(RendererChoice::Auto, true));
-    assert!(!super::retry_with_wgpu(RendererChoice::Wgpu, false));
-    assert!(!super::retry_with_wgpu(RendererChoice::Gl, false));
+}
+
+#[test]
+fn saved_renderer_is_used_unless_a_valid_environment_override_is_present() {
+    use super::{RendererChoice as R, renderer_choice};
+    assert_eq!(renderer_choice(None, R::Gl), R::Gl);
+    assert_eq!(renderer_choice(Some("wgpu"), R::Gl), R::Wgpu);
+    assert_eq!(renderer_choice(Some("gl"), R::Wgpu), R::Gl);
+    assert_eq!(renderer_choice(Some("bad"), R::Wgpu), R::Wgpu);
+    assert_eq!(renderer_choice(Some(""), R::Gl), R::Gl);
+}
+
+#[test]
+fn startup_graphics_reads_current_and_legacy_preferences_and_rejects_bad_data() {
+    use pdfcraft_ui_egui::graphics::{GraphicsRenderer as R, GraphicsSettings};
+    let folder = tempfile::tempdir().unwrap();
+    let file = folder.path().join("app.ron");
+    for key in ["pdfcraft", "printcraft"] {
+        let json = r#"{"graphics":{"renderer":"gl","fps_limit":120}}"#;
+        std::fs::write(&file, ron::to_string(&std::collections::HashMap::from([(key, json)])).unwrap()).unwrap();
+        assert_eq!(super::settings::graphics(&file), GraphicsSettings { renderer: R::Gl, fps_limit: 120 });
+    }
+    std::fs::write(&file, "broken").unwrap();
+    assert_eq!(super::settings::graphics(&file), GraphicsSettings::default());
+    std::fs::write(&file, vec![b' '; 8 * 1024 * 1024 + 1]).unwrap();
+    assert_eq!(super::settings::graphics(&file), GraphicsSettings::default());
+}
+
+#[cfg(windows)]
+#[test]
+fn native_composition_window_has_no_redirection_surface_after_maximize_and_restore() {
+    use egui_winit::winit;
+    use winit::{
+        platform::windows::EventLoopBuilderExtWindows,
+        raw_window_handle::{HasWindowHandle, RawWindowHandle},
+    };
+    let options = super::native_options(false, true, eframe::Renderer::Wgpu);
+    assert_eq!(options.viewport.no_redirection_bitmap, Some(true));
+    let compatibility = super::native_options(false, true, eframe::Renderer::Glow);
+    assert_ne!(compatibility.viewport.no_redirection_bitmap, Some(true));
+    let attributes = egui_winit::create_winit_window_attributes(&egui::Context::default(), options.viewport.with_visible(false));
+    let event_loop = winit::event_loop::EventLoop::<()>::builder().with_any_thread(true).build().unwrap();
+    #[allow(deprecated)]
+    let window = event_loop.create_window(attributes).unwrap();
+    let RawWindowHandle::Win32(raw) = window.window_handle().unwrap().as_raw() else { panic!("Windows window") };
+    let check = || {
+        let mut matched = false;
+        winsafe::EnumThreadWindows(winsafe::GetCurrentThreadId(), |hwnd| {
+            if hwnd.ptr() as isize == raw.hwnd.get() {
+                matched = true;
+                let flag = winsafe::co::WS_EX::NOREDIRECTIONBITMAP;
+                assert_eq!(hwnd.style_ex() & flag, flag);
+            }
+            true
+        })
+        .unwrap();
+        assert!(matched);
+    };
+    check();
+    window.set_maximized(true);
+    check();
+    window.set_maximized(false);
+    window.set_decorations(true);
+    check();
 }

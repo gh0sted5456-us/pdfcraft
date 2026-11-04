@@ -3,8 +3,8 @@
 ## Window-stack provenance after the egui 0.37 migration
 
 The checked-in, resolved Cargo graph pins `winit` to storytold/winit
-`a517b3846ee8457d84ee4975110bfda6797c44dc` and the egui crates to storytold/egui
-`6d518fc799681571963842f95b55a6b68431b15a`. Neither `vendor/winit` nor
+`a517b3846ee8457d84ee4975110bfda6797c44dc` and the egui crates to gh0sted5456-us/egui
+`4aa7a0993e4f003c4cdc5ea297e59d749ef98523` (the previous storytold pin plus egui #8749). Neither `vendor/winit` nor
 `vendor/egui-wgpu` is a root `[patch.crates-io]` path entry. The retained copies
 record the app's earlier patches; their source-reading tests establish provenance,
 while the resolved forks and their behavioral tests establish runtime behavior.
