@@ -1853,6 +1853,8 @@ fn glass_theme_settings_validate_persist_and_keep_documents_opaque() {
     restored.restore(r#"{"glass":{"opacity":999,"tint":[1,2]}}"#);
     assert_eq!(restored.glass.opacity, 35);
     let mut h = harness(|app| {
+        // Save stamps ModDate; wall-clock rollover must not change this byte comparison.
+        app.session = std::mem::take(&mut app.session).with_clock(|| 1_700_000_000);
         app.open_bytes("glass.pdf", None, TEXT_FIXTURE.to_vec()).unwrap();
         app.execute("view.theme.glass");
     });
