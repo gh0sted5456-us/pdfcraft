@@ -39,6 +39,8 @@ allow-git = [
     "https://github.com/storytold/winprint.rs",
     # The reviewed egui 0.37 and winit 0.30.13 fork revisions (immutable pins in Cargo.toml).
     "https://github.com/storytold/egui",
+    # Lion-only Glass backport; CI also enforces its exact reviewed commit.
+    "https://github.com/gh0sted5456-us/egui",
     "https://github.com/storytold/winit",
 ]
 

@@ -69,13 +69,23 @@ jobs:
           # Fails when Cargo.lock is out of date with the manifests.
           cargo metadata --locked --format-version 1 > /dev/null
           python3 - <<'PY'
-          import sys, tomllib
+          import os, sys, tomllib
+          # Lion's reviewed Glass creation backport; no other fork or revision is trusted.
+          lion_egui = "git+https://github.com/gh0sted5456-us/egui.git?rev=4aa7a0993e4f003c4cdc5ea297e59d749ef98523#4aa7a0993e4f003c4cdc5ea297e59d749ef98523"
+          def reviewed(source, repository):
+              return source.startswith("git+https://github.com/storytold/") or (
+                  repository == "gh0sted5456-us/pdfcraft" and source == lion_egui)
+          assert reviewed(lion_egui, "gh0sted5456-us/pdfcraft")
+          assert not reviewed(lion_egui, "storytold/pdfcraft")
+          assert not reviewed(lion_egui.replace("4aa7a099", "00000000"), "gh0sted5456-us/pdfcraft")
+          assert not reviewed(lion_egui.replace("egui.git", "other.git"), "gh0sted5456-us/pdfcraft")
+          assert not reviewed(lion_egui.replace("https:", "http:"), "gh0sted5456-us/pdfcraft")
           lock = tomllib.load(open("Cargo.lock", "rb"))
           bad = sorted({p["source"] for p in lock.get("package", [])
                         if p.get("source", "").startswith("git+")
-                        and not p["source"].startswith("git+https://github.com/storytold/")})
+                        and not reviewed(p["source"], os.environ.get("GITHUB_REPOSITORY", ""))})
           if bad:
-              print("Git dependencies outside github.com/storytold:", *bad, sep="\n")
+              print("Git dependencies outside reviewed sources:", *bad, sep="\n")
               sys.exit(1)
           PY
 
