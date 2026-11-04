@@ -30,6 +30,9 @@
 //! - `ui.command {id}`: run a registry command (as the menu would). `ui.commands` lists them.
 //! - `ui.set {key: "show_page_edge_shadows", value: "true"|"false"}` controls page
 //!   decoration app-wide; `ui.state.show_page_edge_shadows` reports the saved preference.
+//! - Graphics: ui.set graphics-renderer auto|wgpu|gl (restart required), and
+//!   fps-limit display|0|30|60|90|120|144|165|240 (immediate on desktop).
+//!   ui.state.graphics reports the saved choices.
 //! - `ui.set {key, value}`: view options (`--page`, `--zoom`, …), plus persistent preferences.
 //!   `select` accepts physical page numbers and ranges such as `1,12,16-18`; blank clears the
 //!   explicit selection. This is the same bounded parser as the Organize Pages field; invalid

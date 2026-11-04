@@ -438,3 +438,5 @@ Estimates unchanged.
 - **2026-10-24:** Personal paper defaults, business-card starter, calibrated actual-size viewing and unified export picker; physical printing and native non-Windows runtime remain unverified.
 
 Local tooling note (2026-10-30): project-owned inputs and copied-path offline Windows packaging passed qualification. The H: archive / F: standalone-authoring lifecycle is documented in the parent PROJECT-WORKFLOW.md. No product milestone status or estimates changed.
+
+> **2026-11-03, graphics:** Native renderer preferences, per-viewport FPS limits and the egui #8749 creation-time transparency backport pass scoped tests, native style/restore checks, strict lint, WASM and repository gates. A separate portable preview verifies controls and rendered alpha; user desktop-composition confirmation and installation remain pending. Estimates unchanged.

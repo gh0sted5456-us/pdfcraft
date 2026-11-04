@@ -11,6 +11,7 @@ use egui::{Align, Layout, RichText, vec2};
 pub enum PreferencesCategory {
     #[default]
     Appearance,
+    Graphics,
     Documents,
     Paper,
     Language,
@@ -27,8 +28,9 @@ pub enum PreferencesCategory {
 }
 
 impl PreferencesCategory {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::Appearance,
+        Self::Graphics,
         Self::Documents,
         Self::Paper,
         Self::Editing,
@@ -47,6 +49,7 @@ impl PreferencesCategory {
     pub const fn key(self) -> &'static str {
         match self {
             Self::Appearance => "appearance",
+            Self::Graphics => "graphics",
             Self::Documents => "documents",
             Self::Paper => "paper",
             Self::Language => "language",
@@ -67,12 +70,13 @@ impl PreferencesCategory {
         Self::ALL
             .into_iter()
             .find(|category| category.key() == value)
-            .ok_or_else(|| "preferences-category must be appearance, documents, paper, editing, pages, ocr, language, reading, identity, signing, security, javascript, assistant or updates".into())
+            .ok_or_else(|| "preferences-category must be appearance, graphics, documents, paper, editing, pages, ocr, language, reading, identity, signing, security, javascript, assistant or updates".into())
     }
 
     fn label(self) -> &'static str {
         match self {
             Self::Appearance => "Interface and appearance",
+            Self::Graphics => "Graphics and performance",
             Self::Documents => "Documents and view",
             Self::Paper => "Paper and print",
             Self::Language => "Language and spelling",
@@ -92,6 +96,7 @@ impl PreferencesCategory {
     fn navigation_label(self) -> &'static str {
         match self {
             Self::Appearance => "Appearance",
+            Self::Graphics => "Graphics",
             Self::Documents => "Documents",
             Self::Editing => "Editing",
             Self::Pages => "Pages",
@@ -105,6 +110,7 @@ impl PreferencesCategory {
     fn icon(self) -> &'static str {
         match self {
             Self::Appearance => "settings",
+            Self::Graphics => "monitor",
             Self::Documents => "files",
             Self::Paper => "file",
             Self::Language => "languages",
@@ -191,6 +197,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
                             ui.add_space(12.0);
                             match app.preferences_category {
                                 PreferencesCategory::Appearance => appearance(ui, app, t),
+                                PreferencesCategory::Graphics => crate::graphics::preferences(ui, app),
                                 PreferencesCategory::Documents => documents(ui, app, t),
                                 PreferencesCategory::Paper => close_requested = crate::paper_ui::preferences(ui, app),
                                 PreferencesCategory::Language => language(ui, app, t),

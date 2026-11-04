@@ -16,11 +16,13 @@ rustls-native-certs = "0.8"
 pdfcraft-ui-egui = { workspace = true }
 # `build_info`: the version and compile-time build label for `--version` and the log.
 pdfcraft-engine = { workspace = true }
-# Windows defaults to OpenGL for desktop transparency, with wgpu as a startup fallback.
-# Other desktops use wgpu with OpenGL fallback (#461, #435, #392); PDFCRAFT_RENDERER overrides either.
+# Native GPU rendering defaults to wgpu, with OpenGL compatibility fallback.
+# PDFCRAFT_RENDERER takes precedence over the saved graphics preference.
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "glow", "accesskit", "wayland", "x11", "persistence", "links", "clipboard"] }
 egui = { workspace = true, features = ["default_fonts", "monochrome_emoji_fonts"] }
 serde_json = { workspace = true }
+# Read the existing, bounded eframe preference map before choosing the GPU backend.
+ron = "0.12.2"
 # Stream and verify downloaded installers before offering them to Windows.
 sha2 = "0.11"
 tempfile = "3"
@@ -75,3 +77,7 @@ uds_windows = "=1.2.1"
 winresource = "0.1"
 
 [target.'cfg(windows)'.dependencies]
+
+[target.'cfg(windows)'.dev-dependencies]
+# Exercise resolved native attribute conversion, already in the desktop graph.
+egui-winit = { version = "0.37.0", default-features = false }

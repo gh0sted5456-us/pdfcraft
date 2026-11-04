@@ -70,6 +70,9 @@ impl PdfCraftApp {
             theme: ThemeKind::Light,
             // A fresh install follows the desktop's appearance (#1248); saved settings override.
             theme_preference: ThemePreference::System,
+            graphics: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            graphics_runtime: None,
             show_community: false,
             glass: theme::GlassSettings::default(),
             glass_background: glass_background::GlassBackground::default(),

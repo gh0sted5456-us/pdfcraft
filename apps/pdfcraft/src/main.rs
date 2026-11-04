@@ -278,7 +278,8 @@ fn main() -> eframe::Result {
         single_instance::Claim::Primary(server) => Some(server),
         single_instance::Claim::Alone => None,
     };
-    let choice = renderer_choice(std::env::var("PDFCRAFT_RENDERER").ok().as_deref());
+    let saved_graphics = settings_dir().map(|dir| settings::graphics(&dir.join("app.ron"))).unwrap_or_default();
+    let choice = renderer_choice(std::env::var("PDFCRAFT_RENDERER").ok().as_deref(), saved_graphics.renderer);
     let launch = Launch { files, options, control_file, create_images, two_paged, integrated, window_controls, resume_update };
     // Finder, Open With and the Dock deliver files as Apple events, not arguments; catch the one
     // that launched us as well as later ones. Lives until the event loop returns.
@@ -288,13 +289,20 @@ fn main() -> eframe::Result {
     let started = Rc::new(Cell::new(false));
     let first = initial_renderer(choice);
     let run = |renderer| {
+        let mut native = native_options(launch.integrated, launch.window_controls.is_some(), renderer);
+        let graphics_runtime = std::sync::Arc::new(pdfcraft_ui_egui::graphics::GraphicsRuntime::new(
+            saved_graphics.fps_limit,
+            native.viewport.no_redirection_bitmap.unwrap_or(false),
+        ));
+        native.viewport_hooks = Some(graphics_runtime.clone());
         eframe::run_native(
             "PdfCraft",
-            native_options(launch.integrated, launch.window_controls.is_some(), renderer),
+            native,
             app_creator(
                 launch.clone(),
                 Rc::clone(&started),
                 instance.as_ref(),
+                graphics_runtime,
                 #[cfg(target_os = "macos")]
                 &apple_events,
             ),
@@ -309,39 +317,20 @@ fn main() -> eframe::Result {
             log::error!("the GPU renderer (wgpu) didn't start: {e}. Starting with OpenGL instead; set PDFCRAFT_RENDERER=gl to skip wgpu.");
             run(eframe::Renderer::Glow)
         }
-        Err(e @ (eframe::Error::Glutin(_) | eframe::Error::NoGlutinConfigs(..) | eframe::Error::OpenGL(_)))
-            if retry_with_wgpu(choice, started.get()) =>
-        {
-            log::warn!("OpenGL couldn't start: {e}. Starting with wgpu; Glass desktop transparency may be unavailable with this renderer.");
-            run(eframe::Renderer::Wgpu)
-        }
         other => other,
     }
 }
 
-/// Which renderer to start with, from `PDFCRAFT_RENDERER`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum RendererChoice {
-    /// OpenGL on Windows; elsewhere wgpu, then OpenGL if wgpu can't start.
-    Auto,
-    /// wgpu only (`wgpu`): a failure is reported, not worked around.
-    Wgpu,
-    /// OpenGL only (`gl`, `opengl` or `glow`): for drivers where wgpu starts but misbehaves.
-    Gl,
-}
+use pdfcraft_ui_egui::graphics::GraphicsRenderer as RendererChoice;
 
-fn renderer_choice(value: Option<&str>) -> RendererChoice {
-    match value.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
-        Some("wgpu") => RendererChoice::Wgpu,
-        Some("gl" | "opengl" | "glow") => RendererChoice::Gl,
-        _ => RendererChoice::Auto,
-    }
+fn renderer_choice(value: Option<&str>, saved: RendererChoice) -> RendererChoice {
+    value.and_then(RendererChoice::parse).unwrap_or(saved)
 }
 
 /// Whether a failed run should be retried with OpenGL: only when wgpu was tried first by choice of
 /// nobody, and it failed before the app was created (so while starting the renderer, not later).
 fn retry_with_gl(choice: RendererChoice, app_started: bool) -> bool {
-    !cfg!(target_os = "windows") && choice == RendererChoice::Auto && !app_started
+    choice == RendererChoice::Auto && !app_started
 }
 
 /// The window and renderer settings for one run.
@@ -374,6 +363,14 @@ fn native_options(integrated: bool, app_frame: bool, renderer: eframe::Renderer)
     native.system_font_fallback = false;
     if renderer == eframe::Renderer::Wgpu {
         configure_gpu(&mut native);
+        #[cfg(windows)]
+        if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &native.wgpu_options.wgpu_setup {
+            // This style is creation-only; OpenGL compatibility keeps its redirection surface.
+            native.viewport.no_redirection_bitmap = Some(
+                !setup.instance_descriptor.backends.intersects(eframe::wgpu::Backends::GL)
+                    && setup.instance_descriptor.backend_options.dx12.presentation_system == eframe::wgpu::Dx12SwapchainKind::DxgiFromVisual,
+            );
+        }
     }
     native
 }
@@ -408,12 +405,14 @@ fn app_creator<'a>(
     launch: Launch,
     started: Rc<Cell<bool>>,
     instance: Option<&'a single_instance::Server>,
+    graphics_runtime: std::sync::Arc<pdfcraft_ui_egui::graphics::GraphicsRuntime>,
     #[cfg(target_os = "macos")] apple_events: &'a apple_events::AppleEvents,
 ) -> eframe::AppCreator<'a> {
     let Launch { files, options, control_file, create_images, two_paged, integrated, window_controls, resume_update } = launch;
     Box::new(move |cc| {
         started.set(true);
         let mut app = PdfCraftApp::new();
+        app.graphics_runtime = Some(graphics_runtime.clone());
         // First start (or settings from before Units existed): the region's unit.
         app.units = pdfcraft_ui_egui::units::Unit::system();
         #[cfg(target_os = "linux")]
@@ -673,7 +672,7 @@ fn configure_gpu(native: &mut eframe::NativeOptions) {
         }
     }
     if cfg!(target_os = "windows") && std::env::var_os("WGPU_BACKEND").is_none() {
-        setup.instance_descriptor.backends = eframe::wgpu::Backends::DX12 | eframe::wgpu::Backends::GL;
+        setup.instance_descriptor.backends = eframe::wgpu::Backends::DX12;
     }
     if cfg!(target_os = "windows") {
         setup.instance_descriptor.backend_options.dx12.presentation_system = dx12_presentation(eframe::wgpu::Dx12SwapchainKind::from_env());
@@ -845,16 +844,7 @@ fn text_arg(arg: std::ffi::OsString) -> Option<String> {
 }
 
 fn initial_renderer(choice: RendererChoice) -> eframe::Renderer {
-    if choice == RendererChoice::Gl || (cfg!(target_os = "windows") && choice == RendererChoice::Auto) {
-        // Windows' opaque backing hides wgpu alpha; OpenGL supports live Glass transparency.
-        eframe::Renderer::Glow
-    } else {
-        eframe::Renderer::Wgpu
-    }
-}
-
-fn retry_with_wgpu(choice: RendererChoice, app_started: bool) -> bool {
-    cfg!(target_os = "windows") && choice == RendererChoice::Auto && !app_started
+    if choice == RendererChoice::Gl { eframe::Renderer::Glow } else { eframe::Renderer::Wgpu }
 }
 
 mod update_download;

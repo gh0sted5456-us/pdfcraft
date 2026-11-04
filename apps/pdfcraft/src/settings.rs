@@ -84,6 +84,25 @@ fn migrate(source: &mut std::fs::File, directory: &Path, target: &Path) -> std::
     Err(std::io::Error::new(std::io::ErrorKind::AlreadyExists, "no free settings migration staging name"))
 }
 
+/// Read the startup renderer before creating a window. Preferences are bounded and untrusted.
+pub fn graphics(path: &Path) -> pdfcraft_ui_egui::graphics::GraphicsSettings {
+    use std::io::Read;
+    let default = pdfcraft_ui_egui::graphics::GraphicsSettings::default();
+    let Ok(file) = std::fs::File::open(path) else { return default };
+    let mut text = String::new();
+    const MAX: u64 = 8 * 1024 * 1024;
+    if file.take(MAX + 1).read_to_string(&mut text).is_err() || text.len() as u64 > MAX {
+        return default;
+    }
+    let Ok(map) = ron::from_str::<std::collections::HashMap<String, String>>(&text) else { return default };
+    map.get("pdfcraft")
+        .or_else(|| map.get(super::LEGACY_STORAGE_KEY))
+        .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
+        .and_then(|value| serde_json::from_value::<pdfcraft_ui_egui::graphics::GraphicsSettings>(value.get("graphics")?.clone()).ok())
+        .map(|settings| settings.validated())
+        .unwrap_or(default)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
