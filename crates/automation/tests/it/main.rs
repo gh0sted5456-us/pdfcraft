@@ -1,5 +1,7 @@
 //! The crate's integration tests, linked into one test binary.
 
+mod action_failures;
+
 mod assistant;
 
 mod automation;
