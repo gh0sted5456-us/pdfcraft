@@ -1490,3 +1490,29 @@ fn a_missing_file_id_is_derived_from_the_encryption_seed() {
     let still = kept.trailer().get(b"ID").and_then(|o| o.as_array()).and_then(|a| a.first()).and_then(|o| o.as_string()).map(|s| s.bytes.clone());
     assert_eq!(still.as_deref(), Some(b"0123456789abcdef".as_slice()));
 }
+
+#[test]
+fn find_agrees_with_a_plain_window_search() {
+    let naive = |hay: &[u8], needle: &[u8], from: usize, to: usize| {
+        if from >= to || needle.is_empty() || to - from < needle.len() {
+            return None;
+        }
+        hay[from..to].windows(needle.len()).position(|w| w == needle).map(|p| p + from)
+    };
+    let mut seed = 0x9E37_79B9_7F4A_7C15u64;
+    let mut next = move || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        seed
+    };
+    let alphabet = b"/XRef t\n<>0";
+    for _ in 0..20_000 {
+        let hay: Vec<u8> = (0..next() % 200).map(|_| alphabet[(next() % alphabet.len() as u64) as usize]).collect();
+        let needles: [&[u8]; 5] = [b"/XRef", b"trailer", b"R", b"ff", b"<<"];
+        let needle = needles[(next() % 5) as usize];
+        let from = (next() % (hay.len() as u64 + 1)) as usize;
+        let to = from + (next() % (hay.len() as u64 + 1 - from as u64)) as usize;
+        assert_eq!(find(&hay, needle, from, to), naive(&hay, needle, from, to), "{hay:?} {needle:?} {from} {to}");
+    }
+}
