@@ -195,6 +195,34 @@ fn opening_images_and_text_converts_them_to_new_pdfs() {
     assert!(app.open_bytes("junk.png", None, b"\x89PNG\r\n\x1a\nnot really".to_vec()).is_err());
 }
 
+#[test]
+fn opening_text_files_keeps_the_source_and_saves_selectable_pdf_text() {
+    use pdfcraft_render::{PageRenderer, RenderRequest, RequestKind};
+    use pdfcraft_ui_egui::OpenOutcome;
+
+    let dir = ReduceDir::new();
+    let mut app = PdfCraftApp::new();
+    for (name, text) in
+        [("notes.TXT", "Café notes"), ("readme.MD", "# Project notes"), ("data.csv", "name,value"), ("server.log", "Startup complete")]
+    {
+        let source = dir.0.join(name);
+        std::fs::write(&source, text).unwrap();
+        assert_eq!(app.open_path(source.to_str().unwrap()), OpenOutcome::Opened);
+        let doc = app.session.docs().last().unwrap();
+        assert!(doc.path.is_none());
+        assert!(doc.dirty);
+        let mut renderer = PageRenderer::new(doc.bytes.clone(), Default::default());
+        let page = renderer.render(RenderRequest { kind: RequestKind::Text, ..Default::default() });
+        assert_eq!(page.text.unwrap().plain_text().trim(), text);
+
+        let output = source.with_extension("pdf");
+        app.save_override = Some(output.to_string_lossy().into_owned());
+        assert!(app.execute("file.save"));
+        assert!(std::fs::read(output).unwrap().starts_with(b"%PDF-"));
+        assert_eq!(std::fs::read_to_string(source).unwrap(), text);
+    }
+}
+
 struct ReduceDir(std::path::PathBuf);
 impl ReduceDir {
     fn new() -> Self {

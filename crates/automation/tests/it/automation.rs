@@ -4030,6 +4030,7 @@ fn creating_from_multiple_files_through_tools() {
     }
     std::fs::write(dir.join("scan.png"), png).unwrap();
     std::fs::write(dir.join("notes.txt"), "hello").unwrap();
+    std::fs::write(dir.join("notes.md"), "# hello").unwrap();
     std::fs::write(dir.join("report.docx"), b"PK\x03\x04").unwrap();
     let mut a = auto(&dir);
 
@@ -4037,10 +4038,10 @@ fn creating_from_multiple_files_through_tools() {
     let made = ok(
         &mut a,
         "doc_create_multiple",
-        json!({ "paths": ["notes.txt", "a.pdf", "scan.png"], "pages": [null, "3", null], "out": "all.pdf", "open": true }),
+        json!({ "paths": ["notes.md", "a.pdf", "scan.png"], "pages": [null, "3", null], "out": "all.pdf", "open": true }),
     );
     let doc = made["document"]["doc"].as_u64().unwrap();
-    assert_eq!(page_text(&mut a, doc), ["hello", "Page 3", ""]);
+    assert_eq!(page_text(&mut a, doc), ["# hello", "Page 3", ""]);
     let titles: Vec<String> = ok(&mut a, "bookmark_list", json!({ "doc": doc }))["bookmarks"]
         .as_array()
         .unwrap()
