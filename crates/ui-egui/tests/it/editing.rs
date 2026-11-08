@@ -1894,23 +1894,27 @@ fn a_folder_adds_its_pdfs_images_and_text_in_order_and_optionally_its_subfolders
     }
     // #569: images and text files join too; other files are left out.
     std::fs::write(dir.join("notes.txt"), b"Some notes").unwrap();
-    std::fs::write(dir.join("readme.md"), b"# not combinable").unwrap();
+    std::fs::write(dir.join("readme.md"), b"# More notes").unwrap();
+    std::fs::write(dir.join("report.docx"), b"PK\x03\x04").unwrap();
     let mut h = harness(1, |_| {});
     h.state_mut().execute("page.combine");
     h.run_steps(2);
     h.state_mut().pick_override = Some(vec![dir.to_string_lossy().into_owned()]);
     h.get_by_label("Add folder…").click();
     h.run_steps(4);
-    assert_eq!(combine_names(&h), ["notes.txt", "page2.PDF", "page10.pdf"], "numbers by value");
+    assert_eq!(combine_names(&h), ["notes.txt", "page2.PDF", "page10.pdf", "readme.md"], "numbers by value");
     // The toolbar's menu: the folder and its subfolders, as one undo step.
     h.get_by_label("More ways to add files").click();
     h.run_steps(2);
     h.get_by_label("Add folder and subfolders…").click();
     h.run_steps(4);
-    assert_eq!(combine_names(&h), ["notes.txt", "page2.PDF", "page10.pdf", "notes.txt", "page2.PDF", "page10.pdf", "inner.pdf"]);
+    assert_eq!(
+        combine_names(&h),
+        ["notes.txt", "page2.PDF", "page10.pdf", "readme.md", "notes.txt", "page2.PDF", "page10.pdf", "readme.md", "inner.pdf"]
+    );
     h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
     h.run_steps(2);
-    assert_eq!(combine_names(&h).len(), 3);
+    assert_eq!(combine_names(&h).len(), 4);
     let _ = std::fs::remove_dir_all(&dir);
 }
 

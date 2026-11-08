@@ -6909,8 +6909,8 @@ milestone = "M10"
 status = "shipped"
 commands = ["create.file"]
 tools = ["doc_create"]
-evidence = ["crates/create/src/tests.rs::text_is_wrapped_and_paginated", "crates/automation/tests/it/automation.rs::creating_and_reducing_through_tools"]
-notes = "Helvetica 11 pt on US Letter; form feeds start pages"
+evidence = ["crates/create/src/tests.rs::text_is_wrapped_and_paginated", "crates/automation/tests/it/automation.rs::creating_and_reducing_through_tools", "crates/ui-egui/tests/it/create.rs::opening_text_files_keeps_the_source_and_saves_selectable_pdf_text"]
+notes = "Open and Create accept .txt, .text, .md, .markdown, .log, .csv, .tsv, .ini, .cfg, .json, .xml, .toml, .yaml and .yml as literal text. Helvetica 11 pt on US Letter; form feeds start pages; Save writes a separate PDF. Markdown formatting and tables are not interpreted."
 
 [[feature]]
 id = "create.from-markdown"

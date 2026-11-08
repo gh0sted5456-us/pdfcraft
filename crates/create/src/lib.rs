@@ -586,7 +586,33 @@ pub enum SourceKind {
 }
 
 /// File extensions Create converts to working PDFs (images, text and reusable templates).
-pub const CONVERTIBLE: [&str; 13] = ["png", "jpg", "jpeg", "tif", "tiff", "gif", "bmp", "jp2", "j2k", "jpx", "txt", "text", "pdfcraft-template"];
+pub const CONVERTIBLE: [&str; 25] = [
+    "png",
+    "jpg",
+    "jpeg",
+    "tif",
+    "tiff",
+    "gif",
+    "bmp",
+    "jp2",
+    "j2k",
+    "jpx",
+    "pdfcraft-template",
+    "txt",
+    "text",
+    "md",
+    "markdown",
+    "log",
+    "csv",
+    "tsv",
+    "ini",
+    "cfg",
+    "json",
+    "xml",
+    "toml",
+    "yaml",
+    "yml",
+];
 
 /// A classic TIFF or a BigTIFF (version 43), in either byte order.
 fn is_tiff(bytes: &[u8]) -> bool {
@@ -611,10 +637,11 @@ fn is_image(bytes: &[u8]) -> bool {
             && bytes.get(14..18).and_then(|h| <[u8; 4]>::try_from(h).ok()).is_some_and(|h| matches!(u32::from_le_bytes(h), 12 | 40 | 52 | 56 | 108 | 124)))
 }
 
-/// Whether `bytes` named `name` is a PDF, an image Create can embed, or plain text (a `.txt` or
-/// `.text` file). `None` for anything else.
+/// Whether `bytes` named `name` is a template, PDF, image, or supported plain text.
+/// Markdown and data files are read as literal text.
 pub fn source_kind(name: &str, bytes: &[u8]) -> Option<SourceKind> {
-    if name.to_ascii_lowercase().ends_with(".pdfcraft-template") {
+    let extension = name.rsplit_once('.').map(|(_, ext)| ext.to_ascii_lowercase());
+    if extension.as_deref() == Some("pdfcraft-template") {
         return Some(SourceKind::Template);
     }
     let head = bytes.get(..bytes.len().min(1024)).unwrap_or_default();
@@ -624,8 +651,11 @@ pub fn source_kind(name: &str, bytes: &[u8]) -> Option<SourceKind> {
     if is_image(bytes) {
         return Some(SourceKind::Image);
     }
-    let lower = name.to_ascii_lowercase();
-    (lower.ends_with(".txt") || lower.ends_with(".text")).then_some(SourceKind::Text)
+    matches!(
+        extension.as_deref(),
+        Some("txt" | "text" | "md" | "markdown" | "log" | "csv" | "tsv" | "ini" | "cfg" | "json" | "xml" | "toml" | "yaml" | "yml")
+    )
+    .then_some(SourceKind::Text)
 }
 
 /// Detect the image format from its bytes; a TIFF may hold several pages, of which the first
