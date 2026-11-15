@@ -416,7 +416,7 @@ impl eframe::App for PdfCraftApp {
     /// every open tab, keeps running; see `frame_guard`.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.begin_logic();
-        self.guarded_frame(|app| app.logic_unguarded(ctx));
+        self.guarded_frame(|app| app.logic_unguarded(ctx, _frame));
         if self.frame_panicked {
             self.close_after_panic(ctx);
         }
@@ -424,7 +424,7 @@ impl eframe::App for PdfCraftApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.begin_ui();
-        self.guarded_frame(|app| app.ui_unguarded(ui));
+        self.guarded_frame(|app| app.ui_unguarded(ui, _frame));
         self.end_ui();
     }
 
@@ -438,7 +438,7 @@ impl eframe::App for PdfCraftApp {
 }
 
 impl PdfCraftApp {
-    fn logic_unguarded(&mut self, ctx: &egui::Context) {
+    fn logic_unguarded(&mut self, ctx: &egui::Context, _frame: &eframe::Frame) {
         #[cfg(test)]
         self.injected_panic(crate::frame_guard::FramePart::Logic);
         self.ctx = Some(ctx.clone());
@@ -641,7 +641,7 @@ impl PdfCraftApp {
         self.sync_native_menu(ctx);
     }
 
-    fn ui_unguarded(&mut self, ui: &mut egui::Ui) {
+    fn ui_unguarded(&mut self, ui: &mut egui::Ui, _frame: &eframe::Frame) {
         #[cfg(test)]
         self.injected_panic(crate::frame_guard::FramePart::Ui);
         let ctx = ui.ctx().clone();
