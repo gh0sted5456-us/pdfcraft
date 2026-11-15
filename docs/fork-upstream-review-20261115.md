@@ -208,8 +208,9 @@ A clean text merge was not enough for six units. The branch carries small, separ
 ## Finding: signature validation after removing a widget from inline /Annots
 
 Upstream #6013's test signs a fixture, then empties the signed page's inline `/Annots` in a later
-revision. Upstream reports the signature **Invalid / Disallowed(other changes)**; Lion reports it
-**Valid / Allowed(comments)**. The fork already has the indirect-array case
+revision, and expects the signature to read **Invalid / Disallowed(other changes)** (upstream CI
+runs it; not re-run here). Lion reports it **Valid / Allowed(comments)**: a signed widget can be
+stripped and the signature still shows as valid with only comment changes. The fork already has the indirect-array case
 (`an_indirect_annots_array_is_judged_by_the_annotations_it_gains`). Upstream handles the inline
 case in its reworked `crates/sign/src/pdf/changes.rs` (classify changes by the role each object
 had when signed: ce3857c2e, de344a4bb, ddeca878d, 560c68db8 and follow-ups), which conflicts with
