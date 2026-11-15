@@ -289,6 +289,20 @@ mod tests {
         output.textures_delta.clear();
     }
 
+    /// Run one frame; `mode` is (latched auto-scroll supported, inverted). This fork's
+    /// auto-scroll has no inverted direction, so `mode.1` must be `false`.
+    fn frame(ctx: &Context, scroll: &mut AutoScroll, events: Vec<Event>, focused: bool, mode: (bool, bool), check: impl Fn(&AutoScroll, Vec2)) {
+        assert!(!mode.1, "inverted auto-scroll is not part of this fork");
+        let mut output = ctx.run_ui(
+            egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, vec2(400.0, 400.0))), events, focused, ..Default::default() },
+            |ui| {
+                let delta = scroll.update_for_platform(ui, ui.max_rect(), false, mode.0);
+                check(scroll, delta);
+            },
+        );
+        output.textures_delta.clear();
+    }
+
     #[test]
     fn holding_middle_button_to_auto_scroll_turns_off_on_release() {
         let ctx = Context::default();
