@@ -427,6 +427,14 @@ impl eframe::App for PdfCraftApp {
         self.guarded_frame(|app| app.ui_unguarded(ui));
         self.end_ui();
     }
+
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        if self.theme_preference == ThemePreference::Glass {
+            self.glass.surface().to_normalized_gamma_f32()
+        } else {
+            theme::Tokens::for_kind(self.theme).pasteboard.to_normalized_gamma_f32()
+        }
+    }
 }
 
 impl PdfCraftApp {
@@ -741,14 +749,6 @@ impl PdfCraftApp {
         if let Some(mut control) = self.control.take() {
             control.finish_frame(&ctx, self);
             self.control = Some(control);
-        }
-    }
-
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        if self.theme_preference == ThemePreference::Glass {
-            self.glass.surface().to_normalized_gamma_f32()
-        } else {
-            theme::Tokens::for_kind(self.theme).pasteboard.to_normalized_gamma_f32()
         }
     }
 }
