@@ -65,7 +65,7 @@ impl JsOutput {
     }
 
     /// Adds `alerts` within [`MAX_ALERTS`].
-    fn alert(&mut self, alerts: impl IntoIterator<Item = Message>) {
+    fn alert(&mut self, alerts: impl IntoIterator<Item = String>) {
         let room = MAX_ALERTS.saturating_sub(self.alerts.len());
         self.alerts.extend(alerts.into_iter().take(room));
     }
@@ -771,7 +771,7 @@ mod review_tests {
     fn console_output_of_one_edit_is_bounded() {
         let mut out = JsOutput::default();
         let line = "x".repeat(4_096);
-        let run = Outcome { console: vec![line; 1_000], alerts: vec![Message::plain("hi"); 100], ..Default::default() };
+        let run = Outcome { console: vec![line; 1_000], alerts: vec!["hi".to_string(); 100], ..Default::default() };
         for _ in 0..1_000 {
             out.absorb(&run);
         }
