@@ -232,6 +232,9 @@ fn passwords_with_the_same_effective_bytes_are_one_password() {
 fn unsupported_handlers_are_reported() {
     let mut d = new(Algorithm::Aes128, "", "o", -1).dict().clone();
     d.filter = b"Adobe.PubSec".to_vec();
+    // Lion patch: public-key security asks for a certificate.
+    assert!(matches!(SecurityHandler::open(d.clone(), ID, None), Err(CryptError::NeedsCertificate)));
+    d.filter = b"Acme.Custom".to_vec();
     assert!(matches!(SecurityHandler::open(d.clone(), ID, None), Err(CryptError::Unsupported(_))));
     d.filter = b"Standard".to_vec();
     d.r = 7;

@@ -1436,6 +1436,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-codepage"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=f29e82f1a7a009e68312bd2e84adab72be23344d#f29e82f1a7a009e68312bd2e84adab72be23344d"
+
+[[package]]
+name = "craft-csv"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=e2dc681a3#e2dc681a3ad8a47038da2f11ddd2c5e1c0454991"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "craft-docpath"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=82a24b006eefa036b43c09a67fb9a3fbd17ffe63#82a24b006eefa036b43c09a67fb9a3fbd17ffe63"
@@ -1505,6 +1518,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-rtf"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=f29e82f1a7a009e68312bd2e84adab72be23344d#f29e82f1a7a009e68312bd2e84adab72be23344d"
+dependencies = [
+ "craft-codepage",
+ "encoding_rs",
+]
+
+[[package]]
 name = "craft-stream-codecs"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=e2dc681a3#e2dc681a3ad8a47038da2f11ddd2c5e1c0454991"
@@ -1534,6 +1556,16 @@ version = "0.1.0"
 source = "git+https://github.com/storytold/winprint.rs?rev=417ac3c4d14d3da5485a99c7d5ce8f05664ec312#417ac3c4d14d3da5485a99c7d5ce8f05664ec312"
 dependencies = [
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "craft-zip"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=e2dc681a3#e2dc681a3ad8a47038da2f11ddd2c5e1c0454991"
+dependencies = [
+ "flate2",
+ "thiserror 2.0.21",
+ "zip",
 ]
 
 [[package]]
@@ -1677,7 +1709,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 3.0.6",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -5663,6 +5695,8 @@ version = "1.0.2"
 dependencies = [
  "calamine",
  "chrono",
+ "craft-rtf",
+ "craft-zip",
  "flate2",
 ]
 
@@ -6007,6 +6041,7 @@ dependencies = [
 name = "pdfcraft-xfdf"
 version = "1.0.2"
 dependencies = [
+ "craft-csv",
  "pdfcraft-annot",
  "pdfcraft-cos",
  "pdfcraft-forms",
