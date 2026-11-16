@@ -25,7 +25,11 @@ craft-print = { git = "https://github.com/storytold/craft-libs", version = "0.1.
 craft-docpath = { version = "0.1.0", git = "https://github.com/storytold/craft-libs", rev = "82a24b006eefa036b43c09a67fb9a3fbd17ffe63" }
 # PDF object layer, standard security handler and stream filters (storytold/craft-libs).
 craft-pdf = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3", features = ["cos", "crypt", "filters"] }
-craft-rtf = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+# The writer the RTF export maps onto (storytold/craft-libs#793), at storytold/craft-libs#1467:
+# its font and colour lookups take constant time, as PdfCraft's own writer did.
+# The writer the RTF export maps onto (storytold/craft-libs#793), at storytold/craft-libs#1467:
+# its font and colour lookups take constant time, as PdfCraft's own writer did.
+craft-rtf = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "f29e82f1a7a009e68312bd2e84adab72be23344d" }
 craft-csv = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
 craft-zip = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
 # internal
