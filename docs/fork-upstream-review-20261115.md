@@ -1,6 +1,6 @@
 # Upstream review, 2026-11-15
 
-Status: integration branch built and gated (PR #15); craft-libs cutover stacked on it (PR #16). Neither merged into fork `main` yet.
+Status: integration branch (PR #15), craft-libs cutover (PR #16) and signed-change classification (`lion/sign-changes`), stacked in that order.
 
 Fork main: `b53d925b` (Merge five validated upstream certificate, audit, PDF/A, XFA and batch fixes, #13).
 Upstream (storytold/pdfcraft) main at review: `a11ea7ad` (2026-11-15, #7450).
@@ -214,7 +214,11 @@ stripped and the signature still shows as valid with only comment changes. The f
 (`an_indirect_annots_array_is_judged_by_the_annotations_it_gains`). Upstream handles the inline
 case in its reworked `crates/sign/src/pdf/changes.rs` (classify changes by the role each object
 had when signed: ce3857c2e, de344a4bb, ddeca878d, 560c68db8 and follow-ups), which conflicts with
-the fork and needs a deliberate port. This is the highest-value item not in this batch.
+the fork and needs a deliberate port.
+
+**Resolved on `lion/sign-changes`:** Lion never changed `changes.rs` after the fork point, so
+upstream's current file was taken whole with its 25 revision-classification tests. The #6013 test
+is restored; it fails on the old classifier and passes on the new one.
 
 ## Clean but left out on purpose
 
