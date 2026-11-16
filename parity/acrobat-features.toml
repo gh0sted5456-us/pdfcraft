@@ -46,7 +46,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.open"]
 tools = ["doc_open"]
-evidence = ["crates/cos/src/document/tests.rs::damaged_xref_is_reconstructed", "crates/cos/src/parser.rs::indirect_stream_with_wrong_length_recovers", "crates/cos/src/document/tests.rs::self_referential_length_does_not_overflow", "crates/engine/src/tests.rs::a_repaired_file_is_rewritten_by_save_even_without_edits", "crates/automation/tests/it/automation.rs::saving_a_repaired_file_puts_the_repair_on_disk", "crates/engine/src/tests.rs::a_signed_repaired_file_keeps_its_bytes_when_saved_without_edits", "crates/cos/src/document/tests.rs::a_table_numbered_from_1_that_begins_with_object_0_is_read_from_0"]
+evidence = ["craft-pdf::cos/document/tests.rs::damaged_xref_is_reconstructed", "craft-pdf::cos/parser.rs::indirect_stream_with_wrong_length_recovers", "craft-pdf::cos/document/tests.rs::self_referential_length_does_not_overflow", "crates/engine/src/tests.rs::a_repaired_file_is_rewritten_by_save_even_without_edits", "crates/automation/tests/it/automation.rs::saving_a_repaired_file_puts_the_repair_on_disk", "crates/engine/src/tests.rs::a_signed_repaired_file_keeps_its_bytes_when_saved_without_edits", "craft-pdf::cos/document/tests.rs::a_table_numbered_from_1_that_begins_with_object_0_is_read_from_0"]
 notes = "Save and doc_save write a reconstructed file in full even when nothing was edited, so the repair reaches the disk and the saved file opens without one (#1937); a signed one keeps its bytes, so its signatures stay valid. A repair does not mark the document as having unsaved changes, so closing it does not offer to save the repaired file. A classic table numbered 1 n that begins with object 0's free entry is read from 0 (#2676) and logged."
 
 [[feature]]
@@ -58,7 +58,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/ui-egui/tests/it/ui.rs::garbage_input_is_rejected_without_panicking", "crates/cos/src/parser.rs::garbage_never_panics", "crates/render/src/raster/tests.rs::missing_page_and_garbage_input_fail_gracefully"]
+evidence = ["crates/ui-egui/tests/it/ui.rs::garbage_input_is_rejected_without_panicking", "craft-pdf::cos/parser.rs::garbage_never_panics", "crates/render/src/raster/tests.rs::missing_page_and_garbage_input_fail_gracefully"]
 notes = "fuzzed nightly (M1.10)"
 
 [[feature]]
@@ -94,7 +94,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = ["doc_open"]
-evidence = ["crates/cos/src/document/tests.rs::hybrid_reference_files_read_the_xref_stream_too"]
+evidence = ["craft-pdf::cos/document/tests.rs::hybrid_reference_files_read_the_xref_stream_too"]
 notes = "/XRefStm entries supplement the classic table and replace its free entries for objects in object streams; each section is merged as a unit so older revisions only fill gaps"
 
 [[feature]]
@@ -106,7 +106,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.properties"]
 tools = ["doc_revisions"]
-evidence = ["crates/cos/src/document/tests.rs::looping_revision_chains_stop", "crates/cos/src/document/tests.rs::revision_ends_split_incremental_updates"]
+evidence = ["craft-pdf::cos/document/tests.rs::looping_revision_chains_stop", "craft-pdf::cos/document/tests.rs::revision_ends_split_incremental_updates"]
 notes = "/Prev chains followed newest first with a visited set (loops stop and are logged); revisions listed and opened (doc_revisions, doc_open_revision)"
 
 [[feature]]
@@ -118,7 +118,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/filters/src/lib.rs::chain_three_filters_with_predictor", "crates/filters/src/lzw.rs::spec_example", "crates/filters/src/predictor.rs::png_hand_vectors", "crates/filters/src/lib.rs::raw_flate_fallback_preserves_output_limits", "crates/cos/src/object.rs::raw_flate_fallback_streams_preserve_the_caller_limit"]
+evidence = ["craft-pdf::filters.rs::chain_three_filters_with_predictor", "crates/filters/tests/proptests.rs::lzw_long_round_trip", "crates/filters/tests/proptests.rs::round_trip", "craft-pdf::filters.rs::raw_flate_fallback_preserves_output_limits", "craft-pdf::cos/object.rs::raw_flate_fallback_streams_preserve_the_caller_limit"]
 notes = "Raw-deflate fallback preserves output limits in strict and tolerant decoding, including misleading zlib headers. Image codecs remain outside this general-purpose filter implementation."
 
 [[feature]]
@@ -142,7 +142,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/filters/src/flate.rs::bomb_is_bounded", "crates/filters/src/lib.rs::limit_applies_to_intermediate_buffers"]
+evidence = ["craft-pdf::filters/flate.rs::bomb_is_bounded", "craft-pdf::filters.rs::limit_applies_to_intermediate_buffers"]
 notes = ""
 
 [[feature]]
@@ -154,7 +154,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.open"]
 tools = ["doc_open"]
-evidence = ["crates/crypt/src/tests.rs::rc4_reference_vectors", "crates/cos/tests/it/encryption.rs::every_algorithm_round_trips_and_hides_the_content"]
+evidence = ["craft-pdf::crypt/tests.rs::rc4_reference_vectors", "crates/cos/tests/it/encryption.rs::every_algorithm_round_trips_and_hides_the_content"]
 notes = ""
 
 [[feature]]
@@ -166,7 +166,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.open"]
 tools = ["doc_open"]
-evidence = ["crates/crypt/src/tests.rs::aes_cbc_nist_sp800_38a_vectors", "crates/cos/tests/it/encryption.rs::every_algorithm_round_trips_and_hides_the_content"]
+evidence = ["craft-pdf::crypt/tests.rs::aes_cbc_nist_sp800_38a_vectors", "crates/cos/tests/it/encryption.rs::every_algorithm_round_trips_and_hides_the_content"]
 notes = ""
 
 [[feature]]
@@ -178,7 +178,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.open"]
 tools = ["doc_open"]
-evidence = ["crates/ui-egui/tests/it/editing.rs::password_prompt_opens_and_security_tab_reports_the_details", "crates/crypt/src/tests.rs::empty_user_password_opens_without_asking", "crates/ui-egui/src/platform/open_worker/tests.rs::a_chosen_tool_survives_wrong_password_retry_and_runs_after_unlock", "crates/ui-egui/src/platform/open_worker/tests.rs::startup_intake_waits_for_local_authentication_and_keeps_its_own_background_password_prompt", "crates/ui-egui/tests/it/pickers.rs::the_open_password_can_be_typed_through_an_input_method_however_the_file_is_opened"]
+evidence = ["crates/ui-egui/tests/it/editing.rs::password_prompt_opens_and_security_tab_reports_the_details", "craft-pdf::crypt/tests.rs::empty_user_password_opens_without_asking", "crates/ui-egui/src/platform/open_worker/tests.rs::a_chosen_tool_survives_wrong_password_retry_and_runs_after_unlock", "crates/ui-egui/src/platform/open_worker/tests.rs::startup_intake_waits_for_local_authentication_and_keeps_its_own_background_password_prompt", "crates/ui-egui/tests/it/pickers.rs::the_open_password_can_be_typed_through_an_input_method_however_the_file_is_opened"]
 notes = "the field takes typing through the platform input method, which typed keys go through on Linux, however the file was opened (#2818); checked with synthetic input-method events, not on a Linux desktop"
 
 [[feature]]
@@ -190,7 +190,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/crypt/src/tests.rs::r6_passwords_are_saslprepped"]
+evidence = ["craft-pdf::crypt/tests.rs::r6_passwords_are_saslprepped"]
 notes = ""
 
 [[feature]]
@@ -202,7 +202,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["protect.unlock"]
 tools = ["doc_open"]
-evidence = ["crates/engine/src/tests.rs::restricted_documents_refuse_changes_unless_opened_by_the_owner", "crates/engine/src/tests.rs::owner_password_of_older_revisions_opens_the_viewer_too", "crates/engine/src/tests.rs::render_password_for_recovers_the_user_password_of_older_revisions", "apps/pdfcraft-cli/tests/it/owner_password.rs::info_accepts_the_owner_password", "apps/pdfcraft-cli/tests/it/owner_password.rs::text_accepts_the_owner_password", "crates/crypt/src/tests.rs::owner_authentication_recovers_the_user_password", "crates/engine/src/tests.rs::the_permissions_password_unlocks_an_open_document", "crates/ui-egui/tests/it/editing.rs::the_security_notice_unlocks_with_the_permissions_password", "crates/ui-egui/tests/it/editing.rs::remove_security_asks_for_the_permissions_password_first", "crates/ui-egui/tests/it/pickers.rs::the_permissions_password_can_be_typed_through_an_input_method"]
+evidence = ["crates/engine/src/tests.rs::restricted_documents_refuse_changes_unless_opened_by_the_owner", "crates/engine/src/tests.rs::owner_password_of_older_revisions_opens_the_viewer_too", "crates/engine/src/tests.rs::render_password_for_recovers_the_user_password_of_older_revisions", "apps/pdfcraft-cli/tests/it/owner_password.rs::info_accepts_the_owner_password", "apps/pdfcraft-cli/tests/it/owner_password.rs::text_accepts_the_owner_password", "craft-pdf::crypt/tests.rs::owner_authentication_recovers_the_user_password", "crates/engine/src/tests.rs::the_permissions_password_unlocks_an_open_document", "crates/ui-egui/tests/it/editing.rs::the_security_notice_unlocks_with_the_permissions_password", "crates/ui-egui/tests/it/editing.rs::remove_security_asks_for_the_permissions_password_first", "crates/ui-egui/tests/it/pickers.rs::the_permissions_password_can_be_typed_through_an_input_method"]
 notes = "at open (the password prompt takes either password), or after opening a restricted file that needed no password (#995, #1077): Unlock… on the security notice and in Properties ▸ Security, and changing security asks for it first. The CLI's info, text, render and audit take either password too (#2670). Not yet: an automation tool to unlock an open document (reopen with doc_open and the password instead)"
 
 [[feature]]
@@ -214,7 +214,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/ui-egui/tests/it/editing.rs::restricted_documents_show_a_notice_and_block_page_changes", "crates/crypt/src/tests.rs::permission_bits_follow_table_22", "crates/crypt/src/tests.rs::perms_limits_what_an_edited_p_grants", "crates/engine/src/tests.rs::combining_protected_files_is_refused_clearly", "crates/engine/src/tests.rs::print_restricted_documents_disable_print_unless_opened_by_the_owner", "crates/ui-egui/tests/it/print.rs::print_restricted_documents_say_so_before_the_dialog", "crates/engine/src/tests.rs::convert_to_pdfa_needs_the_owners_rights_on_an_encrypted_document"]
+evidence = ["crates/ui-egui/tests/it/editing.rs::restricted_documents_show_a_notice_and_block_page_changes", "craft-pdf::crypt/tests.rs::permission_bits_follow_table_22", "craft-pdf::crypt/tests.rs::perms_limits_what_an_edited_p_grants", "crates/engine/src/tests.rs::combining_protected_files_is_refused_clearly", "crates/engine/src/tests.rs::print_restricted_documents_disable_print_unless_opened_by_the_owner", "crates/ui-egui/tests/it/print.rs::print_restricted_documents_say_so_before_the_dialog", "crates/engine/src/tests.rs::convert_to_pdfa_needs_the_owners_rights_on_an_encrypted_document"]
 notes = ""
 
 [[feature]]
@@ -226,7 +226,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/crypt/src/tests.rs::identity_crypt_filters_leave_data_alone"]
+evidence = ["craft-pdf::crypt/tests.rs::identity_crypt_filters_leave_data_alone"]
 notes = ""
 
 [[feature]]
@@ -262,7 +262,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/crypt/src/tests.rs::unsupported_handlers_are_reported"]
+evidence = ["craft-pdf::crypt/tests.rs::unsupported_handlers_are_reported"]
 notes = ""
 
 [[feature]]
@@ -334,7 +334,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/cos/src/document/tests.rs::reads_classic_revision_and_edits_are_copy_on_write"]
+evidence = ["craft-pdf::cos/document/tests.rs::reads_classic_revision_and_edits_are_copy_on_write"]
 notes = ""
 
 [[feature]]
@@ -382,7 +382,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.properties"]
 tools = ["doc_revisions"]
-evidence = ["crates/cos/src/document/tests.rs::revision_ends_split_incremental_updates", "crates/automation/tests/it/automation.rs::digital_ids_signing_and_validation_through_tools"]
+evidence = ["craft-pdf::cos/document/tests.rs::revision_ends_split_incremental_updates", "crates/automation/tests/it/automation.rs::digital_ids_signing_and_validation_through_tools"]
 notes = "revision ends from the xref chain (linearized first-page sections fold into their revision); listed in Document Properties ▸ Advanced and by doc_revisions with the signatures covering each"
 
 [[feature]]

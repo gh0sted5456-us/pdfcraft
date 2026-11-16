@@ -105,14 +105,18 @@ fn valid_milestone(m: &str) -> bool {
 }
 
 /// Why an `evidence` entry (`path.rs::test_fn` or `craft-pdf::path.rs::test_fn`) does not resolve to a test in the source tree, if it doesn't.
+///
+/// A `craft-pdf::` entry names a test in craft-pdf's sources, which Lion vendors: it resolves
+/// against `vendor/craft-pdf/src`.
 fn evidence_error(ev: &str, repo: &Path) -> Option<String> {
-    if ev.starts_with("craft-pdf::") && !ev.ends_with(')') && ev.matches("::").count() >= 2 {
-        return None;
-    }
+    let (root, ev) = match ev.strip_prefix("craft-pdf::") {
+        Some(rest) => (repo.join("vendor/craft-pdf/src"), rest),
+        None => (repo.to_path_buf(), ev),
+    };
     let Some((path, func)) = ev.split_once("::") else {
         return Some(format!("evidence {ev:?} must be `path.rs::test_fn`"));
     };
-    match std::fs::read_to_string(repo.join(path)) {
+    match std::fs::read_to_string(root.join(path)) {
         Ok(src) if src.contains(&format!("fn {func}(")) => None,
         Ok(_) => Some(format!("evidence: no `fn {func}` in {path}")),
         Err(_) => Some(format!("evidence: {path} does not exist")),
