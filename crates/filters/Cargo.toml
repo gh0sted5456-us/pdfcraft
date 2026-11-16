@@ -11,11 +11,7 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-fax.workspace = true
-# CCITT fax decoding (`decode_ccitt`); already in the tree through hayro.
-hayro-ccitt.workspace = true
-flate2.workspace = true
-thiserror.workspace = true
+craft-pdf = { workspace = true }
 
 [dev-dependencies]
 proptest.workspace = true

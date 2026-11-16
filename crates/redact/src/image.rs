@@ -106,7 +106,7 @@ fn decode_and_clear(doc: &Document, s: &Stream, ctm: &Matrix, rects: &[[f64; 4]]
     };
     // Through the document, which reads `/DecodeParms` given by reference (`Stream::decoded*`
     // alone would skip such a predictor, and the cleared bytes would then miss the covered pixels).
-    let mut data = doc.decoded_image_within(s, allowance).ok()?;
+    let mut data = pdfcraft_cos::ImageBudget::new(doc).decode(doc, s, allowance).ok()?;
     if data.len() < bytes {
         return None;
     }

@@ -147,7 +147,7 @@ fn image(doc: &Document, s: &Stream) -> Result<(&'static str, Vec<u8>), String> 
         space = decoded;
         (samples, 8)
     } else {
-        let data = doc.decoded_image(s).map_err(|e| e.to_string())?;
+        let data = pdfcraft_cos::ImageBudget::new(doc).decode(doc, s, pdfcraft_cos::MAX_DECODED).map_err(|e| e.to_string())?;
         let bpc = if mask { 1 } else { s.dict.int(b"BitsPerComponent").unwrap_or(8) };
         let bpc = match bpc {
             1 => 1,
@@ -489,7 +489,10 @@ fn gray_plane(doc: &Document, m: &Stream, w: usize, h: usize) -> Option<Vec<u8>>
                 _ => return None,
             };
             let max = (1u32 << bpc.min(8)) - 1;
-            unpack(&doc.decoded_image(m).ok()?, mw, mh, 1, bpc)?.into_iter().map(|v| (v as u32 * 255 / max) as u8).collect()
+            unpack(&pdfcraft_cos::ImageBudget::new(doc).decode(doc, m, pdfcraft_cos::MAX_DECODED).ok()?, mw, mh, 1, bpc)?
+                .into_iter()
+                .map(|v| (v as u32 * 255 / max) as u8)
+                .collect()
         }
     };
     if let Some([lo, hi]) = decode(doc, m, 1).and_then(|pairs| pairs.first().copied()) {
