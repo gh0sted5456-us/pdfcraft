@@ -96,3 +96,72 @@ impl std::fmt::Debug for Document {
 
 #[cfg(test)]
 mod tests;
+
+/// Lion patch: how an encrypted document is opened.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Credential<'a> {
+    /// The standard handler: the user or owner password (`None` tries the empty one).
+    Password(Option<&'a str>),
+    /// Public-key security: what one of the envelopes held for this person.
+    Certificate { seed: [u8; 20], permissions: i32 },
+}
+
+/// Lion patch: `params` as the handler that opened the same encryption holds it. A public-key
+/// handler keeps the permissions its envelope gave up in place of the file's `/P`, so for
+/// public-key security those are not compared; the envelopes and every other entry are.
+fn same_encryption(handler: &crate::crypt::SecurityHandler, mut params: crate::crypt::EncryptDict) -> crate::crypt::EncryptDict {
+    if params.filter == crate::crypt::PUBSEC_FILTER {
+        params.p = handler.dict().p;
+    }
+    params
+}
+
+impl Document {
+    /// Lion patch: open with a password or, for public-key security (§7.6.5), with the seed and
+    /// permissions one of the document's envelopes gave up. A public-key document opened with
+    /// a password fails with [`CosError::NeedsCertificate`], which carries the envelopes.
+    pub fn open_with_credential(data: Arc<Vec<u8>>, credential: &Credential<'_>) -> Result<Self, CosError> {
+        let credentials = match credential {
+            Credential::Password(password) => state::Credentials::Password(*password),
+            Credential::Certificate { seed, permissions } => state::Credentials::Certificate { seed: *seed, permissions: *permissions },
+        };
+        Self::open_as(data, credentials, MAX_DECODED)
+    }
+
+    /// Lion patch: protect the document for the holders of certificates (§7.6.5): the envelopes
+    /// in `params` were made for them by pdfcraft-sign. Takes effect on the next save, a full
+    /// rewrite; this document stays readable (authenticated as owner).
+    pub fn set_public_key_encryption(&mut self, params: &crate::crypt::PublicKeyEncryption) -> Result<(), CosError> {
+        let h = crate::crypt::create_public_key(params).map_err(|e| CosError::Security(e.to_string()))?;
+        let d = h.dict();
+        let hex = |b: &[u8]| Object::String(crate::cos::PdfString { bytes: b.to_vec(), hex: true });
+        let mut cf = Dict::new();
+        let mut filter = Dict::new();
+        filter.set(b"Type".to_vec(), Object::name("CryptFilter"));
+        filter.set(b"CFM".to_vec(), Object::name(if d.v >= 5 { "AESV3" } else { "AESV2" }));
+        filter.set(b"AuthEvent".to_vec(), Object::name("DocOpen"));
+        filter.set(b"Length".to_vec(), Object::Int(if d.v >= 5 { 32 } else { 16 }));
+        filter.set(b"Recipients".to_vec(), Object::Array(d.recipients.iter().map(|r| hex(r)).collect()));
+        if !d.encrypt_metadata {
+            filter.set(b"EncryptMetadata".to_vec(), Object::Bool(false));
+        }
+        cf.set(crate::crypt::PUBSEC_CF.to_vec(), Object::Dict(filter));
+        let mut e = Dict::new();
+        e.set(b"Filter".to_vec(), Object::Name(d.filter.clone()));
+        e.set(b"SubFilter".to_vec(), Object::Name(d.sub_filter.clone()));
+        e.set(b"V".to_vec(), Object::Int(d.v));
+        e.set(b"Length".to_vec(), Object::Int(d.length_bits));
+        e.set(b"CF".to_vec(), Object::Dict(cf));
+        e.set(b"StmF".to_vec(), Object::Name(d.stm_f.clone()));
+        e.set(b"StrF".to_vec(), Object::Name(d.str_f.clone()));
+        if let Some(Object::Ref(old)) = self.trailer.get(b"Encrypt").cloned() {
+            self.free(old);
+        }
+        let r = self.add(e);
+        self.trailer.set(b"Encrypt".to_vec(), Object::Ref(r));
+        self.out_security = Some(Arc::new(h));
+        self.out_encrypt_num = Some(r.num);
+        self.encryption_changed = true;
+        Ok(())
+    }
+}

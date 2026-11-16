@@ -501,5 +501,7 @@ pub(crate) fn held_bytes(object: &Object, data: &Arc<Vec<u8>>, depth: usize) -> 
 /// that has the same encryption (an earlier revision of the same file).
 pub(super) enum Credentials<'a> {
     Password(Option<&'a str>),
+    /// Lion patch: public-key security, see [`super::Credential::Certificate`].
+    Certificate { seed: [u8; 20], permissions: i32 },
     Handler { handler: &'a Arc<crate::crypt::SecurityHandler>, id0: Vec<u8> },
 }

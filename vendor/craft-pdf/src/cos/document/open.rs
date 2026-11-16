@@ -87,7 +87,7 @@ impl Document {
         Self::open_as(data, credentials, self.stream_limit)
     }
 
-    fn open_as(data: Arc<Vec<u8>>, credentials: Credentials<'_>, stream_limit: usize) -> Result<Self, CosError> {
+    pub(super) fn open_as(data: Arc<Vec<u8>>, credentials: Credentials<'_>, stream_limit: usize) -> Result<Self, CosError> {
         // Viewers accept files whose header is missing or damaged as long as the body looks
         // like PDF; so do we (a note goes to the repair log).
         let header = find(&data, b"%PDF-", 0, 1024);
@@ -230,6 +230,13 @@ impl Document {
         // Read here, while nothing is decrypted yet.
         let members = self.encryption_members(enc);
         let handler = match credentials {
+            // Lion patch: public-key security opens only with what one of its envelopes gave up.
+            Credentials::Password(_) if params.filter == crate::crypt::PUBSEC_FILTER => {
+                return Err(CosError::NeedsCertificate(params.recipients));
+            }
+            Credentials::Certificate { seed, permissions } => Arc::new(
+                crate::crypt::SecurityHandler::open_public_key(params.clone(), seed, *permissions).map_err(|e| CosError::Security(e.to_string()))?,
+            ),
             Credentials::Password(password) => match crate::crypt::SecurityHandler::open(params.clone(), &id0, *password) {
                 Ok(handler) => Arc::new(handler),
                 // No password, or the empty one: what only the embedded files need isn't asked.
@@ -242,7 +249,7 @@ impl Document {
             },
             // The same encryption as the document whose key this is: that key opens it. A handler
             // without the key opens only what it would open by itself.
-            Credentials::Handler { handler, id0: known } if *handler.dict() == params && *known == id0 => {
+            Credentials::Handler { handler, id0: known } if *handler.dict() == super::same_encryption(handler, params.clone()) && *known == id0 => {
                 if !handler.has_key() && !crate::cos::security::efopen_only(self, &dict) {
                     return Err(CosError::NeedsPassword);
                 }
