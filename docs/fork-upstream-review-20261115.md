@@ -1,6 +1,6 @@
 # Upstream review, 2026-11-15
 
-Status: integration branch built and gated; not yet merged into fork `main`.
+Status: integration branch built and gated (PR #15); craft-libs cutover stacked on it (PR #16). Neither merged into fork `main` yet.
 
 Fork main: `b53d925b` (Merge five validated upstream certificate, audit, PDF/A, XFA and batch fixes, #13).
 Upstream (storytold/pdfcraft) main at review: `a11ea7ad` (2026-11-15, #7450).
@@ -225,6 +225,29 @@ the fork and needs a deliberate port. This is the highest-value item not in this
 - Tests, fuzz targets and README examples only (18 units: #6296, #6301, #6303–#6305, #6308,
   #6183, #6186, #6189, #6191, #6204, #5252, #5560, #2483, #4683, #4933, #5988, XFA scale timing).
   Safe to add later as a separate test-only pass.
+
+## craft-libs adoption (PDF and codecs), branch `lion/craft-libs-clean`
+
+Decision (owner, 2026-11-15): adopt craft-libs for the PDF layer and codecs; keep Lion's own
+translations (no craft-i18n) and updater (no craft-update), and Lion's craft-ui/quit/keymap/print pins.
+
+- `pdfcraft-cos`, `pdfcraft-crypt` and `pdfcraft-filters` are re-exports of craft-pdf, as upstream
+  made them in #7261. craft-pdf is vendored at upstream's craft-libs pin `e2dc681a3`
+  (`vendor/craft-pdf`), because Lion's certificate (public-key) security needs the private
+  handler constructor; it is carried as a marked `Lion patch:` (vendor/README.md). Every upstream
+  cos/crypt/filters fix up to that pin comes with it.
+- Also taken: #7260 (zip through craft-zip), the RTF/CSV part of #7261 (craft-rtf, craft-csv),
+  #7374 (RTF export through craft-rtf's writer), and upstream's hayro-jbig2 patch level
+  (craft-stream-codecs needs its decoding allowance API; Lion's copy had nothing of its own).
+- Not taken yet: #7326 (craft-xml, image codecs, Office packaging). It conflicts in 45 files
+  because it sits on upstream XFA, OCR and redaction work Lion lacks; it is the next stage.
+- Two tests follow craft-pdf's behaviour as upstream's did (a stream with a fitting `/Length`
+  reads without `endstream`; a broken object stream has no members). `xtask parity` resolves
+  `craft-pdf::` evidence against the vendored copy.
+- Re-sweep: against the cutover, 9 more of the 433 conflicting upstream units apply cleanly and
+  15 conflict only in bookkeeping files. Excluding ones already in PR #15 or dropped there, 12
+  are new; 11 are stacked on the branch (#3858, #6505, #6457, #6686, #2075, #6005, #4282, #6731,
+  #4703, #5036, #7115). #6619 needs upstream's text-module rework and was left out.
 
 ## Still conflicting
 
