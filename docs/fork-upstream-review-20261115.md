@@ -226,7 +226,7 @@ the fork and needs a deliberate port. This is the highest-value item not in this
   #6183, #6186, #6189, #6191, #6204, #5252, #5560, #2483, #4683, #4933, #5988, XFA scale timing).
   Safe to add later as a separate test-only pass.
 
-## craft-libs adoption (PDF and codecs), branch `lion/craft-libs-clean`
+## craft-libs adoption (PDF and codecs), branch `lion/craft-libs` (PR #16)
 
 Decision (owner, 2026-11-15): adopt craft-libs for the PDF layer and codecs; keep Lion's own
 translations (no craft-i18n) and updater (no craft-update), and Lion's craft-ui/quit/keymap/print pins.
@@ -251,9 +251,8 @@ translations (no craft-i18n) and updater (no craft-update), and Lion's craft-ui/
 
 ## Still conflicting
 
-433 units conflict on their own against fork `main`. The most contested files are
-`parity/acrobat-features.toml` (98), `ROADMAP.md` (55), `crates/automation/src/tools.rs` (49),
-`Cargo.lock`/`Cargo.toml` (47/34), `crates/ui-egui/src/canvas.rs` (40). Upstream's craft-libs
-cutover (#7326 and its predecessors) is the largest structural divergence; most later upstream
-fixes in codecs, XFA XML and export packaging sit on top of it and will keep conflicting until
-the fork decides whether to adopt craft-libs.
+433 units conflicted on their own against fork `main`; 421 still do against the craft-libs
+branch. The most contested files are `parity/acrobat-features.toml` (102), `ROADMAP.md` (55),
+`Cargo.lock` (49), `crates/automation/src/tools.rs` (48) and `crates/ui-egui/src/canvas.rs` (40):
+the blockers are now upstream's feature work in automation, the canvas and editing rather than the
+PDF layer. #7326 (craft-xml, image codecs, Office packaging) is the remaining craft-libs stage.
