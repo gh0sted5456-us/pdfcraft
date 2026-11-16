@@ -33,7 +33,8 @@ pub struct Document {
     pub dirty: bool,
     /// Bumped on every change to the working file (edit, undo, redo, save); autosave compares it.
     pub(crate) generation: u64,
-    /// The generation last handed out by `autosave_snapshots`.
+    /// The generation last handed out by `autosave_snapshots`, or another one when storing that
+    /// snapshot failed (`autosave_failed`), so it is due again.
     pub(crate) snapshot_generation: u64,
     /// Why the document cannot be edited (e.g. encryption), if so.
     pub read_only_reason: Option<String>,
@@ -483,7 +484,7 @@ impl Document {
             _ => "Attachments only",
         };
         let pending = editor.cos.encryption_changed();
-        let permissions = if pending { pdfcraft_cos::Permissions { bits: h.permissions().bits, owner: false } } else { h.permissions() };
+        let permissions = if pending { pdfcraft_cos::Permissions { owner: false, ..h.permissions() } } else { h.permissions() };
         let method = if d.filter == pdfcraft_cos::PUBSEC_FILTER {
             let n = d.recipients.len();
             format!("{method} · certificates ({n} recipient{})", if n == 1 { "" } else { "s" })

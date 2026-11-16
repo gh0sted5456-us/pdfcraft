@@ -359,7 +359,7 @@ dependencies = [
  "futures-lite",
  "parking",
  "polling",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "slab",
  "windows-sys 0.61.2",
 ]
@@ -390,7 +390,7 @@ dependencies = [
  "cfg-if",
  "event-listener",
  "futures-lite",
- "rustix 1.1.5",
+ "rustix 1.1.6",
 ]
 
 [[package]]
@@ -416,7 +416,7 @@ dependencies = [
  "cfg-if",
  "futures-core",
  "futures-io",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "signal-hook-registry",
  "slab",
  "windows-sys 0.61.2",
@@ -1064,7 +1064,7 @@ checksum = "4dbf9978365bac10f54d1d4b04f7ce4427e51f71d61f2fe15e3fed5166474df7"
 dependencies = [
  "bitflags 2.13.2",
  "polling",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "slab",
  "tracing",
 ]
@@ -1088,7 +1088,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "138efcf0940a02ebf0cc8d1eff41a1682a46b431630f4c52450d6265876021fa"
 dependencies = [
  "calloop 0.14.4",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "wayland-backend",
  "wayland-client",
 ]
@@ -1436,6 +1436,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-codepage"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=f29e82f1a7a009e68312bd2e84adab72be23344d#f29e82f1a7a009e68312bd2e84adab72be23344d"
+
+[[package]]
+name = "craft-csv"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=e2dc681a3#e2dc681a3ad8a47038da2f11ddd2c5e1c0454991"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "craft-docpath"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=82a24b006eefa036b43c09a67fb9a3fbd17ffe63#82a24b006eefa036b43c09a67fb9a3fbd17ffe63"
@@ -1463,6 +1476,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-pdf"
+version = "0.1.0"
+dependencies = [
+ "aes 0.9.3",
+ "chrono",
+ "craft-stream-codecs",
+ "flate2",
+ "js-sys",
+ "md-5",
+ "sha1 0.11.0",
+ "sha2 0.11.1",
+ "stringprep",
+ "thiserror 2.0.21",
+ "wasm-bindgen",
+ "zeroize",
+]
+
+[[package]]
 name = "craft-print"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=42e30cd5b3f4b114270dd053fccbc33bedc47f68#42e30cd5b3f4b114270dd053fccbc33bedc47f68"
@@ -1487,6 +1518,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-rtf"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=f29e82f1a7a009e68312bd2e84adab72be23344d#f29e82f1a7a009e68312bd2e84adab72be23344d"
+dependencies = [
+ "craft-codepage",
+ "encoding_rs",
+]
+
+[[package]]
+name = "craft-stream-codecs"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=e2dc681a3#e2dc681a3ad8a47038da2f11ddd2c5e1c0454991"
+dependencies = [
+ "fax",
+ "hayro-ccitt",
+ "hayro-jbig2",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "craft-ui"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=edc41f68fa24c46651c3b5117d10f0ead75ec9cb#edc41f68fa24c46651c3b5117d10f0ead75ec9cb"
@@ -1505,6 +1556,16 @@ version = "0.1.0"
 source = "git+https://github.com/storytold/winprint.rs?rev=417ac3c4d14d3da5485a99c7d5ce8f05664ec312#417ac3c4d14d3da5485a99c7d5ce8f05664ec312"
 dependencies = [
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "craft-zip"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=e2dc681a3#e2dc681a3ad8a47038da2f11ddd2c5e1c0454991"
+dependencies = [
+ "flate2",
+ "thiserror 2.0.21",
+ "zip",
 ]
 
 [[package]]
@@ -1648,7 +1709,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d045de693cb712d0b22c6a64be5b953f67b3ce00ab5ad3dd5d8b441886ab8e1a"
 dependencies = [
  "quote",
- "syn 3.0.6",
+ "syn 2.0.119",
 ]
 
 [[package]]
@@ -2969,7 +3030,7 @@ version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1bd49230192a3797a9a4d6abe9b3eed6f7fa4c8a8a4947977c6f80025f92cbd8"
 dependencies = [
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "windows-link",
 ]
 
@@ -5484,7 +5545,7 @@ dependencies = [
  "pdfcraft-render",
  "pdfcraft-xfa",
  "png 0.18.1",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "serde_json",
  "sha2 0.11.1",
  "tempfile",
@@ -5503,7 +5564,7 @@ dependencies = [
  "pdfcraft-preflight",
  "pdfcraft-render",
  "png 0.18.1",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "serde_json",
  "winresource",
 ]
@@ -5524,7 +5585,7 @@ dependencies = [
 name = "pdfcraft-cos"
 version = "1.0.2"
 dependencies = [
- "chrono",
+ "craft-pdf",
  "hayro-syntax",
  "pdfcraft-crypt",
  "pdfcraft-filters",
@@ -5532,7 +5593,6 @@ dependencies = [
  "pdfcraft-testkit",
  "proptest",
  "serde_json",
- "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -5563,13 +5623,8 @@ dependencies = [
 name = "pdfcraft-crypt"
 version = "1.0.2"
 dependencies = [
- "aes 0.9.3",
- "md-5",
+ "craft-pdf",
  "proptest",
- "sha1 0.11.0",
- "sha2 0.11.1",
- "stringprep",
- "thiserror 2.0.21",
 ]
 
 [[package]]
@@ -5640,6 +5695,8 @@ version = "1.0.2"
 dependencies = [
  "calamine",
  "chrono",
+ "craft-rtf",
+ "craft-zip",
  "flate2",
 ]
 
@@ -5647,11 +5704,8 @@ dependencies = [
 name = "pdfcraft-filters"
 version = "1.0.2"
 dependencies = [
- "fax",
- "flate2",
- "hayro-ccitt",
+ "craft-pdf",
  "proptest",
- "thiserror 2.0.21",
  "weezl 0.2.1",
 ]
 
@@ -5764,7 +5818,7 @@ dependencies = [
  "keyring",
  "openidconnect",
  "pdfcraft-sign",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "rustls-native-certs",
  "serde",
  "serde_json",
@@ -5807,7 +5861,7 @@ dependencies = [
  "pdfcraft-create",
  "pdfcraft-export",
  "rfd",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "serde_json",
  "sha2 0.11.1",
  "signal-hook",
@@ -5940,7 +5994,7 @@ dependencies = [
  "png 0.18.1",
  "pollster 1.0.1",
  "rfd",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "serde",
  "serde_json",
  "skrifa 0.44.0",
@@ -5987,6 +6041,7 @@ dependencies = [
 name = "pdfcraft-xfdf"
 version = "1.0.2"
 dependencies = [
+ "craft-csv",
  "pdfcraft-annot",
  "pdfcraft-cos",
  "pdfcraft-forms",
@@ -6310,7 +6365,7 @@ dependencies = [
  "concurrent-queue",
  "hermit-abi",
  "pin-project-lite",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "windows-sys 0.61.2",
 ]
 
@@ -7228,9 +7283,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.1.5"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "891efababe418670775f199f0d233d84843c227a0949a883ce15b37c78d6629d"
+checksum = "e5e76742e5294153d4dde1207dbec5bdd81eef6fabdc0d2118babadabfd858aa"
 dependencies = [
  "bitflags 2.13.2",
  "errno",
@@ -8113,7 +8168,7 @@ dependencies = [
  "libc",
  "log",
  "memmap2",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "thiserror 2.0.21",
  "wayland-backend",
  "wayland-client",
@@ -8495,7 +8550,7 @@ dependencies = [
  "fastrand",
  "getrandom 0.4.3",
  "once_cell",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "windows-sys 0.61.2",
 ]
 
@@ -9289,7 +9344,7 @@ checksum = "38a91b4eaddff87b1cd1074985e3713da4af2c49742d1b356b2c01670a67a078"
 dependencies = [
  "cc",
  "downcast-rs",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "scoped-tls",
  "smallvec",
  "wayland-sys",
@@ -9302,7 +9357,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3c36a0f861ad76d0901f2800b46321410d9f73f2ea88aac0650d86c32688073"
 dependencies = [
  "bitflags 2.13.2",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "wayland-backend",
  "wayland-scanner",
 ]
@@ -9324,7 +9379,7 @@ version = "0.31.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a52d18780be9b1314328a3de5f930b73d2200112e3849ca6cb11822793fb34d"
 dependencies = [
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "wayland-client",
  "xcursor",
 ]
@@ -10270,7 +10325,7 @@ dependencies = [
  "libc",
  "log",
  "os_pipe",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "thiserror 2.0.21",
  "tree_magic_mini",
  "wayland-backend",
@@ -10366,7 +10421,7 @@ dependencies = [
  "libc",
  "libloading",
  "once_cell",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "x11rb-protocol",
 ]
 
@@ -10408,7 +10463,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32e45ad4206f6d2479085147f02bc2ef834ac85886624a23575ae137c8aa8156"
 dependencies = [
  "libc",
- "rustix 1.1.5",
+ "rustix 1.1.6",
 ]
 
 [[package]]
@@ -10563,7 +10618,7 @@ dependencies = [
  "hex",
  "libc",
  "ordered-stream",
- "rustix 1.1.5",
+ "rustix 1.1.6",
  "serde",
  "serde_repr",
  "tracing",

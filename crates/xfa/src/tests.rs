@@ -895,16 +895,31 @@ fn node_at<'a>(live: &'a crate::script::FormNode, som: &str) -> Option<&'a crate
     live.children.iter().find_map(|c| node_at(c, som))
 }
 
-/// A date its data picture can't hold (2050 in a two-digit year) is written as ISO and reads
+/// A date its data picture can't hold (2030 in a two-digit year) is written as ISO and reads
 /// back as written.
 #[test]
 fn a_date_its_data_picture_cant_hold_is_written_as_iso() {
     use crate::data::{data_to_iso, iso_to_data};
     assert_eq!(iso_to_data("2026-01-02".into(), Some("yymmdd")), "260102");
-    // A two-digit year reads back as 1950 to 2049: 2050 and 1949 keep ISO, and read back as written.
-    for iso in ["2050-01-02", "1949-12-31"] {
+    // A two-digit year reads back as 1930 to 2029, so those years are written in it.
+    for (iso, data) in [("2029-12-31", "291231"), ("1930-01-01", "300101"), ("1949-12-31", "491231"), ("1950-01-01", "500101")] {
+        assert_eq!(iso_to_data(iso.into(), Some("yymmdd")), data, "{iso}");
+    }
+    // 2030 and 1929 keep ISO, and read back as written.
+    for iso in ["2030-01-01", "1929-12-31", "2050-01-02"] {
         assert_eq!(iso_to_data(iso.into(), Some("yymmdd")), iso);
         assert_eq!(data_to_iso(iso, Some("yymmdd")), iso);
+    }
+}
+
+/// A two-digit year splits its century at 30, the XFA picture clause default: `00` to `29` are
+/// 2000 to 2029 and `30` to `99` are 1930 to 1999, typed and in the data alike.
+#[test]
+fn a_two_digit_year_splits_its_century_at_30() {
+    use crate::data::data_to_iso;
+    for (text, iso) in [("291231", "2029-12-31"), ("300101", "1930-01-01"), ("491231", "1949-12-31"), ("500101", "1950-01-01")] {
+        assert_eq!(pattern_to_iso(text, "yymmdd").as_deref(), Some(iso), "{text}");
+        assert_eq!(data_to_iso(text, Some("yymmdd")), iso, "{text}");
     }
 }
 
@@ -2796,6 +2811,20 @@ fn a_flowed_subform_is_as_tall_as_its_content_whatever_its_minimum_height() {
 }
 
 #[test]
+fn a_caption_beside_a_check_box_wraps_in_its_reserve() {
+    // A 7.5in check box whose right-hand caption reserves 6.5in: two lines of text, not one or
+    // two words to a line in the 1in the box keeps. The field after it follows directly.
+    let words = "Applicant does not authorize the office to permit a participating office access to the application as filed. ".repeat(2);
+    let body = format!(
+        r#"<subform name="body" layout="tb" w="7.5in"><field name="opt" w="7.5in" minH="0.3in"><ui><checkButton/></ui><caption placement="right" reserve="6.5in"><value><text>{words}</text></value></caption></field><field name="who" w="3in" h="0.4in"><ui><textEdit/></ui></field></subform>"#
+    );
+    let form = layout_xml(&one_area_form(r#"layout="tb""#, &body)).unwrap();
+    let w = widgets(&form.pages[0]);
+    let gap = w[1].rect.y - w[0].rect.y;
+    assert!(gap < 72.0, "the check box took {gap}pt");
+}
+
+#[test]
 fn the_form_packet_restores_a_caption_a_script_changed() {
     let body = r#"<subform name="body" layout="tb" w="7.5in"><field name="bar" w="2in" h="0.3in"><ui><button/></ui><caption><value><text>Show Bar</text></value></caption></field></subform>"#;
     let template = one_area_form(r#"layout="tb""#, body);
@@ -2988,6 +3017,52 @@ fn a_radio_button_sits_where_a_check_box_would() {
         assert!((w.rect.x - fx - x * 72.0).abs() < 0.01, "{name}: box x {} in, expected {x}", (w.rect.x - fx) / 72.0);
         assert!((w.rect.y - 36.0 - y * 72.0).abs() < 0.01, "{name}: box y {} in, expected {y}", (w.rect.y - 36.0) / 72.0);
     }
+}
+
+/// A check box without a width is as wide as its box and caption, at least its minW, not the rest
+/// of its group: two choices side by side in a positioned radio group keep their own boxes.
+#[test]
+fn a_radio_choice_without_a_width_is_as_wide_as_its_content() {
+    let choice = |name: &str, x: &str, item: &str| {
+        format!(
+            r#"<field name="{name}" x="{x}" y="0mm" h="5.906mm" minW="20.32mm"><ui><checkButton shape="round"/></ui><caption reserve="-5.08mm"><value><text>{name}</text></value><para hAlign="center"/></caption><font typeface="Arial" size="10pt"/><items><text>{item}</text></items></field>"#
+        )
+    };
+    let body = format!(
+        r#"<subform name="body" layout="position" w="7.5in" h="1in"><exclGroup name="pick" x="0mm" y="0mm" w="40.64mm">{}{}</exclGroup></subform>"#,
+        choice("Yes", "0mm", "Y"),
+        choice("No", "20.308mm", "N"),
+    );
+    let form = layout_xml(&one_area_form(r#"layout="tb""#, &body)).unwrap();
+    let laid = widgets(&form.pages[0]);
+    let x = |name: &str| laid.iter().find(|w| w.name == name).map(|w| w.rect.x - 36.0).unwrap_or_else(|| panic!("no radio button {name}"));
+    let mm = 72.0 / 25.4;
+    // A negative reserve (as Designer writes) sizes the caption to its text, so content is
+    // narrower than minW and each box sits at the right end of its own 20.32mm-wide choice.
+    assert!((x("Yes") - (20.32 * mm - 10.0)).abs() < 0.01, "Yes box at {} pt", x("Yes"));
+    assert!((x("No") - ((20.308 + 20.32) * mm - 10.0)).abs() < 0.01, "No box at {} pt", x("No"));
+}
+
+/// Without a width or minW, a check box is exactly its caption's reserve plus its box, whether
+/// placed (its right-aligned box ends there) or flowed (two fit side by side in an lr-tb row).
+#[test]
+fn a_check_box_without_a_width_is_its_caption_and_box() {
+    let check = |name: &str, at: &str| {
+        format!(
+            r#"<field name="{name}" {at} h="0.25in"><ui><checkButton size="10pt"/></ui><caption reserve="0.5in"><value><text>{name}</text></value></caption><para hAlign="right"/><items><integer>1</integer><integer>0</integer></items></field>"#
+        )
+    };
+    let box_at = |body: String, name: &str| {
+        let form = layout_xml(&one_area_form(r#"layout="tb""#, &body)).unwrap();
+        widgets(&form.pages[0]).iter().find(|w| w.name == name).map(|w| (w.rect.x - 36.0, w.rect.y - 36.0)).unwrap()
+    };
+    let placed = format!(r#"<subform name="body" layout="position" w="7.5in" h="1in">{}</subform>"#, check("placed", r#"x="0in" y="0in""#));
+    let (x, _) = box_at(placed, "placed");
+    assert!((x - 36.0).abs() < 0.01, "the box ends the 46pt field, after the 36pt caption: {x}");
+
+    let flowed = format!(r#"<subform name="body" layout="lr-tb" w="3in">{}{}</subform>"#, check("first", ""), check("second", ""));
+    let (x, y) = box_at(flowed, "second");
+    assert!((x - 82.0).abs() < 0.01 && y.abs() < 0.01, "the second check box follows the first on its row: ({x}, {y})");
 }
 
 /// A caption without a reserve leaves room for the box at the size it is drawn, a box larger than
@@ -3848,6 +3923,8 @@ fn a_typed_date_is_rewritten_only_by_date_clauses_into_a_first_pattern_that_keep
     let short = "form[0].short[0]";
     assert_eq!(typed(short, "20261018").as_deref(), Some("261018"), "a year the first pattern keeps");
     assert_eq!(typed(short, "19011018"), None, "1901 as 01 would read back as 2001");
+    assert_eq!(typed(short, "19451018").as_deref(), Some("451018"), "45 reads back as 1945");
+    assert_eq!(typed(short, "20301018"), None, "2030 as 30 would read back as 1930");
     // DDMMYYYY reads 20011203 as 1203-01-20, which YYMMDD can't keep; YYYYMMDD reads 2001-12-03.
     assert_eq!(typed("form[0].pick[0]", "20011203").as_deref(), Some("011203"), "the next pattern that the first keeps");
 }

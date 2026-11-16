@@ -46,7 +46,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.open"]
 tools = ["doc_open"]
-evidence = ["crates/cos/src/document/tests.rs::damaged_xref_is_reconstructed", "crates/cos/src/parser.rs::indirect_stream_with_wrong_length_recovers", "crates/cos/src/document/tests.rs::self_referential_length_does_not_overflow", "crates/engine/src/tests.rs::a_repaired_file_is_rewritten_by_save_even_without_edits", "crates/automation/tests/it/automation.rs::saving_a_repaired_file_puts_the_repair_on_disk", "crates/engine/src/tests.rs::a_signed_repaired_file_keeps_its_bytes_when_saved_without_edits", "crates/cos/src/document/tests.rs::a_table_numbered_from_1_that_begins_with_object_0_is_read_from_0"]
+evidence = ["craft-pdf::cos/document/tests.rs::damaged_xref_is_reconstructed", "craft-pdf::cos/parser.rs::indirect_stream_with_wrong_length_recovers", "craft-pdf::cos/document/tests.rs::self_referential_length_does_not_overflow", "crates/engine/src/tests.rs::a_repaired_file_is_rewritten_by_save_even_without_edits", "crates/automation/tests/it/automation.rs::saving_a_repaired_file_puts_the_repair_on_disk", "crates/engine/src/tests.rs::a_signed_repaired_file_keeps_its_bytes_when_saved_without_edits", "craft-pdf::cos/document/tests.rs::a_table_numbered_from_1_that_begins_with_object_0_is_read_from_0"]
 notes = "Save and doc_save write a reconstructed file in full even when nothing was edited, so the repair reaches the disk and the saved file opens without one (#1937); a signed one keeps its bytes, so its signatures stay valid. A repair does not mark the document as having unsaved changes, so closing it does not offer to save the repaired file. A classic table numbered 1 n that begins with object 0's free entry is read from 0 (#2676) and logged."
 
 [[feature]]
@@ -58,7 +58,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/ui-egui/tests/it/ui.rs::garbage_input_is_rejected_without_panicking", "crates/cos/src/parser.rs::garbage_never_panics", "crates/render/src/raster/tests.rs::missing_page_and_garbage_input_fail_gracefully"]
+evidence = ["crates/ui-egui/tests/it/ui.rs::garbage_input_is_rejected_without_panicking", "craft-pdf::cos/parser.rs::garbage_never_panics", "crates/render/src/raster/tests.rs::missing_page_and_garbage_input_fail_gracefully"]
 notes = "fuzzed nightly (M1.10)"
 
 [[feature]]
@@ -94,7 +94,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = ["doc_open"]
-evidence = ["crates/cos/src/document/tests.rs::hybrid_reference_files_read_the_xref_stream_too"]
+evidence = ["craft-pdf::cos/document/tests.rs::hybrid_reference_files_read_the_xref_stream_too"]
 notes = "/XRefStm entries supplement the classic table and replace its free entries for objects in object streams; each section is merged as a unit so older revisions only fill gaps"
 
 [[feature]]
@@ -106,7 +106,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.properties"]
 tools = ["doc_revisions"]
-evidence = ["crates/cos/src/document/tests.rs::looping_revision_chains_stop", "crates/cos/src/document/tests.rs::revision_ends_split_incremental_updates"]
+evidence = ["craft-pdf::cos/document/tests.rs::looping_revision_chains_stop", "craft-pdf::cos/document/tests.rs::revision_ends_split_incremental_updates"]
 notes = "/Prev chains followed newest first with a visited set (loops stop and are logged); revisions listed and opened (doc_revisions, doc_open_revision)"
 
 [[feature]]
@@ -118,7 +118,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/filters/src/lib.rs::chain_three_filters_with_predictor", "crates/filters/src/lzw.rs::spec_example", "crates/filters/src/predictor.rs::png_hand_vectors", "crates/filters/src/lib.rs::raw_flate_fallback_preserves_output_limits", "crates/cos/src/object.rs::raw_flate_fallback_streams_preserve_the_caller_limit"]
+evidence = ["craft-pdf::filters.rs::chain_three_filters_with_predictor", "crates/filters/tests/proptests.rs::lzw_long_round_trip", "crates/filters/tests/proptests.rs::round_trip", "craft-pdf::filters.rs::raw_flate_fallback_preserves_output_limits", "craft-pdf::cos/object.rs::raw_flate_fallback_streams_preserve_the_caller_limit"]
 notes = "Raw-deflate fallback preserves output limits in strict and tolerant decoding, including misleading zlib headers. Image codecs remain outside this general-purpose filter implementation."
 
 [[feature]]
@@ -142,7 +142,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/filters/src/flate.rs::bomb_is_bounded", "crates/filters/src/lib.rs::limit_applies_to_intermediate_buffers"]
+evidence = ["craft-pdf::filters/flate.rs::bomb_is_bounded", "craft-pdf::filters.rs::limit_applies_to_intermediate_buffers"]
 notes = ""
 
 [[feature]]
@@ -154,7 +154,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.open"]
 tools = ["doc_open"]
-evidence = ["crates/crypt/src/tests.rs::rc4_reference_vectors", "crates/cos/tests/it/encryption.rs::every_algorithm_round_trips_and_hides_the_content"]
+evidence = ["craft-pdf::crypt/tests.rs::rc4_reference_vectors", "crates/cos/tests/it/encryption.rs::every_algorithm_round_trips_and_hides_the_content"]
 notes = ""
 
 [[feature]]
@@ -166,7 +166,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.open"]
 tools = ["doc_open"]
-evidence = ["crates/crypt/src/tests.rs::aes_cbc_nist_sp800_38a_vectors", "crates/cos/tests/it/encryption.rs::every_algorithm_round_trips_and_hides_the_content"]
+evidence = ["craft-pdf::crypt/tests.rs::aes_cbc_nist_sp800_38a_vectors", "crates/cos/tests/it/encryption.rs::every_algorithm_round_trips_and_hides_the_content"]
 notes = ""
 
 [[feature]]
@@ -178,7 +178,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.open"]
 tools = ["doc_open"]
-evidence = ["crates/ui-egui/tests/it/editing.rs::password_prompt_opens_and_security_tab_reports_the_details", "crates/crypt/src/tests.rs::empty_user_password_opens_without_asking", "crates/ui-egui/src/platform/open_worker/tests.rs::a_chosen_tool_survives_wrong_password_retry_and_runs_after_unlock", "crates/ui-egui/src/platform/open_worker/tests.rs::startup_intake_waits_for_local_authentication_and_keeps_its_own_background_password_prompt", "crates/ui-egui/tests/it/pickers.rs::the_open_password_can_be_typed_through_an_input_method_however_the_file_is_opened"]
+evidence = ["crates/ui-egui/tests/it/editing.rs::password_prompt_opens_and_security_tab_reports_the_details", "craft-pdf::crypt/tests.rs::empty_user_password_opens_without_asking", "crates/ui-egui/src/platform/open_worker/tests.rs::a_chosen_tool_survives_wrong_password_retry_and_runs_after_unlock", "crates/ui-egui/src/platform/open_worker/tests.rs::startup_intake_waits_for_local_authentication_and_keeps_its_own_background_password_prompt", "crates/ui-egui/tests/it/pickers.rs::the_open_password_can_be_typed_through_an_input_method_however_the_file_is_opened"]
 notes = "the field takes typing through the platform input method, which typed keys go through on Linux, however the file was opened (#2818); checked with synthetic input-method events, not on a Linux desktop"
 
 [[feature]]
@@ -190,7 +190,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/crypt/src/tests.rs::r6_passwords_are_saslprepped"]
+evidence = ["craft-pdf::crypt/tests.rs::r6_passwords_are_saslprepped"]
 notes = ""
 
 [[feature]]
@@ -202,7 +202,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["protect.unlock"]
 tools = ["doc_open"]
-evidence = ["crates/engine/src/tests.rs::restricted_documents_refuse_changes_unless_opened_by_the_owner", "crates/engine/src/tests.rs::owner_password_of_older_revisions_opens_the_viewer_too", "crates/engine/src/tests.rs::render_password_for_recovers_the_user_password_of_older_revisions", "apps/pdfcraft-cli/tests/it/owner_password.rs::info_accepts_the_owner_password", "apps/pdfcraft-cli/tests/it/owner_password.rs::text_accepts_the_owner_password", "crates/crypt/src/tests.rs::owner_authentication_recovers_the_user_password", "crates/engine/src/tests.rs::the_permissions_password_unlocks_an_open_document", "crates/ui-egui/tests/it/editing.rs::the_security_notice_unlocks_with_the_permissions_password", "crates/ui-egui/tests/it/editing.rs::remove_security_asks_for_the_permissions_password_first", "crates/ui-egui/tests/it/pickers.rs::the_permissions_password_can_be_typed_through_an_input_method"]
+evidence = ["crates/engine/src/tests.rs::restricted_documents_refuse_changes_unless_opened_by_the_owner", "crates/engine/src/tests.rs::owner_password_of_older_revisions_opens_the_viewer_too", "crates/engine/src/tests.rs::render_password_for_recovers_the_user_password_of_older_revisions", "apps/pdfcraft-cli/tests/it/owner_password.rs::info_accepts_the_owner_password", "apps/pdfcraft-cli/tests/it/owner_password.rs::text_accepts_the_owner_password", "craft-pdf::crypt/tests.rs::owner_authentication_recovers_the_user_password", "crates/engine/src/tests.rs::the_permissions_password_unlocks_an_open_document", "crates/ui-egui/tests/it/editing.rs::the_security_notice_unlocks_with_the_permissions_password", "crates/ui-egui/tests/it/editing.rs::remove_security_asks_for_the_permissions_password_first", "crates/ui-egui/tests/it/pickers.rs::the_permissions_password_can_be_typed_through_an_input_method"]
 notes = "at open (the password prompt takes either password), or after opening a restricted file that needed no password (#995, #1077): Unlock… on the security notice and in Properties ▸ Security, and changing security asks for it first. The CLI's info, text, render and audit take either password too (#2670). Not yet: an automation tool to unlock an open document (reopen with doc_open and the password instead)"
 
 [[feature]]
@@ -214,7 +214,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/ui-egui/tests/it/editing.rs::restricted_documents_show_a_notice_and_block_page_changes", "crates/crypt/src/tests.rs::permission_bits_follow_table_22", "crates/crypt/src/tests.rs::perms_limits_what_an_edited_p_grants", "crates/engine/src/tests.rs::combining_protected_files_is_refused_clearly", "crates/engine/src/tests.rs::print_restricted_documents_disable_print_unless_opened_by_the_owner", "crates/ui-egui/tests/it/print.rs::print_restricted_documents_say_so_before_the_dialog", "crates/engine/src/tests.rs::convert_to_pdfa_needs_the_owners_rights_on_an_encrypted_document"]
+evidence = ["crates/ui-egui/tests/it/editing.rs::restricted_documents_show_a_notice_and_block_page_changes", "craft-pdf::crypt/tests.rs::permission_bits_follow_table_22", "craft-pdf::crypt/tests.rs::perms_limits_what_an_edited_p_grants", "crates/engine/src/tests.rs::combining_protected_files_is_refused_clearly", "crates/engine/src/tests.rs::print_restricted_documents_disable_print_unless_opened_by_the_owner", "crates/ui-egui/tests/it/print.rs::print_restricted_documents_say_so_before_the_dialog", "crates/engine/src/tests.rs::convert_to_pdfa_needs_the_owners_rights_on_an_encrypted_document"]
 notes = ""
 
 [[feature]]
@@ -226,7 +226,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/crypt/src/tests.rs::identity_crypt_filters_leave_data_alone"]
+evidence = ["craft-pdf::crypt/tests.rs::identity_crypt_filters_leave_data_alone"]
 notes = ""
 
 [[feature]]
@@ -262,7 +262,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/crypt/src/tests.rs::unsupported_handlers_are_reported"]
+evidence = ["craft-pdf::crypt/tests.rs::unsupported_handlers_are_reported"]
 notes = ""
 
 [[feature]]
@@ -334,7 +334,7 @@ milestone = "M1"
 status = "shipped"
 commands = []
 tools = []
-evidence = ["crates/cos/src/document/tests.rs::reads_classic_revision_and_edits_are_copy_on_write"]
+evidence = ["craft-pdf::cos/document/tests.rs::reads_classic_revision_and_edits_are_copy_on_write"]
 notes = ""
 
 [[feature]]
@@ -382,7 +382,7 @@ milestone = "M1"
 status = "shipped"
 commands = ["file.properties"]
 tools = ["doc_revisions"]
-evidence = ["crates/cos/src/document/tests.rs::revision_ends_split_incremental_updates", "crates/automation/tests/it/automation.rs::digital_ids_signing_and_validation_through_tools"]
+evidence = ["craft-pdf::cos/document/tests.rs::revision_ends_split_incremental_updates", "crates/automation/tests/it/automation.rs::digital_ids_signing_and_validation_through_tools"]
 notes = "revision ends from the xref chain (linearized first-page sections fold into their revision); listed in Document Properties ▸ Advanced and by doc_revisions with the signatures covering each"
 
 [[feature]]
@@ -734,8 +734,8 @@ milestone = "M2"
 status = "partial"
 commands = []
 tools = ["page_render"]
-evidence = ["crates/render/src/raster/tests.rs::renders_a_blue_rectangle", "crates/automation/tests/it/automation.rs::open_inspect_render_and_find", "crates/render/src/raster/tests.rs::user_unit_scales_the_page_and_everything_on_it"]
-notes = "hayro bootstrap renderer; own DisplayList devices in M2.6. Pages with /UserUnit are shown at their size in points, as Acrobat reads the value"
+evidence = ["crates/render/src/raster/tests.rs::renders_a_blue_rectangle", "crates/automation/tests/it/automation.rs::open_inspect_render_and_find", "crates/render/src/raster/tests.rs::user_unit_scales_the_page_and_everything_on_it", "crates/render/src/raster/tests.rs::non_interpolated_minification_keeps_thin_strokes", "crates/render/src/raster/tests.rs::a_shrunk_stencil_mask_keeps_thin_strokes", "crates/render/src/raster/tests.rs::minified_image_edges_snap_to_whole_pixels", "crates/render/src/raster/tests.rs::large_non_interpolated_images_are_smoothed_when_enlarged", "crates/render/src/raster/tests.rs::small_non_interpolated_images_keep_hard_pixels_when_enlarged"]
+notes = "hayro bootstrap renderer; own DisplayList devices in M2.6. Pages with /UserUnit are shown at their size in points, as Acrobat reads the value. An image drawn below its resolution is shrunk once to whole device pixels: by area averaging unless it asks for /Interpolate (then Catmull-Rom), so the text of a 300 dpi scan at 100% keeps its strokes, a 1-bit /ImageMask text layer included (it was nearest-neighbour, which dropped them). Enlarged by more than 1%, an image of page-scan size (512 samples or more on its shorter side) is smoothed bilinearly whatever its /Interpolate, so a zoomed scan has no staircases; smaller images keep their hard pixels. Not measured against Acrobat"
 
 [[feature]]
 id = "view.render-shadings-patterns"
@@ -1430,8 +1430,8 @@ milestone = "M3"
 status = "shipped"
 commands = ["edit.find"]
 tools = []
-evidence = ["crates/ui-egui/tests/it/viewer.rs::view_history_select_all_and_find_options"]
-notes = "whole words only, case-sensitive"
+evidence = ["crates/ui-egui/tests/it/viewer.rs::view_history_select_all_and_find_options", "crates/render/src/text/tests.rs::whole_words_ignore_neighbours_in_scripts_written_without_spaces", "crates/render/tests/it/search.rs::whole_words_follow_the_unicode_blocks_of_unspaced_scripts"]
+notes = "whole words only, case-sensitive. Whole words: a neighbouring letter bounds the match only in a script that writes spaces between words; next to Han, kana, bopomofo, Thai, Lao, Myanmar, Khmer or Tibetan letters the match stands, so 台北 is found in 台北市 as in Acrobat"
 
 [[feature]]
 id = "view.find-in-comments-bookmarks"
@@ -3292,8 +3292,8 @@ milestone = "M4"
 status = "shipped"
 commands = []
 tools = ["bookmark_rename"]
-evidence = ["crates/ui-egui/tests/it/bookmarks.rs::new_rename_reorder_indent_delete_and_undo", "crates/ui-egui/tests/it/bookmarks.rs::escape_cancels_a_rename", "crates/organize/src/tests.rs::bookmarks_add_rename_move_delete", "crates/organize/src/tests.rs::bookmark_edits_keep_unknown_keys_and_touch_few_objects"]
-notes = ""
+evidence = ["crates/ui-egui/tests/it/bookmarks.rs::new_rename_reorder_indent_delete_and_undo", "crates/ui-egui/tests/it/bookmarks.rs::escape_cancels_a_rename", "crates/ui-egui/tests/it/bookmarks.rs::typing_replaces_the_title_when_the_editor_opens", "crates/ui-egui/tests/it/bookmarks.rs::a_rename_editor_keeps_the_users_caret_across_frames", "crates/organize/src/tests.rs::bookmarks_add_rename_move_delete", "crates/organize/src/tests.rs::bookmark_edits_keep_unknown_keys_and_touch_few_objects"]
+notes = "The inline editor opens with the whole title selected, so typing replaces it at once (#5529); a caret the user moves afterwards is kept by later frames."
 
 [[feature]]
 id = "organize.bookmark-delete"
@@ -3532,8 +3532,8 @@ milestone = "M4"
 status = "partial"
 commands = ["file.properties"]
 tools = ["doc_info", "doc_set_info"]
-evidence = ["crates/organize/src/tests.rs::custom_document_properties_are_listed_set_removed_and_their_names_checked", "crates/render/src/inspect/tests.rs::custom_document_properties_are_listed_apart_from_the_standard_ones", "crates/automation/tests/it/automation.rs::custom_document_properties_are_set_listed_and_cleared_through_the_tools", "crates/ui-egui/tests/it/editing.rs::custom_properties_are_added_in_the_custom_tab_as_one_undoable_step", "crates/ui-egui/tests/it/editing.rs::custom_properties_are_changed_and_deleted_in_the_custom_tab", "crates/ui-egui/tests/it/editing.rs::the_custom_tab_refuses_names_a_custom_property_cannot_have", "crates/ui-egui/tests/it/editing.rs::a_custom_property_whose_name_the_tools_refuse_is_listed_and_left_alone", "crates/ui-egui/tests/it/editing.rs::a_custom_property_is_deleted_from_an_info_dictionary_in_the_trailer", "crates/ui-egui/tests/it/editing.rs::add_stops_at_the_256_custom_properties_the_tab_lists", "crates/organize/src/tests.rs::document_info_entries_are_cleared_from_an_info_dictionary_in_the_trailer"]
-notes = "Document Properties ▸ Custom lists them, with Name and Value fields and Add, Update (the value of the listed property the Name field names) and Delete; OK writes the changes as one undo step with the other tabs' changes. A property already in the file under a name the tools refuse (a space, a delimiter) or a name that is not UTF-8 is listed and cannot be changed or deleted there, and Add is off for a name the file already uses for an entry that is not listed (not text, only padding, or past the 256 listed), and once the tab or the file lists 256 properties. Through the tools: doc_set_info sets or clears an /Info entry under any name the spec does not use (names checked as Acrobat does: no standard name, no empty name, no spaces or delimiters, at most 127 bytes), and doc_info lists them under custom, apart from the standard entries. Not yet: mirroring them into XMP (pdfx:) as Acrobat does"
+evidence = ["crates/organize/src/tests.rs::custom_document_properties_are_listed_set_removed_and_their_names_checked", "crates/render/src/inspect/tests.rs::custom_document_properties_are_listed_apart_from_the_standard_ones", "crates/automation/tests/it/automation.rs::custom_document_properties_are_set_listed_and_cleared_through_the_tools", "crates/ui-egui/tests/it/editing.rs::custom_properties_are_added_in_the_custom_tab_as_one_undoable_step", "crates/ui-egui/tests/it/editing.rs::custom_properties_are_changed_and_deleted_in_the_custom_tab", "crates/ui-egui/tests/it/editing.rs::the_custom_tab_refuses_names_a_custom_property_cannot_have", "crates/ui-egui/tests/it/editing.rs::a_custom_property_whose_name_the_tools_refuse_is_listed_and_left_alone", "crates/ui-egui/tests/it/editing.rs::a_custom_property_is_deleted_from_an_info_dictionary_in_the_trailer", "crates/ui-egui/tests/it/editing.rs::add_stops_at_the_256_custom_properties_the_tab_lists", "crates/organize/src/tests.rs::document_info_entries_are_cleared_from_an_info_dictionary_in_the_trailer", "crates/organize/src/tests.rs::custom_document_properties_are_kept_in_the_xmp_packet_as_pdfx", "crates/organize/src/tests.rs::custom_properties_add_nothing_to_pdfa_packets_or_another_schemas_pdfx"]
+notes = "Document Properties ▸ Custom lists them, with Name and Value fields and Add, Update (the value of the listed property the Name field names) and Delete; OK writes the changes as one undo step with the other tabs' changes. A property already in the file under a name the tools refuse (a space, a delimiter) or a name that is not UTF-8 is listed and cannot be changed or deleted there, and Add is off for a name the file already uses for an entry that is not listed (not text, only padding, or past the 256 listed), and once the tab or the file lists 256 properties. Through the tools: doc_set_info sets or clears an /Info entry under any name the spec does not use (names checked as Acrobat does: no standard name, no empty name, no spaces or delimiters, at most 127 bytes), and doc_info lists them under custom, apart from the standard entries. In a file with XMP metadata each one set or cleared is also set or removed as pdfx:<name> (the http://ns.adobe.com/pdfx/1.3/ schema, where Acrobat keeps them), so tools that read XMP see the same properties; a name that can't be an XML element name (1st, Q&A, a:b) stays in /Info only. In a file that declares PDF/A one the packet already has is changed or removed, but none is added, since PDF/A-1 to -3 allow a schema only when the packet describes it (ISO 19005-2 §6.6.2.3); a packet that binds the pdfx prefix to another namespace is left alone. Not yet: an XMP packet for a file without one, and reading custom properties a file states only in XMP"
 
 [[feature]]
 id = "organize.xmp-editor"
@@ -4464,8 +4464,8 @@ milestone = "M3"
 status = "shipped"
 commands = ["form.fields"]
 tools = ["doc_info"]
-evidence = ["crates/ui-egui/tests/it/view.rs::field_list_jumps_to_a_fields_page", "crates/render/src/inspect/tests.rs::fields_listed_only_on_the_pages_are_listed", "crates/ui-egui/tests/it/bulk_fields.rs::fields_panel_selects_multiple_fields_and_opens_their_shared_properties", "crates/ui-egui/tests/it/bulk_fields.rs::double_clicking_a_field_in_the_panel_opens_its_individual_properties"]
-notes = "list with jump-to-field; in Prepare a form, Shift/Ctrl/Command-click selects several fields and Properties edits their shared properties; double-click opens field properties; fields a file lists only as page widgets (empty /Fields) are adopted too"
+evidence = ["crates/ui-egui/tests/it/view.rs::field_list_jumps_to_a_fields_page", "crates/render/src/inspect/tests.rs::fields_listed_only_on_the_pages_are_listed", "crates/render/src/inspect/tests.rs::a_widget_whose_parent_is_missing_is_listed", "crates/forms/src/tests.rs::a_widget_whose_parent_is_missing_is_a_field_of_its_own", "crates/ui-egui/tests/it/bulk_fields.rs::fields_panel_selects_multiple_fields_and_opens_their_shared_properties", "crates/ui-egui/tests/it/bulk_fields.rs::double_clicking_a_field_in_the_panel_opens_its_individual_properties"]
+notes = "list with jump-to-field; in Prepare a form, Shift/Ctrl/Command-click selects several fields and Properties edits their shared properties; double-click opens field properties; fields a file lists only as page widgets (empty /Fields) are adopted too, and a widget whose /Parent names a missing object is a field of its own"
 
 [[feature]]
 id = "form.highlight-fields"
@@ -4644,8 +4644,8 @@ milestone = "M6"
 status = "shipped"
 commands = ["form.field.properties"]
 tools = ["form_set_props", "form_fill"]
-evidence = ["crates/forms/src/af/tests.rs::validation_and_calculation", "crates/forms/src/tests.rs::formats_validation_and_calculations_run_like_acrobat"]
-notes = "SUM, PRD, AVG, MIN, MAX over fields and groups"
+evidence = ["crates/forms/src/af/tests.rs::validation_and_calculation", "crates/forms/src/tests.rs::formats_validation_and_calculations_run_like_acrobat", "crates/forms/src/af/tests.rs::a_calculation_over_fields_without_values_is_0_for_every_operation", "crates/forms/src/af/tests.rs::a_blank_option_of_a_single_space_is_a_value_worth_0", "crates/forms/src/tests.rs::an_order_form_with_blank_drop_down_quantities_totals_only_the_chosen_rows"]
+notes = "SUM, PRD, AVG, MIN, MAX over fields and groups; fields without a value are left out, and when none of the listed fields has one, every operation gives 0 (a product too, not 1); a drop-down's blank option of a single space is a value worth 0"
 
 [[feature]]
 id = "form.simplified-notation"
@@ -5004,8 +5004,8 @@ milestone = "M6"
 status = "shipped"
 commands = ["form.field.properties"]
 tools = ["form_set_props"]
-evidence = ["crates/forms/src/tests.rs::button_caption_preserves_other_widgets_and_shared_dictionaries", "crates/forms/src/tests.rs::a_button_caption_is_drawn_in_its_fields_font_size_and_color", "crates/ui-egui/tests/it/prepare.rs::button_label_is_editable_without_renaming_the_field", "crates/automation/tests/it/button_caption.rs::button_caption_can_be_changed_after_creation", "crates/forms/src/tests.rs::properties_rename_and_delete", "crates/automation/tests/it/automation.rs::preparing_a_form_through_tools", "crates/forms/src/tests.rs::options_tab_flags_alignment_and_defaults", "crates/ui-egui/tests/it/prepare.rs::options_tab_sets_flags_alignment_and_defaults", "crates/automation/tests/it/form_bulk.rs::bulk_options_apply_per_field_and_refuse_an_invalid_comb_atomically", "crates/forms/src/tests.rs::changing_a_lists_options_repoints_its_selected_indices", "crates/forms/src/tests.rs::shrinking_a_lists_options_scrolls_a_widget_with_its_own_top_row", "crates/forms/src/tests.rs::each_widget_with_its_own_top_row_scrolls_by_itself", "crates/forms/src/tests.rs::a_list_boxs_top_row_follows_a_font_size_changed_with_its_items", "crates/forms/src/tests.rs::sorting_a_combo_boxs_items_repoints_its_selected_index", "crates/automation/tests/it/automation.rs::changing_a_lists_options_through_tools_keeps_its_saved_selection_on_the_same_items", "crates/forms/src/tests.rs::clearing_a_kids_default_does_not_bring_back_its_parents", "crates/forms/src/tests.rs::clearing_a_buttons_default_under_a_parent_with_one_leaves_it_off", "crates/automation/tests/it/automation.rs::clearing_a_kids_default_through_tools_does_not_bring_back_its_parents"]
-notes = "push buttons: per-widget normal label independent of the field name, including clearing and save/reopen, drawn in the font, size and color of the button's /DA (the form's /DR font, else Helvetica; an automatic size fits the button) and centered by Helvetica's widths; icon-only layout retained, rollover/down labels and icon layout editing remain unavailable; text: alignment, default (clearing it leaves none, not a parent field's), multi-line, scroll, rich text flag, limit, password, file selection, spell check, comb; choices: items (the selected indices /I follow their items when the list is edited or sorted), default, sort, custom text, multiple selection, commit immediately; check boxes and radios: checked by default, radios in unison. Shared GUI offers applicable text/choice flags, alignment, text limits and check styles; choices/defaults remain individual GUI edits"
+evidence = ["crates/forms/src/tests.rs::button_caption_preserves_other_widgets_and_shared_dictionaries", "crates/forms/src/tests.rs::a_button_caption_is_drawn_in_its_fields_font_size_and_color", "crates/ui-egui/tests/it/prepare.rs::button_label_is_editable_without_renaming_the_field", "crates/automation/tests/it/button_caption.rs::button_caption_can_be_changed_after_creation", "crates/forms/src/tests.rs::properties_rename_and_delete", "crates/automation/tests/it/automation.rs::preparing_a_form_through_tools", "crates/forms/src/tests.rs::options_tab_flags_alignment_and_defaults", "crates/ui-egui/tests/it/prepare.rs::options_tab_sets_flags_alignment_and_defaults", "crates/automation/tests/it/form_bulk.rs::bulk_options_apply_per_field_and_refuse_an_invalid_comb_atomically", "crates/forms/src/tests.rs::changing_a_lists_options_repoints_its_selected_indices", "crates/forms/src/tests.rs::shrinking_a_lists_options_scrolls_a_widget_with_its_own_top_row", "crates/forms/src/tests.rs::each_widget_with_its_own_top_row_scrolls_by_itself", "crates/forms/src/tests.rs::a_list_boxs_top_row_follows_a_font_size_changed_with_its_items", "crates/forms/src/tests.rs::sorting_a_combo_boxs_items_repoints_its_selected_index", "crates/automation/tests/it/automation.rs::changing_a_lists_options_through_tools_keeps_its_saved_selection_on_the_same_items", "crates/forms/src/tests.rs::clearing_a_kids_default_does_not_bring_back_its_parents", "crates/forms/src/tests.rs::clearing_a_kids_length_limit_does_not_bring_back_its_parents", "crates/automation/tests/it/automation.rs::clearing_a_kids_length_limit_through_tools_does_not_bring_back_its_parents", "crates/forms/src/tests.rs::clearing_a_buttons_default_under_a_parent_with_one_leaves_it_off", "crates/automation/tests/it/automation.rs::clearing_a_kids_default_through_tools_does_not_bring_back_its_parents"]
+notes = "push buttons: per-widget normal label independent of the field name, including clearing and save/reopen, drawn in the font, size and color of the button's /DA (the form's /DR font, else Helvetica; an automatic size fits the button) and centered by Helvetica's widths; icon-only layout retained, rollover/down labels and icon layout editing remain unavailable; text: alignment, default (clearing it leaves none, not a parent field's), multi-line, scroll, rich text flag, limit (clearing it leaves none, not a parent field's), password, file selection, spell check, comb; choices: items (the selected indices /I follow their items when the list is edited or sorted), default, sort, custom text, multiple selection, commit immediately; check boxes and radios: checked by default, radios in unison. Shared GUI offers applicable text/choice flags, alignment, text limits and check styles; choices/defaults remain individual GUI edits"
 
 [[feature]]
 id = "form.props-actions"
@@ -7998,7 +7998,7 @@ status = "shipped"
 commands = ["standards.pdfa"]
 tools = ["standards_remove_id"]
 evidence = ["crates/organize/src/tests.rs::removing_the_pdfx_identification_keeps_the_output_intent_and_other_claims", "crates/organize/src/tests.rs::removing_the_pdfa_identification_removes_its_xmp_properties_in_either_form", "crates/automation/tests/it/automation.rs::pdfa_through_tools", "crates/ui-egui/tests/it/compare.rs::pdfa_dialog_verifies_and_converts"]
-notes = "Standards ▸ PDF/A ▸ Remove PDF/A identification, and the standards_remove_id tool (pdfa or pdfx): removes the pdfaid: XMP properties, or GTS_PDFXVersion and GTS_PDFXConformance from the document information and the pdfxid: XMP properties. Output intents and other claims (PDF/UA) stay; a packet that can't be edited safely is left as it is. Not yet: PDF/X removal in the interface (there is no PDF/X dialog yet)"
+notes = "Standards ▸ PDF/A ▸ Remove PDF/A identification, and the standards_remove_id tool (pdfa or pdfx): removes the pdfaid: XMP properties, or GTS_PDFXVersion and GTS_PDFXConformance from the document information and the pdfxid: XMP properties, with their pdfx: custom-property copies (a copy alone is no declaration, and is refused and kept; a pdfx prefix bound to another namespace is left alone). Output intents and other claims (PDF/UA) stay; a packet that can't be edited safely is left as it is. Not yet: PDF/X removal in the interface (there is no PDF/X dialog yet)"
 
 [[feature]]
 id = "optimize.pdfx5-reference-xobjects"
@@ -8049,8 +8049,8 @@ milestone = "M10"
 status = "shipped"
 commands = ["print.dialog"]
 tools = ["printers", "printer_options", "doc_print"]
-evidence = ["crates/print/src/tests.rs::spooler_arguments_and_printer_list", "crates/print/src/tests.rs::driverless_printers_join_the_list_without_a_queue", "crates/print/src/tests.rs::windows_printers_carry_one_default_and_keep_their_names", "crates/print/src/tests.rs::printer_options_come_from_the_ppd", "crates/print/src/tests.rs::printer_option_defaults_and_job_arguments", "crates/ui-egui/tests/it/print.rs::print_dialog_shows_the_printer_driver_options", "crates/ui-egui/tests/it/print.rs::printers_listed_in_the_background_preselect_the_default_unless_one_was_picked", "crates/ui-egui/src/workflows/web_print.rs::resolution_falls_with_the_sheet_count_and_long_jobs_are_refused", "crates/ui-egui/src/workflows/web_print.rs::large_sheets_are_drawn_within_the_pixel_cap_and_bad_sizes_are_refused", "crates/ui-egui/src/workflows/web_print.rs::a_sink_error_or_a_page_that_isnt_there_stops_the_job", "crates/print/src/tests.rs::a_command_that_never_answers_is_stopped_at_the_deadline", "crates/ui-egui/tests/it/print.rs::printer_options_are_read_off_the_gui_thread_and_a_dead_read_offers_nothing"]
-notes = "CUPS queues via lpstat -p -d and driverless destinations without a queue via lpstat -e; on Windows shared craft-print lists the queues (EnumPrinters), the default (GetDefaultPrinter) and each driver's two-sided support in this process, and draws jobs as vectors with Windows.Data.Pdf into the XPS print API with a driver-validated PrintTicket (exact paper, orientation, no scaling; portrait and landscape sheets in one job via /Rotate), starting no PowerShell, so printing works under App Control script enforcement (#1107); the printer list and submission run on workers; Save as PDF on every platform. Properties…: on CUPS the driver's own PPD job options (tray, paper type, finishing …, not installable options or what the dialog sets) for this job, sent as lp -o; on Windows the driver's Printing Preferences window (printui), saved as that printer's per-user defaults rather than per job. On the web: \"Browser's print dialog\" (the default there) reaches the system's printers through the browser; PdfCraft draws the sheets itself (300 dpi up to 100 sheets, 200 up to 300, 150 up to 1,000; at most 64 megapixels a sheet and 1 GiB a job) and prints them from a hidden iframe, one per printed page, a landscape sheet among portrait ones turned onto the paper; copies, two-sided and colour are chosen in the browser's dialog; a browser that refuses to print gets the print-ready PDF as a download. Checked in headless Chromium, not yet in Firefox or Safari; pictures, not vectors; sheets of another paper size print at their own size only where the browser honours named @page sizes (Chromium doesn't). Properties… on CUPS reads the driver options off the GUI thread and gives lpoptions ten seconds before the PPD defaults stand (#1818)"
+evidence = ["crates/print/src/tests.rs::spooler_arguments_and_printer_list", "crates/print/src/tests.rs::a_job_names_its_title_and_owner_to_the_spooler", "crates/print/src/tests.rs::a_job_keeps_the_title_and_owner_it_already_sets", "crates/print/src/tests.rs::a_submitted_job_reaches_lp_named", "crates/print/src/tests.rs::driverless_printers_join_the_list_without_a_queue", "crates/print/src/tests.rs::windows_printers_carry_one_default_and_keep_their_names", "crates/print/src/tests.rs::printer_options_come_from_the_ppd", "crates/print/src/tests.rs::printer_option_defaults_and_job_arguments", "crates/ui-egui/tests/it/print.rs::print_dialog_shows_the_printer_driver_options", "crates/ui-egui/tests/it/print.rs::printers_listed_in_the_background_preselect_the_default_unless_one_was_picked", "crates/ui-egui/src/workflows/web_print.rs::resolution_falls_with_the_sheet_count_and_long_jobs_are_refused", "crates/ui-egui/src/workflows/web_print.rs::large_sheets_are_drawn_within_the_pixel_cap_and_bad_sizes_are_refused", "crates/ui-egui/src/workflows/web_print.rs::a_sink_error_or_a_page_that_isnt_there_stops_the_job", "crates/print/src/tests.rs::a_command_that_never_answers_is_stopped_at_the_deadline", "crates/ui-egui/tests/it/print.rs::printer_options_are_read_off_the_gui_thread_and_a_dead_read_offers_nothing"]
+notes = "CUPS queues via lpstat -p -d and driverless destinations without a queue via lpstat -e; on Windows shared craft-print lists the queues (EnumPrinters), the default (GetDefaultPrinter) and each driver's two-sided support in this process, and draws jobs as vectors with Windows.Data.Pdf into the XPS print API with a driver-validated PrintTicket (exact paper, orientation, no scaling; portrait and landscape sheets in one job via /Rotate), starting no PowerShell, so printing works under App Control script enforcement (#1107); the printer list and submission run on workers; Save as PDF on every platform. Properties…: on CUPS the driver's own PPD job options (tray, paper type, finishing …, not installable options or what the dialog sets) for this job, sent as lp -o; on Windows the driver's Printing Preferences window (printui), saved as that printer's per-user defaults rather than per job. On the web: \"Browser's print dialog\" (the default there) reaches the system's printers through the browser; PdfCraft draws the sheets itself (300 dpi up to 100 sheets, 200 up to 300, 150 up to 1,000; at most 64 megapixels a sheet and 1 GiB a job) and prints them from a hidden iframe, one per printed page, a landscape sheet among portrait ones turned onto the paper; copies, two-sided and colour are chosen in the browser's dialog; a browser that refuses to print gets the print-ready PDF as a download. Checked in headless Chromium, not yet in Firefox or Safari; pictures, not vectors; sheets of another paper size print at their own size only where the browser honours named @page sizes (Chromium doesn't). Properties… on CUPS reads the driver options off the GUI thread and gives lpoptions ten seconds before the PPD defaults stand (#1818); on macOS lp jobs also carry the job name and owner (com.apple.print.JobInfo.PMJobName and PMJobOwner) that the system print dialog sends and some vendors' filters need (#5743). Not yet checked on a physical Kyocera printer."
 
 [[feature]]
 id = "print.copies-collate"
@@ -8073,8 +8073,8 @@ milestone = "M10"
 status = "shipped"
 commands = ["print.dialog"]
 tools = ["doc_print"]
-evidence = ["crates/print/src/tests.rs::page_selection", "crates/automation/tests/it/automation.rs::printing_through_tools"]
-notes = "all, current, ranges with labels and open ends"
+evidence = ["crates/print/src/tests.rs::page_selection", "crates/print/src/tests.rs::a_number_in_parentheses_names_the_page_at_that_position", "crates/automation/tests/it/automation.rs::printing_through_tools"]
+notes = "all, current, ranges with labels and open ends; (n) names the nth page whatever its label (ISO 32000-2 §12.4.2: labels and page indices need not coincide), alone or as a range end; labels are looked up first, so a page labelled exactly \"(n)\" keeps that name. The same parser serves Combine files ranges. Organize Pages range selection still takes positions only, without labels or (n)."
 
 [[feature]]
 id = "print.odd-even-reverse"
@@ -8085,8 +8085,8 @@ milestone = "M10"
 status = "shipped"
 commands = ["print.dialog"]
 tools = ["doc_print"]
-evidence = ["crates/print/src/tests.rs::page_selection", "crates/print/src/tests.rs::odd_and_even_pages_are_page_numbers_not_places_in_the_range", "crates/automation/tests/it/automation.rs::cut_stack_printing_through_tools"]
-notes = "Odd and even are page numbers, as Acrobat counts them (Adobe Acrobat DC Help, 11/28/2019, Options in the Print dialog box, p. 515: a range of 2, 7–10 with Even Pages Only prints pages 2, 8 and 10), for a typed range, picked thumbnails and the current page; Reverse turns the chosen pages round (#3984). Not yet: with page labels, odd and even still count page numbers (a document whose front matter is numbered i, ii, iii… keeps label 2 among the odd pages when it is page 5); the Acrobat help consulted doesn't say how Acrobat counts there, and the other Print-dialog behaviours #3984 mentions are open."
+evidence = ["crates/print/src/tests.rs::page_selection", "crates/print/src/tests.rs::odd_and_even_pages_are_page_numbers_not_places_in_the_range", "crates/print/src/tests.rs::odd_and_even_count_positions_on_a_labelled_document", "crates/automation/tests/it/automation.rs::cut_stack_printing_through_tools"]
+notes = "Odd and even are page numbers, as Acrobat counts them (Adobe Acrobat DC Help, 11/28/2019, Options in the Print dialog box, p. 515: a range of 2, 7–10 with Even Pages Only prints pages 2, 8 and 10), for a typed range, picked thumbnails and the current page; Reverse turns the chosen pages round (#3984). With page labels, odd and even count page positions, not the numbers in the labels: page indices are fixed and consecutive while labels can restart, repeat, use letters or carry no number at all (ISO 32000-2 §12.4.2), so with front matter labelled i–iii the page labelled 1 (the fourth) is even. The other Print-dialog behaviours #3984 mentions are open."
 
 [[feature]]
 id = "print.scaling"
@@ -8133,8 +8133,8 @@ milestone = "M10"
 status = "shipped"
 commands = ["print.dialog"]
 tools = ["doc_print"]
-evidence = ["crates/print/src/tests.rs::multiple_pages_per_sheet", "crates/automation/tests/it/automation.rs::printing_through_tools", "crates/print/src/tests.rs::cut_stack_keeps_piles_in_order_and_blanks_in_place", "crates/print/src/tests.rs::cutting_and_stacking_recovers_every_selected_page", "crates/automation/tests/it/automation.rs::cut_stack_printing_through_tools", "crates/ui-egui/tests/it/print.rs::cut_stack_dialog_previews_saves_and_refuses_duplex"]
-notes = "2/4/6/9/16, four sequential orders, borders, auto-rotate; also single-sided cut-and-stack order with aligned gutter cut marks, blank padding and range/reverse support (an extension, not an Acrobat parity claim). Duplex cut-and-stack is refused."
+evidence = ["crates/print/src/tests.rs::multiple_pages_per_sheet", "crates/automation/tests/it/automation.rs::printing_through_tools", "crates/print/src/tests.rs::cut_stack_keeps_piles_in_order_and_blanks_in_place", "crates/print/src/tests.rs::cutting_and_stacking_recovers_every_selected_page", "crates/automation/tests/it/automation.rs::cut_stack_printing_through_tools", "crates/ui-egui/tests/it/print.rs::cut_stack_dialog_previews_saves_and_refuses_duplex", "crates/print/src/tests.rs::a_custom_grid_is_laid_out_as_given_on_the_chosen_sheet", "crates/automation/tests/it/automation.rs::custom_pages_per_sheet_prints_the_grid_as_given", "crates/ui-egui/tests/it/print.rs::custom_pages_per_sheet_takes_columns_by_rows"]
+notes = "2/4/6/9/16 (the sheet turns to suit the grid with Auto orientation) or Custom columns by rows, 1-99 each, laid out across and down the sheet as oriented (Auto prints portrait; doc_print cols/rows); four sequential orders, borders, auto-rotate; also single-sided cut-and-stack order with aligned gutter cut marks, blank padding and range/reverse support (an extension, not an Acrobat parity claim). Duplex cut-and-stack is refused."
 
 [[feature]]
 id = "print.booklet"

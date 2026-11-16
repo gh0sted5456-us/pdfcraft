@@ -430,9 +430,12 @@ impl Walk {
         piece.changed = true;
         scope.report.paths_removed += 1;
         if scope.covered(b) && clips {
-            // Keep the clipping, drop the painting.
-            piece.ops.extend(body);
-            piece.ops.push(Op::new("n", vec![]));
+            // Everything this clip lets through is under a mark, so an empty clip hides the same
+            // content. The original outline is confidential and must not stay in the stream.
+            for o in ["re", "W", "n"] {
+                let operands = if o == "re" { vec![num(0.0); 4] } else { vec![] };
+                piece.ops.push(Op::new(o, operands));
+            }
         }
         // Partial vector redaction must not retain underlying drawing commands
         // behind clipping (F-008). Refuse partial clip retention and remove the path.
@@ -461,8 +464,10 @@ impl Walk {
     }
 
     fn select_font(&mut self, doc: &Document, scope: &mut Scope<'_>, op: &Op) {
-        self.gs.size = op.num(1).unwrap_or(self.gs.size);
-        let Some(name) = op.name(0) else { return };
+        // `/F1 12 Tf` takes its last two operands, as the renderer does: a surplus before them
+        // is ignored, not read in their place.
+        self.gs.size = op.nums::<1>().map_or(self.gs.size, |[size]| size);
+        let Some(name) = op.operands.len().checked_sub(2).and_then(|i| op.name(i)) else { return };
         let font_dict = self.fonts_res.get(name).and_then(|f| doc.resolve(f).as_dict().cloned());
         self.gs.vertical = font_dict.as_ref().is_some_and(|d| is_vertical(doc, d));
         self.gs.font = match scope.fonts.get(name) {
@@ -478,17 +483,20 @@ impl Walk {
     /// Text state and text-positioning operators.
     fn text_state(&mut self, op: &Op) {
         let gs = &mut self.gs;
+        // The operand immediately before the operator, as the renderer reads it: surplus operands
+        // before it must not move where glyphs are placed (`1 50 Ts` raises text by 50, not 1).
+        let last = op.nums::<1>().map(|[v]| v);
         match op.op.as_slice() {
             b"BT" => {
                 self.tm = Matrix::IDENTITY;
                 self.tlm = Matrix::IDENTITY;
             }
-            b"Tc" => gs.char_spacing = op.num(0).unwrap_or(0.0),
-            b"Tw" => gs.word_spacing = op.num(0).unwrap_or(0.0),
-            b"Tz" => gs.scale = op.num(0).unwrap_or(100.0) / 100.0,
-            b"TL" => gs.leading = op.num(0).unwrap_or(0.0),
-            b"Ts" => gs.rise = op.num(0).unwrap_or(0.0),
-            b"Tr" => gs.render_mode = op.num(0).unwrap_or(0.0) as i64,
+            b"Tc" => gs.char_spacing = last.unwrap_or(0.0),
+            b"Tw" => gs.word_spacing = last.unwrap_or(0.0),
+            b"Tz" => gs.scale = last.unwrap_or(100.0) / 100.0,
+            b"TL" => gs.leading = last.unwrap_or(0.0),
+            b"Ts" => gs.rise = last.unwrap_or(0.0),
+            b"Tr" => gs.render_mode = last.unwrap_or(0.0) as i64,
             b"Td" | b"TD" => {
                 if let Some([x, y]) = op.nums::<2>() {
                     if op.is("TD") {
@@ -515,8 +523,10 @@ impl Walk {
     fn show_text(&mut self, scope: &mut Scope<'_>, op: Op, piece: &mut Piece) -> Option<Op> {
         let o = op.op.as_slice();
         if o == b"\"" {
-            self.gs.word_spacing = op.num(0).unwrap_or(self.gs.word_spacing);
-            self.gs.char_spacing = op.num(1).unwrap_or(self.gs.char_spacing);
+            // `aw ac string "`: the two numbers before the string, whatever surplus precedes them.
+            let at = |back: usize| op.operands.len().checked_sub(back).and_then(|i| op.num(i));
+            self.gs.word_spacing = at(3).unwrap_or(self.gs.word_spacing);
+            self.gs.char_spacing = at(2).unwrap_or(self.gs.char_spacing);
         }
         if matches!(o, b"'" | b"\"") {
             self.tlm = Matrix::translate(0.0, -self.gs.leading).then(&self.tlm);
@@ -802,7 +812,7 @@ fn xobject(
             }
             // Strict, like page content: a Form read only in part counts as undecodable.
             let data = if scope.budget.enter_form() {
-                scope.budget.decode_strict(s)
+                scope.budget.decode_strict(doc, s)
             } else {
                 Err(CosError::Filter(format!("the page draws more than {MAX_PAGE_FORMS} form XObjects")))
             };
@@ -858,6 +868,11 @@ fn xobject(
             }
             let mut dict = s.dict.clone();
             dict.remove(b"Length");
+            if new_data.is_some() {
+                // As for page content streams: the source text of an added item (Edit ▸ Add
+                // content) would keep what the rewrite removed.
+                dict.remove(b"PCAdded");
+            }
             let mut cleaned_res = res.clone();
             // Install rewritten nested forms before finding live property names: a new form may
             // still inherit its caller's resources, and its new Do name must resolve here.

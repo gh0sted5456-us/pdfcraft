@@ -574,6 +574,83 @@ fn flattening_keeps_a_cloudy_square_it_cannot_draw() {
     case("/BE << /S /C /I 2 >> /AP << /N 6 0 R >>", 1, false);
 }
 
+/// #3213: flattening wraps transferable optional-content memberships (`/OC` indirect OCGs and
+/// valid OCMDs, including ISO 32000-1 §8.11.2.2 `/VE` expressions within depth 16 and the
+/// 4,096-node visit budget) in `/OC /PCFlOC0 BDC … EMC` and registers them in
+/// `/Resources /Properties`, while retaining annotations with untransferable, malformed,
+/// overly deep, or over-budget `/OC` definitions in `/Annots`.
+#[test]
+fn flattening_transfers_annotation_optional_content_to_marked_content() {
+    let page = stream("", " ");
+    let form = "<< /Type /XObject /Subtype /Form /BBox [100 600 200 650] /Length 28 >>\nstream\n1 0 0 RG 100 600 100 50 re S\nendstream";
+    let case = |extra: &str, drawn: usize, left: bool, bdc: bool| {
+        let annot = format!("<< /Type /Annot /Subtype /Square /Rect [100 600 200 650] /C [1 0 0] /AP << /N 6 0 R >> {extra} >>");
+        let mut doc = build(&[
+            "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [7 0 R 8 0 R 13 0 R] /D << /OFF [7 0 R] /ON [8 0 R 13 0 R] >> >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << >> /Contents 5 0 R /Annots [4 0 R] >>",
+            &annot,
+            &page,
+            form,
+            "<< /Type /OCG /Name (Hidden layer) >>",
+            "<< /Type /OCG /Name (Shown layer) >>",
+            "<< /Type /OCMD /OCGs [7 0 R 8 0 R] /P /AllOn >>",
+            "<< /Type /OCMD /OCGs [7 0 R 8 0 R] /P /AnyOn >>",
+            "<< /Type /OCMD /OCGs [7 0 R 8 0 R] /P /AnyOff >>",
+            "<< /Type /OCMD /OCGs [7 0 R 8 0 R] /P /AllOff >>",
+            "<< /Type /OCG /Name (Second shown layer) >>",
+            "[ /Or 15 0 R 15 0 R 15 0 R 15 0 R ]",
+            "[ /Or 16 0 R 16 0 R 16 0 R 16 0 R ]",
+            "[ /Or 17 0 R 17 0 R 17 0 R 17 0 R ]",
+            "[ /Or 18 0 R 18 0 R 18 0 R 18 0 R ]",
+            "[ /Or 8 0 R 8 0 R 8 0 R 8 0 R ]",
+        ]);
+        let before = streams(&doc, 0);
+        let expected_oc = doc.get(pdfcraft_cos::ObjRef::new(4, 0)).as_dict().and_then(|d| d.get(b"OC").cloned());
+        assert_eq!(flatten(&mut doc, &[0], true, false).unwrap(), drawn, "{extra}");
+        let doc = reopen(&doc);
+        let p = &pdfcraft_model::pages(&doc)[0];
+        assert_eq!(p.dict.contains(b"Annots"), left, "{extra}");
+        if drawn == 0 {
+            assert_eq!(streams(&doc, 0), before, "nothing was drawn in place of the retained comment: {extra}");
+        } else {
+            let flat = streams(&doc, 0).pop().unwrap();
+            assert_eq!(flat.contains("/OC /PCFlOC0 BDC") && flat.contains("EMC"), bdc, "{extra}: {flat}");
+            if bdc {
+                let res = doc.resolve(p.dict.get(b"Resources").unwrap());
+                let props = doc.resolve(res.as_dict().unwrap().get(b"Properties").unwrap());
+                assert_eq!(props.as_dict().unwrap().get(b"PCFlOC0").cloned(), expected_oc, "{extra}");
+            }
+        }
+    };
+    case("/OC 7 0 R", 1, false, true);
+    case("/OC 8 0 R", 1, false, true);
+    case("/OC 9 0 R", 1, false, true);
+    case("/OC 10 0 R", 1, false, true);
+    case("/OC 11 0 R", 1, false, true);
+    case("/OC 12 0 R", 1, false, true);
+    case("", 1, false, false);
+    // Valid ISO 32000-1 §8.11.2.2 /VE visibility expressions are transferred with their OCMD.
+    case("/OC << /Type /OCMD /VE [ /Not 7 0 R ] >>", 1, false, true);
+    case("/OC << /Type /OCMD /VE [ /Not 8 0 R ] >>", 1, false, true);
+    case("/OC << /Type /OCMD /VE [ /And 8 0 R 7 0 R ] >>", 1, false, true);
+    case("/OC << /Type /OCMD /VE [ /Or 8 0 R 7 0 R ] >>", 1, false, true);
+    case("/OC << /Type /OCMD /VE [ /Or 7 0 R [ /And 8 0 R 13 0 R ] ] >>", 1, false, true);
+    case("/OC << /Type /OCMD /VE [ /And 8 0 R [ /Not 13 0 R ] ] >>", 1, false, true);
+    case("/OC << /Type /OCMD /VE [ /Not 8 0 R ] /OCGs [8 0 R] /P /AllOn >>", 1, false, true);
+    case("/OC << /Type /OCMD /VE [ /Not 7 0 R ] /OCGs [7 0 R] /P /AllOn >>", 1, false, true);
+    // Malformed /VE, invalid /P, inline /OCG, and /VE exceeding depth 16 or the node budget fail closed and stay in /Annots.
+    case("/OC << /Type /OCG /Name (Inline layer) >>", 0, true, false);
+    case("/OC << /Type /OCMD /OCGs [8 0 R] /P /InvalidPolicy >>", 0, true, false);
+    case("/OC << /Type /OCMD /VE 8 0 R /OCGs [8 0 R] /P /AllOn >>", 0, true, false);
+    case("/OC << /Type /OCMD /VE [] /OCGs [7 0 R] /P /AllOn >>", 0, true, false);
+    case("/OC << /Type /OCMD /VE [ /Not 7 0 R 8 0 R ] /OCGs [7 0 R] /P /AllOn >>", 0, true, false);
+    case("/OC << /Type /OCMD /VE [ /Xor 8 0 R ] /OCGs [7 0 R] /P /AllOn >>", 0, true, false);
+    let deep_ve = format!("{}8 0 R{}", "[ /Not ".repeat(17), " ]".repeat(17));
+    case(&format!("/OC << /Type /OCMD /VE {deep_ve} /OCGs [8 0 R] /P /AllOn >>"), 0, true, false);
+    case("/OC << /Type /OCMD /VE [ /Or 14 0 R 14 0 R 14 0 R 14 0 R ] /OCGs [8 0 R] /P /AllOn >>", 0, true, false);
+}
+
 /// #805: a supported note with no stored appearance is still drawn by viewers. Flattening must
 /// generate that appearance and bake it into the page, not delete a comment that shows an icon.
 #[test]
@@ -7750,6 +7827,116 @@ fn a_run_of_spaces_in_a_subset_without_a_space_glyph_keeps_its_width() {
     assert_eq!(text::replace_block(&mut doc, 0, 0, "ab  ba   ab").unwrap().substituted, None);
     let content = String::from_utf8_lossy(&page_content_bytes(&reopen(&doc), 0)).into_owned();
     assert_eq!(content.matches("[-330] TJ").count(), 5, "{content}");
+}
+
+/// #6131: a subset that writes width 0 for its unused space (pdfTeX does) has no space glyph. A word added to
+/// the line takes a positioning gap for its spaces, not code 32 at width 0, which would run the words together.
+#[test]
+fn a_space_in_a_subset_that_gives_it_no_width_is_a_gap_not_code_32() {
+    for subtype in ["TrueType", "Type1"] {
+        // Codes 32..=98: the space and everything else 0 wide, but a and b (97, 98).
+        let widths: Vec<String> = (32..=98).map(|c| if c == 97 || c == 98 { "500" } else { "0" }.to_string()).collect();
+        let font = format!(
+            "<< /Type /Font /Subtype /{subtype} /BaseFont /ABCDEF+Sample /FirstChar 32 /LastChar 98 /Widths [{}] /Encoding /WinAnsiEncoding >>",
+            widths.join(" ")
+        );
+        let content = "BT /F1 12 Tf 72 700 Td (ab) Tj ET";
+        let objs = [
+            "<< /Type /Catalog /Pages 2 0 R >>".to_string(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string(),
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>".to_string(),
+            format!(
+                "<< /Length {} >>
+stream
+{content}
+endstream",
+                content.len()
+            ),
+            font,
+        ];
+        let mut out = b"%PDF-1.7
+"
+        .to_vec();
+        let mut offs = Vec::new();
+        for (i, o) in objs.iter().enumerate() {
+            offs.push(out.len());
+            out.extend_from_slice(
+                format!(
+                    "{} 0 obj
+{o}
+endobj
+",
+                    i + 1
+                )
+                .as_bytes(),
+            );
+        }
+        let x = out.len();
+        out.extend_from_slice(
+            format!(
+                "xref
+0 {}
+0000000000 65535 f 
+",
+                objs.len() + 1
+            )
+            .as_bytes(),
+        );
+        for o in offs {
+            out.extend_from_slice(
+                format!(
+                    "{o:010} 00000 n 
+"
+                )
+                .as_bytes(),
+            );
+        }
+        out.extend_from_slice(
+            format!(
+                "trailer
+<< /Size {} /Root 1 0 R >>
+startxref
+{x}
+%%EOF
+",
+                objs.len() + 1
+            )
+            .as_bytes(),
+        );
+        let mut doc = Document::open(Arc::new(out)).unwrap();
+        assert_eq!(text::replace_block(&mut doc, 0, 0, "ab ba").unwrap().substituted, None, "{subtype}");
+        // Every byte the text-showing operators draw (strings inside `TJ` arrays too) and every
+        // `TJ` adjustment, read from the saved content rather than matched as text.
+        let ops = pdfcraft_content::parse(&page_content_bytes(&reopen(&doc), 0)).ops;
+        let mut shown: Vec<u8> = Vec::new();
+        let mut adjustments: Vec<f64> = Vec::new();
+        // How many bytes had been drawn when each adjustment came: the gap must sit between the words.
+        let mut positions: Vec<usize> = Vec::new();
+        for op in ops.iter().filter(|o| matches!(o.op.as_slice(), b"Tj" | b"TJ" | b"'" | b"\"")) {
+            for operand in &op.operands {
+                match operand {
+                    Object::String(s) => shown.extend_from_slice(&s.bytes),
+                    Object::Array(items) => {
+                        for item in items {
+                            match item {
+                                Object::String(s) => shown.extend_from_slice(&s.bytes),
+                                number => {
+                                    if let Some(adjustment) = number.as_f64() {
+                                        adjustments.push(adjustment);
+                                        positions.push(shown.len());
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert_eq!(shown, b"abba", "{subtype}: the words are drawn and no code 32 at width 0 between them");
+        assert!(matches!(adjustments.as_slice(), [gap] if *gap < 0.0), "{subtype}: one adjustment moves the second word right: {adjustments:?}");
+        assert_eq!(positions, [2], "{subtype}: the gap is between the words, after \"ab\"");
+    }
 }
 
 #[test]

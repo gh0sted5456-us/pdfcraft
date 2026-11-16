@@ -13,7 +13,10 @@ spool::submit(&pdf, &spool::Job { printer: None, copies: 2, ..Default::default()
 - **Size**: fit (to the sheet minus an 18 pt margin), actual size, shrink oversized, custom %;
   centred; auto orientation turns the sheet for landscape pages.
 - **Multiple**: 2/4/6/9/16 (or any n) pages per sheet, horizontal/vertical (reversed) order,
-  page borders, auto-rotation of pages that don't match the cell.
+  page borders, auto-rotation of pages that don't match the cell. With auto orientation a
+  predefined count turns the sheet to suit its grid (2 per sheet prints side by side on
+  landscape). A custom grid (`Layout::grid`, `doc_print` `cols`/`rows`, 1-99 each) is laid
+  out across and down the sheet as given and doesn't turn it: auto prints portrait.
 - **Cut and stack** (Multiple's page order): consecutive pages in each cell's pile,
   with aligned cut marks in the gutters. For example, 10 pages at 4 per sheet give
   `[1, 4, 7, 10]`, `[2, 5, 8, blank]`, `[3, 6, 9, blank]`. Print single-sided,
@@ -27,6 +30,8 @@ spool::submit(&pdf, &spool::Job { printer: None, copies: 2, ..Default::default()
 - **Poster**: tile scale, overlap shared by neighbouring tiles, cut marks.
 - **Comments & forms**: document, + markups, + stamps, or form fields only; annotations print
   only with their Print flag, drawn from their appearance streams (Algorithm 8.1).
+  Existing Link appearances are document content in the first three modes; Link appearances
+  are not synthesized when absent, and form fields only excludes them.
 - **Properties… on CUPS** reads the queue's PPD and its current defaults (`lpoptions -l`) off
   the GUI thread, and gives `lpoptions` ten seconds: a CUPS that has stopped answering leaves
   the PPD's own defaults in force instead of holding the dialog (#1818; `spool::output_within`
@@ -36,6 +41,11 @@ Each source page becomes a Form XObject (its content wrapped in q/Q, plus the pr
 annotations); sheets place them with a clip. The result is a fresh, unencrypted,
 garbage-collected file (callers check the print permission).
 Annotation appearances receive unused XObject names, preserving existing page resources even when they use the same naming prefix.
+Appearance placement keeps the full PDF number precision, including small coefficients needed by large appearance bounding boxes or matrices.
+Existing printable NoRotate appearances keep their orientation and upper-left rectangle anchor when the source page is rotated.
+Text annotations use this upright placement even with the NoRotate flag clear (ISO 32000-1 section 12.5.6.4).
+Crop origins, UserUnit, sheet scaling, and later imposition rotations still apply; NoZoom does not cancel printing scale.
+Missing or unusable appearance streams still cannot be printed.
 
 The GUI Print dialog remembers its last selected paper size across application sessions,
 including when Print is cancelled. The preference stores a canonical name such as `A4`;
@@ -46,7 +56,9 @@ Headless `doc_print` defaults are unchanged.
 `spool` delegates discovery, driver options, preferences and submission to
 [`craft-print`](https://github.com/storytold/craft-libs/tree/main/crates/print).
 PdfCraft retains page selection, imposition, annotations and print-permission checks.
-CUPS jobs stream through stdin with `fit-to-page=false`. Windows renders sheets through
+CUPS jobs stream through stdin with `fit-to-page=false`; on macOS they also carry the job
+name and owner (`com.apple.print.JobInfo.PMJobName`, `PMJobOwner`) as the system print dialog
+sends them, which some vendors' filters need (#5743). Windows renders sheets through
 `Windows.Data.Pdf` and spools them at their physical PDF size with per-page paper and
 orientation, zero added margins and hardware-edge clipping. Long-edge and short-edge duplex
 use the corresponding Windows binding edges. Random, exclusively created Windows job files
@@ -62,7 +74,7 @@ In a browser there is no spooler: the app (`pdfcraft-ui-egui`'s `web_print`) dra
 PDF's sheets with PdfCraft's renderer and prints them through the browser's print dialog, which
 sets copies, two-sided printing and colour. This crate stays free of web APIs.
 
-Not yet: print as image, poster labels, PostScript output, colour conversion for
+Not yet: poster labels, PostScript output, colour conversion for
 grayscale.
 
 ## Architectural sheets and scale
@@ -86,3 +98,10 @@ a matching page. On Windows craft-print sends the sheets as vectors with a Print
 for the sheet's exact paper and no scaling (#599's approach), validated by the driver:
 a job is refused, not shrunk, when the driver lacks the paper or would change it. Verify
 the driver's paper settings and physical calibration before relying on drawing scale.
+
+Vector printing resolves direct and indirect annotation rectangle coordinates before placing existing appearances.
+Rectangles must contain exactly four finite numbers; malformed rectangles are skipped.
+For an appearance-state dictionary, direct or indirect `AS` names select the existing artwork.
+Rectangle arrays, individual coordinates and `AS` names follow up to 64 indirect references with cycle detection.
+Missing, invalid, unresolved, cyclic, overly deep, or unknown state names leave that annotation unprinted; a single normal appearance stream does not require `AS`.
+The print content mode still controls whether a field or comment prints, and printing preserves the source objects.

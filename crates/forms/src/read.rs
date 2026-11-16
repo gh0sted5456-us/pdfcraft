@@ -20,17 +20,7 @@ fn button_action(doc: &Document, d: &Dict, widgets: &[ObjRef], scripts: &mut Dec
     let s = |k: &[u8]| a.get(k).and_then(|v| text_of(&doc.resolve(v)));
     Some(match a.name(b"S")? {
         b"ResetForm" => {
-            let fields = a
-                .get(b"Fields")
-                .map(|f| doc.resolve(f))
-                .and_then(|f| f.as_array().cloned())
-                .unwrap_or_default()
-                .iter()
-                .filter_map(|o| match o {
-                    Object::Ref(r) => doc.get(*r).as_dict().and_then(|fd| fd.get(b"T").and_then(|t| text_of(&doc.resolve(t)))),
-                    other => text_of(&doc.resolve(other)),
-                })
-                .collect();
+            let fields = a.get(b"Fields").map(|f| action_fields(doc, f)).unwrap_or_default();
             let exclude = a.get(b"Flags").and_then(|f| doc.resolve(f).as_int()).unwrap_or(0) & 1 != 0;
             af::ButtonAction::Reset { fields, exclude }
         }
@@ -48,18 +38,7 @@ fn button_action(doc: &Document, d: &Dict, widgets: &[ObjRef], scripts: &mut Dec
             af::ButtonAction::GoTo(page_refs(doc).iter().position(|p| *p == target)?)
         }
         b"Hide" => {
-            // /T: a field name, an annotation (or field) reference, or an array of them.
-            let target = |o: &Object| match o {
-                Object::Ref(r) => qualified_name(doc, *r).or_else(|| text_of(&doc.resolve(o))),
-                other => text_of(other),
-            };
-            let fields = match a.get(b"T") {
-                Some(t) => match &*doc.resolve(t) {
-                    Object::Array(items) => items.iter().filter_map(target).collect(),
-                    _ => target(t).into_iter().collect(),
-                },
-                None => Vec::new(),
-            };
+            let fields = a.get(b"T").map(|t| action_fields(doc, t)).unwrap_or_default();
             let hide = !a.get(b"H").is_some_and(|h| matches!(&*doc.resolve(h), Object::Bool(false)));
             af::ButtonAction::ShowHide { fields, hide }
         }
@@ -91,6 +70,19 @@ fn button_action(doc: &Document, d: &Dict, widgets: &[ObjRef], scripts: &mut Dec
     })
 }
 
+/// The field names targeted by a `ResetForm` (`/Fields`) or `Hide` (`/T`) action entry: a field
+/// name string, an indirect field or widget dictionary reference, or an array of them.
+pub(crate) fn action_fields(doc: &Document, o: &Object) -> Vec<String> {
+    let target = |item: &Object| match item {
+        Object::Ref(r) => qualified_name(doc, *r).or_else(|| text_of(&doc.resolve(item))),
+        other => text_of(other),
+    };
+    match &*doc.resolve(o) {
+        Object::Array(items) => items.iter().filter_map(target).collect(),
+        _ => target(o).into_iter().collect(),
+    }
+}
+
 /// The fully qualified name of the field that `r` (a field or one of its widgets) belongs to,
 /// from the partial names (`/T`) up its `/Parent` chain.
 fn qualified_name(doc: &Document, r: ObjRef) -> Option<String> {
@@ -106,10 +98,17 @@ fn qualified_name(doc: &Document, r: ObjRef) -> Option<String> {
         if let Some(t) = d.get(b"T").and_then(|o| text_of(&doc.resolve(o))) {
             parts.push(t);
         }
-        cur = d.get(b"Parent").and_then(|p| p.as_ref());
+        cur = parent_of(doc, d);
     }
     parts.reverse();
     (!parts.is_empty()).then(|| parts.join("."))
+}
+
+/// The field `d` names as its `/Parent`, when that is a dictionary. A reference to an object the
+/// file doesn't hold reads as `null`, and a `null` entry is the same as an absent one (ISO
+/// 32000-2 §7.3.9): the field is then a root, as if it named no parent.
+fn parent_of(doc: &Document, d: &Dict) -> Option<ObjRef> {
+    d.reference(b"Parent").filter(|p| doc.get(*p).as_dict().is_some())
 }
 
 /// JavaScript streams one reading of the form (its fields, or its document scripts) may decode
@@ -192,11 +191,17 @@ fn actions_of(doc: &Document, d: &Dict, widgets: &[ObjRef], scripts: &mut Decode
     out
 }
 
-fn values_of(doc: &Document, o: Option<&Object>) -> Vec<String> {
+/// Text streams of field values (`/V`, `/DV`) one reading of the form may decode in all, however
+/// many fields name the same stream.
+pub(crate) const MAX_VALUE_BYTES: usize = 64 << 20;
+
+/// A field's value or default value (`/V`, `/DV`). A text stream is decoded against `budget`, and
+/// reads as no value once it is spent, as one that won't decode does.
+fn values_of(doc: &Document, o: Option<&Object>, budget: &mut DecodeBudget) -> Vec<String> {
     let Some(o) = o else { return Vec::new() };
     match &*doc.resolve(o) {
         Object::Array(a) => a.iter().filter_map(|x| text_of(&doc.resolve(x))).collect(),
-        Object::Stream(s) => s.decoded().ok().map(|b| PdfString::literal(b).to_text()).into_iter().collect(),
+        Object::Stream(s) => budget.decode(s).ok().map(|b| PdfString::literal(b).to_text()).into_iter().collect(),
         other => text_of(other).filter(|s| s != "Off" && !s.is_empty()).into_iter().collect(),
     }
 }
@@ -345,7 +350,12 @@ pub(crate) fn enumerate(doc: &Document) -> (Vec<Field>, usize) {
         None => Inherited::default(),
     };
     let mut out = Vec::new();
-    let mut seen = Seen { fields: std::collections::HashSet::new(), widgets: std::collections::HashSet::new(), scripts: script_budget() };
+    let mut seen = Seen {
+        fields: std::collections::HashSet::new(),
+        widgets: std::collections::HashSet::new(),
+        scripts: script_budget(),
+        values: DecodeBudget::new(MAX_VALUE_BYTES, 0),
+    };
     if let Some(af) = &af {
         for f in af.get(b"Fields").map(|o| doc.resolve(o)).and_then(|o| o.as_array().cloned()).unwrap_or_default() {
             if let Some(r) = f.as_ref() {
@@ -402,7 +412,7 @@ fn unlisted_root(doc: &Document, r: ObjRef, seen: &std::collections::HashSet<Obj
     let mut top = r;
     let mut visited = std::collections::HashSet::from([r]);
     loop {
-        let parent = doc.get(top).as_dict().and_then(|d| d.reference(b"Parent"));
+        let parent = doc.get(top).as_dict().and_then(|d| parent_of(doc, d));
         let Some(p) = parent else {
             return if seen.contains(&top) { None } else { Some(top) };
         };
@@ -416,13 +426,14 @@ fn unlisted_root(doc: &Document, r: ObjRef, seen: &std::collections::HashSet<Obj
     }
 }
 
-/// What one reading of the form's fields has used: the field and widget dictionaries read, and
-/// the script budget their actions share.
+/// What one reading of the form's fields has used: the field and widget dictionaries read, the
+/// script budget their actions share, and the budget their value streams share.
 struct Seen {
     fields: std::collections::HashSet<ObjRef>,
     /// A widget belongs to the first field that lists it, however often it is listed.
     widgets: std::collections::HashSet<ObjRef>,
     scripts: DecodeBudget,
+    values: DecodeBudget,
 }
 
 /// Read the field at `r` and the fields under it into `out`, with what they inherit from
@@ -551,8 +562,8 @@ fn walk(
         name: inh.name.clone(),
         obj: r,
         kind,
-        value: values_of(doc, inh.v.as_ref()),
-        default: values_of(doc, inh.dv.as_ref()),
+        value: values_of(doc, inh.v.as_ref(), &mut seen.values),
+        default: values_of(doc, inh.dv.as_ref(), &mut seen.values),
         flags: ff,
         max_len: inh.max_len,
         options,

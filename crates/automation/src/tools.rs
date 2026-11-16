@@ -148,7 +148,7 @@ pub fn tools() -> Vec<ToolDef> {
                 "paths": {"type":"array","items":{"type":"string"},"minItems":1,"maxItems":1000},
                 "out_dir": {"type":"string"},
                 "steps": {"type":"array","items":{"type":"string","enum":["convert","ocr","optimize"]},"minItems":1,"maxItems":3,"uniqueItems":true},
-                "recursive": {"type":"boolean"}, "stop_on_error": {"type":"boolean"},
+                "recursive": {"type":"boolean"}, "stop_on_error": {"type":"boolean"}, "dry_run": {"type":"boolean"},
                 "ppi": {"type":"number","minimum":9,"maximum":1600},
                 "quality": {"type":"integer","minimum":1,"maximum":100},
                 "dpi": {"type":"number","minimum":72,"maximum":600},
@@ -217,7 +217,7 @@ pub fn tools() -> Vec<ToolDef> {
             }),
             &["doc"],
         )),
-        t("doc_set_info", "Set document metadata", "Set a document information entry such as Title, Author, Subject or Keywords, or a custom property under any other name (no spaces, delimiters, / or #; at most 127 bytes; doc_info lists them under custom); an empty value removes it. When the file has XMP metadata, the matching XMP property (dc:title, dc:creator, dc:description, pdf:Keywords, xmp:CreatorTool, pdf:Producer) is changed too, so viewers that read XMP first show the new value. Undoable.")
+        t("doc_set_info", "Set document metadata", "Set a document information entry such as Title, Author, Subject or Keywords, or a custom property under any other name (no spaces, delimiters, / or #; at most 127 bytes; doc_info lists them under custom); an empty value removes it. When the file has XMP metadata, the matching XMP property (dc:title, dc:creator, dc:description, pdf:Keywords, xmp:CreatorTool, pdf:Producer) is changed too, so viewers that read XMP first show the new value, and a custom property is kept there as pdfx:<name> when its name can be an XML name (in a PDF/A file only one already there is changed). Undoable.")
             .with(schema(json!({ "doc": doc(), "key": { "type": "string" }, "value": { "type": "string" } }), &["doc", "key", "value"])),
         t("page_render", "Render a page", "Render one page to a PNG image (default 96 dpi, at most 600).")
             .ro()
@@ -634,7 +634,7 @@ pub fn tools() -> Vec<ToolDef> {
         t(
             "doc_remove_hidden",
             "Remove hidden information / Sanitize",
-            "Remove the listed categories (see doc_hidden_info), or every category when none are listed (Sanitize Document). Form fields are flattened so their values stay visible. The next save rewrites the whole file. Undoable until saved.",
+            "Remove the listed categories (see doc_hidden_info), or every category when none are listed (Sanitize Document). Fails when the listed categories hold nothing. Form fields are flattened so their values stay visible. The next save rewrites the whole file. Undoable until saved.",
         )
         .destructive()
         .with(schema(
@@ -658,7 +658,7 @@ pub fn tools() -> Vec<ToolDef> {
         t(
             "doc_print",
             "Print",
-            "Print with Acrobat's Print dialog options, or save the print-ready PDF. pages: a range such as \"1-3, 6, 9-\" (page labels allowed; default all); subset odd/even (by page number, as Acrobat counts them: pages 2, 7-10 with even prints 2, 8 and 10, not every second page of the range); reverse. layout: fit (default), actual, shrink, custom (scale %), multiple (per_sheet 2/4/6/9/16, order, border, auto_rotate; cut-stack order arranges single-sided sheets for cutting into piles and stacking left to right, top to bottom, keeping sheet order within each pile; duplex must be off), booklet (booklet_subset both/front/back, binding left/right; a booklet sets two-sided itself, as Acrobat does: both flips on the short edge, front or back prints one-sided), poster (scale %, overlap pt, cut_marks). orientation auto/portrait/landscape; comments_forms document / document-and-markups (default) / document-and-stamps / form-fields-only; paper Letter/Legal/Tabloid, ARCH A/B/C/D/E1/E, ANSI C/D/E, A0/A1/A2/A3/A4/A5/A6, or US #10 Envelope (short names or full preset labels); use layout actual for 100% in the print-ready PDF; printer drivers may still substitute paper or scale. Then path (save) or printer (a name or \"default\") with copies, collate, duplex off/long-edge/short-edge, grayscale, and options (driver options from printer_options, CUPS).",
+            "Print with Acrobat's Print dialog options, or save the print-ready PDF. pages: a range such as \"1-3, 6, 9-\" (page labels allowed, \"(n)\" for the nth page whatever its label, unless a page is labelled exactly \"(n)\", since labels are looked up first; default all); subset odd/even (by page number, as Acrobat counts them: pages 2, 7-10 with even prints 2, 8 and 10, not every second page of the range); reverse. layout: fit (default), actual, shrink, custom (scale %), multiple (per_sheet 2/4/6/9/16, which turns the sheet to suit the grid, or a custom grid of cols across by rows down, each 1-99, on the sheet as oriented (auto prints portrait); order, border, auto_rotate; cut-stack order arranges single-sided sheets for cutting into piles and stacking left to right, top to bottom, keeping sheet order within each pile; duplex must be off), booklet (booklet_subset both/front/back, binding left/right; a booklet sets two-sided itself, as Acrobat does: both flips on the short edge, front or back prints one-sided), poster (scale %, overlap pt, cut_marks). orientation auto/portrait/landscape; comments_forms document / document-and-markups (default) / document-and-stamps / form-fields-only; paper Letter/Legal/Tabloid, ARCH A/B/C/D/E1/E, ANSI C/D/E, A0/A1/A2/A3/A4/A5/A6, or US #10 Envelope (short names or full preset labels); use layout actual for 100% in the print-ready PDF; printer drivers may still substitute paper or scale. Then path (save) or printer (a name or \"default\") with copies, collate, duplex off/long-edge/short-edge, grayscale, and options (driver options from printer_options, CUPS).",
         )
         .with(schema(
             json!({
@@ -669,6 +669,8 @@ pub fn tools() -> Vec<ToolDef> {
                 "layout": { "type": "string", "enum": ["fit", "actual", "shrink", "custom", "multiple", "booklet", "poster"] },
                 "scale": { "type": "number", "exclusiveMinimum": 0 },
                 "per_sheet": { "type": "integer", "minimum": 1, "maximum": 256 },
+                "cols": { "type": "integer", "minimum": 1, "maximum": 99, "description": "Custom pages per sheet: columns across the sheet; give rows too, and no per_sheet." },
+                "rows": { "type": "integer", "minimum": 1, "maximum": 99, "description": "Custom pages per sheet: rows down the sheet; give cols too, and no per_sheet." },
                 "order": { "type": "string", "enum": ["horizontal", "horizontal-reversed", "vertical", "vertical-reversed", "cut-stack"] },
                 "border": { "type": "boolean" },
                 "auto_rotate": { "type": "boolean" },
@@ -1318,7 +1320,7 @@ pub fn tools() -> Vec<ToolDef> {
         t("pdfa_convert", "Save as PDF/A", "Standards ▸ Save as PDF/A: fix what can be fixed for PDF/A-2b or 3b (XMP identification and metadata, an sRGB output intent, forbidden actions and JavaScript, annotation print flags, image interpolation, encryption). Returns what was fixed and what remains (e.g. fonts that aren't embedded). Undoable; save the document to keep it.")
             .cmd("standards.pdfa")
             .with(schema(json!({ "doc": doc(), "level": { "type": "string", "enum": ["2b", "3b"] } }), &["doc"])),
-        t("standards_remove_id", "Remove PDF/A or PDF/X identification", "Remove what identifies the document as PDF/A (its pdfaid: XMP properties) or PDF/X (GTS_PDFXVersion and GTS_PDFXConformance, in the document information and as pdfxid: XMP properties), e.g. after edits it no longer meets. Output intents and other metadata stay. Fails when the document declares nothing of the kind. Undoable.")
+        t("standards_remove_id", "Remove PDF/A or PDF/X identification", "Remove what identifies the document as PDF/A (its pdfaid: XMP properties) or PDF/X (GTS_PDFXVersion and GTS_PDFXConformance, in the document information and as pdfxid: or pdfx: XMP properties), e.g. after edits it no longer meets. Output intents and other metadata stay. Fails when the document declares nothing of the kind. Undoable.")
             .with(schema(json!({ "doc": doc(), "standard": { "type": "string", "enum": ["pdfa", "pdfx"] } }), &["doc", "standard"])),
         t("action_list", "List actions", "Action Wizard: the built-in actions (name, description, steps) and every step an action can use (id, label, whether it takes a text argument).")
             .ro()

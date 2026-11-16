@@ -304,7 +304,8 @@ fn explicit_search_jumps_record_history_and_keep_match_destination() {
         // Chrome refreshes the idle page box; navigation must not overwrite a draft
         // that may still be focused. DocView does not own the editor's focus state.
         assert_eq!(v.page_input, "draft in progress");
-        assert!(v.goto_point.is_none(), "an earlier link destination cannot override the search offset");
+        let middle = vec2(v.viewport_w, v.viewport_h) / 2.0;
+        assert_eq!(v.goto_point, Some((3, Some(40.0 / 300.0), Some(0.675), middle)), "the match centre goes to the middle of the viewport");
         v.go_to_match(1);
         assert_eq!(v.back, vec![0], "same-page matches do not duplicate history");
         assert!(v.view_history(false));
@@ -315,6 +316,18 @@ fn explicit_search_jumps_record_history_and_keep_match_destination() {
         v.go_to_match(2);
         assert!(v.forward.is_empty(), "a new explicit jump discards Forward");
         assert_eq!(v.back, vec![0]);
+    }
+}
+
+#[test]
+fn search_centres_the_match_on_a_rotated_view() {
+    // The match's centre is 40 pt from the left and 270 pt down a 300 × 400 page.
+    for (rotation, fx, fy) in [(90, 1.0 - 0.675, 40.0 / 300.0), (180, 1.0 - 40.0 / 300.0, 1.0 - 0.675), (270, 0.675, 1.0 - 40.0 / 300.0)] {
+        let mut v = history_search_view();
+        v.rotation = rotation;
+        v.find_step(true);
+        let middle = vec2(v.viewport_w, v.viewport_h) / 2.0;
+        assert_eq!(v.goto_point, Some((3, Some(fx), Some(fy), middle)), "view rotated {rotation}°");
     }
 }
 
@@ -1330,6 +1343,99 @@ fn on_screen_pages_and_tiles_are_admitted_beyond_the_prefetch_allowance() {
         .map(|x| RenderRequest { page: 0, scale: 1.0, tag: 1000, tile: Some(Tile { x: x * TILE, y: 0, w: 1024, h: 1024 }), ..Default::default() })
         .collect();
     assert_eq!(v.prepare_render_queue(&info, 1.0).len(), 40);
+}
+
+/// `count` pages that each make a 2,980 x 3,850 raster (about 43.8 MiB, a Letter page at fit
+/// width in a 3440 x 1440 window) at scale `1 / size`.
+fn fit_width_pages(count: usize, size: f32) -> DocInfo {
+    let mut info = thumbnail_info(count);
+    for p in &mut info.pages {
+        p.width = 2980.0 * size;
+        p.height = 3850.0 * size;
+    }
+    info
+}
+
+#[test]
+fn large_pages_on_screen_widen_the_allowance_for_the_pages_around_them() {
+    // A wide window at fit width, or smaller pages zoomed in: the raster's size is what counts.
+    for (size, scale) in [(1.0, 1.0), (0.5, 2.0)] {
+        let info = fit_width_pages(5, size);
+        let mut v = DocView::new(DocId(1), &info, ViewDefaults::default());
+        v.frame_visible = HashSet::from([3, 4]);
+        v.frame_queue = (0..5).map(|page| RenderRequest { page, scale, tag: 1000, ..Default::default() }).collect();
+        let pages: Vec<usize> = v.prepare_render_queue(&info, 1.0).iter().map(|r| r.page).collect();
+        assert_eq!(pages, (0..5).collect::<Vec<_>>(), "two pages on screen and three off screen at scale {scale}");
+    }
+}
+
+#[test]
+fn tiled_pages_on_screen_keep_the_128_mib_page_allowance() {
+    let info = fit_width_pages(8, 1.0);
+    let mut v = DocView::new(DocId(1), &info, ViewDefaults::default());
+    v.frame_visible = HashSet::from([3, 4]);
+    // Pages 3 and 4 are on screen as a backdrop and tiles, beside whole pages off screen.
+    let mut queue: Vec<RenderRequest> = [3, 4]
+        .into_iter()
+        .flat_map(|page| {
+            [
+                RenderRequest { page, scale: 0.25, tag: 2000, ..Default::default() },
+                RenderRequest { page, scale: 1.0, tag: 1000, tile: Some(Tile { x: 0, y: 0, w: 1024, h: 1024 }), ..Default::default() },
+            ]
+        })
+        .collect();
+    queue.extend([2, 5, 1, 6, 0, 7].map(|page| RenderRequest { page, scale: 1.0, tag: 1000, ..Default::default() }));
+    v.frame_queue = queue;
+    let pages: Vec<usize> = v.prepare_render_queue(&info, 1.0).iter().filter(|r| r.tile.is_none()).map(|r| r.page).collect();
+    assert_eq!(pages, vec![3, 4, 2, 5], "two backdrops and two whole pages fit in 128 MiB");
+}
+
+#[test]
+fn rasters_on_screen_size_the_allowance_for_arriving_pages() {
+    let ctx = egui::Context::default();
+    ctx.begin_pass(egui::RawInput { max_texture_side: Some(4096), ..Default::default() });
+    let info = fit_width_pages(8, 1.0);
+    let mut v = DocView::new(DocId(1), &info, ViewDefaults::default());
+    let off_screen = RenderRequest { page: 0, scale: 1.0, tag: 1000, ..Default::default() };
+    let mib = 1024 * 1024;
+    assert!(!v.admit_texture(off_screen, 150 * mib), "with nothing on screen the allowance is 128 MiB");
+    v.frame_visible = HashSet::from([3, 4]);
+    v.last_queue = [3, 4].map(|page| RenderRequest { page, scale: 1.0, tag: 1000, ..Default::default() }).to_vec();
+    for req in v.last_queue.clone() {
+        assert!(v.receive_result(&ctx, solid_result(req, 2980, 3850)) > 0, "on-screen page {} uploaded", req.page);
+    }
+    assert!(v.admit_texture(off_screen, 150 * mib), "two 43.8 MiB pages on screen allow 350 MiB, or 256 MiB on the web");
+    assert!(!v.admit_texture(off_screen, 400 * mib), "past the largest allowance");
+    ctx.end_pass().textures_delta.clear();
+}
+
+#[test]
+fn a_raster_held_on_screen_without_a_request_sizes_the_allowance() {
+    let ctx = egui::Context::default();
+    ctx.begin_pass(egui::RawInput { max_texture_side: Some(4096), ..Default::default() });
+    let info = fit_width_pages(8, 1.0);
+    let mut v = DocView::new(DocId(1), &info, ViewDefaults::default());
+    v.frame_visible = HashSet::from([3]);
+    let req = RenderRequest { page: 3, scale: 1.0, tag: 1000, ..Default::default() };
+    v.last_queue = vec![req];
+    assert!(v.receive_result(&ctx, solid_result(req, 2980, 3850)) > 0);
+    // A zoom hold leaves page 3's request out while its raster stays on screen.
+    v.frame_queue = [2, 4, 1].map(|page| RenderRequest { page, scale: 1.0, tag: 1000, ..Default::default() }).to_vec();
+    let pages: Vec<usize> = v.prepare_render_queue(&info, 1.0).iter().map(|r| r.page).collect();
+    assert_eq!(pages, vec![2, 4, 1]);
+    assert!(v.pages.contains_key(&3), "the held raster is kept beside the prefetch");
+    ctx.end_pass().textures_delta.clear();
+}
+
+#[test]
+fn the_page_allowance_is_eight_on_screen_rasters_within_its_limits() {
+    let mib = 1024 * 1024;
+    assert_eq!(cache::page_budget(0), PAGE_BYTES);
+    assert_eq!(cache::page_budget(10 * mib), PAGE_BYTES);
+    assert_eq!(cache::page_budget(20 * mib), 160 * mib);
+    let ceiling = cache::page_budget(usize::MAX);
+    assert_eq!(cache::page_budget(64 * mib), ceiling);
+    assert_eq!(ceiling, if cfg!(target_arch = "wasm32") { 256 * mib } else { 384 * mib });
 }
 
 #[test]

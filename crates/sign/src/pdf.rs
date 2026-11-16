@@ -35,7 +35,7 @@ use changes::only_grew;
 use listing::{DISCOVERY_CACHE_LIMIT, is_document_timestamp};
 pub use listing::{DigestCache, list, list_cached};
 pub(crate) use signing::fmt;
-pub use signing::{Appearance, AppearanceLabels, SignOptions, display_date, sign, sign_with_timestamp, timestamp_document};
+pub use signing::{Appearance, AppearanceLabels, SignOptions, display_date, has_signatures, sign, sign_with_timestamp, timestamp_document};
 pub use types::{Detail, Fill, Modification, Status, TrustStore, WORDINGS, Words, in_english, kind};
 pub(crate) use validate::signature_contents;
 pub use validate::validate;
@@ -45,6 +45,9 @@ use validate::{DssEvidence, MAX_DSS_BYTES, MAX_DSS_ENTRIES};
 #[cfg(test)]
 #[path = "pdf_discovery_tests.rs"]
 mod discovery_tests;
+#[cfg(test)]
+#[path = "pdf/revision_classification_tests.rs"]
+mod revision_classification_tests;
 
 /// One signature field.
 #[derive(Clone, Debug)]

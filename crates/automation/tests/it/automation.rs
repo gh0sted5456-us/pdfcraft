@@ -4557,12 +4557,23 @@ fn removing_hidden_information_through_tools() {
     assert_eq!(r["undo"], "Remove hidden information");
     assert_eq!(ok(&mut a, "comment_list", json!({ "doc": doc }))["count"], 0);
     assert!(count(&ok(&mut a, "doc_hidden_info", json!({ "doc": doc })), "metadata") >= 1, "only comments went");
+    // With none left, removing them again says so, and Optimize discarding them still runs.
+    let again = a.call("doc_remove_hidden", &json!({ "doc": doc, "categories": ["comments"] }));
+    assert!(matches!(&again, Err(ToolError::Failed(m)) if m.starts_with("nothing to remove")), "{again:?}");
+    let optimized = ok(&mut a, "doc_optimize", json!({ "doc": doc, "path": "optimized.pdf", "discard": ["comments", "bookmarks"] }));
+    assert_eq!(optimized["discarded"], json!([]), "{optimized}");
     let r = ok(&mut a, "doc_remove_hidden", json!({ "doc": doc }));
     assert_eq!(r["undo"], "Sanitize document");
     ok(&mut a, "doc_save", json!({ "doc": doc, "path": "clean.pdf" }));
     let bytes = std::fs::read(dir.join("clean.pdf")).unwrap();
     assert!(!bytes.windows(11).any(|w| w == b"Secret plan"), "the old revision is gone");
     assert!(matches!(a.call("doc_remove_hidden", &json!({ "doc": doc, "categories": ["nonsense"] })), Err(ToolError::InvalidArgs(_))));
+    // A document that can't be edited has no scan: the refusal says why, not that nothing is there.
+    let junk = [vec![b'x'; 5000], std::fs::read(dir.join("a.pdf")).unwrap()].concat();
+    std::fs::write(dir.join("junk.pdf"), junk).unwrap();
+    let read_only = ok(&mut a, "doc_open", json!({ "path": "junk.pdf" }))["doc"].as_u64().unwrap();
+    let refused = a.call("doc_remove_hidden", &json!({ "doc": read_only, "categories": ["comments"] }));
+    assert!(matches!(&refused, Err(ToolError::Failed(m)) if m.contains("can't be edited")), "{refused:?}");
 }
 
 /// A one-page PDF whose text "TOP SECRET" sits under an opaque black rectangle.
@@ -7593,6 +7604,52 @@ BT /F1 11 Tf 20 20 Td (Total due: 150.00) Tj ET";
     assert!(rendered.iter().any(|c| matches!(c, Content::Png { .. })));
 }
 
+/// #5149: a two-column, two-row table drawn with ruled lines reaches Word as a table with its
+/// rules, not as four paragraphs one under another.
+#[test]
+fn exporting_a_ruled_two_by_two_table_to_word_keeps_the_table() {
+    let dir = workdir("ruled-table-word");
+    let content = "0.5 w 20 270 m 300 270 l S 20 245 m 300 245 l S 20 220 m 300 220 l S \
+20 220 m 20 270 l S 160 220 m 160 270 l S 300 220 m 300 270 l S \
+BT /F1 11 Tf 25 253 Td (Name) Tj 140 0 Td (Value) Tj -140 -25 Td (Alpha) Tj 140 0 Td (One) Tj ET \
+BT /F1 11 Tf 20 150 Td (A paragraph after the table.) Tj ET";
+    let stream = format!("<< /Length {} >>\nstream\n{content}\nendstream", content.len());
+    let objs = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 320 300] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+        stream.as_str(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ];
+    std::fs::write(dir.join("table.pdf"), pdf_of(&objs)).unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "table.pdf" }))["doc"].as_u64().unwrap();
+    ok(&mut a, "doc_export_office", json!({ "doc": doc, "path": "table.docx" }));
+    let zip = std::fs::read(dir.join("table.docx")).unwrap();
+    let mut at = 0;
+    let mut xml = String::new();
+    while zip[at..].starts_with(b"PK\x03\x04") {
+        let size = u32::from_le_bytes(zip[at + 18..at + 22].try_into().unwrap()) as usize;
+        let len = u16::from_le_bytes(zip[at + 26..at + 28].try_into().unwrap()) as usize;
+        let data = at + 30 + len;
+        if &zip[at + 30..data] == b"word/document.xml" {
+            std::io::Read::read_to_string(&mut flate2::read::DeflateDecoder::new(&zip[data..data + size]), &mut xml).unwrap();
+            break;
+        }
+        at = data + size;
+    }
+    assert_eq!(xml.matches("<w:tbl>").count(), 1, "the ruled grid is a table: {xml}");
+    let table = xml.split_once("<w:tbl>").and_then(|(_, t)| t.split_once("</w:tbl>")).map(|(t, _)| t).unwrap();
+    assert_eq!(table.matches("<w:tr>").count(), 2, "{table}");
+    for word in ["Name", "Value", "Alpha", "One"] {
+        assert_eq!(table.matches(&format!(">{word}</w:t>")).count(), 1, "{word} is a cell: {xml}");
+        assert_eq!(xml.matches(&format!(">{word}</w:t>")).count(), 1, "{word} is written once");
+    }
+    assert!(table.contains("w:val=\"single\""), "the drawn rules become borders: {table}");
+    assert!(!table.contains("A paragraph after the table."));
+    assert_eq!(xml.matches(">A paragraph after the table.</w:t>").count(), 1);
+}
+
 /// #4158: a word set in italic inside a sentence ("Before *Chevron* after.") reaches Word as an
 /// italic run of the sentence's paragraph, not as a paragraph of its own between two halves.
 #[test]
@@ -7902,6 +7959,49 @@ fn cut_stack_printing_through_tools() {
     ok(&mut a, "doc_print", json!({"doc": doc, "layout": "multiple", "order": "cut-stack", "duplex": "printer", "path": "printer-default.pdf"}));
     assert!(dir.join("printer-default.pdf").exists());
     assert!(a.call("doc_print", &json!({"doc": doc, "layout": "multiple", "order": "cut-stack", "path": "../escaped.pdf"})).is_err());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn custom_pages_per_sheet_prints_the_grid_as_given() {
+    // Two narrow pages side by side on portrait A4: 2 columns by 1 row (#6551).
+    let dir = workdir("custom-grid");
+    std::fs::write(dir.join("narrow.pdf"), fixture(4)).unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({"path": "narrow.pdf"}))["doc"].as_u64().unwrap();
+    for orientation in ["auto", "portrait"] {
+        let r = ok(
+            &mut a,
+            "doc_print",
+            json!({"doc": doc, "layout": "multiple", "cols": 2, "rows": 1, "paper": "A4", "orientation": orientation, "path": "grid.pdf"}),
+        );
+        assert_eq!(r["sheets"], 2, "{orientation}");
+        let printed = ok(&mut a, "doc_open", json!({"path": "grid.pdf"}))["doc"].as_u64().unwrap();
+        let info = ok(&mut a, "doc_info", json!({"doc": printed}));
+        let sheet = &info["pages"][0];
+        assert!(sheet["width"].as_f64().unwrap() < sheet["height"].as_f64().unwrap(), "portrait sheet with {orientation}: {sheet}");
+        // Side by side: the second page level with the first, to its right.
+        let rows = ok(&mut a, "text_extract", json!({"doc": printed, "rect": [0, 0, 600, 850]}));
+        let rows: Vec<&str> = rows["pages"].as_array().unwrap().iter().map(|p| p["text"].as_str().unwrap().trim()).collect();
+        assert_eq!(rows, ["Page 1	Page 2", "Page 3	Page 4"], "{orientation}");
+        ok(&mut a, "doc_close", json!({"doc": printed}));
+    }
+    for bad in [
+        json!({"cols": 2}),
+        json!({"rows": 1}),
+        json!({"cols": 0, "rows": 1}),
+        json!({"cols": 2, "rows": 100}),
+        json!({"cols": -1, "rows": 2}),
+        json!({"cols": 2, "rows": 1, "per_sheet": 2}),
+        json!({"cols": 2, "rows": 1, "layout": "fit"}),
+    ] {
+        let mut args = json!({"doc": doc, "layout": "multiple", "path": "refused.pdf"});
+        for (k, v) in bad.as_object().unwrap() {
+            args[k] = v.clone();
+        }
+        assert!(matches!(a.call("doc_print", &args), Err(ToolError::InvalidArgs(_))), "{bad}");
+    }
+    assert!(!dir.join("refused.pdf").exists());
     let _ = std::fs::remove_dir_all(dir);
 }
 
@@ -10285,6 +10385,31 @@ fn changing_a_lists_options_through_tools_keeps_its_saved_selection_on_the_same_
     ok(&mut a, "form_set_props", json!({ "doc": doc, "field": "letters", "options": ["B", "C", "D"] }));
     ok(&mut a, "doc_save", json!({ "doc": doc, "path": "letters.pdf" }));
     assert_eq!(saved_selection_indices(&dir.join("letters.pdf"), "letters"), Some(vec![0, 1]), "B and C are now items 0 and 1");
+}
+
+/// Clearing a field's length limit through `form_set_props` (`"max_length": 0`) leaves it with
+/// none, even when its parent field has one it would otherwise inherit.
+#[test]
+fn clearing_a_kids_length_limit_through_tools_does_not_bring_back_its_parents() {
+    let objs = [
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm 4 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 400 300] >>",
+        "<< /Type /Page /Parent 2 0 R /Annots [6 0 R] >>",
+        "<< /Fields [5 0 R] /DA (/Helv 12 Tf 0 g) /DR << /Font << /Helv 7 0 R >> >> >>",
+        "<< /T (address) /FT /Tx /MaxLen 3 /Kids [6 0 R] >>",
+        "<< /Type /Annot /Subtype /Widget /T (city) /Parent 5 0 R /MaxLen 8 /Rect [10 250 150 268] /P 3 0 R >>",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    ];
+    let dir = workdir("kid-max-len");
+    std::fs::write(dir.join("form.pdf"), pdf_of(&objs)).unwrap();
+    let mut a = auto(&dir);
+    let doc = ok(&mut a, "doc_open", json!({ "path": "form.pdf" }))["doc"].as_u64().unwrap();
+    ok(&mut a, "form_set_props", json!({ "doc": doc, "field": "address.city", "max_length": 0 }));
+    ok(&mut a, "form_fill", json!({ "doc": doc, "values": { "address.city": "Absalom" } }));
+    let fields = ok(&mut a, "form_fields", json!({ "doc": doc }));
+    let city = fields["fields"].as_array().unwrap().iter().find(|f| f["name"] == "address.city").unwrap().clone();
+    assert!(city.get("max_length").is_none(), "no limit, not the parent's 3: {city}");
+    assert_eq!(city["value"], "Absalom", "the value is not cut to the parent's 3 characters");
 }
 
 /// Clearing a field's default through `form_set_props` (`"default": ""`) leaves it with none,

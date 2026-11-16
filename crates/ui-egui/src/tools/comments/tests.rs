@@ -444,3 +444,13 @@ fn a_kept_comment_is_found_where_a_delete_moved_it() {
     view.annotation_deleted(&before, &after, gone);
     assert_eq!((view.editing, view.editor_focus), (None, None), "the editor closes with the reply it was open on");
 }
+
+#[test]
+fn insert_text_icon_is_distinct_from_edit_text_and_matches_its_command() {
+    let insert = CommentTool::Caret.icon();
+    let edit = pdfcraft_engine::commands::command("edit.edit_text").unwrap().icon;
+    let command = pdfcraft_engine::commands::command("comment.caret").unwrap().icon;
+    assert_ne!(insert, edit, "adjacent tools need distinct icons");
+    assert_eq!(insert, command, "the annotation toolbar and command use the same icon");
+    assert!(crate::widgets::icons::exists(insert));
+}

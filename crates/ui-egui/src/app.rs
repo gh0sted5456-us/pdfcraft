@@ -125,6 +125,10 @@ impl PdfCraftApp {
             #[cfg(not(target_arch = "wasm32"))]
             pending_opens: Vec::new(),
             #[cfg(not(target_arch = "wasm32"))]
+            deferred_opens: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            password_retry: None,
+            #[cfg(not(target_arch = "wasm32"))]
             next_open_token: 0,
             #[cfg(not(target_arch = "wasm32"))]
             folder_step: None,
@@ -188,6 +192,11 @@ impl PdfCraftApp {
             ocr_run: None,
             ocr_batch: None,
             run_inline: false,
+            panicking_frames: 0,
+            frame_panicked: false,
+            logic_without_ui: false,
+            #[cfg(test)]
+            panic_next: None,
             custom_actions: Vec::new(),
             wizard: Default::default(),
             action_run: None,
@@ -376,6 +385,10 @@ impl eframe::App for PdfCraftApp {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         // The button's release a window move or resize kept from egui.
         window_controls::release_after_desktop_grab(ctx, raw);
+        // The wheel after Alt+Tab back, before the mouse has moved (#1518).
+        let known = ctx.input(|i| i.pointer.latest_pos().is_some());
+        let size = ctx.input(|i| i.viewport().inner_rect).map_or(egui::Vec2::ZERO, |r| r.size());
+        drag_pointer::locate_wheel(raw, known, size, || drag_pointer::in_window(ctx));
         self.prepare_raw_input(ctx, raw);
         if raw.hovered_files.is_empty() && raw.dropped_files.is_empty() {
             return;
@@ -398,7 +411,36 @@ impl eframe::App for PdfCraftApp {
 
     /// Each frame's work before drawing: opens, operating-system and control-channel requests,
     /// the quit guard, shortcuts, and the background jobs' results.
+    ///
+    /// Last-resort guard (AGENTS.md §4, #3914): a panic in a frame is reported and the app, with
+    /// every open tab, keeps running; see `frame_guard`.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.begin_logic();
+        self.guarded_frame(|app| app.logic_unguarded(ctx, _frame));
+        if self.frame_panicked {
+            self.close_after_panic(ctx);
+        }
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.begin_ui();
+        self.guarded_frame(|app| app.ui_unguarded(ui, _frame));
+        self.end_ui();
+    }
+
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        if self.theme_preference == ThemePreference::Glass {
+            self.glass.surface().to_normalized_gamma_f32()
+        } else {
+            theme::Tokens::for_kind(self.theme).pasteboard.to_normalized_gamma_f32()
+        }
+    }
+}
+
+impl PdfCraftApp {
+    fn logic_unguarded(&mut self, ctx: &egui::Context, _frame: &eframe::Frame) {
+        #[cfg(test)]
+        self.injected_panic(crate::frame_guard::FramePart::Logic);
         self.ctx = Some(ctx.clone());
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -489,7 +531,7 @@ impl eframe::App for PdfCraftApp {
         // Don't replace a pending prompt or import. A startup file may need its own password
         // prompt, so its bytes stay queued until the current interaction finishes.
         #[cfg(not(target_arch = "wasm32"))]
-        let opening = !self.pending_opens.is_empty();
+        let opening = !self.pending_opens.is_empty() || !self.deferred_opens.is_empty();
         #[cfg(target_arch = "wasm32")]
         let opening = false;
         if !opening
@@ -599,7 +641,9 @@ impl eframe::App for PdfCraftApp {
         self.sync_native_menu(ctx);
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui_unguarded(&mut self, ui: &mut egui::Ui, _frame: &eframe::Frame) {
+        #[cfg(test)]
+        self.injected_panic(crate::frame_guard::FramePart::Ui);
         let ctx = ui.ctx().clone();
         if self.theme_preference == ThemePreference::Glass {
             self.glass_background.paint(ui);
@@ -705,14 +749,6 @@ impl eframe::App for PdfCraftApp {
         if let Some(mut control) = self.control.take() {
             control.finish_frame(&ctx, self);
             self.control = Some(control);
-        }
-    }
-
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        if self.theme_preference == ThemePreference::Glass {
-            self.glass.surface().to_normalized_gamma_f32()
-        } else {
-            theme::Tokens::for_kind(self.theme).pasteboard.to_normalized_gamma_f32()
         }
     }
 }

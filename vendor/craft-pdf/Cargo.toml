@@ -1,0 +1,52 @@
+# Vendored from storytold/craft-libs crates/pdf at e2dc681a3ad8a47038da2f11ddd2c5e1c0454991
+# (the pin upstream PdfCraft uses), with Lion PDF patches marked `Lion patch:` in the source
+# (see vendor/README.md). Workspace-inherited fields are written out.
+[package]
+name = "craft-pdf"
+description = "Shared PDF reading, rendering and optional writing for Craft apps"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/storytold/craft-libs"
+rust-version = "1.95"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[features]
+default = []
+read = ["dep:hayro-syntax", "dep:thiserror"]
+interpret = ["read", "dep:hayro-interpret"]
+paths = ["interpret", "dep:kurbo"]
+raster = ["interpret", "dep:hayro", "dep:bytemuck"]
+write = ["dep:krilla", "dep:thiserror"]
+write-pdf = ["write", "krilla/pdf"]
+write-raster = ["dep:flate2", "dep:roxmltree"]
+write-simple-text = ["write", "krilla/simple-text"]
+filters = ["dep:craft-stream-codecs", "dep:flate2", "dep:thiserror"]
+cos = ["crypt", "filters", "dep:chrono", "dep:js-sys", "dep:wasm-bindgen"]
+crypt = ["dep:aes", "dep:md-5", "dep:sha1", "dep:sha2", "dep:stringprep", "dep:zeroize", "dep:thiserror"]
+
+[dependencies]
+hayro-syntax = { version = "=0.7.2", default-features = false, features = ["std"], optional = true }
+hayro-interpret = { version = "=0.7.0", default-features = false, features = ["embed-fonts", "embed-cmaps"], optional = true }
+hayro = { version = "=0.7.1", default-features = false, optional = true }
+bytemuck = { version = "1", optional = true }
+krilla = { version = "=0.8.2", default-features = false, features = ["raster-images"], optional = true }
+thiserror = { version = "2", optional = true }
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"], optional = true }
+roxmltree = { version = "0.21", optional = true }
+craft-stream-codecs = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3", optional = true }
+aes = { version = "0.9", optional = true }
+md-5 = { version = "0.11", optional = true }
+sha2 = { version = "0.11", optional = true }
+# Lion patch: SHA-1 for the public-key security file key (ISO 32000-2 §7.6.5.3).
+sha1 = { version = "0.11", optional = true }
+stringprep = { version = "0.1", optional = true }
+zeroize = { version = "1", optional = true }
+chrono = { version = "0.4.45", default-features = false, features = ["std"], optional = true }
+kurbo = { version = "0.13", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+js-sys = { version = "0.3", optional = true }
+wasm-bindgen = { version = "0.2", optional = true }

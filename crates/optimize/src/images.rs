@@ -804,7 +804,7 @@ fn one_bit(doc: &Document, s: &Stream, pack: bool, defaults: bool) -> Option<(Ve
             Some((pdfcraft_filters::Filter::CcittFax, _)) => wu.checked_mul(hu)?.checked_add(hu.checked_mul(4)?)?.checked_add(4096)?,
             _ => allowance(len, h)?,
         };
-        let mut data = doc.decoded_image_within(s, max).ok()?;
+        let mut data = pdfcraft_cos::ImageBudget::new(doc).decode(doc, s, max).ok()?;
         if data.len() < len {
             return None;
         }

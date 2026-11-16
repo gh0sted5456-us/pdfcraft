@@ -315,6 +315,20 @@ fn partially_covered_vector_paths_do_not_leak_drawing_commands() {
     assert!(c.contains("300 300 m\n350 350 l\nS"), "unaffected vector path must be kept: {c}");
 }
 
+#[test]
+fn a_covered_clip_and_paint_path_leaves_an_empty_clip_not_its_outline() {
+    // The outline of a fully covered path that clips and paints is confidential geometry: only
+    // an empty clip may stay, and what follows is hidden as the covered clip would have hidden it.
+    let src = b"q 100 100 m 150 180 l 200 100 l h W f 300 300 50 50 re f Q";
+    let mut doc = one_page(src, "", vec![]);
+    mark(&mut doc, 0, &[[90.0, 90.0, 210.0, 190.0]], "");
+    let r = apply(&mut doc, None).unwrap();
+    assert_eq!(r.paths_removed, 1);
+    let c = content(&doc, 0);
+    assert!(!c.contains("150 180 l") && !c.contains("100 100 m"), "outline must not stay: {c}");
+    assert!(c.contains("0 0 0 0 re\nW\nn"), "an empty clip stays: {c}");
+}
+
 /// A chain of nested forms deeper than the pass can walk was removed from the page, taking
 /// whatever else it drew with it even when nothing in it was marked. The limit now reaches as
 /// deep as the renderer and Edit text read (50), so anything a reader can see can be walked;
@@ -701,7 +715,7 @@ fn group_3_on_bytes_is_removed_whole_and_other_fax_images_cleared() {
         (-1, true, "<< /K -1 /Columns 16 /EncodedByteAlign true >>", vec![0x80, 0x80], vec![], false),
     ] {
         let p = pdfcraft_filters::CcittParams { k, columns: 16, encoded_byte_align: on_bytes, ..Default::default() };
-        assert_eq!(pdfcraft_filters::decode_ccitt(&data, &p, 2).unwrap(), [0xFF; 4], "{parms}: the picture is white");
+        assert_eq!(pdfcraft_filters::decode_ccitt_within(&data, &p, 2, &mut u64::MAX.clone()).unwrap(), [0xFF; 4], "{parms}: the picture is white");
         let dict = format!("{image} /DecodeParms {parms}");
         let mut objs = vec![stream(&dict, data)];
         objs.extend(extra);
@@ -3284,4 +3298,56 @@ fn a_reply_on_another_page_to_a_removed_popup_goes_too() {
     for gone in [&b"POPUP-REPLY"[..], b"POPUP-TEXT", b"PARENT-NOTE"] {
         assert!(!bytes.windows(gone.len()).any(|w| w == gone), "{} survived", String::from_utf8_lossy(gone));
     }
+}
+
+#[test]
+fn a_rewritten_form_xobject_drops_the_source_text_of_added_content() {
+    // A form drawing invisible text whose dictionary repeats it in /PCAdded.
+    let form = stream(
+        "/Type /XObject /Subtype /Form /BBox [0 0 300 300] /Resources << /Font << /F1 5 0 R >> >> /PCMark /Added /PCAdded << /Kind /Text /Text (LEAK_FORM_SOURCE) >>",
+        b"BT /F1 10 Tf 3 Tr 10 100 Td (HIDDEN) Tj ET BT /F1 10 Tf 10 200 Td (Shown) Tj ET",
+    );
+    let mut doc = one_page(b"/X Do", "/XObject << /X 7 0 R >>", vec![form]);
+    sanitize::remove_hidden(&mut doc, &[sanitize::Hidden::HiddenText]).unwrap();
+    let bytes = write_full(&doc, &SaveOptions { object_streams: false, ..SaveOptions::default() }).unwrap();
+    assert!(!bytes.windows(16).any(|w| w == b"LEAK_FORM_SOURCE"), "the form's added-content source text survived");
+}
+
+#[test]
+fn a_redacted_form_xobject_drops_the_source_text_of_added_content() {
+    let form = stream(
+        "/Type /XObject /Subtype /Form /BBox [0 0 300 300] /Resources << /Font << /F1 5 0 R >> >> /PCMark /Added /PCAdded << /Kind /Text /Text (AB1234CD) >>",
+        b"BT /F1 10 Tf 10 100 Td (AB1234CD) Tj ET",
+    );
+    let mut doc = one_page(b"/X Do", "/XObject << /X 7 0 R >>", vec![form]);
+    mark(&mut doc, 0, &[[20.0, 95.0, 40.0, 110.0]], "");
+    apply(&mut doc, None).unwrap();
+    let bytes = write_full(&doc, &SaveOptions { object_streams: false, ..SaveOptions::default() }).unwrap();
+    assert!(!bytes.windows(4).any(|w| w == b"1234"), "redacted text left in the saved file");
+}
+
+/// Private data takes an image's prepress data too: its OPI link to the original file and its
+/// alternate images, which can be the unedited original.
+#[test]
+fn private_data_takes_opi_links_and_alternate_images() {
+    use crate::sanitize::{Hidden, remove_hidden, scan};
+    let mut doc = pdf(vec![
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Contents 4 0 R /Resources << /XObject << /Im 5 0 R /Fm 6 0 R >> >> >>".to_vec(),
+        stream("", b"q 50 0 0 50 20 20 cm /Im Do Q /Fm Do"),
+        stream(
+            "/Type /XObject /Subtype /Image /Width 11 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Alternates [<< /Image 7 0 R /DefaultForPrinting true >>]",
+            b"SHOWNIMAGE!",
+        ),
+        stream("/Type /XObject /Subtype /Form /BBox [0 0 300 300] /OPI << /1.3 << /Type /OPI /Version 1.3 /F (OPISERVERPATH.tif) >> >>", b""),
+        stream("/Type /XObject /Subtype /Image /Width 17 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8", b"ALTERNATEORIGINAL"),
+    ]);
+    assert_eq!(scan(&doc).into_iter().find(|c| c.0 == Hidden::PrivateData), Some((Hidden::PrivateData, 2)));
+    assert_eq!(remove_hidden(&mut doc, &[Hidden::PrivateData]).unwrap(), [(Hidden::PrivateData, 2)]);
+    let bytes = write_full(&doc, &SaveOptions { object_streams: false, ..SaveOptions::default() }).unwrap();
+    let has = |needle: &[u8]| bytes.windows(needle.len()).any(|w| w == needle);
+    assert!(has(b"SHOWNIMAGE!"), "the image the page shows stays");
+    assert!(!has(b"ALTERNATEORIGINAL"), "the alternate image survived the save");
+    assert!(!has(b"OPISERVERPATH"), "the OPI link survived the save");
 }

@@ -16,6 +16,7 @@ use crate::SignError;
 pub mod tag {
     pub const BOOLEAN: u8 = 0x01;
     pub const INTEGER: u8 = 0x02;
+    pub const ENUMERATED: u8 = 0x0A;
     pub const BIT_STRING: u8 = 0x03;
     pub const OCTET_STRING: u8 = 0x04;
     /// An OCTET STRING split into segments (BER only, X.690 §8.21); see [`super::Tlv::octets`].
@@ -205,10 +206,24 @@ impl<'a> Tlv<'a> {
 
     /// A non-negative INTEGER that fits in a u64.
     pub fn u64(&self) -> Result<u64, SignError> {
-        if self.tag != tag::INTEGER || self.value.is_empty() || self.value.len() > 9 || self.value[0] & 0x80 != 0 {
+        // (nine bytes only with a 0x00 pad: a nonzero first byte is past 64 bits)
+        if self.tag != tag::INTEGER
+            || self.value.is_empty()
+            || self.value.len() > 9
+            || self.value[0] & 0x80 != 0
+            || (self.value.len() == 9 && self.value[0] != 0)
+        {
             return Err(bad("expected a small non-negative INTEGER"));
         }
         Ok(self.value.iter().fold(0u64, |acc, b| (acc << 8) | *b as u64))
+    }
+
+    /// A non-negative ENUMERATED that fits in a u64 (same encoding as an INTEGER).
+    pub fn enumerated(&self) -> Result<u64, SignError> {
+        if self.tag != tag::ENUMERATED {
+            return Err(bad("expected an ENUMERATED"));
+        }
+        Tlv { tag: tag::INTEGER, ..*self }.u64()
     }
 
     /// The magnitude of an INTEGER (leading zero dropped).
@@ -465,7 +480,12 @@ pub fn oid(dotted: &str) -> Vec<u8> {
 /// Encode a dotted OID supplied by a caller. Unlike [`oid`], this validates every arc and
 /// never panics on malformed input.
 pub fn try_oid(dotted: &str) -> Result<Vec<u8>, SignError> {
-    let mut arcs = dotted.split('.').map(|a| a.parse::<u64>().map_err(|_| bad("invalid OID arc")));
+    let mut arcs = dotted.split('.').map(|a| {
+        if a.is_empty() || !a.bytes().all(|c| c.is_ascii_digit()) {
+            return Err(bad("invalid OID arc"));
+        }
+        a.parse::<u64>().map_err(|_| bad("invalid OID arc"))
+    });
     let first = arcs.next().ok_or_else(|| bad("empty OID"))??;
     let second = arcs.next().ok_or_else(|| bad("OID needs two arcs"))??;
     if first > 2 || (first < 2 && second >= 40) {
@@ -548,6 +568,28 @@ pub fn algorithm(oid_s: &str, params: Option<&[u8]>) -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_nine_byte_integer_needs_a_zero_pad_to_fit_64_bits() {
+        let tlv = |value: &[u8]| {
+            let mut b = vec![tag::INTEGER, value.len() as u8];
+            b.extend_from_slice(value);
+            b
+        };
+        // 2^64 would fold to 0: refused, not read as 0
+        assert!(Tlv::parse_all(&tlv(&[1, 0, 0, 0, 0, 0, 0, 0, 0])).unwrap().u64().is_err());
+        // u64::MAX with its pad is fine
+        let max = [0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff];
+        assert_eq!(Tlv::parse_all(&tlv(&max)).unwrap().u64().unwrap(), u64::MAX);
+    }
+
+    #[test]
+    fn try_oid_rejects_signs_and_empty_arcs() {
+        for bad in ["+1.2.840", "1.+2", "1.2.-3", "1..2"] {
+            assert!(try_oid(bad).is_err(), "accepted {bad}");
+        }
+        assert_eq!(try_oid("1.2.840.113549").unwrap(), oid("1.2.840.113549"));
+    }
 
     #[test]
     fn round_trips() {
