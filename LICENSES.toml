@@ -201,9 +201,3 @@ crate = "craft-prc"
 path = "src/acof/table.rs"
 licence = "MIT"
 documents = ["licenses/prc-rs-LICENSE.txt"]
-
-[[bundled]]
-crate = "epaint_default_fonts"
-path = "fonts/egui-icons.ttf"
-licence = "MIT"
-documents = ["licenses/egui-emoji-icon-font-mit-license.txt"]
