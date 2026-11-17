@@ -212,7 +212,6 @@ const PAGES: &[&str] = &[
     "page.boxes",
     "page.properties",
     "page.number",
-    "page.properties",
     SEP,
     "bookmark.add",
     "bookmark.from_structure",
@@ -710,7 +709,7 @@ mod tests {
         crate::i18n::set_current(crate::i18n::Lang::EN);
         let translated = translate("⋯");
         assert_ne!(translated, "⋯", "no installed font has this glyph");
-        assert_eq!(translated, "…", "the ordinary ellipsis the rest of the app already uses");
+        assert_eq!(translated, "More", "Lion PDF titles the overflow menu in words");
         for label in ["Menu", "Scroll menu up", "Scroll menu down"] {
             assert_eq!(translate(label), label, "plain ASCII reserved labels need no substitution");
         }
@@ -723,9 +722,8 @@ mod tests {
         let items = bar.items();
         let mut keys: Vec<String> = items.iter().map(|it| it.command.key()).collect();
         keys.sort();
-        let count = keys.len();
-        keys.dedup();
-        assert_eq!(keys.len(), count, "no command is listed twice");
+        let twice: Vec<&String> = keys.windows(2).filter(|w| w[0] == w[1]).map(|w| &w[0]).collect();
+        assert!(twice.is_empty(), "no command is listed twice: {twice:?}");
         for spec in commands::COMMANDS.iter().filter(|s| s.menu.is_some()) {
             if spec.id == "file.open_recent" {
                 continue; // A submenu of the recent files.

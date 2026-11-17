@@ -11,7 +11,7 @@ use pdfcraft_cos::{Dict, Document, Object};
 use pdfcraft_fonts::{literal, win_ansi};
 
 use crate::marks::{MarkKind, n};
-use crate::place::{END, add_resources, begin, check, page_list, place};
+use crate::place::{END, add_page_resources, begin, check, free_font_name, page_fonts, page_list, place};
 use crate::{EditError, remove_marks};
 
 /// Which marks, and how heavy.
@@ -73,6 +73,7 @@ fn registration() -> Object {
     tint.set(b"N".to_vec(), Object::Int(1));
     Object::Array(vec![Object::name("Separation"), Object::name("All"), Object::name("DeviceCMYK"), Object::Dict(tint)])
 }
+const MAX_COORDINATE: f64 = 1e9;
 
 impl PrinterMarks {
     /// The line weights a run accepts, in points.
@@ -82,6 +83,14 @@ impl PrinterMarks {
 
     fn any(&self) -> bool {
         self.trim || self.bleed || self.registration || self.color_bars || self.page_info
+    }
+
+    /// The standard page-information font must not silently omit a character.
+    pub fn first_undrawable(&self) -> Option<char> {
+        if !self.page_info {
+            return None;
+        }
+        pdfcraft_fonts::first_non_win_ansi(&self.label).or_else(|| pdfcraft_fonts::first_non_win_ansi(&self.date))
     }
 
     /// How far beyond the trim box the chosen marks reach.
@@ -100,7 +109,7 @@ impl PrinterMarks {
     }
 
     /// The marks' content for a page whose trim box is `trim` and bleed box `bleed` (user
-    /// space), `page` of `count` (1-based).
+    /// space measured in physical points), `page` of `count` (1-based).
     pub fn content(&self, trim: [f64; 4], bleed: [f64; 4], page: usize, count: usize) -> String {
         let w = self.line_weight.clamp(*Self::WEIGHTS.start(), *Self::WEIGHTS.end());
         // Registration colour: every plate.
@@ -251,20 +260,37 @@ pub fn add_printer_marks(doc: &mut Document, pages: &[usize], marks: &PrinterMar
     if marks.make_room.is_some_and(|room| !(0.0..=PrinterMarks::MAX_ROOM).contains(&room)) {
         return Err(EditError::Invalid(format!("the room to make must be from 0 to {} points", PrinterMarks::MAX_ROOM)));
     }
+    if marks.make_room.is_some_and(|room| !room.is_finite() || !(0.0..=MAX_COORDINATE).contains(&room)) {
+        return Err(EditError::Invalid("room must be a finite, non-negative number of points, at most 1e9".into()));
+    }
+    if marks.label.len() > 65_536 || marks.date.len() > 65_536 {
+        return Err(EditError::Invalid("page information must be at most 65536 bytes per field".into()));
+    }
+    if let Some(c) = marks.first_undrawable() {
+        return Err(EditError::Invalid(format!("page information cannot draw {c:?}; disable Page information or use WinAnsi text")));
+    }
+    // Validate all selected geometry before replacing any existing marks.
+    for &i in pages {
+        pdfcraft_organize_boxes(doc, i)?;
+    }
     if replace {
         remove_marks(doc, pages, MarkKind::PrinterMarks)?;
     }
     let count = all.len();
     let mut widened = Vec::new();
     for &i in pages {
-        let [media, crop, bleed, trim, art] = pdfcraft_organize_boxes(doc, i)?;
-        let side = side_reach(marks, trim, bleed);
+        let ([media, crop, bleed, trim, art], _given) = pdfcraft_organize_boxes(doc, i)?;
+        let unit = all.get(i).ok_or(EditError::NoSuchPage(i))?.user_unit(doc);
+        let trim_points = trim.map(|v| v * unit);
+        let bleed_points = bleed.map(|v| v * unit);
+        let side = side_reach(marks, trim_points, bleed_points).map(|v| v / unit);
         let needed = [trim[0] - side[0], trim[1] - side[1], trim[2] + side[2], trim[3] + side[3]];
         let within = |b: [f64; 4]| b[0] <= needed[0] && b[1] <= needed[1] && b[2] >= needed[2] && b[3] >= needed[3];
         // The crop box is what shows, so the marks need room inside it, not only inside the media box.
         if !within(crop)
             && let Some(room) = marks.make_room
         {
+            let room = room / unit;
             let new_media = if within(media) {
                 None
             } else {
@@ -290,7 +316,7 @@ pub fn add_printer_marks(doc: &mut Document, pages: &[usize], marks: &PrinterMar
                 ],
             };
             let rect = |r: [f64; 4]| Object::Array(r.iter().map(|v| Object::Real(*v)).collect());
-            let page = page_list(doc)[i].clone();
+            let page = page_list(doc).get(i).cloned().ok_or(EditError::NoSuchPage(i))?;
             doc.update_dict(page.obj, |d| {
                 if let Some(m) = new_media {
                     d.set(b"MediaBox".to_vec(), rect(m));
@@ -306,35 +332,67 @@ pub fn add_printer_marks(doc: &mut Document, pages: &[usize], marks: &PrinterMar
             })?;
             widened.push(i);
         }
-        let page = page_list(doc)[i].clone();
-        let content = marks.content(trim, bleed, i + 1, count);
-        let body = format!("{}{}{}", begin(MarkKind::PrinterMarks, "PrinterMarks", [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]), content, END);
-        add_resources(doc, &page, None, Some(body.as_bytes()))?;
-        let page = page_list(doc)[i].clone();
-        // add_resources gave the page resources of its own.
+        let page = page_list(doc).get(i).cloned().ok_or(EditError::NoSuchPage(i))?;
+        let mut content = marks.content(trim_points, bleed_points, i + 1, count);
+        // Lion PDF: never take over a font the page already draws with under /PCHelv.
+        let mut faces: Vec<(Vec<u8>, &str)> = Vec::new();
+        if marks.page_info {
+            let name = free_font_name(doc, &page_fonts(doc, &page), "PCHelv", "Helvetica");
+            content = content.replace("/PCHelv ", &format!("/{name} "));
+            faces.push((name.into_bytes(), "Helvetica"));
+        }
+        // Lion PDF: marks keep their physical size on pages with a UserUnit.
+        let body = format!("{}{}{}", begin(MarkKind::PrinterMarks, "PrinterMarks", [1.0 / unit, 0.0, 0.0, 1.0 / unit, 0.0, 0.0]), content, END);
+        add_page_resources(doc, &page, None, &faces)?;
+        let page = page_list(doc).get(i).cloned().ok_or(EditError::NoSuchPage(i))?;
+        // add_page_resources gave the page resources of its own.
         let mut res = page.dict.get(b"Resources").map(|r| doc.resolve(r)).and_then(|r| r.as_dict().cloned()).unwrap_or_default();
         let mut spaces = res.get(b"ColorSpace").map(|c| doc.resolve(c)).and_then(|c| c.as_dict().cloned()).unwrap_or_default();
         spaces.set(REGISTRATION.as_bytes().to_vec(), registration());
         res.set(b"ColorSpace".to_vec(), Object::Dict(spaces));
         doc.update_dict(page.obj, |d| d.set(b"Resources".to_vec(), Object::Dict(res)))?;
-        let page = page_list(doc)[i].clone();
+        let page = page_list(doc).get(i).cloned().ok_or(EditError::NoSuchPage(i))?;
         place(doc, &page, MarkKind::PrinterMarks, body.into_bytes(), false)?;
     }
     Ok(widened)
 }
 
 /// A page's boxes: media, crop, bleed, trim, art (each inherited or falling back as the
-/// standard says), without depending on the organize crate.
-fn pdfcraft_organize_boxes(doc: &Document, page: usize) -> Result<[[f64; 4]; 5], EditError> {
-    let p = page_list(doc).get(page).cloned().ok_or_else(|| EditError::Invalid(format!("page {} does not exist", page + 1)))?;
-    let rect = |k: &[u8]| -> Option<[f64; 4]> {
-        let a = p.dict.get(k).map(|o| doc.resolve(o))?;
-        let v: Vec<f64> = a.as_array()?.iter().filter_map(|x| doc.resolve(x).as_f64()).collect();
-        (v.len() == 4 && v.iter().all(|x| x.is_finite())).then(|| [v[0].min(v[2]), v[1].min(v[3]), v[0].max(v[2]), v[1].max(v[3])])
+/// standard says), without depending on the organize crate, and whether the bleed, trim and
+/// art boxes are given (rather than defaulting to the crop box).
+fn pdfcraft_organize_boxes(doc: &Document, page: usize) -> Result<([[f64; 4]; 5], [bool; 3]), EditError> {
+    let p = page_list(doc).get(page).cloned().ok_or_else(|| EditError::Invalid(format!("page {} does not exist", page.saturating_add(1))))?;
+    let rect = |key: &[u8]| -> Result<Option<[f64; 4]>, EditError> {
+        let Some(value) = p.dict.get(key) else {
+            return Ok(None);
+        };
+        let invalid = || EditError::Invalid(format!("page {} has an invalid {}", page.saturating_add(1), String::from_utf8_lossy(key)));
+        let value = doc.resolve(value);
+        let array = value.as_array().ok_or_else(invalid)?;
+        let [a, b, c, d] = array.as_slice() else {
+            return Err(invalid());
+        };
+        let mut r = [0.0; 4];
+        for (number, object) in r.iter_mut().zip([a, b, c, d]) {
+            *number = doc.resolve(object).as_f64().filter(|v| v.is_finite() && v.abs() <= MAX_COORDINATE).ok_or_else(invalid)?;
+        }
+        let [x0, y0, x1, y1] = r;
+        if x0 == x1 || y0 == y1 {
+            return Err(invalid());
+        }
+        Ok(Some([x0.min(x1), y0.min(y1), x0.max(x1), y0.max(y1)]))
     };
-    let media = rect(b"MediaBox").unwrap_or([0.0, 0.0, 612.0, 792.0]);
-    let clip = |r: [f64; 4]| [r[0].max(media[0]), r[1].max(media[1]), r[2].min(media[2]), r[3].min(media[3])];
-    let crop = rect(b"CropBox").map(clip).unwrap_or(media);
-    let (bleed, trim, art) = (rect(b"BleedBox").map(clip), rect(b"TrimBox").map(clip), rect(b"ArtBox").map(clip));
-    Ok([media, crop, bleed.unwrap_or(crop), trim.unwrap_or(crop), art.unwrap_or(crop)])
+    let media = rect(b"MediaBox")?.unwrap_or([0.0, 0.0, 612.0, 792.0]);
+    let clip = |r: [f64; 4]| -> Result<[f64; 4], EditError> {
+        let r = [r[0].max(media[0]), r[1].max(media[1]), r[2].min(media[2]), r[3].min(media[3])];
+        if r[0] >= r[2] || r[1] >= r[3] {
+            return Err(EditError::Invalid("page boxes must intersect the media box".into()));
+        }
+        Ok(r)
+    };
+    let crop = rect(b"CropBox")?.map(clip).transpose()?.unwrap_or(media);
+    let (bleed, trim, art) =
+        (rect(b"BleedBox")?.map(clip).transpose()?, rect(b"TrimBox")?.map(clip).transpose()?, rect(b"ArtBox")?.map(clip).transpose()?);
+    let given = [bleed.is_some(), trim.is_some(), art.is_some()];
+    Ok(([media, crop, bleed.unwrap_or(crop), trim.unwrap_or(crop), art.unwrap_or(crop)], given))
 }

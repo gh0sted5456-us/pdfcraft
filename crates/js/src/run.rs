@@ -197,8 +197,7 @@ impl HostHooks for CheckedCodeFromStrings {
     }
 }
 
-/// How [`Outcome::doc_errors`] names a failing document script: by its 1-based place.
-fn doc_error(index: usize, error: &dyn std::fmt::Display) -> String {
+pub(super) fn doc_error(index: usize, error: &dyn std::fmt::Display) -> String {
     format!("document script {}: {error}", index.saturating_add(1))
 }
 

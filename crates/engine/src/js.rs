@@ -2300,3 +2300,26 @@ impl Session {
         Ok(self.take_js_output(id))
     }
 }
+
+/// Lion PDF: document actions (Document JavaScript actions editor).
+#[cfg(test)]
+mod document_action_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn action_editor_refuses_to_destroy_destinations_or_action_chains() {
+        use pdfcraft_cos::{Dict, Object};
+        let mut cos = pdfcraft_cos::Document::open(Arc::new(crate::tests::fixture(1))).unwrap();
+        let root = cos.root().unwrap();
+        cos.update_dict(root, |d| d.set(b"OpenAction".to_vec(), Object::Array(vec![Object::Int(0), Object::name("Fit")]))).unwrap();
+        assert!(set_document_action(&mut cos, "Open", Some("1")).is_err());
+        assert!(set_document_action(&mut cos, "Open", None).is_err());
+        let mut action = Dict::new();
+        action.set(b"S".to_vec(), Object::name("JavaScript"));
+        action.set(b"JS".to_vec(), pdfcraft_cos::PdfString::text("1"));
+        action.set(b"Next".to_vec(), Object::Null);
+        cos.update_dict(root, |d| d.set(b"OpenAction".to_vec(), Object::Dict(action))).unwrap();
+        assert!(set_document_action(&mut cos, "Open", Some("2")).is_err());
+    }
+}

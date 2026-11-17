@@ -5,7 +5,7 @@
 use pdfcraft_engine::{Edit, PrinterMarks};
 
 use crate::pageboxes::Range;
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{PdfCraftApp, widgets};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -67,7 +67,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     let count = app.session.get(id).map(|d| d.info.pages.len()).unwrap_or(0);
     let current = app.views[i].current;
     let d = &mut app.printer_marks_draft;
-    ui.label(egui::RichText::new(tl!("Add printer marks")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Add printer marks"));
     ui.add_space(8.0);
     widgets::section_title(ui, tl!("Marks"));
     let mut all = d.all();
@@ -125,11 +125,11 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     ui.add_space(12.0);
     let (mut go, mut cancel) = (false, false);
     let ready = d.any() && count > 0;
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if ui.add_enabled_ui(ready, |ui| widgets::pill_button(ui, tl!("Add"), true)).inner.clicked() {
+    crate::widgets::dialog_footer(ui, |ui| {
+        if ui.add_enabled_ui(ready, |ui| widgets::dialog_button(ui, tl!("Add"), widgets::DialogAction::Confirm)).inner.clicked() {
             go = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             cancel = true;
         }
     });

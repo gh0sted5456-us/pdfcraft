@@ -290,7 +290,7 @@ const ANY_BUTTON_DRAG: [&str; 1] = [".drag_started()"];
 /// (file, function, why).
 const NOT_PAGE_DRAGS: [(&str, &str, &str); 3] = [
     ("canvas/organize.rs", "drag_pages", "Organize Pages drags thumbnails, not pages"),
-    ("tools/fill_sign.rs", "signature_pad", "the signature dialog's drawing pad"),
+    ("tools/fill_sign.rs", "signature_pad_content", "the signature dialog's drawing pad"),
     ("tools/fill_sign/scan.rs", "scan_tab", "the signature dialog's Scan tab"),
 ];
 
@@ -852,7 +852,7 @@ const NOT_PAGE_KEYS: [(&str, &str, &str); 17] = [
     ("tools/comments/composer.rs", "submit_key", "the comment field's own Enter, while it has the focus (the Comments panel's too)"),
     ("tools/field_table_ui.rs", "show", "the Text field table window's own Escape"),
     ("tools/field_table_ui.rs", "column_dividers", "the Text field table window's own arrows"),
-    ("tools/fill_sign.rs", "signature_pad", "the signature dialog's own ⌘Z"),
+    ("tools/fill_sign.rs", "signature_pad_content", "the signature dialog's own ⌘Z"),
     ("tools/forms_ui.rs", "combo_editor", "the combo box's own Enter, while its field has the focus"),
     ("tools/prepare/properties.rs", "body", "the field properties' own Enter, while one of their fields has the focus"),
     ("tools/redact_ui.rs", "search_body", "the redaction search field's own Enter, while it has the focus"),

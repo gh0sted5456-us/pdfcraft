@@ -506,7 +506,10 @@ pub fn fix_hairlines(doc: &mut Document, pages: &[usize], h: &Hairlines) -> Resu
         // The page's streams, each rewritten on its own (state carries across them), and the
         // forms they draw. A page with a stream that cannot be read is left alone.
         if let Some(streams) = PageStreams::read(doc, &page.dict) {
-            let start = State::new([1.0, 0.0, 0.0, 1.0, 0.0, 0.0], 1.0);
+            // Lion PDF: widths are measured in physical points, so a page with a /UserUnit is
+            // drawn under its unit's scale.
+            let unit = page.user_unit(doc);
+            let start = State::new([unit, 0.0, 0.0, unit, 0.0, 0.0], 1.0);
             let (new, fixed, xo) = fix_context(doc, &mut run, h, &streams.data, &start, resources.as_ref(), 0);
             page_fixed += fixed;
             streams.write(doc, page.obj, new)?;

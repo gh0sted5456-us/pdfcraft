@@ -476,7 +476,7 @@ fn reverting_after_apply_redactions_saves_in_place_again() {
     assert!(h.state_mut().execute("file.revert"));
     h.run_steps(2);
     assert_eq!(h.state().dialog, Some(Dialog::Revert));
-    h.get_all_by_label("Revert").last().expect("the button").click();
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Revert").click();
     h.run_steps(3);
     assert_eq!(h.state().views[0].redactions_applied, 0);
     assert!(h.state_mut().save_active(SaveTarget::InPlace), "after Revert, Save writes in place");

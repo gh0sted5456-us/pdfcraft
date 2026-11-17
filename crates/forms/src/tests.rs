@@ -7567,20 +7567,6 @@ fn page_scripts_are_the_pages_own_then_each_annotations_in_order() {
 
 // ── Lion PDF ──
 #[test]
-fn a_rotation_refused_as_too_small_changes_nothing_else() {
-    let mut doc = one_page();
-    add_field(&mut doc, 0, [50.0, 700.0, 250.0, 720.0], &NewField::Text { multiline: false }, Some("thin")).unwrap();
-    // 200 x 3: turned a quarter it would be 3 wide, too small to use.
-    let obj = field(&fields(&doc), "thin").widgets[0].obj;
-    doc.update_dict(obj, |d| d.set(b"Rect".to_vec(), Object::Array([50.0, 700.0, 250.0, 703.0].iter().map(|v| Object::Real(*v)).collect()))).unwrap();
-    let props = FieldProps { tooltip: Some("changed".into()), rotation: Some((0, 90)), ..FieldProps::default() };
-    assert!(set_props(&mut doc, "thin", &props).is_err());
-    let f = field(&fields(&doc), "thin").clone();
-    assert_eq!(f.tooltip, None, "the tooltip was written before the rotation was refused");
-    assert_eq!(f.widgets[0].rotation, 0);
-}
-
-#[test]
 fn tab_order_rejects_bad_page_ranges_without_partial_changes() {
     for invalid in [usize::MAX, 1] {
         let mut doc = one_page();

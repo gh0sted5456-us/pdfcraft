@@ -262,7 +262,7 @@ impl LionOcr {
         let source = ocrs::ImageSource::from_bytes(&rgb, (width, height)).map_err(|e| err(&e))?;
         let input = self.engine.prepare_input(source).map_err(|e| err(&e))?;
         let found = self.engine.detect_words(&input).map_err(|e| err(&e))?;
-        let lines = self.engine.find_text_lines(&input, &found);
+        let mut lines = self.engine.find_text_lines(&input, &found);
         if let Some(ppocr) = &self.ppocr {
             if lines.len() > 4096 {
                 return Err(OcrError::Recognize("page has more than 4096 text lines".into()));
@@ -282,17 +282,25 @@ impl LionOcr {
             }
             return Ok(result);
         }
+        // Upstream's fix: widen each line before it is cut out, so its first and last letters are
+        // read ("The" read as "he"), and keep the words' boxes to what the line found.
+        let before: Vec<_> = lines.iter_mut().map(|l| crate::ocrs::pad_line(l)).collect();
         let read = self.engine.recognize_text(&input, &lines).map_err(|e| err(&e))?;
         use ocrs::TextItem;
         Ok(read
             .into_iter()
-            .flatten()
-            .map(|line| Line {
+            .zip(before)
+            .filter_map(|(line, before)| line.map(|l| (l, before)))
+            .map(|(line, before)| Line {
                 words: line
                     .words()
                     .map(|w| {
                         let r = w.bounding_rect();
-                        Word::new(w.to_string(), [r.left() as f32, r.top() as f32, r.right() as f32, r.bottom() as f32], ID)
+                        Word::new(
+                            w.to_string(),
+                            crate::ocrs::clip([r.left() as f32, r.top() as f32, r.right() as f32, r.bottom() as f32], before),
+                            ID,
+                        )
                     })
                     .filter(|w| !w.text.trim().is_empty())
                     .collect(),
@@ -397,5 +405,111 @@ impl Recognizer for LionRecognizer {
 
     fn recognize(&self, image: &OcrImage, options: &RecognizeOptions) -> Result<Vec<Line>, OcrError> {
         self.engine(&options.language)?.recognize(image.rgba(), image.width(), image.height())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn system_locale_selects_ocr_language_with_english_fallback() {
+        for (locale, expected) in [
+            ("de-AT", "de"),
+            ("de_CH.UTF-8", "de"),
+            ("JA-jp", "ja"),
+            ("fr-CA", "fr"),
+            ("es-MX", "es"),
+            ("it-IT", "it"),
+            ("nl-BE", "nl"),
+            ("da-DK", "da"),
+            ("nb-NO", "nb"),
+            ("no_NO", "nb"),
+            ("sv-FI", "sv"),
+            ("fi_FI", "fi"),
+            ("pt-BR", "pt"),
+            ("pt_PT@euro", "pt"),
+            (" EN-us ", "en"),
+            ("is-IS", "is"),
+            ("nn-NO", "en"),
+            ("ca-ES", "ca"),
+            ("ca_ES.UTF-8", "ca"),
+            ("ca-AD", "ca"),
+            ("ca-ES-valencia", "ca"),
+            ("zh-Hans", "zh-Hans"),
+            ("zh", "zh-Hans"),
+            ("zh-CN", "zh-Hans"),
+            ("zh_SG.UTF-8", "zh-Hans"),
+            ("zh-TW", "zh-Hant"),
+            ("zh_HK", "zh-Hant"),
+            ("zh-MO", "zh-Hant"),
+            (" ZH-hANT-cn ", "zh-Hant"),
+            ("zh-Hans-TW", "zh-Hans"),
+            ("zh-Hant-HK", "zh-Hant"),
+            ("C.UTF-8", "en"),
+            ("POSIX", "en"),
+            ("", "en"),
+            ("日本語", "en"),
+            ("deutsch", "en"),
+        ] {
+            assert_eq!(super::language_for_locale(Some(locale)), expected, "{locale}");
+        }
+        assert_eq!(super::language_for_locale(None), "en");
+        for (code, _) in super::LION_LANGUAGES {
+            let expected = if *code == "no" { "nb" } else { *code };
+            assert_eq!(super::language_for_locale(Some(code)), expected);
+        }
+    }
+
+    #[test]
+    fn french_prefers_cedilla_and_grave_and_does_not_claim_the_nordic_ring() {
+        assert!(preferred_letters("fr").contains('ç') && preferred_letters("fr").contains('ù'));
+        assert!(preferred_letters("da").contains('å') && !preferred_letters("da").contains('à'));
+        assert!(preferred_letters("la").is_empty() && preferred_letters("en").is_empty());
+    }
+
+    #[test]
+    fn named_european_languages_use_the_latin_model() {
+        let dir = std::env::temp_dir().join(format!("pdfcraft-ocr-langs-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for file in [DETECTION_MODEL, RECOGNITION_MODEL, LATIN_MODEL, LATIN_DICTIONARY] {
+            std::fs::write(dir.join(file), b"x").unwrap();
+        }
+        for code in std::iter::once("en").chain(PP_OCR.iter().map(|(code, ..)| *code)) {
+            let models = LionModels::in_dir_for(&dir, code).unwrap_or_else(|| panic!("{code} was not found"));
+            let expect = if code == "en" { RECOGNITION_MODEL } else { LATIN_MODEL };
+            assert!(models.recognition.ends_with(expect), "{code}: {}", models.recognition.display());
+            if !matches!(code, "en" | "la" | "ca") {
+                assert!(!preferred_letters(code).is_empty(), "{code} has no preferred letters");
+            }
+        }
+        assert!(LionModels::in_dir_for(&dir, "ja").is_none());
+        for file in [MULTILINGUAL_MODEL, ORIENTATION_MODEL, DICTIONARY] {
+            std::fs::write(dir.join(file), b"x").unwrap();
+        }
+        for code in ["ja", "zh-Hant", "zh-Hans"] {
+            assert!(LionModels::in_dir_for(&dir, code).is_some(), "{code}: optional models enable recognition");
+        }
+        let german = preferred_letters("de");
+        assert!(german.contains('ä') && german.contains('ö') && german.contains('ü') && german.contains('ß'), "{german}");
+        assert!(LionModels::in_dir_for(&dir, "xx").is_none());
+        assert!(matches!(LionOcr::find_for("xx"), Err(OcrError::Language(_))));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn preferred_letters_are_in_the_latin_dictionary() {
+        let Some(models) = LionModels::find_for("la") else {
+            eprintln!("skipped: Latin OCR models not installed");
+            return;
+        };
+        let path = models.recognition.with_file_name(LATIN_DICTIONARY);
+        let text = std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
+        let have: std::collections::BTreeSet<char> = text.chars().collect();
+        for (code, _) in LION_LANGUAGES {
+            for ch in preferred_letters(code).chars() {
+                assert!(have.contains(&ch), "{code} prefers {ch} (U+{:04X}), which {} does not contain", u32::from(ch), path.display());
+            }
+        }
     }
 }

@@ -103,7 +103,7 @@ const LINE_PAD_ALONG: f32 = 0.1;
 /// [`LINE_PAD_ALONG`] say, after the lines were found, so finding them is unchanged. Returns the
 /// box the words covered before, which the recognised words are clipped to: the text layer sizes
 /// its text from them.
-fn pad_line(line: &mut [RotatedRect]) -> Option<RectF> {
+pub(crate) fn pad_line(line: &mut [RotatedRect]) -> Option<RectF> {
     let before = rten_imageproc::bounding_rect(line.iter())?;
     // A box's height runs along its up axis and its width along the line, whichever way the
     // line lies on the page.
@@ -121,7 +121,7 @@ fn pad_line(line: &mut [RotatedRect]) -> Option<RectF> {
 
 /// `rect` ([left, top, right, bottom]) clipped to `to`; unchanged if that leaves nothing: a word
 /// wholly in the padding is a letter the line found had cut off, and keeps its own box.
-fn clip(rect: [f32; 4], to: Option<RectF>) -> [f32; 4] {
+pub(crate) fn clip(rect: [f32; 4], to: Option<RectF>) -> [f32; 4] {
     let Some(to) = to else { return rect };
     let [l, t, r, b] = rect;
     let clipped = [l.max(to.left()), t.max(to.top()), r.min(to.right()), b.min(to.bottom())];

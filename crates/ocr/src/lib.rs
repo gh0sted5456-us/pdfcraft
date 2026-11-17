@@ -406,11 +406,43 @@ pub fn visible_text_layer_at(words: &[PlacedWord], plan: &pdfcraft_fonts::TextPl
     out
 }
 
+/// Helvetica's space width (em fraction).
+const SPACE_EM: f64 = 0.278;
+/// The width of the space written between words, in word heights.
+const SPACE_SLIVER: f64 = 0.01;
+/// How far apart along its line, in word heights, two words can be and still be one line's
+/// neighbours, and how far their bottoms may be offset across it (a descender, a slight skew).
+const NEIGHBOUR_GAP: f64 = 1.5;
+const NEIGHBOUR_OFFSET: f64 = 0.6;
+
+/// The gap from `w` to `next` along `w`'s line, when `next` is the next word on that line: it
+/// reads the same way, sits on about the same baseline and starts not far after `w` ends.
+fn gap_to(w: &PlacedWord, next: &PlacedWord) -> Option<f64> {
+    let (len, next_len) = (w.across[0].hypot(w.across[1]), next.across[0].hypot(next.across[1]));
+    let h = w.up[0].hypot(w.up[1]).max(next.up[0].hypot(next.up[1]));
+    if !(len > 0.0 && next_len > 0.0 && h > 0.0 && h.is_finite()) {
+        return None;
+    }
+    let u = [w.across[0] / len, w.across[1] / len];
+    let dot = |a: [f64; 2], b: [f64; 2]| a[0] * b[0] + a[1] * b[1];
+    let same_way = dot(u, next.across) / next_len > 0.9;
+    let from_end = [next.origin[0] - w.origin[0] - w.across[0], next.origin[1] - w.origin[1] - w.across[1]];
+    let along = dot(from_end, u);
+    // Across the line: the part of the offset that is not along it.
+    let offset = (from_end[0] - along * u[0]).hypot(from_end[1] - along * u[1]);
+    (same_way && offset < NEIGHBOUR_OFFSET * h && along > -NEIGHBOUR_OFFSET * h && along < NEIGHBOUR_GAP * h).then_some(along)
+}
+
 /// Page content that writes `words` as invisible text (rendering mode 3), each word stretched
 /// to its box so selection and search highlight the right place. WinAnsi words are set in
 /// `/PCHelv` (standard Helvetica); words with characters beyond WinAnsi are set in the plan's
 /// Type3 fonts, one run per font, with the same exact box fit. Marked content `/OCR` so it can
 /// be told apart from the page's own text.
+///
+/// Lion PDF: between neighbours on a line it writes a space: recognised words sit closer than
+/// the gap a copy needs to read as a word break, so copied text ran words together ("Thequick
+/// brown foxjumps", #2306). The space is a sliver at the word's end, so the word's box (what
+/// search highlights and an edit keeps the width of) stays the scanned word's.
 pub fn text_layer(words: &[PlacedWord], plan: &pdfcraft_fonts::TextPlan) -> Vec<u8> {
     // `3 Tr` and the font are graphics state, which `ET` doesn't reset: without `q … Q` they
     // would stay set for every later content stream on the page, so text added after OCR (a
@@ -471,6 +503,18 @@ pub fn text_layer(words: &[PlacedWord], plan: &pdfcraft_fonts::TextPlan) -> Vec<
                     out.extend_from_slice(b" Tj\n");
                 }
             }
+        }
+        // The space starts where the word ends, on its baseline, in Helvetica.
+        if words.get(i + 1).and_then(|next| gap_to(w, next)).is_some() {
+            if current.as_ref().is_some_and(|(f, s)| f != "PCHelv" || *s != 1.0) {
+                out.extend_from_slice(b"/PCHelv 1 Tf ");
+                current = Some(("PCHelv".to_string(), 1.0));
+            }
+            let reach = SPACE_SLIVER * height / (SPACE_EM * across);
+            let m = [w.across[0] * reach, w.across[1] * reach, em[0], em[1], o[0] + w.across[0], o[1] + w.across[1]];
+            let nums: Vec<String> = m.iter().map(|v| num(*v)).collect();
+            out.extend_from_slice(nums.join(" ").as_bytes());
+            out.extend_from_slice(b" Tm ( ) Tj\n");
         }
     }
     out.extend_from_slice(b"ET\nQ\nEMC\n");
@@ -578,6 +622,38 @@ mod tests {
         assert_eq!(c(f32::INFINITY), Some(100.0));
         assert_eq!(c(f32::NAN), None, "NaN is unknown, not a confidence");
         assert_eq!(c(f32::EPSILON), Some(f32::EPSILON), "in-scale values are untouched");
+    }
+
+    #[test]
+    fn neighbours_on_a_line_are_joined_by_a_space() {
+        let w = |text: &str, x0: f64, x1: f64, y: f64| PlacedWord {
+            text: text.into(),
+            origin: [x0, y],
+            across: [x1 - x0, 0.0],
+            up: [0.0, 10.0],
+            confidence: None,
+            source: String::new(),
+        };
+        let words = [w("Hi", 10.0, 30.0, 100.0), w("there", 32.0, 60.0, 100.0), w("far", 200.0, 220.0, 100.0), w("next", 10.0, 30.0, 85.0)];
+        let s = String::from_utf8(text_layer(&words, &TextPlan::default())).unwrap();
+        assert_eq!(s.matches("( ) Tj").count(), 1, "{s}");
+        // At x 30, where "Hi" ends, on its baseline: a tenth of a point wide (0.01 × 10).
+        let em = 10.0 / CAP_HEIGHT;
+        assert!(s.contains(&format!("{} 0 0 {} 30 100 Tm ( ) Tj", num(0.1 / SPACE_EM), num(em))), "{s}");
+        let order: Vec<&str> = s.lines().filter_map(|l| l.split(" Tm ").nth(1)).collect();
+        assert_eq!(order, ["(Hi) Tj", "( ) Tj", "(there) Tj", "(far) Tj", "(next) Tj"]);
+        // Touching boxes are still neighbours; a rotated line reads along its own axis.
+        assert_eq!(gap_to(&w("a", 0.0, 10.0, 0.0), &w("b", 9.0, 20.0, 0.0)), Some(-1.0));
+        let up = |y0: f64, y1: f64| PlacedWord {
+            text: "x".into(),
+            origin: [50.0, y0],
+            across: [0.0, y1 - y0],
+            up: [-10.0, 0.0],
+            confidence: None,
+            source: String::new(),
+        };
+        assert_eq!(gap_to(&up(0.0, 20.0), &up(23.0, 40.0)), Some(3.0));
+        assert_eq!(gap_to(&up(0.0, 20.0), &w("b", 50.0, 70.0, 23.0)), None, "a word that reads another way is not a neighbour");
     }
 
     #[test]

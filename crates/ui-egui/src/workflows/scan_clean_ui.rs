@@ -5,7 +5,6 @@
 
 use std::sync::{Arc, Mutex};
 
-use egui::{Align, Layout};
 use pdfcraft_engine::scan_clean::{ScanCleanReport, ScanCleanSettings, ScanCleaned};
 use pdfcraft_engine::{DocId, EditError};
 
@@ -47,7 +46,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     let d = &mut app.scan_clean_draft;
     d.to = d.to.clamp(1, pages);
     d.from = d.from.clamp(1, d.to);
-    ui.label(egui::RichText::new(tl!("Enhance Scanned File")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Enhance Scanned File"));
     ui.add_space(4.0);
     ui.label(
         egui::RichText::new(tl!("Cleans up the scanned pictures in place: recognized text, comments and links on the pages stay as they are."))
@@ -90,12 +89,12 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     ui.add_space(6.0);
     let (mut go, mut cancel) = (false, false);
     ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        crate::widgets::dialog_footer(ui, |ui| {
             let ready = d.settings.changes_something();
-            if ui.add_enabled_ui(ready, |ui| widgets::pill_button(ui, tl!("Enhance"), true)).inner.clicked() {
+            if ui.add_enabled_ui(ready, |ui| widgets::dialog_button(ui, tl!("Enhance"), widgets::DialogAction::Confirm)).inner.clicked() {
                 go = true;
             }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
                 cancel = true;
             }
         })

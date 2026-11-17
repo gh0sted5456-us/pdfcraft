@@ -2126,7 +2126,7 @@ fn the_panel_reveals_edits_and_reopens_a_late_thread_without_changing_its_replie
     let late = before.iter().find(|a| a.name.as_deref() == Some("late")).unwrap();
     assert_eq!(late.contents.as_deref(), Some("Late root edited exactly"));
     let id = h.state().views[0].id;
-    let saved = h.state().session.save_bytes(id).unwrap().as_ref().clone();
+    let saved = h.state_mut().session.save_bytes(id).unwrap().as_ref().clone();
     let mut reopened = harness_with_bytes(saved, |app| {
         app.set_option("panel", "comments").unwrap();
         app.views[0].comments.search = Some("late thread reply".into());
@@ -3263,7 +3263,7 @@ fn multiline_markup_hover_stays_on_marked_lines() {
                     "{subtype}, page/view rotation {page_rotation}/{view_rotation}, user point ({x}, {y})"
                 );
             }
-            let app = h.state();
+            let app = h.state_mut();
             let id = app.views[0].id;
             let doc = app.session.get(id).unwrap();
             assert!(!doc.dirty, "hovering never edits the document");
@@ -5998,6 +5998,11 @@ fn group_select_move_follows_view_rotation_and_escape_cancels_the_drag() {
     h.drop_at(to + egui::vec2(20.0, 20.0));
     h.run_steps(3);
     assert_eq!(h.state().session.get(h.state().views[0].id).unwrap().edit_generation(), generation);
+    // The pages' input owner takes that Escape to cancel the press; the selection stays, as a
+    // text selection stays when Escape closes a menu, and the next Escape clears it.
+    assert_eq!(h.state().views[0].group_selection_count(), 5);
+    h.key_press(egui::Key::Escape);
+    h.run_steps(2);
     assert_eq!(h.state().views[0].group_selection_count(), 0);
 }
 

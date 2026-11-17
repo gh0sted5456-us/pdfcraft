@@ -453,7 +453,7 @@ fn planned(ui: &mut egui::Ui, icon: &str, label: &str) {
     let _ = ui
         .add_enabled_ui(false, |ui| icons::button(ui, icon, 30.0, false, label))
         .inner
-        .on_disabled_hover_text(format!("{label} — {}", tl!("Planned")));
+        .on_disabled_hover_text(format!("{label} — {}", tl!("is not available yet")));
 }
 
 /// The small corner mark Acrobat puts on a button that opens a menu.

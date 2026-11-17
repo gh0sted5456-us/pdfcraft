@@ -353,6 +353,8 @@ fn documents(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
             .color(t.text_muted),
     );
     widgets::section_title(ui, tl!("Page display"));
+    // Upstream: a change applies to the open document(s) at once (`apply_view_pref_changes`).
+    let (before, always_before) = (app.view_defaults, app.always_default_view);
     let defaults = &mut app.view_defaults;
     ui.horizontal_wrapped(|ui| {
         ui.label(tl!("Default page display"));
@@ -398,6 +400,25 @@ fn documents(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
             .color(t.text_muted),
     );
     ui.add(widgets::checkbox(&mut app.always_default_view, tl!("Always use my default zoom and page layout")));
+    {
+        let after = app.view_defaults;
+        let changes = ViewPrefChanges {
+            always_reset: app.always_default_view != always_before,
+            layout: after.layout != before.layout,
+            continuous: after.continuous != before.continuous,
+            gaps: after.show_page_gaps != before.show_page_gaps,
+            fit: after.fit != before.fit,
+            zoom: after.zoom != before.zoom && after.fit == crate::canvas::Fit::None,
+        };
+        let any = changes.always_reset || changes.layout || changes.continuous || changes.gaps || changes.fit || changes.zoom;
+        if app.always_default_view && any {
+            for view in &mut app.views {
+                apply_view_pref_changes(view, &after, changes);
+            }
+        } else if any && let Some(i) = app.active {
+            apply_view_pref_changes(&mut app.views[i], &after, ViewPrefChanges { always_reset: false, ..changes });
+        }
+    }
     ui.horizontal_wrapped(|ui| {
         ui.label(tl!("Units"));
         for u in crate::units::Unit::ALL {
@@ -690,4 +711,59 @@ fn assistant(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     let label = ui.label("Model ID");
     ui.add(widgets::line(&mut app.assistant.settings.model).char_limit(160).desired_width(260.0)).labelled_by(label.id);
     widgets::dialog_button(ui, "Manage AI connections", widgets::DialogAction::Back).clicked()
+}
+
+#[derive(Clone, Copy, Default)]
+struct ViewPrefChanges {
+    always_reset: bool,
+    layout: bool,
+    continuous: bool,
+    gaps: bool,
+    fit: bool,
+    zoom: bool,
+}
+
+fn apply_view_pref_changes(view: &mut crate::DocView, defaults: &crate::canvas::ViewDefaults, changes: ViewPrefChanges) {
+    if changes.always_reset || changes.gaps {
+        view.set_page_gaps(defaults.show_page_gaps);
+    }
+    if let Some(saved) = view.saved_display_mut() {
+        if changes.always_reset || changes.layout {
+            saved.layout = defaults.layout;
+        }
+        if changes.always_reset || changes.continuous {
+            saved.continuous = defaults.continuous;
+        }
+        if changes.always_reset || changes.fit {
+            saved.fit = defaults.fit;
+            if defaults.fit == crate::canvas::Fit::None {
+                saved.zoom = defaults.zoom;
+            }
+        }
+        if changes.zoom {
+            saved.fit = crate::canvas::Fit::None;
+            saved.zoom = defaults.zoom;
+        }
+    } else {
+        if changes.always_reset || (changes.layout && changes.continuous) {
+            view.set_display(defaults.layout, defaults.continuous);
+        } else {
+            if changes.layout {
+                view.set_layout(defaults.layout);
+            }
+            if changes.continuous {
+                view.set_continuous(defaults.continuous);
+            }
+        }
+        if changes.always_reset || changes.fit {
+            match defaults.fit {
+                crate::canvas::Fit::None => view.set_zoom(defaults.zoom),
+                fit if view.fit != fit => view.set_fit(fit),
+                _ => {}
+            }
+        }
+        if changes.zoom {
+            view.set_zoom(defaults.zoom);
+        }
+    }
 }

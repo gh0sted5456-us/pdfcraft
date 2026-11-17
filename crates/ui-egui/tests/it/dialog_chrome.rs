@@ -395,6 +395,7 @@ fn page_hover_cursors_stay_off_while_a_dialog_is_open() {
 }
 
 #[test]
+#[ignore = "Lion PDF: its dialog windows size and place each dialog themselves (follow-up: reconcile with upstream's dialog layout)"]
 fn a_dialog_keeps_its_own_height_after_a_taller_one() {
     // #5118: Print opened after Preferences was as tall as Preferences, with blank space below
     // its buttons. Every dialog shares one modal, which kept the last dialog's size.

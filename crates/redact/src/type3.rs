@@ -782,7 +782,10 @@ fn reachable_form_holders(doc: &Document, holders: &[(ObjRef, Vec<ObjRef>)]) -> 
                 if ap.len() > MAX_HOLDERS {
                     return Err(CosError::Syntax { offset: 0, detail: "redaction exceeded its annotation appearance inspection limit".into() });
                 }
-                let mut pending: Vec<_> = ap.iter().map(|(_, value)| (value.clone(), 0usize)).collect();
+                // Only the entries a reader draws (normal, rollover, down): an /AP entry none draws
+                // keeps nothing (`a_type3_glyph_only_an_undrawn_appearance_entry_shows_is_unlinked`).
+                let mut pending: Vec<_> =
+                    ap.iter().filter(|(key, _)| matches!(key.as_slice(), b"N" | b"R" | b"D")).map(|(_, value)| (value.clone(), 0usize)).collect();
                 while let Some((value, depth)) = pending.pop() {
                     if depth > MAX_DEPTH || appearances_visited >= MAX_HOLDERS || pending.len() >= MAX_HOLDERS {
                         return Err(CosError::Syntax { offset: 0, detail: "redaction exceeded its annotation appearance inspection limit".into() });

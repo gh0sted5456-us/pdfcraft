@@ -102,8 +102,15 @@ impl PdfCraftApp {
     /// worker instead ([`Self::open_converted_pdf`]), leaving this for startup and inline opens.
     pub(crate) fn open_converted(&mut self, name: &str, bytes: &[u8]) -> Option<Result<(), String>> {
         use pdfcraft_engine::SourceKind;
-        if !matches!(pdfcraft_engine::source_kind(name, bytes), Some(SourceKind::Image | SourceKind::Text | SourceKind::Office)) {
+        if !matches!(
+            pdfcraft_engine::source_kind(name, bytes),
+            Some(SourceKind::Image | SourceKind::Text | SourceKind::Office | SourceKind::Template)
+        ) {
             return None;
+        }
+        // Lion PDF: a .pdfcraft-template opens as a new working copy, read no further than its limit.
+        if name.to_ascii_lowercase().ends_with(".pdfcraft-template") && bytes.len() > pdfcraft_engine::templates::MAX_BYTES {
+            return Some(Err("A template must not exceed 64 MiB".into()));
         }
         let created = self.session.convert_to_pdf(name, &Arc::new(bytes.to_vec())).map(|(_, pdf)| pdf);
         Some(self.open_converted_pdf(name, created.map_err(|e| e.to_string())))
@@ -161,8 +168,8 @@ impl PdfCraftApp {
 
     /// Create ▸ Blank page: a new untitled document on the system region's paper (#5644).
     pub(crate) fn create_blank(&mut self) {
-        let (w, h) = self.blank_paper.points();
-        let created = self.session.create_blank(w, h, 1).map_err(|e| e.to_string());
+        // Lion PDF: the default paper chosen in Preferences (the system region's until then).
+        let created = self.session.create_blank(self.default_paper.width, self.default_paper.height, 1).map_err(|e| e.to_string());
         if let Err(e) = self.open_created_bytes("Untitled.pdf", created) {
             self.notify_fmt("Couldn't create a PDF: {e}", &[("e", &e.to_string())]);
         }

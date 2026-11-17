@@ -10,40 +10,7 @@ fn fixture(clipping: bool) -> Vec<u8> {
 }
 
 fn fixture_with_background(clipping: bool, background: bool) -> Vec<u8> {
-    let stream = |body: &str, dict: &str| format!("<< {dict} /Length {} >>\nstream\n{body}\nendstream", body.len());
-    let mut objects = vec![
-        "<< /Type /Catalog /Pages 2 0 R >>".into(),
-        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".into(),
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 500] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> /XObject << /Figure 6 0 R >> >> >>"
-            .into(),
-        stream(
-            &format!(
-                "{}q BT {} Tr /F1 18 Tf 40 430 Td (Group headline) Tj ET Q q 1 0 0 1 40 340 cm /Figure Do Q BT /F1 12 Tf 240 90 Td (Keep here) Tj ET",
-                if background { "q /Background Do Q " } else { "" },
-                if clipping { 4 } else { 0 }
-            ),
-            "",
-        ),
-        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".into(),
-        stream("1 0.2 0.1 rg 0 0 60 30 re f", "/Type /XObject /Subtype /Form /BBox [0 0 60 30]"),
-    ];
-    if background {
-        objects[2] = objects[2].replace("/Figure 6 0 R", "/Figure 6 0 R /Background 7 0 R");
-        objects.push(stream("1 1 1 rg 0 0 400 500 re f", "/Type /XObject /Subtype /Form /BBox [0 0 400 500]"));
-    }
-    let mut out = b"%PDF-1.7\n".to_vec();
-    let mut offsets = Vec::new();
-    for (i, object) in objects.iter().enumerate() {
-        offsets.push(out.len());
-        out.extend_from_slice(format!("{} 0 obj\n{object}\nendobj\n", i + 1).as_bytes());
-    }
-    let xref = out.len();
-    out.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes());
-    for offset in offsets {
-        out.extend_from_slice(format!("{offset:010} 00000 n \n").as_bytes());
-    }
-    out.extend_from_slice(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objects.len() + 1).as_bytes());
-    out
+    fixture_with_shape(clipping, background, false)
 }
 
 fn harness() -> Harness<'static, PdfCraftApp> {
@@ -55,26 +22,7 @@ fn harness_with(clipping: bool) -> Harness<'static, PdfCraftApp> {
 }
 
 fn harness_document(clipping: bool, background: bool) -> Harness<'static, PdfCraftApp> {
-    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(move |_cc| {
-        let mut app = PdfCraftApp::new();
-        app.session = pdfcraft_engine::Session::new().with_clock(|| 1_700_000_000);
-        app.set_option("language", "en").unwrap();
-        app.open_bytes("group.pdf", None, fixture_with_background(clipping, background)).unwrap();
-        let id = app.views[0].id;
-        app.session
-            .apply(
-                id,
-                Edit::AddText { page: 0, text: AddedText { text: "Added note".into(), rect: [130.0, 340.0, 230.0, 370.0], ..Default::default() } },
-            )
-            .unwrap();
-        let saved = app.session.save_bytes(id).unwrap();
-        app.session.mark_saved(id, saved, None).unwrap();
-        app.set_option("zoom", "100").unwrap();
-        assert!(app.execute("edit.edit_text"));
-        app
-    });
-    crate::support::settle(&mut h);
-    h
+    harness_bytes(fixture_with_background(clipping, background))
 }
 
 fn at(h: &Harness<'static, PdfCraftApp>, x: f32, y: f32) -> Pos2 {

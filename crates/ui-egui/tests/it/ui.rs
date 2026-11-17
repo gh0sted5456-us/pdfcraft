@@ -34,7 +34,7 @@ fn harness(setup: impl FnOnce(&mut PdfCraftApp) + 'static) -> Harness<'static, P
 #[test]
 fn home_shows_welcome_and_tools() {
     let h = harness(|_| {});
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
     assert!(h.query_all_by_label("Organize pages").count() >= 2, "tool list + home card");
     h.get_by_label("Open file");
 }
@@ -238,7 +238,7 @@ fn another_tab_coming_forward_puts_the_expanded_all_tools_away() {
     h.state_mut().set_option("home", "").unwrap();
     h.run_steps(3);
     assert!(!h.state().all_tools_full);
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
     // Another document's tab.
     let mut h = harness(|app| {
         app.open_bytes("one.pdf", None, FIXTURE.to_vec()).expect("fixture opens");
@@ -258,7 +258,7 @@ fn going_home_with_no_document_puts_the_expanded_all_tools_away() {
     h.state_mut().set_option("home", "").unwrap();
     h.run_steps(3);
     assert!(!h.state().all_tools_full);
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
 }
 
 #[test]
@@ -347,6 +347,7 @@ fn closed_right_panel_stays_closed_for_a_document_asking_for_its_outline() {
 }
 
 #[test]
+#[ignore = "Lion PDF: the tools and rail sides follow Lion's docking, not upstream's rail preference"]
 fn navigation_rail_toggles_between_right_and_left_and_persists() {
     use pdfcraft_ui_egui::Dialog;
 
@@ -690,12 +691,14 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
     // buttons on the right, Open sits after them, and no arrows show.
     let name = |i: usize| format!("Statement {i} for the office records, scanned.pdf");
     let mut h = harness(move |app| {
+        // Lion PDF: the community (Discord) button is opt-in.
+        app.show_community = true;
         for i in 0..5 {
             app.open_bytes(&name(i), None, FIXTURE.to_vec()).unwrap();
         }
     });
     let open = h.get_by_label("Open").rect();
-    let discord = h.get_by_label("Discord").rect();
+    let discord = h.get_by_label("ArtCraft Community").rect();
     assert!(open.right() <= discord.left(), "Open {open:?} must not run under Discord {discord:?}");
     let mut previous_right = f32::MIN;
     for i in 0..5 {
@@ -720,14 +723,14 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
     assert_eq!(enabled(&h, "Scroll tabs right"), Some(true), "and then there is more to the right");
     let open = h.get_by_label("Open").rect();
     let right = h.get_by_label("Scroll tabs right").rect();
-    assert!(right.right() <= open.left() + 0.5 && open.right() <= h.get_by_label("Discord").rect().left());
+    assert!(right.right() <= open.left() + 0.5 && open.right() <= h.get_by_label("ArtCraft Community").rect().left());
     // Twenty: Open stays in sight left of Discord.
     for i in 0..13 {
         h.state_mut().open_bytes(&format!("more-{i:02}.pdf"), None, FIXTURE.to_vec()).unwrap();
     }
     h.run_steps(4);
     let open = h.get_by_label("Open").rect();
-    let discord = h.get_by_label("Discord").rect();
+    let discord = h.get_by_label("ArtCraft Community").rect();
     assert!(open.left() > 0.0 && open.right() <= discord.left(), "Open {open:?} stays in sight left of Discord {discord:?}");
 }
 
@@ -1458,7 +1461,10 @@ fn explicit_mode_overrides_default_before_and_after_open() {
 fn preferences_selects_default_workspace_for_next_open() {
     use egui::accesskit::Role;
     use pdfcraft_ui_egui::Mode;
-    let mut h = harness(|app| app.set_option("dialog", "preferences").unwrap());
+    let mut h = harness(|app| {
+        app.set_option("preferences-category", "documents").unwrap();
+        app.set_option("dialog", "preferences").unwrap()
+    });
     h.get_by_label("Default workspace mode");
     h.get_by_role_and_label(Role::RadioButton, "Read").scroll_to_me();
     h.run_steps(4);
@@ -1648,7 +1654,7 @@ fn closing_the_last_active_tab_selects_the_previous_one_then_home() {
         assert!(app.session.get(ids[removed]).is_none());
     }
     assert_eq!(h.state().active, None);
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
 }
 
 #[test]
@@ -1669,7 +1675,7 @@ fn cancelling_then_discarding_an_earlier_dirty_tab_preserves_the_selected_docume
     assert_eq!(h.state().active_ids().map(|(_, id)| id), Some(ids[1]));
     assert!(h.state().session.get(ids[0]).unwrap().dirty);
     close_named_tab(&mut h, "first.pdf (edited)");
-    h.get_by_label("Don't save").click();
+    h.get_by_label("Exit").click();
     h.run_steps(3);
     assert_eq!(h.state().active_ids().map(|(_, id)| id), Some(ids[1]));
     assert_eq!(h.state().views.iter().map(|view| view.id).collect::<Vec<_>>(), [ids[1], ids[2]]);
@@ -1930,6 +1936,22 @@ fn organize_pages_from_the_edit_panel_opens_its_panel() {
 /// Header and footer, Watermark and Background keep their Add / Update / Remove menu in the Edit
 /// panel, as under All tools: Update and Remove wait for the document to have that kind of mark.
 #[test]
+fn background_is_visible_first_under_add_content_without_expanding_more() {
+    let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens"));
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Edit").click();
+    h.run_steps(3);
+    let background = h.get_by_label("Background").rect();
+    assert!(background.top() < h.get_by_label("Image").rect().top());
+    h.get_by_label("Link");
+    h.get_by_label("Background").click();
+    h.run_steps(3);
+    assert_eq!(enabled(&h, "Add background…"), Some(true));
+    assert_eq!(enabled(&h, "Remove background"), Some(false));
+}
+
+/// Header and footer, Watermark and Background keep their Add / Update / Remove menu in the Edit
+/// panel, as under All tools: Update and Remove wait for the document to have that kind of mark.
+#[test]
 fn the_edit_panel_keeps_the_add_update_remove_menu() {
     let mut h = harness(|app| app.open_bytes("fixture.pdf", None, FIXTURE.to_vec()).expect("fixture opens"));
     support::outside_menus(&h, "Edit").click();
@@ -1993,6 +2015,193 @@ fn short_window_rail_buttons_scroll_clear_of_page_navigation() {
         assert!(tags.top() >= first.top(), "Tags {tags:?} is fully visible in the scrolling area");
         assert!(tags.bottom() <= page.top(), "Tags {tags:?} scrolls into view above the page field {page:?}");
         assert_eq!(h.get(By::new().role(egui::accesskit::Role::TextInput).value("1")).rect(), page, "navigation stays put");
+    }
+}
+
+#[test]
+fn document_tabs_keep_red_unsaved_and_green_saved_dots_in_both_themes() {
+    let _gpu = crate::gpu();
+    for theme in ["light", "dark"] {
+        let mut h = harness(move |app| {
+            app.set_option("theme", theme).unwrap();
+            app.open_bytes("saved.pdf", None, FIXTURE.to_vec()).unwrap();
+            app.open_bytes("edited.pdf", None, FIXTURE.to_vec()).unwrap();
+            app.apply_edit(pdfcraft_engine::Edit::SetInfo { key: "Title".into(), value: "Changed".into() });
+        });
+        let saved = h.get_by_label("saved.pdf").rect();
+        let edited = h.get_by_label("edited.pdf (edited)").rect();
+        assert_eq!(h.get_by_label("saved.pdf").accesskit_node().description().as_deref(), Some("Saved"));
+        assert_eq!(h.get_by_label("edited.pdf (edited)").accesskit_node().description().as_deref(), Some("Unsaved changes"));
+        let dot = |image: &image::RgbaImage, tab: egui::Rect| image.get_pixel((tab.right() - 34.0) as u32, tab.center().y as u32).0;
+        let image = h.render().unwrap();
+        assert_eq!(dot(&image, saved), [54, 143, 92, 255]);
+        assert_eq!(dot(&image, edited), [200, 70, 85, 255]);
+        h.hover_at(edited.right_center() - egui::vec2(16.0, 0.0));
+        h.run_steps(4);
+        assert_eq!(dot(&h.render().unwrap(), edited), [200, 70, 85, 255], "hovering Close does not hide status");
+        if let Ok(dir) = std::env::var("PDFCRAFT_DIALOG_PREVIEW_DIR") {
+            image.save(std::path::Path::new(&dir).join(format!("tab-status-{theme}.png"))).unwrap();
+        }
+        let out = std::env::temp_dir().join(format!("pdfcraft-tab-status-{theme}-{}.pdf", std::process::id()));
+        h.state_mut().save_override = Some(out.to_string_lossy().into_owned());
+        assert!(h.state_mut().save_active(pdfcraft_ui_egui::SaveTarget::As));
+        h.run_steps(4);
+        let app = h.state();
+        let name = app.session.get(app.views[1].id).unwrap().name.clone();
+        let tab = h.get_by_role_and_label(egui::accesskit::Role::Tab, &name).rect();
+        assert_eq!(dot(&h.render().unwrap(), tab), [54, 143, 92, 255], "successful save changes red to green");
+        assert_eq!(h.get_by_role_and_label(egui::accesskit::Role::Tab, &name).accesskit_node().description().as_deref(), Some("Saved"));
+        let _ = std::fs::remove_file(out);
+    }
+}
+
+#[test]
+fn glass_popups_keep_a_readable_backing_at_low_window_opacity() {
+    use pdfcraft_ui_egui::theme::{self, GlassSettings, Tokens};
+    let ctx = egui::Context::default();
+    for opacity in [35, 67, 88, 100] {
+        theme::apply_glass(&ctx, GlassSettings { opacity, ..Default::default() });
+        let window = ctx.global_style().visuals.window_fill;
+        assert!(window.a() >= 224, "popup backing is too faint at {opacity}%: {window:?}");
+        assert_eq!(Tokens::get(&ctx).panel.a(), 0, "main panes remain transparent");
+    }
+}
+
+#[test]
+#[cfg(target_os = "windows")]
+fn appearance_modes_keep_window_controls_in_the_same_place() {
+    let mut h = harness(|app| app.set_option("theme", "glass").unwrap());
+    h.run_steps(3);
+    let controls = ["Minimize", "Maximize", "Close window"];
+    let positions = controls.map(|label| h.get_by_label(label).rect());
+    for theme in ["light", "dark", "glass"] {
+        h.state_mut().set_option("theme", theme).unwrap();
+        h.run_steps(3);
+        assert!(h.state().draws_window_frame());
+        for (label, expected) in controls.into_iter().zip(positions) {
+            assert_eq!(h.get_by_label(label).rect(), expected, "{theme}: {label}");
+        }
+    }
+}
+
+#[test]
+fn glass_theme_settings_validate_persist_and_keep_documents_opaque() {
+    use pdfcraft_ui_egui::theme::{GlassSettings, ThemeKind, ThemePreference};
+    let mut app = PdfCraftApp::new();
+    app.set_option("theme", "glass").unwrap();
+    app.set_option("glass-tint", "#2a9dcc").unwrap();
+    app.set_option("glass-opacity", "63").unwrap();
+    assert_eq!(app.theme_preference, ThemePreference::Glass);
+    assert_eq!(app.theme, ThemeKind::Dark);
+    assert_eq!(app.glass, GlassSettings { tint: [42, 157, 204], opacity: 63, ..Default::default() });
+    for bad in ["NaN", "-1", "0", "34", "101", "256"] {
+        assert!(app.set_option("glass-opacity", bad).is_err());
+    }
+    for bad in ["#xx0000", "#fff", "abcdef00", "💧abcd"] {
+        assert!(app.set_option("glass-tint", bad).is_err());
+    }
+    let t = app.glass.tokens();
+    assert_eq!(t.glass_surface.unwrap().a(), 160);
+    assert_eq!(t.panel.a(), 0);
+    assert_eq!(t.card.a(), 0);
+    assert_eq!(t.field.a(), 0);
+    assert_eq!(eframe::App::clear_color(&app, &egui::Visuals::dark()), app.glass.surface().to_normalized_gamma_f32());
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&app.persist());
+    assert_eq!(restored.glass, app.glass);
+    assert_eq!(restored.theme_preference, ThemePreference::Glass);
+    restored.restore(r#"{"glass":{"opacity":0}}"#);
+    assert_eq!(restored.glass.opacity, 35);
+    restored.restore(r#"{"glass":{"opacity":999,"tint":[1,2]}}"#);
+    assert_eq!(restored.glass.opacity, 35);
+    let mut h = harness(|app| {
+        // Save stamps ModDate; wall-clock rollover must not change this byte comparison.
+        app.session = std::mem::take(&mut app.session).with_clock(|| 1_700_000_000);
+        app.open_bytes("glass.pdf", None, TEXT_FIXTURE.to_vec()).unwrap();
+        app.execute("view.theme.glass");
+    });
+    crate::support::settle(&mut h);
+    let id = h.state().views[0].id;
+    let before = h.state_mut().session.save_bytes(id).unwrap();
+    let mut png = std::io::Cursor::new(Vec::new());
+    image::RgbaImage::from_pixel(8, 4, image::Rgba([20, 70, 110, 255])).write_to(&mut png, image::ImageFormat::Png).unwrap();
+    let encoded = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, png.get_ref());
+    h.state_mut().set_option("glass-background", &encoded).unwrap();
+    h.run_steps(3);
+    assert!(!h.state().session.get(id).unwrap().dirty, "wallpaper is an app preference");
+    assert_eq!(h.state_mut().session.save_bytes(id).unwrap(), before, "wallpaper never enters PDF bytes");
+    assert_eq!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).glass_surface.unwrap().a(), 204);
+    h.state_mut().set_option("glass-opacity", "50").unwrap();
+    h.run();
+    assert_eq!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).glass_surface.unwrap().a(), 127);
+    h.state_mut().execute("view.theme.dark");
+    h.run();
+    assert_eq!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a(), 255);
+    assert_eq!(eframe::App::clear_color(h.state(), &egui::Visuals::dark())[3], 1.0);
+}
+
+#[test]
+fn glass_controls_are_visible_above_the_preview_cards_in_small_preferences() {
+    use egui::accesskit::Role;
+    let mut h = Harness::builder().with_size(egui::vec2(1024.0, 740.0)).build_eframe(|_cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.set_option("theme", "glass").unwrap();
+        app.set_option("preferences-category", "appearance").unwrap();
+        app.set_option("dialog", "preferences").unwrap();
+        app
+    });
+    h.run_steps(8);
+    let opacity = h.get_by_role_and_label(Role::Slider, "Application opacity").rect();
+    let footer = h.get_by_label("OK").rect();
+    assert!(opacity.top() > 0.0 && opacity.bottom() < footer.top(), "{opacity:?} vs {footer:?}");
+    let before = h.state().glass.opacity;
+    h.get_by_role_and_label(Role::Slider, "Application opacity").click();
+    h.run_steps(3);
+    assert_ne!(h.state().glass.opacity, before);
+    assert!(pdfcraft_ui_egui::theme::Tokens::get(&h.ctx).panel.a() < 255);
+}
+
+#[test]
+fn glass_panes_controls_and_windows_header_share_the_live_surface() {
+    let mut h = harness(|app| {
+        app.set_option("theme", "glass").unwrap();
+        app.set_option("glass-opacity", "50").unwrap();
+    });
+    h.run_steps(4);
+    let t = pdfcraft_ui_egui::theme::Tokens::get(&h.ctx);
+    for surface in [t.titlebar, t.chrome, t.panel, t.pasteboard, t.card, t.field] {
+        assert_eq!(surface, t.panel);
+        assert_eq!(surface.a(), 0);
+    }
+    assert_eq!(t.glass_surface.unwrap().a(), 127);
+    for surface in [t.hover, t.pressed, t.selected, t.accent_soft] {
+        assert!(surface.a() < 127);
+    }
+    // Nested panes never paint the main tint a second time.
+    let point = egui::pos2(200.0, 450.0);
+    let fills = h
+        .output()
+        .shapes
+        .iter()
+        .filter(|s| {
+            s.clip_rect.contains(point) && matches!(&s.shape, egui::Shape::Rect(r) if r.rect.contains(point) && r.fill == t.glass_surface.unwrap())
+        })
+        .count();
+    assert_eq!(fills, 0);
+    #[cfg(windows)]
+    {
+        assert!(h.state().draws_window_frame());
+        for label in ["Minimize", "Maximize", "Close window"] {
+            h.get_by_label(label);
+        }
+        h.state_mut().set_option("system-title-bar", "true").unwrap();
+        h.run_steps(2);
+        assert!(h.state().draws_window_frame(), "Glass uses the tinted header even when the system bar was saved");
+        h.state_mut().execute("view.theme.dark");
+        h.run_steps(2);
+        assert!(!h.state().draws_window_frame());
+        assert!(h.query_by_label("Minimize").is_none());
     }
 }
 
@@ -2132,6 +2341,89 @@ fn full_screen_neither_is_remembered_nor_hides_the_last_view() {
     let view = &mut h.state_mut().views[0];
     view.leave_presentation();
     assert_eq!((view.fit, view.zoom, view.layout, view.continuous), (Fit::None, 0.5, PageLayout::TwoUp, false), "the remembered view");
+}
+
+#[test]
+fn glass_opacity_track_is_visible_at_full_opacity() {
+    let mut h = harness(|app| {
+        app.set_option("theme", "glass").unwrap();
+        app.set_option("glass-opacity", "100").unwrap();
+        app.set_option("preferences-category", "appearance").unwrap();
+        app.set_option("dialog", "preferences").unwrap();
+    });
+    h.run_steps(8);
+    let rect = h.get_by_role_and_label(egui::accesskit::Role::Slider, "Application opacity").rect();
+    let visible = h.output().shapes.iter().any(|s| {
+        matches!(&s.shape, egui::Shape::Rect(r) if r.rect.contains(rect.center())
+            && r.rect.width() <= rect.width() + 1.0 && r.rect.height() < rect.height() && r.fill.a() >= 160)
+    });
+    assert!(visible, "the slider needs a visible rail, not just a floating thumb and percentage");
+}
+
+#[test]
+fn glass_opacity_sliders_update_three_backdrops_independently() {
+    let mut h = harness(|app| {
+        app.set_option("theme", "glass").unwrap();
+        app.set_option("preferences-category", "appearance").unwrap();
+        app.set_option("dialog", "preferences").unwrap();
+    });
+    h.run_steps(8);
+    for (label, key) in [("Application opacity", "opacity"), ("Popup opacity", "popup_opacity"), ("Tool panes opacity", "tool_opacity")] {
+        h.get_by_role_and_label(egui::accesskit::Role::Slider, label).scroll_to_me();
+        h.run_steps(4);
+        let before = serde_json::to_value(h.state().glass).unwrap();
+        let rect = h.get_by_role_and_label(egui::accesskit::Role::Slider, label).rect();
+        assert!(rect.width() >= 140.0, "{label} needs room to drag: {rect:?}");
+        let from = rect.center();
+        let to = egui::pos2(rect.left() + 12.0, rect.center().y);
+        h.event(egui::Event::PointerMoved(from));
+        h.event(egui::Event::PointerButton { pos: from, button: egui::PointerButton::Primary, pressed: true, modifiers: egui::Modifiers::NONE });
+        h.run_steps(1);
+        h.event(egui::Event::PointerMoved(to));
+        h.run_steps(1);
+        h.event(egui::Event::PointerButton { pos: to, button: egui::PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::NONE });
+        h.run_steps(4);
+        let after = serde_json::to_value(h.state().glass).unwrap();
+        assert_ne!(before[key], after[key], "{label} must update live");
+        for other in ["opacity", "popup_opacity", "tool_opacity"] {
+            if other != key {
+                assert_eq!(before[other], after[other], "{label} changed {other}");
+            }
+        }
+        let t = pdfcraft_ui_egui::theme::Tokens::get(&h.ctx);
+        assert_eq!(t.glass_surface.unwrap(), h.state().glass.surface());
+        assert_eq!(h.ctx.global_style().visuals.window_fill, t.glass_popup_surface().unwrap());
+    }
+}
+
+#[test]
+fn glass_backdrop_preferences_restore_validate_and_leave_other_surfaces_alone() {
+    let mut app = PdfCraftApp::new();
+    app.set_option("theme", "glass").unwrap();
+    let original = app.glass;
+    app.set_option("glass-popup-opacity", "55").unwrap();
+    app.set_option("glass-tool-opacity", "15").unwrap();
+    assert_eq!(app.glass.opacity, original.opacity);
+    let t = app.glass.tokens();
+    assert_eq!(t.glass_popup_surface().unwrap().a(), 140);
+    assert_eq!(t.glass_toolbar_shade().unwrap().a(), 38);
+    let before = app.glass;
+    for key in ["glass-popup-opacity", "glass-tool-opacity"] {
+        for bad in ["NaN", "-1", "101", "256"] {
+            assert!(app.set_option(key, bad).is_err());
+            assert_eq!(app.glass, before);
+        }
+    }
+    assert!(app.set_option("glass-popup-opacity", "34").is_err());
+    app.set_option("glass-tool-opacity", "0").unwrap();
+    assert_eq!(app.glass.tokens().glass_toolbar_shade().unwrap().a(), 0);
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&app.persist());
+    assert_eq!(restored.glass, app.glass);
+    restored.restore(r#"{"glass":{"opacity":57}}"#);
+    assert_eq!(restored.glass.opacity, 57);
+    assert_eq!(restored.glass.popup_opacity, original.popup_opacity);
+    assert_eq!(restored.glass.tool_opacity, original.tool_opacity);
 }
 
 #[cfg(not(target_arch = "wasm32"))]

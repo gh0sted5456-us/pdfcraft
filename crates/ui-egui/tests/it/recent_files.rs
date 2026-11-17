@@ -45,6 +45,9 @@ fn open(app: &mut PdfCraftApp, name: &str) {
 
 /// Typed the way a person does: click the field, type, Enter.
 fn type_limit(h: &mut Harness<'static, PdfCraftApp>, value: &str) {
+    // Lion PDF: the field is further down the Documents page of Preferences.
+    h.get_by_role_and_label(Role::SpinButton, "Recent files to keep").scroll_to_me();
+    h.run_steps(3);
     h.get_by_role_and_label(Role::SpinButton, "Recent files to keep").click();
     h.run_steps(2);
     h.key_press_modifiers(egui::Modifiers::COMMAND, Key::A);
@@ -151,6 +154,7 @@ fn the_longest_list_scrolls_in_the_smallest_window_down_to_clear() {
 #[test]
 fn preferences_cuts_the_list_when_it_closes_and_not_before() {
     let mut h = harness(12, &["first.pdf", "second.pdf", "third.pdf"]);
+    h.state_mut().preferences_category = pdfcraft_ui_egui::PreferencesCategory::Documents;
     h.state_mut().dialog = Some(Dialog::Preferences);
     h.run_steps(4);
     type_limit(&mut h, "0");
@@ -168,6 +172,7 @@ fn preferences_cuts_the_list_when_it_closes_and_not_before() {
 #[test]
 fn escape_closes_preferences_with_the_same_result_as_ok() {
     let mut h = harness(12, &["first.pdf", "second.pdf"]);
+    h.state_mut().preferences_category = pdfcraft_ui_egui::PreferencesCategory::Documents;
     h.state_mut().dialog = Some(Dialog::Preferences);
     h.run_steps(4);
     type_limit(&mut h, "1");
@@ -180,6 +185,7 @@ fn escape_closes_preferences_with_the_same_result_as_ok() {
 #[test]
 fn the_field_does_not_go_past_fifty() {
     let mut h = harness(12, &[]);
+    h.state_mut().preferences_category = pdfcraft_ui_egui::PreferencesCategory::Documents;
     h.state_mut().dialog = Some(Dialog::Preferences);
     h.run_steps(4);
     type_limit(&mut h, "999");

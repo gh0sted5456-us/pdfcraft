@@ -413,7 +413,7 @@ fn a_save_prompt_answered_in_the_background_withdraws_its_attention_request() {
     open_unsaved(&mut h, "second.pdf");
     h.input_mut().focused = false;
     assert_eq!(attention_during(&mut h, &c, "ui.quit", json!({})), [Critical]);
-    assert!(attention_during(&mut h, &c, "ui.click", json!({"label": "Don't save"})).is_empty(), "the request stands");
+    assert!(attention_during(&mut h, &c, "ui.click", json!({"label": "Exit"})).is_empty(), "the request stands");
     assert_eq!(attention_during(&mut h, &c, "ui.click", json!({"label": "Cancel"})), [Reset]);
 
     open_unsaved(&mut h, "third.pdf");
@@ -421,7 +421,7 @@ fn a_save_prompt_answered_in_the_background_withdraws_its_attention_request() {
     assert!(attention_during(&mut h, &c, "ui.quit", json!({})).is_empty(), "the first question opens in front");
     h.input_mut().focused = false;
     assert!(attention_during(&mut h, &c, "ui.state", json!({})).is_empty(), "leaving it open asks nothing");
-    assert_eq!(attention_during(&mut h, &c, "ui.click", json!({"label": "Don't save"})), [Critical], "the next opens in the background");
+    assert_eq!(attention_during(&mut h, &c, "ui.click", json!({"label": "Exit"})), [Critical], "the next opens in the background");
     assert_eq!(attention_during(&mut h, &c, "ui.click", json!({"label": "Cancel"})), [Reset]);
     let state = ok(&mut h, &c, "ui.state", json!({}));
     assert_eq!(state["close_prompt"], false);
@@ -999,6 +999,7 @@ fn japanese_controls_and_search_keep_command_ids() {
         return;
     }
     let (mut h, c) = harness();
+    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" })); // Lion PDF: Preferences opens on a category
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "ja" }));
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["language"], "ja");
     ok(&mut h, &c, "ui.click", json!({ "label": "変換" }));
@@ -1034,6 +1035,7 @@ fn german_preferences_and_search_keep_command_ids() {
         return;
     }
     let (mut h, c) = harness();
+    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" })); // Lion PDF: Preferences opens on a category
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "de" }));
     ok(&mut h, &c, "ui.click", json!({ "label": "Konvertieren" }));
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["mode"], "Convert");
@@ -1044,7 +1046,7 @@ fn german_preferences_and_search_keep_command_ids() {
     let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": "Deutsch" }));
     let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");
     ok(&mut h, &c, "ui.click", json!({ "id": combo["id"] }));
-    ok(&mut h, &c, "ui.click", json!({ "label": "English" }));
+    ok(&mut h, &c, "ui.click", json!({ "label": "English (US)" }));
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["language"], "en");
     let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": "English" }));
     let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");
@@ -1072,6 +1074,7 @@ fn ukrainian_preferences_and_search_keep_command_ids() {
         return;
     }
     let (mut h, c) = harness();
+    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" })); // Lion PDF: Preferences opens on a category
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "uk" }));
     ok(&mut h, &c, "ui.command", json!({ "id": "app.preferences" }));
     h.run_steps(2);
@@ -1115,6 +1118,7 @@ fn preferences_menu_and_shortcut_allow_switching_interface_languages() {
         return;
     }
     let (mut h, c) = harness();
+    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" })); // Lion PDF: Preferences opens on a category
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "ja" }));
     // The menu bar's Edit menu holds Preferences on Windows and Linux. On macOS the in-window bar
     // takes the Mac layout (`Target::current()`), which moves it to the app menu as Settings….
@@ -1135,7 +1139,7 @@ fn preferences_menu_and_shortcut_allow_switching_interface_languages() {
     h.run_steps(2);
     h.get_by(menu_row(preferences)).click();
     h.run_steps(2);
-    for (current, next, code) in [("日本語", "English", "en"), ("English", "Українська", "uk"), ("Українська", "日本語", "ja")]
+    for (current, next, code) in [("日本語", "English (US)", "en"), ("English", "Українська", "uk"), ("Українська", "日本語", "ja")]
     {
         let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": current }));
         let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");
@@ -1824,8 +1828,8 @@ fn malformed_panel_settings_preserve_other_preferences() {
     let saved: Value = serde_json::from_str(&app.persist()).unwrap();
     assert_eq!(saved["default_mode"], "edit");
     assert_eq!(saved["flatten_fill_sign"], true);
-    // The old value is dropped on the next save.
-    assert!(saved.get("docking").is_none());
+    // Lion PDF keeps its own docking layout (Lion's panels), saved as "docking"; upstream's
+    // side panels are saved beside it.
     assert_eq!(saved["side_panels"]["version"], 1);
 }
 

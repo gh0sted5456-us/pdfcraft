@@ -296,7 +296,7 @@ fn near_point(s: &ObjectSelection, xf: &PageXform, info: &DocInfo, page: usize, 
 /// made of paths (a frame around a diagonal would cover other lines), else inside its frame.
 fn on_selection(s: &ObjectSelection, xf: &PageXform, info: &DocInfo, page: usize, p: Pos2) -> bool {
     if s.paths().is_some() {
-        near_point(s, xf, info, page, p).is_some() || s.selected.iter().any(|o| path_hit(xf, info, page, o, p))
+        near_point(s, xf, info, page, p).is_some() || s.selected.iter().any(|o| near_path(xf, info, page, o, p))
     } else {
         s.selected.iter().fold(Rect::NOTHING, |r, o| r.union(screen(xf, info, page, o))).contains(p)
     }
@@ -330,7 +330,7 @@ fn polygon_contains(points: &[Pos2], p: Pos2) -> bool {
 
 /// Whether a click at `p` is on the vector path `object`: on its line, or inside it when it is
 /// filled (a fill covering a quarter of the page is a background, which a click goes through).
-fn path_hit(xf: &PageXform, info: &DocInfo, page: usize, object: &EditableObject, p: Pos2) -> bool {
+fn near_path(xf: &PageXform, info: &DocInfo, page: usize, object: &EditableObject, p: Pos2) -> bool {
     let Some(outline) = object.outline.as_ref().filter(|_| object.target.kind == ObjectKind::Path) else { return false };
     let frame = screen(xf, info, page, object);
     if !frame.expand(LINE_REACH + 2.0).contains(p) {
@@ -425,7 +425,7 @@ fn hit_object<'a>(objects: &'a [EditableObject], xf: &PageXform, info: &DocInfo,
     [ObjectKind::Added, ObjectKind::Text]
         .into_iter()
         .find_map(|kind| objects.iter().rev().find(|o| o.target.kind == kind && screen(xf, info, page, o).expand(2.0).contains(p)))
-        .or_else(|| objects.iter().rev().find(|o| path_hit(xf, info, page, o, p)))
+        .or_else(|| objects.iter().rev().find(|o| near_path(xf, info, page, o, p)))
         .or_else(|| objects.iter().rev().find(|o| o.target.kind == ObjectKind::Image && screen(xf, info, page, o).expand(2.0).contains(p)))
 }
 
@@ -622,17 +622,21 @@ fn input(s: &mut ObjectSelection, cx: PageToolContext<'_>, press: PagePress, vie
     // Lion PDF: a right-click on objects selects what is under it (unless it is in the
     // selection) and opens the Align/Distribute menu (`context_menu`).
     if ui.input(|i| i.pointer.secondary_pressed()) && ui.ctx().layer_id_at(p) == Some(ui.layer_id()) {
-        if !(s.page == Some(page) && !s.selected.is_empty() && on_selection(s, xf, info, page, p)) {
+        // Objects selected together keep their menu; one picture, paragraph or added content
+        // gets upstream's own menu (the picture under text is the one the click selects). Only a
+        // vector path, which has no other menu, is taken alone.
+        let on_group = s.page == Some(page) && s.selected.len() >= 2 && on_selection(s, xf, info, page, p);
+        if !on_group {
             let Ok(objects) = s.inventory(doc, page) else { return false };
-            let Some(hit) = hit_object(&objects, xf, info, page, p) else { return false };
+            let Some(hit) = hit_object(&objects, xf, info, page, p).filter(|o| o.target.kind == ObjectKind::Path) else {
+                if !(s.page == Some(page) && on_selection(s, xf, info, page, p)) {
+                    s.clear();
+                }
+                return false;
+            };
             s.clear();
             s.page = Some(page);
             s.selected.push(hit.clone());
-        }
-        // A single picture keeps its existing Crop/Rotate/Copy menu. Mixed selections use ours.
-        if matches!(s.selected.as_slice(), [object] if object.target.kind == ObjectKind::Image) {
-            s.clear();
-            return false;
         }
         s.menu = true;
         leave_single(view);
@@ -805,19 +809,9 @@ pub(crate) fn delete_keys(ctx: &egui::Context, keys: PageKeys, view: &mut DocVie
     {
         return;
     }
-    // Lion PDF: a selected picture (not being cropped or dragged) is deleted the same way.
-    let selection = view
-        .objects
-        .page
-        .filter(|_| !view.objects.selected.is_empty())
-        .map(|page| (page, view.objects.selected.iter().map(|o| o.target).collect::<Vec<_>>()))
-        .or_else(|| {
-            view.image_selection
-                .as_ref()
-                .filter(|s| s.crop.is_none() && !s.dragging())
-                .map(|s| (s.page, vec![ObjectTarget { kind: ObjectKind::Image, index: s.index }]))
-        });
-    let Some((page, targets)) = selection else { return };
+    // A selected picture alone is upstream's (`edit_text_ui`): it waits for its page and the key.
+    let Some(page) = view.objects.page.filter(|_| !view.objects.selected.is_empty()) else { return };
+    let targets: Vec<_> = view.objects.selected.iter().map(|o| o.target).collect();
     use egui::Key;
     if !(keys.take(ctx, Key::Delete) || keys.take(ctx, Key::Backspace)) {
         return;
@@ -1015,6 +1009,28 @@ pub(crate) fn moved_objects(objects: &[EditableObject], offset: [f64; 2]) -> Vec
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selection_labels_and_refusals_are_translated_in_every_catalog() {
+        for language in crate::i18n::LANGUAGES.iter().filter(|l| !l.code.starts_with("en")) {
+            let lang = crate::i18n::Lang::from_code(language.code).unwrap();
+            for label in [
+                "Drag the selection to move it. Esc clears the selection.",
+                "Shift-click to select several objects. Drag empty space to select an area.",
+                "Select at most 1000 objects at a time.",
+                "Finish or discard the text being edited before selecting several objects.",
+                "Move object",
+                "Move objects",
+                "Vertical text cannot be moved with this selection.",
+                "Text used as a clipping path cannot be moved with this selection.",
+                "These objects could not be moved. Select them again and try a smaller move.",
+                "This page contains objects that cannot be selected together.",
+            ] {
+                assert_ne!(crate::i18n::tr(lang, label), label, "{}: {label}", language.code);
+            }
+            assert_ne!(crate::i18n::trn(lang, 2, "{n} object selected", "{n} objects selected"), "2 objects selected", "{}", language.code);
+        }
+    }
 
     fn t(kind: ObjectKind, index: usize) -> ObjectTarget {
         ObjectTarget { kind, index }

@@ -22,10 +22,11 @@ impl Automation {
         }
         if let Some(e) = a.opt_str("engine")? {
             settings.engine = match e.trim().to_ascii_lowercase().as_str() {
+                "lion" => EngineChoice::Lion,
                 "ocrs" => EngineChoice::Ocrs,
                 "tesseract" => EngineChoice::Tesseract,
                 "auto" | "automatic" | "ensemble" => EngineChoice::Auto,
-                other => return Err(ToolError::InvalidArgs(format!("unsupported engine {other:?} (ocrs, tesseract or auto)"))),
+                other => return Err(ToolError::InvalidArgs(format!("unsupported engine {other:?} (lion, ocrs, tesseract or auto)"))),
             };
         }
         settings.strategy = match a.opt_str("strategy")? {
@@ -51,10 +52,18 @@ impl Automation {
             ("deskew", &mut settings.deskew),
             ("denoise", &mut settings.denoise),
             ("binarize", &mut settings.binarize),
+            ("auto_crop", &mut settings.auto_crop),
+            ("recognize", &mut settings.recognize),
         ] {
             if let Some(on) = a.opt_bool(key)? {
                 *flag = on;
             }
+        }
+        if let Some(margin) = a.opt_num("crop_margin")? {
+            if !(0.0..=20.0).contains(&margin) {
+                return Err(ToolError::InvalidArgs("crop_margin must be between 0 and 20 points".into()));
+            }
+            settings.crop_margin = margin;
         }
         for (key, flag) in [
             ("skip_text_pages", &mut settings.skip_text_pages),

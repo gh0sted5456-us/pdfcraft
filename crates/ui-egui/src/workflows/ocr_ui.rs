@@ -4,7 +4,6 @@
 
 use std::sync::{Arc, Mutex};
 
-use egui::{Align, Layout};
 use pdfcraft_engine::DocId;
 use pdfcraft_engine::ocr::{EngineChoice, LANGUAGES, MergeStrategy, OcrPage, OcrSettings, OutputMode};
 
@@ -72,8 +71,9 @@ impl Default for OcrDraft {
             text_pages: false,
             engine: EngineChoice::default(),
             strategy: MergeStrategy::default(),
-            auto_rotate: false,
-            deskew: false,
+            // Lion PDF: orientation and skew are corrected by default, as `OcrSettings` says.
+            auto_rotate: true,
+            deskew: true,
             denoise: false,
             binarize: false,
             output_mode: OutputMode::default(),
@@ -102,7 +102,8 @@ impl OcrDraft {
             binarize: self.binarize,
             output_mode: self.output_mode,
             skip_text_files: self.skip_text_files,
-            skip_text_pages: self.skip_text_pages && !self.text_pages,
+            // Lion PDF: correcting scans (no recognition) also processes pages that already have text.
+            skip_text_pages: self.recognize && self.skip_text_pages && !self.text_pages,
             force_ocr: self.force_ocr,
             auto_crop: self.auto_crop,
             crop_margin: self.crop_margin,
@@ -246,11 +247,12 @@ pub(crate) fn keep_asking_while_probing(ctx: &egui::Context) {
 }
 
 /// The dialog's height outside its scrolling settings: the title, a notice of up to two lines,
-/// the Cancel / Recognize text row and the modal's own margins.
-const OCR_DIALOG_RESERVE: f32 = 220.0;
+/// the Cancel / Recognize text row and the modal's own margins (Lion PDF's dialog window, with
+/// its title bar, takes 36 pt more).
+const OCR_DIALOG_RESERVE: f32 = 256.0;
 /// The least the settings scroll in, however short the window: small enough that the title and the
 /// buttons still fit the smallest window at the largest interface size (173 pt), as Preferences.
-const OCR_MIN_SCROLL: f32 = 40.0;
+const OCR_MIN_SCROLL: f32 = 12.0;
 
 /// The Recognize Text dialog: the title, the settings groups (scrolling when the window is too
 /// short for them), any engine notice, and the Cancel / Recognize text row. Returns
@@ -260,7 +262,9 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     let d = &mut app.ocr_draft;
     d.to = d.to.clamp(1, pages);
     d.from = d.from.clamp(1, d.to);
-    ui.label(egui::RichText::new(tl!("Recognize Text")).font(theme::semibold(18.0)));
+    // Lion PDF: the dialog's own heading, and its correction mode (rotate, deskew and crop scans
+    // without adding text, Scan & OCR ▸ Correct scans).
+    crate::widgets::dialog_heading(ui, if d.recognize { tl!("Recognize Text") } else { tl!("Scan correction") });
     ui.add_space(8.0);
     let group = |ui: &mut egui::Ui, title: &str, body: &mut dyn FnMut(&mut egui::Ui)| {
         ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(13.0)));
@@ -285,94 +289,140 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
                 widgets::radio_value(ui, &mut d.pages, OcrPages::All, tl!("All pages"));
                 widgets::radio_value(ui, &mut d.pages, OcrPages::Current, tl!("Current page"));
                 ui.horizontal(|ui| {
-                    widgets::radio_value(ui, &mut d.pages, OcrPages::Range, tl!("From"));
+                    let from = widgets::radio_value(ui, &mut d.pages, OcrPages::Range, tl!("From"));
                     let on = d.pages == OcrPages::Range;
-                    ui.add_enabled(on, egui::DragValue::new(&mut d.from).range(1..=pages));
-                    ui.label(tl!("to"));
-                    ui.add_enabled(on, egui::DragValue::new(&mut d.to).range(1..=pages));
+                    ui.add_enabled(on, egui::DragValue::new(&mut d.from).range(1..=pages)).labelled_by(from.id);
+                    let to = ui.label(tl!("to"));
+                    ui.add_enabled(on, egui::DragValue::new(&mut d.to).range(1..=pages)).labelled_by(to.id);
                 });
             });
             group(ui, "Settings", &mut |ui| {
                 egui::Grid::new("ocr-settings").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-                    ui.label(tl!("Document language"));
+                    let label_0 = ui.label(tl!("Document language"));
                     let name = LANGUAGES.iter().find(|l| l.0 == d.language).map_or("English", |l| l.1);
-                    craft_ui::ComboBox::from_id_salt("ocr-language").selected_text(tl!(name)).width(220.0).show_ui(ui, |ui| {
-                        for (code, name) in LANGUAGES {
-                            ui.selectable_value(&mut d.language, (*code).to_string(), tl!(*name));
-                        }
-                    });
+                    craft_ui::ComboBox::from_id_salt("ocr-language")
+                        .selected_text(tl!(name))
+                        .width(220.0)
+                        .show_ui(ui, |ui| {
+                            for (code, name) in LANGUAGES {
+                                ui.selectable_value(&mut d.language, (*code).to_string(), tl!(*name));
+                            }
+                        })
+                        .response
+                        .labelled_by(label_0.id);
                     ui.end_row();
-                    ui.label(tl!("Engine"));
+                    let label_1 = ui.label(tl!("Engine"));
                     let engine_name = match d.engine {
                         EngineChoice::Lion => tl!("Lion PDF"),
                         EngineChoice::Auto => tl!("Automatic"),
                         EngineChoice::Ocrs => tl!("Built-in"),
                         EngineChoice::Tesseract => tl!("Tesseract"),
                     };
-                    craft_ui::ComboBox::from_id_salt("ocr-engine").selected_text(engine_name).width(220.0).show_ui(ui, |ui| {
-                        let choices: [(EngineChoice, &str); 4] = [
-                            (EngineChoice::Lion, "Lion PDF"),
-                            (EngineChoice::Auto, "Automatic"),
-                            (EngineChoice::Ocrs, "Built-in"),
-                            (EngineChoice::Tesseract, "Tesseract"),
-                        ];
-                        for (choice, name) in choices {
-                            ui.selectable_value(&mut d.engine, choice, tl!(name));
-                        }
-                    });
+                    craft_ui::ComboBox::from_id_salt("ocr-engine")
+                        .selected_text(engine_name)
+                        .width(220.0)
+                        .show_ui(ui, |ui| {
+                            let choices: [(EngineChoice, &str); 4] = [
+                                (EngineChoice::Lion, "Lion PDF"),
+                                (EngineChoice::Auto, "Automatic"),
+                                (EngineChoice::Ocrs, "Built-in"),
+                                (EngineChoice::Tesseract, "Tesseract"),
+                            ];
+                            for (choice, name) in choices {
+                                ui.selectable_value(&mut d.engine, choice, tl!(name));
+                            }
+                        })
+                        .response
+                        .labelled_by(label_1.id);
                     ui.end_row();
-                    ui.label(tl!("Combine engines"));
+                    let label_2 = ui.label(tl!("Combine engines"));
                     let strategy_name = match d.strategy {
                         MergeStrategy::PrimaryOnly => tl!("Primary only"),
                         MergeStrategy::ConfidenceWeighted => tl!("Confidence weighted"),
                         MergeStrategy::RoverVote => tl!("ROVER vote"),
                     };
-                    craft_ui::ComboBox::from_id_salt("ocr-strategy").selected_text(strategy_name).width(220.0).show_ui(ui, |ui| {
-                        let choices: [(MergeStrategy, &str); 3] = [
-                            (MergeStrategy::PrimaryOnly, "Primary only"),
-                            (MergeStrategy::ConfidenceWeighted, "Confidence weighted"),
-                            (MergeStrategy::RoverVote, "ROVER vote"),
-                        ];
-                        for (choice, name) in choices {
-                            ui.selectable_value(&mut d.strategy, choice, tl!(name));
-                        }
-                    });
+                    craft_ui::ComboBox::from_id_salt("ocr-strategy")
+                        .selected_text(strategy_name)
+                        .width(220.0)
+                        .show_ui(ui, |ui| {
+                            let choices: [(MergeStrategy, &str); 3] = [
+                                (MergeStrategy::PrimaryOnly, "Primary only"),
+                                (MergeStrategy::ConfidenceWeighted, "Confidence weighted"),
+                                (MergeStrategy::RoverVote, "ROVER vote"),
+                            ];
+                            for (choice, name) in choices {
+                                ui.selectable_value(&mut d.strategy, choice, tl!(name));
+                            }
+                        })
+                        .response
+                        .labelled_by(label_2.id);
                     ui.end_row();
-                    ui.label(tl!("Output"));
+                    let label_3 = ui.label(tl!("Output"));
                     let mode_name = match d.output_mode {
                         OutputMode::Searchable => tl!("Searchable Image (Exact)"),
                         OutputMode::EditableText => tl!("Editable text"),
                     };
-                    craft_ui::ComboBox::from_id_salt("ocr-output").selected_text(mode_name).width(220.0).show_ui(ui, |ui| {
-                        let s = ui
-                            .selectable_label(d.output_mode == OutputMode::Searchable, tl!("Searchable Image (Exact)"))
-                            .on_hover_text(tl!("Adds invisible text over each word; the page image is not changed"));
-                        if s.clicked() {
-                            d.output_mode = OutputMode::Searchable;
-                        }
-                        let e = ui
-                            .selectable_label(d.output_mode == OutputMode::EditableText, tl!("Editable text"))
-                            .on_hover_text(tl!("Writes a new document of visible text; the scan is not changed"));
-                        if e.clicked() {
-                            d.output_mode = OutputMode::EditableText;
-                        }
-                    });
+                    craft_ui::ComboBox::from_id_salt("ocr-output")
+                        .selected_text(mode_name)
+                        .width(220.0)
+                        .show_ui(ui, |ui| {
+                            let s = ui
+                                .selectable_label(d.output_mode == OutputMode::Searchable, tl!("Searchable Image (Exact)"))
+                                .on_hover_text(tl!("Adds invisible text over each word; the page image is not changed"));
+                            if s.clicked() {
+                                d.output_mode = OutputMode::Searchable;
+                            }
+                            let e = ui
+                                .selectable_label(d.output_mode == OutputMode::EditableText, tl!("Editable text"))
+                                .on_hover_text(tl!("Writes a new document of visible text; the scan is not changed"));
+                            if e.clicked() {
+                                d.output_mode = OutputMode::EditableText;
+                            }
+                        })
+                        .response
+                        .labelled_by(label_3.id);
                     ui.end_row();
-                    ui.label(tl!("Downsample to"));
-                    craft_ui::ComboBox::from_id_salt("ocr-dpi").selected_text(format!("{} dpi", d.dpi)).width(220.0).show_ui(ui, |ui| {
-                        for v in [600, 300, 150, 72] {
-                            ui.selectable_value(&mut d.dpi, v, format!("{v} dpi"));
-                        }
-                    });
+                    let label_4 = ui.label(tl!("Downsample to"));
+                    craft_ui::ComboBox::from_id_salt("ocr-dpi")
+                        .selected_text(format!("{} dpi", d.dpi))
+                        .width(220.0)
+                        .show_ui(ui, |ui| {
+                            for v in [600, 300, 150, 72] {
+                                ui.selectable_value(&mut d.dpi, v, format!("{v} dpi"));
+                            }
+                        })
+                        .response
+                        .labelled_by(label_4.id);
                     ui.end_row();
                 });
                 ui.add_space(4.0);
                 ui.add(crate::widgets::checkbox(&mut d.text_pages, tl!("Also recognize pages that already have text")))
                     .on_hover_text(tl!("Pictures on those pages are recognized too; words already in the page's text are not added again"));
-                ui.add(crate::widgets::checkbox(&mut d.auto_rotate, tl!("Straighten pages scanned sideways or upside down")));
-                ui.add(crate::widgets::checkbox(&mut d.deskew, tl!("Straighten skewed text lines")));
                 ui.add(crate::widgets::checkbox(&mut d.denoise, tl!("Remove scan speckle")));
                 ui.add(crate::widgets::checkbox(&mut d.binarize, tl!("Black and white (binarize)")));
+            });
+            // Lion PDF: scan correction, done by Lion PDF's engine before the words are read.
+            group(ui, "Scan correction", &mut |ui| {
+                ui.add(crate::widgets::checkbox(&mut d.auto_rotate, tl!("Automatically rotate sideways and upside-down pages")));
+                ui.add(crate::widgets::checkbox(&mut d.deskew, tl!("Straighten skewed scans")));
+                ui.add(crate::widgets::checkbox(&mut d.auto_crop, tl!("Crop scanner borders to the paper edge")));
+                ui.add_enabled_ui(d.auto_crop, |ui| {
+                    ui.horizontal(|ui| {
+                        let label = ui.label(tl!("Safety margin (pt)"));
+                        ui.add(egui::DragValue::new(&mut d.crop_margin).range(0.0..=20.0).speed(0.5)).labelled_by(label.id);
+                    });
+                });
+                ui.label(
+                    egui::RichText::new(tl!("Only clear paper edges are cropped. Indistinguishable white borders are kept."))
+                        .small()
+                        .color(t.text_muted),
+                );
+                ui.add(crate::widgets::checkbox(&mut d.recognize, tl!("Add searchable text")));
+                ui.label(
+                    egui::RichText::new(tl!("Uncertain orientations are left unchanged. Deskew fits the full image inside the page."))
+                        .small()
+                        .color(t.text_muted),
+                );
             });
             group(ui, "Skip", &mut |ui| {
                 ui.add(crate::widgets::checkbox(&mut d.skip_text_pages, tl!("Skip pages that already have text")))
@@ -440,15 +490,14 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     ui.add_space(6.0);
     let (mut go, mut cancel) = (false, false);
     let can_run = pdfcraft_engine::ocr::engine_unavailable_reason(d.engine).is_none();
-    ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui.add_enabled_ui(can_run, |ui| widgets::pill_button(ui, tl!("Recognize text"), true)).inner.clicked() {
-                go = true;
-            }
-            if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
-                cancel = true;
-            }
-        })
+    widgets::dialog_footer(ui, |ui| {
+        let label = if d.recognize { tl!("Recognize text") } else { tl!("Correct scans") };
+        if ui.add_enabled_ui(can_run, |ui| widgets::dialog_button(ui, label, widgets::DialogAction::Confirm)).inner.clicked() {
+            go = true;
+        }
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+            cancel = true;
+        }
     });
     (go, cancel)
 }
@@ -488,6 +537,8 @@ impl PdfCraftApp {
     /// background picture) is left alone, and is judged again only when the document changes. It
     /// is one undoable step, "Recognize text", and is not run again for that page after Undo.
     /// Without an engine the page waits for one (see [`Self::await_ocr_models`]).
+    // Lion PDF asks first (`prompt_scan_ocr`); upstream's unasked run is kept for later syncs.
+    #[allow(dead_code)]
     pub(crate) fn auto_ocr_scanned_page(&mut self) {
         let Some(scan) = self.scan_to_read() else { return };
         // the engine this run will use, not always the built-in one
@@ -981,6 +1032,10 @@ impl PdfCraftApp {
         }
         let read = found.iter().filter(|p| p.skipped.is_none()).count();
         let skipped = found.len() - read;
+        // Lion PDF: pages its engine corrected (turned, straightened or cropped), and whether
+        // this was Scan & OCR ▸ Correct scans (no recognition).
+        let corrected = found.iter().filter(|p| p.skipped.is_none() && p.changed()).count();
+        let recognizing = automatic || self.ocr_draft.recognize;
         // The guard refuses a result that no longer fits its document (the user edited, or
         // redacted, while the worker was out); its reason says so.
         match self.session.apply_ocr_checked(doc, &found, &guard) {
@@ -1000,7 +1055,14 @@ impl PdfCraftApp {
                     crate::i18n::fmt(tl!("Recognized {n} words"), &[("n", &words.to_string())])
                 };
                 let pages_part = if read == 1 { tl!("1 page").to_string() } else { crate::i18n::fmt(tl!("{n} pages"), &[("n", &read.to_string())]) };
-                let mut msg = crate::i18n::fmt(tl!("{words} on {pages}"), &[("words", &words_part), ("pages", &pages_part)]);
+                let mut msg = if recognizing {
+                    crate::i18n::fmt(tl!("{words} on {pages}"), &[("words", &words_part), ("pages", &pages_part)])
+                } else {
+                    crate::i18n::fmt(tl!("Enhanced {n} pages"), &[("n", &corrected.to_string())])
+                };
+                if recognizing && corrected > 0 {
+                    msg.push_str(&crate::i18n::fmt(tl!("; corrected {n} pages"), &[("n", &corrected.to_string())]));
+                }
                 if skipped > 0 {
                     msg.push_str(&if skipped == 1 {
                         crate::i18n::fmt(tl!("; 1 page already had text"), &[])
@@ -1197,11 +1259,33 @@ impl PdfCraftApp {
         self.auto_ocr = enabled;
     }
 
-    /// Edit reads a scanned page by itself while the preference is on.
+    /// Lion PDF: Edit on a scanned page asks first ("Scanned text detected": this page or all
+    /// of them) while the preference is on, rather than reading it unasked. The page is found as
+    /// upstream's automatic Edit OCR finds it ([`Self::scan_to_read`]), and asked about once.
     pub(crate) fn prompt_scan_ocr(&mut self) {
-        if self.auto_ocr {
-            self.auto_ocr_scanned_page();
+        if !self.auto_ocr || self.palette_open {
+            return;
         }
+        let Some(scan) = self.scan_to_read() else { return };
+        let view = &self.views[scan.view];
+        if view.line_editor.is_some() || view.pending_edit.is_some() || view.snapshot.is_some() {
+            return;
+        }
+        let Some(document) = self.session.get(scan.doc) else { return };
+        // Only a page with no text of its own, and not one a signature protects.
+        if document.protected_pages().contains(&scan.page) || !document.text_blocks(scan.page).is_empty() {
+            self.views[scan.view].auto_ocr_skipped.insert(scan.page, scan.generation);
+            return;
+        }
+        let settings = self.ocr_draft.settings();
+        if pdfcraft_engine::ocr::engine_unavailable_reason(settings.engine).is_some()
+            || (settings.engine == EngineChoice::Lion && !pdfcraft_engine::ocr::available_for(&settings.language))
+        {
+            self.await_ocr_models(&scan);
+            return;
+        }
+        self.views[scan.view].auto_ocr_tried.insert(scan.page);
+        self.dialog = Some(crate::Dialog::RecognizeScan { doc: scan.doc, page: scan.page, generation: scan.generation });
     }
 
     /// The scan prompt's answer: read page `page` of `doc`, or all its pages.

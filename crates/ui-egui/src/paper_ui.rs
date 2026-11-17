@@ -9,8 +9,10 @@ pub struct Paper {
 }
 
 impl Default for Paper {
+    /// The system region's paper (A4 or US Letter, #5644), until one is chosen.
     fn default() -> Self {
-        Self { width: 612.0, height: 792.0 }
+        let (width, height) = crate::paper::Paper::system().points();
+        Self { width, height }
     }
 }
 

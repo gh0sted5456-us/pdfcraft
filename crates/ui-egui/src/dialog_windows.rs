@@ -172,7 +172,7 @@ pub(crate) fn title(dialog: Dialog) -> String {
         Optimize => "Optimize PDF",
         DuplicateField => "Duplicate field",
         AccessibilityOptions => "Accessibility options",
-        RecognizeText => "Recognize text",
+        RecognizeText => "Recognize Text",
         CorrectOcrText => "Correct recognized text",
         RecognizeScan { .. } => "Recognize scanned text",
         JsConsole => "JavaScript console",
@@ -220,11 +220,19 @@ impl Response {
 pub(crate) fn heading(ui: &mut egui::Ui, title: &str) -> Option<egui::Response> {
     let drawing = registry_id(ui.ctx()).with("drawing");
     let key = ui.ctx().data(|d| d.get_temp::<String>(drawing))?;
-    registry(ui.ctx(), |r| {
-        if let Some(e) = r.entries.iter_mut().find(|e| e.key == key) {
-            e.title = title.chars().take(160).collect();
+    let title: String = title.chars().take(160).collect();
+    let changed = registry(ui.ctx(), |r| match r.entries.iter_mut().find(|e| e.key == key) {
+        Some(e) if e.title != title => {
+            e.title = title;
+            true
         }
+        _ => false,
     });
+    // The title bar was drawn before the content named it: draw the frame again, so the window
+    // (and its accessible title) never shows the previous dialog's title for a frame.
+    if changed {
+        ui.ctx().request_discard("dialog title");
+    }
     Some(ui.allocate_response(Vec2::ZERO, egui::Sense::hover()))
 }
 pub(crate) fn chrome(ui: &mut egui::Ui, rect: Rect, key: &str) {
@@ -469,7 +477,7 @@ fn swap_drafts(app: &mut PdfCraftApp, holder: &mut PdfCraftApp, dialog: Dialog) 
         SaveTemplate => swap!(template_export),
         WordCount => swap!(word_count_draft),
         CreateImages => swap!(image_import),
-        Properties(_) => swap!(props_draft, view_draft, custom_draft),
+        Properties(_) => swap!(props_draft, view_draft, custom_draft, props_session),
         Split => swap!(split_draft),
         NumberPages => swap!(number_draft),
         Protect => swap!(protect_draft),

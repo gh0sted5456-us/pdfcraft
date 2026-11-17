@@ -6,7 +6,7 @@
 use pdfcraft_engine::text_style_bookmarks::{TextStyle, TextStyleUse};
 use pdfcraft_engine::{DocId, Edit};
 
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{PdfCraftApp, widgets};
 
 /// The levels offered: deeper outlines are rare, and each level needs a style of its own.
@@ -70,14 +70,14 @@ fn style_label(u: &TextStyleUse) -> String {
 /// The dialog's contents and its buttons. Returns whether it closes; Create makes the
 /// bookmarks and shows them in the Bookmarks panel.
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
-    ui.label(egui::RichText::new(tl!("New bookmarks from text styles")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("New bookmarks from text styles"));
     ui.add_space(6.0);
     let d = &mut app.text_style_draft;
     let id = d.doc;
     if d.styles.is_empty() {
         ui.label(tl!("This document has no text to make bookmarks from."));
         ui.add_space(12.0);
-        return widgets::pill_button(ui, tl!("Close"), true).clicked();
+        return widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Confirm).clicked();
     }
     ui.label(
         egui::RichText::new(tl!("Every line set in the style chosen for a level becomes a bookmark of that level, under a new first bookmark."))
@@ -115,8 +115,8 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     let levels = d.chosen();
     ui.add_space(16.0);
     let mut close = false;
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if ui.add_enabled_ui(!levels.is_empty(), |ui| widgets::pill_button(ui, tl!("Create"), true)).inner.clicked() {
+    crate::widgets::dialog_footer(ui, |ui| {
+        if ui.add_enabled_ui(!levels.is_empty(), |ui| widgets::dialog_button(ui, tl!("Create"), widgets::DialogAction::Confirm)).inner.clicked() {
             close = true;
             // The document the styles came from, even if another tab is active by now.
             if let Some(i) = id.and_then(|id| app.views.iter().position(|v| v.id == id)) {
@@ -126,7 +126,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
                 }
             }
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             close = true;
         }
     });

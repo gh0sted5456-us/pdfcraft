@@ -400,7 +400,11 @@ impl Automation {
                 .and_then(|i| i.checked_sub(1))
                 .and_then(|i| usize::try_from(i).ok())
                 .ok_or_else(|| bad("object index must be a positive integer from object_list"))?;
-            targets.push(ObjectTarget { kind, index });
+            let target = ObjectTarget { kind, index };
+            if targets.contains(&target) {
+                return Err(bad("each object may be listed once"));
+            }
+            targets.push(target);
         }
         Ok(targets)
     }

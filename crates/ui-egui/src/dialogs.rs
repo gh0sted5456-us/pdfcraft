@@ -34,7 +34,9 @@ pub(crate) fn discard_inactive_password_drafts(app: &mut PdfCraftApp) {
     if app.dialog != Some(Dialog::Protect) {
         app.protect_draft = Default::default();
     }
-    if app.dialog != Some(Dialog::Sign) {
+    // Lion PDF: choosing the pages a signature protects steps out to Organize Pages with the
+    // draft (and its password) kept, and comes back to the dialog.
+    if app.dialog != Some(Dialog::Sign) && !app.sign_draft.as_ref().is_some_and(|d| d.choosing_pages.is_some()) {
         app.sign_draft = None;
     }
 }
@@ -540,12 +542,10 @@ fn dialog_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, dialog: Dialog, req: &m
             return false;
         }
         Dialog::JsConsole => {
-            ui.set_width(640.0);
             req.close = crate::js_ui::console_body(ui, app, &t);
             return false;
         }
         Dialog::DocumentJs => {
-            ui.set_width(640.0);
             req.close = crate::js_ui::document_js_body(ui, app, &t);
             return false;
         }
@@ -710,7 +710,8 @@ fn dialog_properties(ui: &mut egui::Ui, app: &mut PdfCraftApp, req: &mut Pending
         });
         ui.end_row();
     };
-    egui::ScrollArea::vertical().max_height(460.0).auto_shrink([false, true]).show(ui, |ui| {
+    // Lion PDF: the body scrolls in short windows so the footer stays in the card.
+    widgets::dialog_scroll(ui, "properties-body", |ui| {
         if tab == PropsTab::SpaceAudit {
             ui.add_space(4.0);
             crate::optimize_ui::audit_table(ui, &app.space_audit, &t);
@@ -726,7 +727,9 @@ fn dialog_properties(ui: &mut egui::Ui, app: &mut PdfCraftApp, req: &mut Pending
                             // Subject and Keywords are often a sentence or a list: they wrap and grow
                             // instead of hiding most of the value past the field's edge.
                             let field = if matches!(*k, "Subject" | "Keywords") { widgets::block(v).desired_rows(1) } else { widgets::line(v) };
-                            ui.add(field.desired_width(f32::INFINITY).background_color(t.field).id_salt(("info", *k))).labelled_by(l.id);
+                            // Lion PDF: a point short of the edge, so the field's outline stays inside the card.
+                            ui.add(field.desired_width((ui.available_width() - 1.0).max(1.0)).background_color(t.field).id_salt(("info", *k)))
+                                .labelled_by(l.id);
                             ui.end_row();
                         }
                     }
@@ -1108,7 +1111,7 @@ fn dialog_split(ui: &mut egui::Ui, app: &mut PdfCraftApp, req: &mut Pending) -> 
         ui.horizontal(|ui| {
             ui.add_space(24.0);
             ui.label(tl!("Pages per file"));
-            ui.add(egui::DragValue::new(&mut draft.every).range(1..=n.max(1)));
+            ui.add(egui::DragValue::new(&mut draft.every).range(1..=n.max(1))).accessible_name(tl!("Pages per file"));
         });
     });
     widgets::radio_value(ui, &mut draft.mode, M::Size, tl!("File size"));
@@ -1116,7 +1119,7 @@ fn dialog_split(ui: &mut egui::Ui, app: &mut PdfCraftApp, req: &mut Pending) -> 
         ui.horizontal(|ui| {
             ui.add_space(24.0);
             ui.label(tl!("At most"));
-            ui.add(egui::DragValue::new(&mut draft.size_mb).range(0.05..=2000.0).speed(0.1).suffix(" MB"));
+            ui.add(egui::DragValue::new(&mut draft.size_mb).range(0.05..=2000.0).speed(0.1).suffix(" MB")).accessible_name(tl!("Maximum file size"));
         });
     });
     ui.add_enabled_ui(!marks.is_empty(), |ui| {
@@ -1376,9 +1379,10 @@ fn dialog_duplicate_field(ui: &mut egui::Ui, app: &mut PdfCraftApp, req: &mut Pe
     let typing_to = ui
         .horizontal(|ui| {
             widgets::radio_value(ui, &mut d.all, false, tl!("From"));
-            ui.add_enabled(!d.all, egui::DragValue::new(&mut d.from).range(1..=n));
+            ui.add_enabled(!d.all, egui::DragValue::new(&mut d.from).range(1..=n)).accessible_name(tl!("First page"));
             ui.label(tl!("to"));
-            let typing_to = widgets::typing_into(&ui.add_enabled(!d.all, egui::DragValue::new(&mut d.to).range(1..=n)));
+            let typing_to =
+                widgets::typing_into(&ui.add_enabled(!d.all, egui::DragValue::new(&mut d.to).range(1..=n)).accessible_name(tl!("Last page")));
             ui.label(crate::i18n::fmt(tl!("of {name}"), &[("name", &n.to_string())]));
             typing_to
         })
@@ -1733,7 +1737,10 @@ fn dialog_shortcuts(ui: &mut egui::Ui) -> bool {
     }
     // Lion PDF: the list fits short windows and leaves room for the footer.
     let height = (ui.available_height() - 72.0).clamp(16.0, 460.0);
-    egui::ScrollArea::vertical().max_height(height).show(ui, |ui| {
+    // A narrow window scrolls the longest rows sideways instead of widening the dialog past its
+    // card, which would centre the footer on the wider content.
+    let width = ui.available_width();
+    egui::ScrollArea::both().max_height(height).max_width(width).auto_shrink([true, true]).show(ui, |ui| {
         egui::Grid::new("keys").num_columns(2).spacing([24.0, 6.0]).show(ui, |ui| {
             for (k, v) in &rows {
                 ui.label(egui::RichText::new(k).font(egui::FontId::monospace(12.5)));
@@ -1887,75 +1894,78 @@ fn dialog_footer(ui: &mut egui::Ui, app: &mut PdfCraftApp, dialog: Dialog, req: 
     ui.add_space(16.0);
     app.stage_properties();
     let changed = app.properties_changed();
-    // One row high: on its own, a right-to-left layout centres the buttons in all the height
-    // left, which after a taller Properties tab is the room that tab left behind.
-    ui.horizontal(|ui| {
-        crate::widgets::dialog_footer(ui, |ui| {
-            if dialog == Dialog::Recovery {
-                if widgets::dialog_button(ui, tl!("Recover"), widgets::DialogAction::Confirm).clicked() {
-                    req.recover = Some(true);
-                    req.close = true;
-                }
-                if widgets::dialog_button(ui, tl!("Discard"), widgets::DialogAction::Destructive).clicked() {
-                    req.recover = Some(false);
-                    req.close = true;
-                }
-            } else if dialog == Dialog::PinTool {
-                if widgets::dialog_button(ui, tl!("Done"), widgets::DialogAction::Confirm).clicked() {
-                    req.close = true;
-                }
-            } else if dialog == Dialog::NumberPages {
-                if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
-                    req.apply_number = true;
-                    req.close = true;
-                }
-                if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
-                    req.close = true;
-                }
-            } else if dialog == Dialog::Split {
-                if ui.add_enabled_ui(req.split_ready.is_some(), |ui| widgets::dialog_button(ui, tl!("Split"), widgets::DialogAction::Confirm)).inner.clicked() {
-                    req.split_now = req.split_ready.clone();
-                    req.close = true;
-                }
-                if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
-                    req.close = true;
-                }
-            } else if dialog == Dialog::AttachmentDescription {
-                if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
-                    if let Some((doc, generation, key, _, description, _)) = app.attachment_description_draft.as_ref() {
-                        let current = app.session.get(*doc).and_then(|doc| {
-                            doc.info
-                                .attachments
-                                .iter()
-                                .find(|attachment| matches!(&attachment.source, pdfcraft_render::AttachmentSource::Document { key: attachment_key } if attachment_key == key))
-                                .map(|attachment| (attachment.description.as_deref().unwrap_or_default().trim().to_owned(), attachment.has_description))
-                        });
-                        let normalized = description.trim();
-                        let still_current = app.session.get(*doc).is_some_and(|doc| doc.edit_generation() == *generation);
-                        if still_current && current.as_ref().is_some_and(|(current, has_description)| current != normalized || (normalized.is_empty() && *has_description)) {
-                            req.attachment_description_now = Some((
-                                *doc,
-                                Edit::EditAttachmentDescription { key: key.clone(), description: Some(normalized.to_owned()) },
-                            ));
-                        }
-                    }
-                    req.close = true;
-                }
-                if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
-                    req.close = true;
-                }
-            } else if changed {
-                if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
-                    req.apply = true;
-                    req.close = true;
-                }
-                if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
-                    req.close = true;
-                }
-            } else if widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked() {
+    // Lion PDF: centered_row keeps the footer one row high (28 pt), so it sits under the content.
+    crate::widgets::dialog_footer(ui, |ui| {
+        if dialog == Dialog::Recovery {
+            if widgets::dialog_button(ui, tl!("Recover"), widgets::DialogAction::Confirm).clicked() {
+                req.recover = Some(true);
                 req.close = true;
             }
-        })
+            if widgets::dialog_button(ui, tl!("Discard"), widgets::DialogAction::Destructive).clicked() {
+                req.recover = Some(false);
+                req.close = true;
+            }
+        } else if dialog == Dialog::PinTool {
+            if widgets::dialog_button(ui, tl!("Done"), widgets::DialogAction::Confirm).clicked() {
+                req.close = true;
+            }
+        } else if dialog == Dialog::NumberPages {
+            if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
+                req.apply_number = true;
+                req.close = true;
+            }
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+                req.close = true;
+            }
+        } else if dialog == Dialog::Split {
+            if ui
+                .add_enabled_ui(req.split_ready.is_some(), |ui| widgets::dialog_button(ui, tl!("Split"), widgets::DialogAction::Confirm))
+                .inner
+                .clicked()
+            {
+                req.split_now = req.split_ready.clone();
+                req.close = true;
+            }
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+                req.close = true;
+            }
+        } else if dialog == Dialog::AttachmentDescription {
+            if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
+                if let Some((doc, generation, key, _, description, _)) = app.attachment_description_draft.as_ref() {
+                    let current = app.session.get(*doc).and_then(|doc| {
+                        doc.info
+                            .attachments
+                            .iter()
+                            .find(|attachment| matches!(&attachment.source, pdfcraft_render::AttachmentSource::Document { key: attachment_key } if attachment_key == key))
+                            .map(|attachment| (attachment.description.as_deref().unwrap_or_default().trim().to_owned(), attachment.has_description))
+                    });
+                    let normalized = description.trim();
+                    let still_current = app.session.get(*doc).is_some_and(|doc| doc.edit_generation() == *generation);
+                    if still_current
+                        && current
+                            .as_ref()
+                            .is_some_and(|(current, has_description)| current != normalized || (normalized.is_empty() && *has_description))
+                    {
+                        req.attachment_description_now =
+                            Some((*doc, Edit::EditAttachmentDescription { key: key.clone(), description: Some(normalized.to_owned()) }));
+                    }
+                }
+                req.close = true;
+            }
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+                req.close = true;
+            }
+        } else if changed {
+            if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
+                req.apply = true;
+                req.close = true;
+            }
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+                req.close = true;
+            }
+        } else if widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked() {
+            req.close = true;
+        }
     });
 }
 
@@ -2326,6 +2336,10 @@ fn finish_edits(app: &mut PdfCraftApp, dialog: Dialog, req: &mut Pending) {
 
 /// Closes (or switches) the dialog, then runs what closing it asked for.
 fn finish_close(app: &mut PdfCraftApp, dialog: Dialog, modal_closed: bool, req: &mut Pending) {
+    // Lion PDF: choosing the pages a signature protects steps out to Organize Pages.
+    if dialog == Dialog::Sign && app.sign_draft.as_ref().is_some_and(|d| d.choosing_pages.is_some()) {
+        req.close = true;
+    }
     // Protect / Remove security replace the Properties dialog.
     let replaces = req.link_command.is_some_and(|c| c.starts_with("protect.")) || req.open_revision.is_some();
     if modal_closed || req.close || replaces {

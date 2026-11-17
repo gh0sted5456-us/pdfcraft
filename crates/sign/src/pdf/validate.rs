@@ -244,6 +244,8 @@ pub(super) fn validate_into(doc: &Document, bytes: &[u8], trust: &TrustStore, v:
 fn finish_validation(context: SignatureValidation<'_>, verified: VerifiedSignature<'_>) {
     let SignatureValidation { doc, bytes, trust, info, cache } = context;
     let VerifiedSignature { covered, certificate: cert, embedded, cms_time, unverified_time } = verified;
+    // Lion PDF: the signed bytes and the signature value checked out.
+    info.integrity_valid = true;
     // Lion PDF: restrictions are always read from the signed bytes, never a later rewritten
     // signature dictionary.
     if let Some(old) = cache.revision(doc, bytes, covered)

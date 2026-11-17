@@ -178,9 +178,10 @@ fn scan_correction_handles_all_quarter_turns_and_stale_results() {
         assert_eq!(s.get(id).unwrap().bytes, before);
         s.redo(id).unwrap();
         let job = s.ocr_job(id, &[], OcrSettings { skip_text_pages: false, ..Default::default() }).unwrap();
+        let guard = job.guard.clone();
         let found = job.run(&ocr::engine().unwrap(), |_, _| true);
         s.apply(id, Edit::RotatePages { pages: vec![0], degrees: 90 }).unwrap();
-        assert!(s.apply_ocr(id, &found).unwrap_err().to_string().contains("changed"));
+        assert!(s.apply_ocr_checked(id, &found, &guard).unwrap_err().contains("changed"));
     }
 }
 

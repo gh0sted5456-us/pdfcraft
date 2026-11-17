@@ -54,7 +54,10 @@ fn validate(root: &Path) -> Result<()> {
     let docs: Documents = toml::from_str(&text).context("parsing LICENSES.toml")?;
     let attribution = assets::load(root)?;
     let mut problems = check(root, &docs, &attribution);
-    let ocr_source = std::fs::read_to_string(root.join("crates/ocr/src/ocrs.rs")).context("reading OCR model filename constants")?;
+    // Lion PDF: its engine's models are required too (crates/ocr/src/lion.rs).
+    let ocr_source = std::fs::read_to_string(root.join("crates/ocr/src/ocrs.rs")).context("reading OCR model filename constants")?
+        + "\n"
+        + &std::fs::read_to_string(root.join("crates/ocr/src/lion.rs")).context("reading Lion PDF OCR model filename constants")?;
     problems.extend(check_required_ocr_metadata(&ocr_source, &attribution)?);
     if !problems.is_empty() {
         bail!("source licensing errors:\n{}", problems.join("\n"));
@@ -66,13 +69,13 @@ fn validate(root: &Path) -> Result<()> {
 /// declaration format changes; do not guess filenames or add a dependency on the OCR engine.
 fn check_required_ocr_metadata(source: &str, attribution: &assets::Manifest) -> Result<Vec<String>> {
     let mut problems = Vec::new();
-    for name in ["DETECTION_MODEL", "RECOGNITION_MODEL"] {
+    for name in ["DETECTION_MODEL", "RECOGNITION_MODEL", "LATIN_MODEL", "LATIN_DICTIONARY", "MULTILINGUAL_MODEL", "ORIENTATION_MODEL", "DICTIONARY"] {
         let prefix = format!("pub const {name}: &str = \"");
         let declarations: Vec<_> = source.lines().map(str::trim).filter_map(|line| line.strip_prefix(&prefix)).collect();
         let file = declarations.first().and_then(|value| value.strip_suffix("\";"));
         let Some(file) = file.filter(|file| declarations.len() == 1 && safe_path(file) && !file.contains('/')) else {
             bail!(
-                "OCR constant {name}: expected one literal filename declaration in crates/ocr/src/ocrs.rs; update the source validator if its syntax changed"
+                "OCR constant {name}: expected one literal filename declaration in crates/ocr/src/ocrs.rs or lion.rs; update the source validator if its syntax changed"
             );
         };
         let entries: Vec<_> = attribution.fetched.iter().filter(|f| f.file == file).collect();
@@ -407,9 +410,9 @@ mod tests {
 
     #[test]
     fn required_ocr_models_cannot_be_missing() {
-        let source = include_str!("../../crates/ocr/src/ocrs.rs");
+        let source = &[include_str!("../../crates/ocr/src/ocrs.rs"), include_str!("../../crates/ocr/src/lion.rs")].join("\n");
         let original = assets::load(&assets::root()).unwrap();
-        assert_eq!(original.fetched.iter().filter(|f| f.kind == "model").count(), 2);
+        assert_eq!(original.fetched.iter().filter(|f| f.kind == "model").count(), 7);
         assert!(check_required_ocr_metadata(source, &original).unwrap().is_empty());
         for model in original.fetched.iter().filter(|f| f.kind == "model") {
             let mut m = assets::load(&assets::root()).unwrap();
@@ -420,9 +423,9 @@ mod tests {
 
     #[test]
     fn required_ocr_models_cannot_be_misclassified() {
-        let source = include_str!("../../crates/ocr/src/ocrs.rs");
+        let source = &[include_str!("../../crates/ocr/src/ocrs.rs"), include_str!("../../crates/ocr/src/lion.rs")].join("\n");
         let original = assets::load(&assets::root()).unwrap();
-        assert_eq!(original.fetched.iter().filter(|f| f.kind == "model").count(), 2);
+        assert_eq!(original.fetched.iter().filter(|f| f.kind == "model").count(), 7);
         for model in original.fetched.iter().filter(|f| f.kind == "model") {
             let mut m = assets::load(&assets::root()).unwrap();
             m.fetched.iter_mut().find(|f| f.file == model.file).unwrap().kind = "font".into();

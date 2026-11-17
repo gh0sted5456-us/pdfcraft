@@ -44,12 +44,13 @@ pub enum EngineChoice {
     Ocrs,
     /// The installed `tesseract` binary, as an external process.
     Tesseract,
-    /// Ensemble: the default engine first, the other one as a secondary when available.
+    /// Ensemble: Lion PDF's engine first (ocrs when its models are missing), Tesseract as the
+    /// secondary when available.
     Auto,
 }
 
 impl EngineChoice {
-    /// Parse a choice; unknown names fall back to the default (ocrs), like Acrobat's dialogs
+    /// Parse a choice; unknown names fall back to the default (Lion PDF's engine), like Acrobat's dialogs
     /// fall back for unknown persisted values.
     pub fn parse(s: &str) -> EngineChoice {
         match s.trim().to_ascii_lowercase().as_str() {
@@ -215,8 +216,9 @@ impl Default for OcrSettings {
             force_ocr: false,
             engine: EngineChoice::default(),
             strategy: MergeStrategy::default(),
-            auto_rotate: false,
-            deskew: false,
+            // Lion PDF corrects orientation and skew by default.
+            auto_rotate: true,
+            deskew: true,
             denoise: false,
             binarize: false,
             output_mode: OutputMode::default(),
@@ -592,12 +594,17 @@ pub fn recognizers(settings: &OcrSettings) -> Result<Recognizers, String> {
         EngineChoice::Lion => Ok(Recognizers { primary: lion_engine().or(ocrs).ok_or_else(models_missing)?, secondary: None }),
         EngineChoice::Ocrs => Ok(Recognizers { primary: ocrs.ok_or_else(models_missing)?, secondary: None }),
         EngineChoice::Tesseract => Ok(Recognizers { primary: tesseract.ok_or_else(tesseract_unavailable)?, secondary: None }),
-        EngineChoice::Auto => match (ocrs, tesseract) {
+        EngineChoice::Auto => match (lion_engine().or(ocrs), tesseract) {
             (Some(p), s) => Ok(Recognizers { primary: p, secondary: s }),
             (None, Some(p)) => Ok(Recognizers { primary: p, secondary: None }),
             (None, None) => Err(models_missing()),
         },
     }
+}
+
+/// Lion PDF: whether Lion PDF's engine has the models `language` needs.
+pub fn available_for(language: &str) -> bool {
+    pdfcraft_ocr::LionModels::find_for(language).is_some()
 }
 
 /// Lion PDF's engine alone, for callers that read with it directly.
@@ -1045,11 +1052,11 @@ fn lion_correct(
     });
     let [left, top, right, bottom] = bounds.unwrap_or([0, 0, width, height]);
     let cropped = image::imageops::crop_imm(&rgb, left, top, right - left, bottom - top).to_image();
-    let rotation = if settings.auto_rotate {
-        let engine = LION.engine(&settings.language).map_err(|e| e.to_string())?;
-        engine.orientation(&cropped).map_err(|e| e.to_string())?
-    } else {
-        0
+    // Orientation needs Lion PDF's models; without them (another engine reads the page) the page
+    // is left as it is turned rather than the reading refused.
+    let rotation = match settings.auto_rotate.then(|| LION.engine(&settings.language).ok()).flatten() {
+        Some(engine) => engine.orientation(&cropped).map_err(|e| e.to_string())?,
+        None => 0,
     };
     let mut correction = pdfcraft_ocr::scan::Correction { rotation, deskew: 0.0 };
     let turned = correction.apply(&cropped);
@@ -1419,7 +1426,10 @@ impl FileJob {
 
     /// Add the words found and save: the searchable file, or the original when nothing was found.
     pub fn finish(mut self, pages: Vec<OcrPage>) -> Result<FileResult, String> {
-        if self.session.apply_ocr(self.id, &pages).map_err(|e| e.to_string())? == 0 {
+        // Lion PDF: a file whose pages were only corrected (rotated, deskewed or cropped) is saved
+        // too, with no words.
+        let corrected = pages.iter().any(|p| p.skipped.is_none() && p.changed());
+        if self.session.apply_ocr(self.id, &pages).map_err(|e| e.to_string())? == 0 && !corrected {
             return Ok(FileResult { bytes: self.bytes, pages, file_skipped: None });
         }
         // Checked like a save before the caller writes it (#2166).
@@ -1553,8 +1563,9 @@ mod tests {
         assert_eq!(EngineChoice::parse("tesseract"), EngineChoice::Tesseract);
         assert_eq!(EngineChoice::parse(" AUTO "), EngineChoice::Auto);
         assert_eq!(EngineChoice::parse("ocrs"), EngineChoice::Ocrs);
-        assert_eq!(EngineChoice::parse("wat"), EngineChoice::Ocrs, "unknown names fall back to the default");
-        assert_eq!(EngineChoice::default().name(), "ocrs");
+        assert_eq!(EngineChoice::parse("lion"), EngineChoice::Lion);
+        assert_eq!(EngineChoice::parse("wat"), EngineChoice::Lion, "unknown names fall back to the default");
+        assert_eq!(EngineChoice::default().name(), "lion");
     }
 
     /// Automatic reads with the second engine when the first is unsure unless a strategy was
@@ -1566,14 +1577,15 @@ mod tests {
         assert_eq!(EngineChoice::Tesseract.default_strategy(), MergeStrategy::PrimaryOnly);
     }
 
-    /// Settings default to today's behavior: ocrs, PrimaryOnly, no preprocessing, searchable.
+    /// Settings default to Lion PDF's engine, PrimaryOnly, Lion's orientation and skew
+    /// correction (no other preprocessing), searchable.
     #[test]
-    fn settings_default_to_the_ocrs_status_quo() {
+    fn settings_default_to_the_lion_engine() {
         let s = OcrSettings::default();
-        assert_eq!(s.engine, EngineChoice::Ocrs);
+        assert_eq!(s.engine, EngineChoice::Lion);
         assert_eq!(s.strategy, MergeStrategy::PrimaryOnly);
         assert_eq!(s.output_mode, OutputMode::Searchable);
-        assert!(!s.auto_rotate && !s.deskew && !s.denoise && !s.binarize);
+        assert!(s.auto_rotate && s.deskew && !s.denoise && !s.binarize && !s.auto_crop && s.recognize);
         assert_eq!(s.region, None);
         assert_eq!(s.low_confidence_threshold, 60.0);
         assert_eq!(s.tesseract_path, None, "no configured tesseract path by default: the PATH decides");
@@ -2027,7 +2039,7 @@ mod tests {
         let installed = install(ocr);
         assert!(installed.available());
         assert!(available());
-        let r = recognizers(&OcrSettings::default()).unwrap();
+        let r = recognizers(&OcrSettings { engine: EngineChoice::Ocrs, ..Default::default() }).unwrap();
         assert!(Arc::ptr_eq(&r.primary, &installed), "the installed recogniser is the one handed out");
         assert!(engines_status().iter().any(|e| e.id == "ocrs" && e.available));
     }
@@ -2539,7 +2551,9 @@ mod tests {
         let scan = s.create_from_images(&[("1.png".into(), png)]).unwrap();
         let mut reader = Session::new();
         let id = reader.open("scan.pdf", None, scan, None).unwrap();
-        let read = reader.recognize_text(id, &[], OcrSettings::default()).unwrap()[0].text();
+        // ocrs's own line padding is what is measured here, without Lion PDF's correction.
+        let ocrs = OcrSettings { engine: EngineChoice::Ocrs, auto_rotate: false, deskew: false, ..Default::default() };
+        let read = reader.recognize_text(id, &[], ocrs).unwrap()[0].text();
         let (got, want): (Vec<&str>, Vec<&str>) = (read.split_whitespace().collect(), text.split_whitespace().collect());
         // Word-level edit distance.
         let mut row: Vec<usize> = (0..=want.len()).collect();

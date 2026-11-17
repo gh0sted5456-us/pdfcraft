@@ -1162,7 +1162,8 @@ pub(crate) fn image_context_menu(
         view.image_selection = None;
         view.pending_edit = edit(E::Ungroup);
     }
-    if item(ui, raster, tl!("Replace image")) {
+    // Lion PDF: grouped artwork can be replaced by a picture too, in the same place and size.
+    if item(ui, true, tl!("Replace image")) {
         *action = Some(ImageAction::Replace(page, hit));
     }
     if item(ui, raster, tl!("Save Image As…")) {

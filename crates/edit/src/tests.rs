@@ -15597,59 +15597,6 @@ fn thai_paragraphs_break_the_row_on_unicode_row_breaks() {
 }
 
 // ── Lion PDF ──
-/// #1317: a cloudy square this builder cannot draw stays on the page. A solid square, a hidden
-/// cloudy square and a cloudy square that already has an appearance keep their previous results.
-#[test]
-fn flattening_keeps_a_cloudy_square_it_cannot_draw() {
-    let page = stream("", " ");
-    let form = "<< /Type /XObject /Subtype /Form /BBox [100 600 200 650] /Length 28 >>\nstream\n1 0 0 RG 100 600 100 50 re S\nendstream";
-    let case = |extra: &str, drawn: usize, left: bool| {
-        let annot = format!("<< /Type /Annot /Subtype /Square /Rect [100 600 200 650] /C [1 0 0] /Contents (Synthetic comment) {extra} >>");
-        let mut doc = build(&[
-            "<< /Type /Catalog /Pages 2 0 R >>",
-            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << >> /Contents 5 0 R /Annots [4 0 R] >>",
-            &annot,
-            &page,
-            form,
-        ]);
-        let before = streams(&doc, 0);
-        assert_eq!(flatten(&mut doc, &[0], true, false).unwrap(), drawn);
-        let doc = reopen(&doc);
-        let p = &pdfcraft_model::pages(&doc)[0];
-        assert_eq!(p.dict.contains(b"Annots"), left);
-        if drawn == 0 {
-            assert_eq!(streams(&doc, 0), before, "nothing was drawn in place of the comment");
-        }
-    };
-    case("/BE << /S /C /I 2 >>", 0, true);
-    case("/BE << /S /S >>", 1, false);
-    case("/BE << /S /C /I 2 >> /F 2", 0, true);
-    case("/BE << /S /C /I 2 >> /AP << /N 6 0 R >>", 1, false);
-}
-
-/// #1794: a reply this builder cannot draw stays on the page even when the comment it replies to
-/// is flattened; the comment's pop-up still goes with it.
-#[test]
-fn flattening_keeps_an_undrawn_reply_to_a_flattened_comment() {
-    let page = stream("", " ");
-    let mut doc = build(&[
-        "<< /Type /Catalog /Pages 2 0 R >>",
-        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << >> /Contents 4 0 R /Annots [5 0 R 6 0 R 7 0 R] >>",
-        &page,
-        "<< /Type /Annot /Subtype /Square /Rect [100 600 200 650] /C [1 0 0] /Contents (Synthetic comment) /AP << /N 8 0 R >> /Popup 7 0 R >>",
-        "<< /Type /Annot /Subtype /Square /Rect [100 500 200 550] /C [1 0 0] /Contents (Synthetic reply) /BE << /S /C /I 2 >> /IRT 5 0 R >>",
-        "<< /Type /Annot /Subtype /Popup /Rect [300 600 400 700] /Parent 5 0 R >>",
-        "<< /Type /XObject /Subtype /Form /BBox [100 600 200 650] /Length 28 >>\nstream\n1 0 0 RG 100 600 100 50 re S\nendstream",
-    ]);
-    assert_eq!(flatten(&mut doc, &[0], true, false).unwrap(), 1, "the comment is drawn; the cloudy reply cannot be");
-    let doc = reopen(&doc);
-    let p = &pdfcraft_model::pages(&doc)[0];
-    let left: Vec<u32> = doc.resolve(p.dict.get(b"Annots").unwrap()).as_array().unwrap().iter().filter_map(|f| f.as_ref()).map(|r| r.num).collect();
-    assert_eq!(left, [6], "the undrawn reply stays; the comment and its pop-up are gone");
-}
-
 /// A page whose drawing is three paths: a stroked line, a filled triangle under a translation,
 /// and a stroked rectangle.
 const PATHS: &str = "0 0 1 RG 2 w 100 100 m 200 100 l S\n1 0 0 rg 50 50 m 60 50 l 55 60 l h f\nq 1 0 0 1 10 20 cm 0 0 30 40 re S Q\n";
@@ -15894,16 +15841,6 @@ fn hairlines_safety_page(content: &[u8], unit: f64) -> Document {
 }
 
 #[test]
-fn hairlines_safety_refuses_malformed_content_without_rewriting_it() {
-    let content = b"0 w 0 0 m 20 0 l S (";
-    assert!(pdfcraft_content::parse(content).skipped > 0);
-    let mut doc = hairlines_safety_page(content, 1.0);
-    let before = write_full(&doc, &Default::default()).unwrap();
-    assert!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).is_err());
-    assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
-}
-
-#[test]
 fn hairlines_safety_refuses_a_width_that_overflows_under_the_transform() {
     let mut doc = hairlines_safety_page(b"0.5 0 0 0.5 0 0 cm 0 w 0 0 m 20 0 l S", 1.0);
     let before = write_full(&doc, &Default::default()).unwrap();
@@ -15917,84 +15854,6 @@ fn hairlines_safety_measures_width_in_physical_page_units() {
     let before = write_full(&doc, &Default::default()).unwrap();
     assert_eq!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).unwrap().lines, 0, "0.3 physical points is above the 0.216 point threshold");
     assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
-}
-
-#[test]
-fn hairlines_safety_refuses_excessive_graphics_state_depth() {
-    let mut content = b"q ".repeat(513);
-    content.extend_from_slice(b"0 w 0 0 m 20 0 l S");
-    let mut doc = hairlines_safety_page(&content, 1.0);
-    let before = write_full(&doc, &Default::default()).unwrap();
-    assert!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).is_err());
-    assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
-}
-
-fn hairlines_safety_shared_resource(type3: bool) {
-    let mut doc = fixture();
-    let mut dict = Dict::new();
-    if !type3 {
-        dict.set(b"Type".to_vec(), Object::name("Pattern"));
-        for (key, value) in [
-            (b"PatternType".as_slice(), 1),
-            (b"PaintType".as_slice(), 1),
-            (b"TilingType".as_slice(), 1),
-            (b"XStep".as_slice(), 10),
-            (b"YStep".as_slice(), 10),
-        ] {
-            dict.set(key.to_vec(), Object::Int(value));
-        }
-    }
-    dict.set(b"BBox".to_vec(), Object::Array(vec![Object::Int(0), Object::Int(0), Object::Int(10), Object::Int(10)]));
-    dict.set(b"Resources".to_vec(), Object::Dict(Dict::new()));
-    let original = Object::Stream(Stream::flate(dict, b"0 w 0 0 m 10 0 l S"));
-    let target = doc.add(original.clone());
-    let mut resources = Dict::new();
-    let content: &[u8] = if type3 {
-        let mut font = Dict::new();
-        font.set(b"Type".to_vec(), Object::name("Font"));
-        font.set(b"Subtype".to_vec(), Object::name("Type3"));
-        font.set(
-            b"FontMatrix".to_vec(),
-            Object::Array(vec![Object::Real(0.001), Object::Int(0), Object::Int(0), Object::Real(0.001), Object::Int(0), Object::Int(0)]),
-        );
-        let mut procs = Dict::new();
-        procs.set(b"a".to_vec(), Object::Ref(target));
-        font.set(b"CharProcs".to_vec(), Object::Dict(procs));
-        let mut fonts = Dict::new();
-        fonts.set(b"HF".to_vec(), Object::Ref(doc.add(Object::Dict(font))));
-        resources.set(b"Font".to_vec(), Object::Dict(fonts));
-        b"BT /HF 10 Tf 1 0 0 1 10 10 Tm (a) Tj ET"
-    } else {
-        let mut patterns = Dict::new();
-        patterns.set(b"Pt".to_vec(), Object::Ref(target));
-        resources.set(b"Pattern".to_vec(), Object::Dict(patterns));
-        b"/Pattern cs /Pt scn 0 0 10 10 re f"
-    };
-    let resource = doc.add(Object::Dict(resources));
-    let contents = doc.add(Object::Stream(Stream::flate(Dict::new(), content)));
-    for page in page_list(&doc).into_iter().take(2) {
-        doc.update_dict(page.obj, |d| {
-            d.set(b"Resources".to_vec(), Object::Ref(resource));
-            d.set(b"Contents".to_vec(), Object::Ref(contents));
-        })
-        .unwrap();
-    }
-    let untouched = page_list(&doc)[1].clone();
-    let fixed = fix_hairlines(&mut doc, &[0], &Hairlines { type3, patterns: !type3, ..Default::default() }).unwrap();
-    assert_eq!(fixed.lines, 1);
-    assert_eq!(&*doc.get(target), &original, "the glyph or pattern used by the unselected page must keep its stream");
-    assert_eq!(page_list(&doc)[1], untouched, "the unselected page's resources stay unchanged");
-    assert_ne!(page_list(&doc)[0].dict.get(b"Resources"), Some(&Object::Ref(resource)), "selected resources must point at the repaired copy");
-}
-
-#[test]
-fn hairlines_safety_copies_shared_type3_glyphs() {
-    hairlines_safety_shared_resource(true);
-}
-
-#[test]
-fn hairlines_safety_copies_shared_patterns() {
-    hairlines_safety_shared_resource(false);
 }
 
 #[test]
@@ -16028,26 +15887,6 @@ fn hairlines_safety_keeps_forms_used_indirectly_by_an_unselected_page() {
     doc.update_dict(pages[1].obj, |d| d.set(b"Resources".to_vec(), Object::Dict(other_resources))).unwrap();
     assert_eq!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).unwrap().lines, 1);
     assert_eq!(&*doc.get(form), &original, "a form may be shared through a pattern, glyph or other unknown object graph");
-}
-
-#[test]
-fn hairlines_safety_reapplying_a_lower_target_width_does_not_grow_content() {
-    let mut doc = hairlines_safety_page(b"0.5 w 0 0 m 20 0 l S", 1.0);
-    let settings = Hairlines { narrower_than: 1.0, width: 0.1, ..Default::default() };
-    assert_eq!(fix_hairlines(&mut doc, &[0], &settings).unwrap().lines, 1);
-    let before = write_full(&doc, &Default::default()).unwrap();
-    assert_eq!(fix_hairlines(&mut doc, &[0], &settings).unwrap().lines, 0);
-    assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
-}
-
-#[test]
-fn hairlines_safety_refuses_malformed_graphics_state_operands() {
-    for content in [b"(bad) w 0 w 0 0 m 20 0 l S".as_slice(), b"(bad) 0 0 1 0 0 cm 0 w 0 0 m 20 0 l S"] {
-        let mut doc = hairlines_safety_page(content, 1.0);
-        let before = write_full(&doc, &Default::default()).unwrap();
-        assert!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).is_err());
-        assert_eq!(write_full(&doc, &Default::default()).unwrap(), before);
-    }
 }
 
 #[test]

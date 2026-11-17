@@ -24,10 +24,18 @@ impl Arguments {
         !self.new_window && !self.files.is_empty() && self.options.is_empty() && self.control_file.is_none() && !self.create_images && !self.two_paged
     }
 
+    #[cfg(test)]
     pub fn parse(args: impl IntoIterator<Item = String>) -> Self {
+        Self::parse_skipping(args.into_iter().map(Some))
+    }
+
+    /// The arguments, `None` for one that was skipped (it is not UTF-8): it keeps its place, so
+    /// `--control` gets no value rather than taking the argument after it as its file.
+    pub fn parse_skipping(args: impl IntoIterator<Item = Option<String>>) -> Self {
         let mut parsed = Self::default();
         let mut args = args.into_iter();
         while let Some(a) = args.next() {
+            let Some(a) = a else { continue };
             match a.as_str() {
                 "--version" => {
                     parsed.version = true;
@@ -37,14 +45,14 @@ impl Arguments {
                     parsed.help = true;
                     break;
                 }
-                "--control" => parsed.control_file = args.next(),
+                "--control" => parsed.control_file = args.next().flatten(),
                 "--create-images" => parsed.create_images = true,
                 // File Explorer's "Combine files in PdfCraft" (#585): the files go to the Combine
                 // files tab, of the running PdfCraft when there is one.
                 "--combine" => parsed.combine = true,
                 "--new-window" => parsed.new_window = true,
                 "--resume-update" => {
-                    parsed.resume_update = args.next();
+                    parsed.resume_update = args.next().flatten();
                     parsed.new_window = true;
                 }
                 "--refresh-thumbnails" => {
@@ -57,7 +65,7 @@ impl Arguments {
                     log::warn!("{flag}: use --two-paged without a value");
                 }
                 flag if flag.starts_with("--") => {
-                    let value = args.next().unwrap_or_default();
+                    let value = args.next().flatten().unwrap_or_default();
                     parsed.options.push((flag.trim_start_matches("--").to_string(), value));
                 }
                 _ => parsed.files.push(super::path_from_arg(a)),

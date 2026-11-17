@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 const BIN: &str = env!("CARGO_BIN_EXE_pdfcraft");
 
 /// Run the app with `args`, failing if it is still running after 60 s (it opened its window).
-fn run<A: AsRef<std::ffi::OsStr> + std::fmt::Debug>(args: &[A], stdout: Stdio) -> Output {
+fn run<A: AsRef<std::ffi::OsStr>>(args: &[A], stdout: Stdio) -> Output {
     run_with(Command::new(BIN).args(args), stdout)
 }
 

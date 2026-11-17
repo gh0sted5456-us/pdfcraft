@@ -3036,6 +3036,71 @@ kind = "model"
 usage = "Scan & OCR: reads the words it finds (cargo xtask models)"
 sha256 = "86c145c2edb96c8caed5b1ebb8f44d706408922211451c309c625157dd6061c5"
 
+[[fetched]]
+file = "latin-recognition.onnx"
+url = "https://www.modelscope.cn/models/RapidAI/RapidOCR/resolve/v3.9.2/onnx/PP-OCRv5/rec/latin_PP-OCRv5_rec_mobile.onnx"
+title = "PP-OCRv5 mobile Latin recognition model (ONNX)"
+author = "PaddlePaddle Authors; RapidAI contributors (ONNX conversion)"
+source = "https://github.com/RapidAI/RapidOCR/tree/v3.9.2; PaddleOCR PP-OCRv5 Latin recognition model, converted to ONNX by RapidAI"
+licence = "Apache-2.0"
+licence_url = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/v3.1.1/LICENSE"
+licence_sha256 = "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
+kind = "model"
+usage = "Scan & OCR: accented European languages, German French Czech Polish Nordic (cargo xtask models)"
+sha256 = "b20bd37c168a570f583afbc8cd7925603890efbcdc000a59e22c269d160b5f5a"
+
+[[fetched]]
+file = "latin-keys.txt"
+url = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/v3.1.1/ppocr/utils/dict/ppocrv5_latin_dict.txt"
+title = "PaddleOCR PP-OCRv5 Latin character dictionary"
+author = "PaddlePaddle Authors"
+source = "https://github.com/PaddlePaddle/PaddleOCR/blob/v3.1.1/ppocr/utils/dict/ppocrv5_latin_dict.txt"
+licence = "Apache-2.0"
+licence_url = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/v3.1.1/LICENSE"
+licence_sha256 = "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
+kind = "model"
+usage = "Scan & OCR: character classes for the Latin recogniser (cargo xtask models)"
+sha256 = "3c0a8a79b612653c25f765271714f71281e4e955962c153e272b7b8c1d2b13ff"
+
+[[fetched]]
+file = "multilingual-recognition.onnx"
+url = "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx/resolve/b8f84f0b80c529de40b4fbb3544b84fa7233a513/inference.onnx"
+title = "PP-OCRv6 small multilingual text recognition model"
+author = "PaddlePaddle / PaddleOCR contributors"
+source = "https://huggingface.co/PaddlePaddle/PP-OCRv6_small_rec_onnx/resolve/b8f84f0b80c529de40b4fbb3544b84fa7233a513/inference.onnx"
+licence = "Apache-2.0"
+licence_url = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/dab3fe35379033fdcb2d0e9572fac0b36c9a9ebf/LICENSE"
+licence_sha256 = "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
+kind = "model"
+usage = "Offline multilingual OCR and scan orientation correction (cargo xtask models)"
+sha256 = "5435fd747c9e0efe15a96d0b378d5bd157e9492ed8fd80edf08f30d02fa24634"
+
+[[fetched]]
+file = "document-orientation.onnx"
+url = "https://huggingface.co/PaddlePaddle/PP-LCNet_x1_0_doc_ori_onnx/resolve/7330ab7039123e46af2dc03154b9969aa412c61d/inference.onnx"
+title = "PP-LCNet document orientation model"
+author = "PaddlePaddle / PaddleOCR contributors"
+source = "https://huggingface.co/PaddlePaddle/PP-LCNet_x1_0_doc_ori_onnx/resolve/7330ab7039123e46af2dc03154b9969aa412c61d/inference.onnx"
+licence = "Apache-2.0"
+licence_url = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/dab3fe35379033fdcb2d0e9572fac0b36c9a9ebf/LICENSE"
+licence_sha256 = "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
+kind = "model"
+usage = "Offline multilingual OCR and scan orientation correction (cargo xtask models)"
+sha256 = "af9a0a4f317ff0709ce752067807f819cb15d883f8ecad89f28df1c6ee2d9c92"
+
+[[fetched]]
+file = "multilingual-dictionary.txt"
+url = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/dab3fe35379033fdcb2d0e9572fac0b36c9a9ebf/ppocr/utils/dict/ppocrv6_dict.txt"
+title = "PP-OCRv6 recognition dictionary"
+author = "PaddlePaddle / PaddleOCR contributors"
+source = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/dab3fe35379033fdcb2d0e9572fac0b36c9a9ebf/ppocr/utils/dict/ppocrv6_dict.txt"
+licence = "Apache-2.0"
+licence_url = "https://raw.githubusercontent.com/PaddlePaddle/PaddleOCR/dab3fe35379033fdcb2d0e9572fac0b36c9a9ebf/LICENSE"
+licence_sha256 = "3840c5c0c61c294264d2dd77b8777be6ddd90121ef4e0e64abcd22edea581d6e"
+kind = "model"
+usage = "Offline multilingual OCR and scan orientation correction (cargo xtask models)"
+sha256 = "b5f2bfe2bdd9448429e3e82b51c789775d9b42f2403d082b00662eb77e401c5d"
+
 [[build_input]]
 name = "craft-i18n"
 option = "CRAFT_I18N_DIR"
@@ -3159,6 +3224,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Arabic UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "677680603eeea0ad270ac37742934d4da636cb8446acadafd7b1fa1b9f6fccca"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/bg.tsv"
@@ -3169,6 +3235,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Bulgarian UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "9ea1f4b308e0daaa5f2446fe5ecd0f798dfbe865b750f8f7a9285eac10ed0b5a"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/ca.tsv"
@@ -3179,6 +3246,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Catalan UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "c371834672b29327e50c768e5b42421682909ea7b93893c05b1e5507410f6988"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/ckb.tsv"
@@ -3189,6 +3257,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Central Kurdish UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "dc96d16ad8c043aaeb4ab10c7e0b814e225f7fe76da98b90e2bfa3baa0cdeb67"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/cs.tsv"
@@ -3199,6 +3268,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Czech UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "4e22e0a5b9cab72a668a4f931a9477ddf87794dceabdb53ef868c7c8e89dc3fc"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/de.tsv"
@@ -3209,6 +3279,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "German UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "2d619f790f1af9c19a07b3caa9a75ce5dcb576a785c32e59239fe79189e64882"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/el.tsv"
@@ -3219,6 +3290,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Greek UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "c3f3a9efcba384c8af171ceb73eefafdd5f6377727f71845e8c5b8c774634e4b"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/en-gb.tsv"
@@ -3229,6 +3301,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "c90ce3e4f58d447b1319666cef46b3e9609a57531d19abe5b774a99fdba857ff"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/es.tsv"
@@ -3239,6 +3312,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Spanish UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "95b211bc569adbde3b1beaaa79a69255ee9e24c979cebd384681ee06b68b2bca"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/fa.tsv"
@@ -3249,6 +3323,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Persian UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "0fb01548fb9b08259b9e1f123420b2c5dcb8e9fc2a894e6b5dc73cc6935d9bc7"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/fi.tsv"
@@ -3259,6 +3334,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Finnish UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "bc0958057d6e12826bfab9c29c52cc6f69d33a8095b68d04b54ebf351afa1956"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/fr.tsv"
@@ -3269,6 +3345,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "French UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "086820107ab052b6aa8fbe97ac5b5e4cc3c221bb03d5235198d5045c03e2507b"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/hi.tsv"
@@ -3279,6 +3356,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Hindi UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "a7d6af2fb3349ff811b39c68d5fad515be8ac31340c19aa792eb23133bb24acf"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/hu.tsv"
@@ -3289,6 +3367,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Hungarian UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "800a1cb8123db65e7ef1c7a15655d98e977ca1748a10fa6a2f759f83205c123b"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/id.tsv"
@@ -3299,6 +3378,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Indonesian UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "458e38bf62cfa7c20d934959344d754a676e7b33374baf6a4a58a2415c841451"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/it.tsv"
@@ -3309,6 +3389,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Italian UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "bff7bcee7e2afc7122899d0956dc4b66e8ba2eae4808f17c240991a9c7940921"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/ja.tsv"
@@ -3319,6 +3400,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Japanese UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "35e0120585e36f93c4894f054b150fbeea62788cd8e2bb712e4d9ed1151cbe90"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/kk.tsv"
@@ -3329,6 +3411,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Kazakh UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "30b251246717b23e9dfbab868d9154ab1102b45d9f33d83482afcc81d3e2f658"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/ko.tsv"
@@ -3339,6 +3422,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Korean UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "6da93498d645e7fc23d677589396038303dd7bffaa7087a287355fba95a6b43f"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/lo.tsv"
@@ -3349,6 +3433,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Lao UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "74b75d4fc62a1cd0dba0a620f7fa2d0bfb64fa2fb89b5d32e53c732d62301675"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/lt.tsv"
@@ -3359,6 +3444,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Lithuanian UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "68eea62d7310aefcfaf8206d73cfa0a39758d3abb5c250c7d0c49b466aacf7ac"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/nb.tsv"
@@ -3369,6 +3455,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Norwegian Bokmål UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "49169803d5ed5f0e98032c70e0bfffc848ae2e2e92f8b5e22595ace589c4f36c"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/pl.tsv"
@@ -3379,6 +3466,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Polish UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "f055636591360dab35c0a7a3b73d963688ff8a4ccad90ff63d1cd0c24d300577"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/pt-br.tsv"
@@ -3389,6 +3477,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Brazilian Portuguese UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "dbcb3b4b0be72c30ae8c5e7b8c3af71001af1fb01da1320eac0da415466cd21c"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/ro.tsv"
@@ -3399,6 +3488,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Romanian UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "74fef3a7606f852dfd2c01d2cf96348984e1b4f5c01b56edbc259a0a6f1ab785"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/ru.tsv"
@@ -3409,6 +3499,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Russian UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "5cb21f9761d7c25d502a796969ce438feebeee5df1e59c049462615b6523e8ee"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/sl.tsv"
@@ -3419,6 +3510,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Slovene UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "8d984018f3a1e2ffd34b076cdda748d3b97a874448f89e72fa54fdbd0730cd0a"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/sq.tsv"
@@ -3429,6 +3521,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Albanian UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "82892d9ed4e1d709c2d5a7f7fd737ec018581a32a1c663ce75551cad1417ab9e"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/te.tsv"
@@ -3439,6 +3532,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Telugu UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "db3c2a2d32fcffad3487ed5414de162ee56ef324db71edea4b8e9a2f224960c6"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/th.tsv"
@@ -3449,6 +3543,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Thai UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "45522ab73d419c6af60af7637cf96731586e7a154fb6ea34cdc723df3d4b138f"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/tr.tsv"
@@ -3459,6 +3554,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Turkish UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "9ef886b6e63437750d51e462690372d8eeabb5708e36076339b591f700fda87c"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/uk.tsv"
@@ -3469,6 +3565,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Ukrainian UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "7cc59a0927be005216731efbc0b10249934784b7f9cafb6ee07a1587c42bd2dc"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/vi.tsv"
@@ -3479,6 +3576,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Vietnamese UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "79d5d4e49e1ef25419f81e88374a9221d259cb65e3849ac8c9db5c6779c232f3"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/zh-hans.tsv"
@@ -3489,6 +3587,7 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Simplified Chinese UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "784b45bed10167dae1d4f564192740c5df146262d26fc3cee33ed240131f3186"
 
 [[asset]]
 path = "crates/ui-egui/i18n-lion/zh-hant.tsv"
@@ -3499,3 +3598,27 @@ licence = "MIT OR Apache-2.0"
 licence_file = "LICENSE-MIT"
 kind = "translation"
 usage = "Traditional Chinese UI strings, merged into the craft-i18n catalog by crates/ui-egui/build.rs"
+sha256 = "059391a325503bf0b531d49d083945da95193db13f716a9cc4392f8f4d0517e7"
+
+[[asset]]
+path = "assets/app-icon/pdfcraft-dark.png"
+title = "PdfCraft transparent lion (dark interface)"
+author = "PdfCraft contributors; gh0sted5456-us (transparent theme palettes)"
+source = "Contributor-original (see assets/app-icon/README.md)"
+licence = "MIT OR Apache-2.0"
+licence_file = "assets/app-icon/LICENSE.txt"
+kind = "icon"
+usage = "Light lion on a transparent background for dark window chrome, Home and About"
+sha256 = "639624a2b5eff6f117bed1f57174de8aa077970a72b35185bc1cd54caa65d654"
+
+[[asset]]
+path = "assets/icons/discord.svg"
+title = "Discord brand mark"
+author = "Simple Icons contributors"
+source = "https://github.com/simple-icons/simple-icons/blob/30053a0f492fd192740ad001031b3091be060986/icons/discord.svg"
+licence = "CC0-1.0"
+licence_file = "assets/icons/LICENSE-simple-icons.txt"
+kind = "icon"
+usage = "Discord community link; original paths, currentColor fill added for light/dark theme tinting"
+sha256 = "d0e283676af5b089ab93ac711fff7351582d881add71a9520a0b641b2c35bf61"
+

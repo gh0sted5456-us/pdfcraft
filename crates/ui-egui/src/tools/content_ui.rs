@@ -1478,6 +1478,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn a_picture_corner_shrinks_when_only_one_axis_moves() {
+        let rect = Rect::from_min_size(Pos2::new(10.0, 20.0), egui::vec2(100.0, 50.0));
+        let result = dragged(rect, Grab::Corner(false, false), egui::vec2(-25.0, 0.0), true);
+        assert_eq!(result.min, rect.min);
+        assert_eq!(result.size(), egui::vec2(75.0, 37.5));
+    }
+
+    #[test]
     fn delivered_pixels_are_bounded_before_cache_or_document_changes() {
         let mut app = crate::PdfCraftApp::new();
         app.create_blank();

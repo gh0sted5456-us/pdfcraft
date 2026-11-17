@@ -11,3 +11,4 @@
 @plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	{n} formül daha eksik alanları okuyor.
 @plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields}, bazı alan adlarını çalışırken oluşturuyor; bu okumalar denetlenmiyor.
 @plural	{fields} is missing|{fields} are missing	{fields} eksik
+	Correct scans…	Taramaları düzelt…

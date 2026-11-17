@@ -1246,6 +1246,9 @@ fn always_use_my_default_zoom_and_page_layout_survives_a_restart() {
 fn preferences_turn_on_always_use_my_default_zoom_and_page_layout() {
     use egui_kittest::kittest::Queryable;
     let mut h = harness(&[]);
+    h.state_mut().set_option("preferences-category", "documents").unwrap();
+    // Lion PDF: Preferences opens on a category; these settings are under Documents.
+    h.state_mut().preferences_category = pdfcraft_ui_egui::PreferencesCategory::Documents;
     assert!(h.state_mut().execute("app.preferences"));
     h.run_steps(3);
     h.get_by_label("Always use my default zoom and page layout").scroll_to_me();
@@ -1267,6 +1270,8 @@ fn preferences_turn_on_always_use_my_default_zoom_and_page_layout_updates_open_d
     assert_ne!(h.state().views[0].fit, pdfcraft_ui_egui::canvas::Fit::Width);
     assert!(!h.state().views[1].continuous());
     assert_ne!(h.state().views[1].fit, pdfcraft_ui_egui::canvas::Fit::Width);
+    // Lion PDF: Preferences opens on a category; these settings are under Documents.
+    h.state_mut().preferences_category = pdfcraft_ui_egui::PreferencesCategory::Documents;
     assert!(h.state_mut().execute("app.preferences"));
     h.run_steps(3);
     h.get_by_label("Always use my default zoom and page layout").scroll_to_me();
@@ -1286,6 +1291,8 @@ fn preferences_toggle_continuous_scrolling_updates_active_document() {
     let mut h = harness(&[("default-continuous", "off"), ("continuous", "off")]);
     assert!(!h.state().view_defaults.continuous);
     assert!(!h.state().views[0].continuous());
+    // Lion PDF: Preferences opens on a category; these settings are under Documents.
+    h.state_mut().preferences_category = pdfcraft_ui_egui::PreferencesCategory::Documents;
     assert!(h.state_mut().execute("app.preferences"));
     h.run_steps(3);
     h.get_by_label("Continuous scrolling").scroll_to_me();
@@ -1312,6 +1319,8 @@ fn preferences_during_full_screen_updates_saved_normal_display_and_restores_on_e
     assert!(!h.state().views[0].continuous());
     assert_eq!(h.state().views[0].fit, Fit::Page);
 
+    // Lion PDF: Preferences opens on a category; these settings are under Documents.
+    h.state_mut().preferences_category = pdfcraft_ui_egui::PreferencesCategory::Documents;
     assert!(h.state_mut().execute("app.preferences"));
     h.run_steps(3);
     h.get_by_label("Always use my default zoom and page layout").scroll_to_me();
@@ -1351,6 +1360,8 @@ fn preferences_toggle_continuous_during_full_screen_updates_saved_normal_display
     assert!(!h.state().views[0].continuous());
     assert_eq!(h.state().views[0].fit, Fit::Page);
 
+    // Lion PDF: Preferences opens on a category; these settings are under Documents.
+    h.state_mut().preferences_category = pdfcraft_ui_egui::PreferencesCategory::Documents;
     assert!(h.state_mut().execute("app.preferences"));
     h.run_steps(3);
     h.get_by_label("Continuous scrolling").scroll_to_me();
@@ -1385,6 +1396,8 @@ fn preferences_with_always_default_view_on_toggling_continuous_preserves_custom_
     assert!(!h.state().views[0].continuous());
     assert_eq!(h.state().views[0].zoom, 2.0);
 
+    // Lion PDF: Preferences opens on a category; these settings are under Documents.
+    h.state_mut().preferences_category = pdfcraft_ui_egui::PreferencesCategory::Documents;
     assert!(h.state_mut().execute("app.preferences"));
     h.run_steps(3);
     h.get_by_label("Continuous scrolling").scroll_to_me();
@@ -1402,6 +1415,9 @@ fn preferences_with_always_default_view_on_toggling_continuous_preserves_custom_
 fn preferences_set_the_default_zoom() {
     use egui_kittest::kittest::Queryable;
     let mut h = harness(&[]);
+    h.state_mut().set_option("preferences-category", "documents").unwrap();
+    // Lion PDF: Preferences opens on a category; these settings are under Documents.
+    h.state_mut().preferences_category = pdfcraft_ui_egui::PreferencesCategory::Documents;
     assert!(h.state_mut().execute("app.preferences"));
     h.run_steps(3);
     h.get_by_label("Zoom to page level").scroll_to_me();
@@ -3693,6 +3709,8 @@ fn preferences_choose_the_window_resize_behavior() {
     use pdfcraft_ui_egui::canvas::ResizeZoom;
     let mut h = harness(&[]);
     h.state_mut().set_option("preferences-category", "documents").unwrap();
+    // Lion PDF: Preferences opens on a category; these settings are under Documents.
+    h.state_mut().preferences_category = pdfcraft_ui_egui::PreferencesCategory::Documents;
     assert!(h.state_mut().execute("app.preferences"));
     h.run_steps(8);
     h.get_by_role_and_label(Role::ComboBox, "Window resize behavior").scroll_to_me();

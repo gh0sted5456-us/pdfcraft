@@ -798,6 +798,10 @@ fn is_image(bytes: &[u8]) -> bool {
 /// Whether `bytes` named `name` is a PDF, an image Create can embed, plain text (a `.txt` or
 /// `.text` file) or an Office document ([`is_office`]). `None` for anything else.
 pub fn source_kind(name: &str, bytes: &[u8]) -> Option<SourceKind> {
+    // Lion PDF: a template is a package (a zip), told by its name before the Office packages.
+    if name.to_ascii_lowercase().ends_with(".pdfcraft-template") {
+        return Some(SourceKind::Template);
+    }
     let head = bytes.get(..bytes.len().min(1024)).unwrap_or_default();
     if head.windows(5).any(|w| w == b"%PDF-") {
         return Some(SourceKind::Pdf);
@@ -807,9 +811,6 @@ pub fn source_kind(name: &str, bytes: &[u8]) -> Option<SourceKind> {
     }
     if is_office(name, bytes) {
         return Some(SourceKind::Office);
-    }
-    if name.to_ascii_lowercase().ends_with(".pdfcraft-template") {
-        return Some(SourceKind::Template);
     }
     let lower = name.to_ascii_lowercase();
     (lower.ends_with(".txt") || lower.ends_with(".text")).then_some(SourceKind::Text)

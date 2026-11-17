@@ -3060,7 +3060,8 @@ fn stripping_extended_xmp_leaves_the_rest_of_the_jpeg() {
 
 #[test]
 fn convertible_is_the_image_and_text_extensions() {
-    let both: Vec<&str> = IMAGE_EXTENSIONS.iter().chain(TEXT_EXTENSIONS.iter()).copied().collect();
+    // Lion PDF: and reusable templates.
+    let both: Vec<&str> = IMAGE_EXTENSIONS.iter().chain(TEXT_EXTENSIONS.iter()).copied().chain(["pdfcraft-template"]).collect();
     assert_eq!(both, CONVERTIBLE.to_vec());
     assert!(OFFICE_EXTENSIONS.iter().all(|e| !CONVERTIBLE.contains(e) && *e != "pdf"));
 }

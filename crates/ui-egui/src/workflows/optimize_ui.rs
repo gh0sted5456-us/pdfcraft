@@ -114,37 +114,45 @@ fn summary(r: &OptimizeReport) -> String {
 
 fn image_row(ui: &mut egui::Ui, id: &str, title: &str, s: &mut ImageSettings) {
     ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(13.0)));
-    ui.horizontal(|ui| {
-        ui.add(widgets::checkbox(&mut s.downsample, tl!("Bicubic downsampling to")));
-        ui.add_enabled(s.downsample, egui::DragValue::new(&mut s.target_ppi).range(9.0..=2400.0).suffix(" ppi"));
-        ui.label(tl!("for images above"));
-        ui.add_enabled(s.downsample, egui::DragValue::new(&mut s.above_ppi).range(9.0..=2400.0).suffix(" ppi"));
+    ui.horizontal_wrapped(|ui| {
+        let target = ui.add(widgets::checkbox(&mut s.downsample, tl!("Bicubic downsampling to")));
+        ui.add_enabled(s.downsample, egui::DragValue::new(&mut s.target_ppi).range(9.0..=2400.0).suffix(" ppi")).labelled_by(target.id);
+        let above = ui.label(tl!("for images above"));
+        ui.add_enabled(s.downsample, egui::DragValue::new(&mut s.above_ppi).range(9.0..=2400.0).suffix(" ppi")).labelled_by(above.id);
     });
     s.above_ppi = s.above_ppi.max(s.target_ppi);
-    ui.horizontal(|ui| {
-        ui.label(tl!("Compression"));
+    ui.horizontal_wrapped(|ui| {
+        let compression_label = ui.label(tl!("Compression"));
         let label = match s.compression {
             Compression::Jpeg(_) => "JPEG",
             Compression::Flate => tl!("ZIP"),
             Compression::Retain => tl!("Retain existing"),
         };
-        craft_ui::ComboBox::from_id_salt((id, "compression")).selected_text(label).show_ui(ui, |ui| {
-            let q = match s.compression {
-                Compression::Jpeg(q) => q,
-                _ => 60,
-            };
-            ui.selectable_value(&mut s.compression, Compression::Jpeg(q), "JPEG");
-            ui.selectable_value(&mut s.compression, Compression::Flate, tl!("ZIP"));
-            ui.selectable_value(&mut s.compression, Compression::Retain, tl!("Retain existing"));
-        });
+        craft_ui::ComboBox::from_id_salt((id, "compression"))
+            .selected_text(label)
+            .show_ui(ui, |ui| {
+                let q = match s.compression {
+                    Compression::Jpeg(q) => q,
+                    _ => 60,
+                };
+                ui.selectable_value(&mut s.compression, Compression::Jpeg(q), "JPEG");
+                ui.selectable_value(&mut s.compression, Compression::Flate, tl!("ZIP"));
+                ui.selectable_value(&mut s.compression, Compression::Retain, tl!("Retain existing"));
+            })
+            .response
+            .labelled_by(compression_label.id);
         if let Compression::Jpeg(q) = &mut s.compression {
-            ui.label(tl!("Quality"));
+            let quality_label = ui.label(tl!("Quality"));
             let name = QUALITIES.iter().min_by_key(|(_, v)| (*v as i32 - *q as i32).abs()).map_or(tl!("Medium"), |(n, _)| tl!(n));
-            craft_ui::ComboBox::from_id_salt((id, "quality")).selected_text(name).show_ui(ui, |ui| {
-                for (n, v) in QUALITIES {
-                    ui.selectable_value(q, v, tl!(n));
-                }
-            });
+            craft_ui::ComboBox::from_id_salt((id, "quality"))
+                .selected_text(name)
+                .show_ui(ui, |ui| {
+                    for (n, v) in QUALITIES {
+                        ui.selectable_value(q, v, tl!(n));
+                    }
+                })
+                .response
+                .labelled_by(quality_label.id);
         }
     });
     ui.add_space(8.0);
@@ -154,24 +162,28 @@ fn image_row(ui: &mut egui::Ui, id: &str, title: &str, s: &mut ImageSettings) {
 fn mono_row(ui: &mut egui::Ui, m: &mut MonoSettings) {
     ui.label(egui::RichText::new(tl!("Monochrome Images")).font(theme::semibold(13.0)));
     ui.horizontal(|ui| {
-        ui.add(widgets::checkbox(&mut m.downsample, tl!("Downsample to")));
-        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.target_ppi).range(9.0..=2400.0).suffix(" ppi"));
-        ui.label(tl!("for images above"));
-        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.above_ppi).range(9.0..=2400.0).suffix(" ppi"));
+        let target = ui.add(widgets::checkbox(&mut m.downsample, tl!("Downsample to")));
+        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.target_ppi).range(9.0..=2400.0).suffix(" ppi")).labelled_by(target.id);
+        let above = ui.label(tl!("for images above"));
+        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.above_ppi).range(9.0..=2400.0).suffix(" ppi")).labelled_by(above.id);
     });
     m.above_ppi = m.above_ppi.max(m.target_ppi);
     ui.horizontal(|ui| {
-        ui.label(tl!("Compression"));
+        let compression_label = ui.label(tl!("Compression"));
         let label = match m.compression {
             MonoCompression::CcittG4 => tl!("CCITT Group 4"),
             MonoCompression::Jbig2 => tl!("JBIG2 (lossless)"),
             MonoCompression::Retain => tl!("Retain existing"),
         };
-        craft_ui::ComboBox::from_id_salt(("mono", "compression")).selected_text(label).show_ui(ui, |ui| {
-            ui.selectable_value(&mut m.compression, MonoCompression::CcittG4, tl!("CCITT Group 4"));
-            ui.selectable_value(&mut m.compression, MonoCompression::Jbig2, tl!("JBIG2 (lossless)"));
-            ui.selectable_value(&mut m.compression, MonoCompression::Retain, tl!("Retain existing"));
-        });
+        craft_ui::ComboBox::from_id_salt(("mono", "compression"))
+            .selected_text(label)
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut m.compression, MonoCompression::CcittG4, tl!("CCITT Group 4"));
+                ui.selectable_value(&mut m.compression, MonoCompression::Jbig2, tl!("JBIG2 (lossless)"));
+                ui.selectable_value(&mut m.compression, MonoCompression::Retain, tl!("Retain existing"));
+            })
+            .response
+            .labelled_by(compression_label.id);
     });
     ui.add_space(8.0);
 }
@@ -191,31 +203,39 @@ fn discard_box(ui: &mut egui::Ui, list: &mut Vec<Hidden>, h: Hidden, label: &str
 pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (bool, bool) {
     widgets::dialog_heading(ui, tl!("PDF Optimizer"));
     ui.add_space(6.0);
-    ui.horizontal(|ui| {
-        ui.label(tl!("Settings"));
+    ui.horizontal_wrapped(|ui| {
+        let settings_label = ui.label(tl!("Settings"));
         let name = |p: Preset| match p {
             Preset::Standard => tl!("Standard"),
             Preset::Mobile => tl!("Mobile"),
         };
         let current = Preset::of(&d.settings);
-        craft_ui::ComboBox::from_id_salt("optimize-preset").selected_text(current.map_or(tl!("Custom"), name)).show_ui(ui, |ui| {
-            for p in Preset::ALL {
-                if ui.selectable_label(current == Some(p), name(p)).clicked() {
-                    d.settings = p.settings();
+        craft_ui::ComboBox::from_id_salt("optimize-preset")
+            .selected_text(current.map_or(tl!("Custom"), name))
+            .show_ui(ui, |ui| {
+                for p in Preset::ALL {
+                    if ui.selectable_label(current == Some(p), name(p)).clicked() {
+                        d.settings = p.settings();
+                    }
                 }
-            }
-        });
+            })
+            .response
+            .labelled_by(settings_label.id);
         ui.add_space(8.0);
-        ui.label(tl!("Compatibility"));
+        let compatibility_label = ui.label(tl!("Compatibility"));
         let compat_label = |c: Compatibility| match c {
             Compatibility::Retain => tl!("Retain existing").to_string(),
             _ => format!("PDF {}", c.name()),
         };
-        craft_ui::ComboBox::from_id_salt("optimize-compatibility").selected_text(compat_label(d.settings.compatibility)).show_ui(ui, |ui| {
-            for c in Compatibility::ALL {
-                ui.selectable_value(&mut d.settings.compatibility, c, compat_label(c));
-            }
-        });
+        craft_ui::ComboBox::from_id_salt("optimize-compatibility")
+            .selected_text(compat_label(d.settings.compatibility))
+            .show_ui(ui, |ui| {
+                for c in Compatibility::ALL {
+                    ui.selectable_value(&mut d.settings.compatibility, c, compat_label(c));
+                }
+            })
+            .response
+            .labelled_by(compatibility_label.id);
     });
     ui.add_space(6.0);
     ui.horizontal_wrapped(|ui| {
@@ -232,71 +252,72 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (boo
     });
     ui.separator();
     ui.add_space(6.0);
-    let s = &mut d.settings;
-    match d.tab {
-        OptimizeTab::Images => {
-            ui.add(widgets::checkbox(&mut s.merge_fragments, tl!("Merge image fragments")));
-            image_row(ui, "color", "Color Images", &mut s.color);
-            image_row(ui, "gray", "Grayscale Images", &mut s.gray);
-            mono_row(ui, &mut s.mono);
-            ui.label(
-                egui::RichText::new(tl!("Each image is measured where pages draw it; an image is replaced only if the result is smaller."))
-                    .small()
-                    .color(t.text_muted),
-            );
-        }
-        OptimizeTab::DiscardObjects => {
-            discard_box(ui, &mut d.discard, Hidden::LinksActionsScripts, "Discard all links, actions and JavaScript");
-            ui.add(widgets::checkbox(&mut s.discard_alternate_images, tl!("Discard alternate images")));
-            ui.add(widgets::checkbox(&mut s.discard_thumbnails, tl!("Discard embedded page thumbnails")));
-            ui.add(widgets::checkbox(&mut s.discard_tags, tl!("Discard document tags")));
-            ui.add(widgets::checkbox(&mut s.discard_search_index, tl!("Discard embedded search index")));
-            ui.add(widgets::checkbox(&mut s.discard_print_settings, tl!("Discard embedded print settings")));
-            ui.add(widgets::checkbox(&mut s.discard_form_actions, tl!("Discard all form submission, import and reset actions")));
-            discard_box(ui, &mut d.discard, Hidden::Bookmarks, "Discard bookmarks");
-            discard_box(ui, &mut d.discard, Hidden::FormFields, "Flatten form fields");
-            discard_box(ui, &mut d.discard, Hidden::HiddenLayers, "Discard hidden layer content");
-        }
-        OptimizeTab::DiscardUserData => {
-            discard_box(ui, &mut d.discard, Hidden::Comments, "Discard all comments, forms and multimedia");
-            discard_box(ui, &mut d.discard, Hidden::Metadata, "Discard document information and metadata");
-            discard_box(ui, &mut d.discard, Hidden::Attachments, "Discard all object data (file attachments)");
-            ui.add(widgets::checkbox(&mut s.discard_external_refs, tl!("Discard external cross-references")));
-            discard_box(ui, &mut d.discard, Hidden::PrivateData, "Discard private data of other applications");
-            discard_box(ui, &mut d.discard, Hidden::HiddenText, "Discard hidden text");
-        }
-        OptimizeTab::CleanUp => {
-            ui.add(widgets::checkbox(&mut s.flate_unencoded, tl!("Use Flate to encode streams that are not encoded")));
-            ui.add(widgets::checkbox(&mut s.lzw_to_flate, tl!("In streams that use LZW encoding, use Flate instead")));
-            ui.add(widgets::checkbox(&mut s.remove_invalid_links, tl!("Remove invalid links and bookmarks")));
-            ui.add(widgets::checkbox(&mut s.remove_unreferenced_dests, tl!("Remove unreferenced named destinations")));
-            let mut object_streams = s.effective_object_streams();
-            if ui
-                .add_enabled(
-                    s.compatibility != Compatibility::Pdf1_4,
-                    widgets::checkbox(&mut object_streams, tl!("Compress document structure (object streams)")),
-                )
-                .changed()
-            {
-                s.object_streams = object_streams;
+    widgets::dialog_scroll(ui, "optimizer-body", |ui| {
+        let s = &mut d.settings;
+        match d.tab {
+            OptimizeTab::Images => {
+                ui.add(widgets::checkbox(&mut s.merge_fragments, tl!("Merge image fragments")));
+                image_row(ui, "color", "Color Images", &mut s.color);
+                image_row(ui, "gray", "Grayscale Images", &mut s.gray);
+                mono_row(ui, &mut s.mono);
+                ui.label(
+                    egui::RichText::new(tl!("Each image is measured where pages draw it; an image is replaced only if the result is smaller."))
+                        .small()
+                        .color(t.text_muted),
+                );
             }
-            ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Remove unused objects and merge identical ones")));
+            OptimizeTab::DiscardObjects => {
+                discard_box(ui, &mut d.discard, Hidden::LinksActionsScripts, "Discard all links, actions and JavaScript");
+                ui.add(widgets::checkbox(&mut s.discard_alternate_images, tl!("Discard alternate images")));
+                ui.add(widgets::checkbox(&mut s.discard_thumbnails, tl!("Discard embedded page thumbnails")));
+                ui.add(widgets::checkbox(&mut s.discard_tags, tl!("Discard document tags")));
+                ui.add(widgets::checkbox(&mut s.discard_search_index, tl!("Discard embedded search index")));
+                ui.add(widgets::checkbox(&mut s.discard_print_settings, tl!("Discard embedded print settings")));
+                ui.add(widgets::checkbox(&mut s.discard_form_actions, tl!("Discard all form submission, import and reset actions")));
+                discard_box(ui, &mut d.discard, Hidden::Bookmarks, "Discard bookmarks");
+                discard_box(ui, &mut d.discard, Hidden::FormFields, "Flatten form fields");
+                discard_box(ui, &mut d.discard, Hidden::HiddenLayers, "Discard hidden layer content");
+            }
+            OptimizeTab::DiscardUserData => {
+                discard_box(ui, &mut d.discard, Hidden::Comments, "Discard all comments, forms and multimedia");
+                discard_box(ui, &mut d.discard, Hidden::Metadata, "Discard document information and metadata");
+                discard_box(ui, &mut d.discard, Hidden::Attachments, "Discard all object data (file attachments)");
+                ui.add(widgets::checkbox(&mut s.discard_external_refs, tl!("Discard external cross-references")));
+                discard_box(ui, &mut d.discard, Hidden::PrivateData, "Discard private data of other applications");
+                discard_box(ui, &mut d.discard, Hidden::HiddenText, "Discard hidden text");
+            }
+            OptimizeTab::CleanUp => {
+                ui.add(widgets::checkbox(&mut s.flate_unencoded, tl!("Use Flate to encode streams that are not encoded")));
+                ui.add(widgets::checkbox(&mut s.lzw_to_flate, tl!("In streams that use LZW encoding, use Flate instead")));
+                ui.add(widgets::checkbox(&mut s.remove_invalid_links, tl!("Remove invalid links and bookmarks")));
+                ui.add(widgets::checkbox(&mut s.remove_unreferenced_dests, tl!("Remove unreferenced named destinations")));
+                let mut object_streams = s.effective_object_streams();
+                if ui
+                    .add_enabled(
+                        s.compatibility != Compatibility::Pdf1_4,
+                        widgets::checkbox(&mut object_streams, tl!("Compress document structure (object streams)")),
+                    )
+                    .changed()
+                {
+                    s.object_streams = object_streams;
+                }
+                ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Remove unused objects and merge identical ones")));
+            }
         }
-    }
+    });
     ui.add_space(12.0);
     let (mut ok, mut cancel) = (false, false);
-    ui.horizontal(|ui| {
+    // Lion PDF: Audit joins the centred action group.
+    widgets::dialog_footer(ui, |ui| {
+        if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
+            ok = true;
+        }
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+            cancel = true;
+        }
         if widgets::dialog_button(ui, tl!("Audit space usage…"), widgets::DialogAction::Back).clicked() {
             d.audit = true;
         }
-        crate::widgets::dialog_footer(ui, |ui| {
-            if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
-                ok = true;
-            }
-            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
-                cancel = true;
-            }
-        });
     });
     (ok, cancel)
 }
@@ -304,15 +325,13 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (boo
 /// Audit Space Usage: how the file's bytes are spent now, by kind of content (not what
 /// optimizing would save).
 pub(crate) fn audit_body(ui: &mut egui::Ui, rows: &[pdfcraft_engine::optimize::SpaceUse], t: &Tokens) -> bool {
-    ui.label(RichText::new(tl!("Space Audit")).font(crate::theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Space Audit"));
     ui.add_space(4.0);
-    audit_table(ui, rows, t);
+    widgets::dialog_scroll(ui, "audit-body", |ui| audit_table(ui, rows, t));
     ui.add_space(12.0);
     let mut ok = false;
-    ui.horizontal(|ui| {
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            ok = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked()
-        })
+    widgets::dialog_footer(ui, |ui| {
+        ok = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked();
     });
     ok
 }
@@ -349,7 +368,7 @@ pub(crate) fn audit_table(ui: &mut egui::Ui, rows: &[pdfcraft_engine::optimize::
     let width = |column: usize| table.iter().filter_map(|row| row.get(column)).map(|g| g.size().x).fold(0.0, f32::max);
     // The description takes what the numbers leave, so the striped rows span the dialog.
     let numbers = width(1) + width(2) + 2.0 * gap;
-    let widths = [width(0).max(ui.available_width() - numbers), width(1), width(2)];
+    let widths = [width(0).max(ui.available_width() - numbers - 1.0), width(1), width(2)];
     let height = table.iter().flatten().map(|g| g.size().y).fold(ui.spacing().interact_size.y, f32::max);
     // No minimum column width: egui's default widened a narrow Bytes column past `widths` and
     // pushed the table beyond the dialog's padding.

@@ -24,7 +24,7 @@ const IMAGE_MEMORY: f64 = 1024.0 * 1024.0 * 1024.0;
 fn draw_image(renderer: &mut PageRenderer, page: usize, dpi: f64, format: ImageFormat, used: f64) -> Result<Vec<u8>, String> {
     let r = renderer.render(RenderRequest { page, scale: (dpi.clamp(18.0, 1200.0) / 72.0) as f32, ..Default::default() });
     if let Some(e) = r.error {
-        return Err(format!("page {}: {e}", page + 1));
+        return Err(format!("page {}: {e}", page.saturating_add(1)));
     }
     encode_image(r.width, r.height, &r.rgba, format, used)
 }
@@ -93,7 +93,7 @@ pub fn extract_images(src: &ExportSource, pages: &[usize], min_side: u32) -> Res
 /// files sort in page order (#2208): page 7 of 120 is `Page_007`.
 pub fn image_file_name(stem: &str, image: &pdfcraft_create::ExtractedImage, index: usize, page_count: usize) -> String {
     let width = page_count.max(1).to_string().len();
-    format!("{stem}_Page_{:0width$}_Image_{index:04}.{}", image.page + 1, image.extension)
+    format!("{stem}_Page_{:0width$}_Image_{index:04}.{}", image.page.saturating_add(1), image.extension)
 }
 
 impl Exporter {
@@ -125,7 +125,7 @@ impl Exporter {
     }
 
     fn check(&self, page: usize) -> Result<(), String> {
-        if page < self.pages { Ok(()) } else { Err(format!("page {} does not exist", page + 1)) }
+        if page < self.pages { Ok(()) } else { Err(format!("page {} does not exist", page.saturating_add(1))) }
     }
 
     /// Page `page` (0-based) as a PNG at `dpi`, at most the renderer's size limits allow (see
@@ -134,7 +134,7 @@ impl Exporter {
         self.check(page)?;
         let r = self.renderer.render(RenderRequest { page, scale: (dpi.clamp(18.0, 1200.0) / 72.0) as f32, ..Default::default() });
         if let Some(e) = r.error {
-            return Err(format!("page {}: {e}", page + 1));
+            return Err(format!("page {}: {e}", page.saturating_add(1)));
         }
         encode_png(r.width, r.height, &r.rgba)
     }
@@ -213,9 +213,9 @@ impl Exporter {
                             }
                             let img = if page < count {
                                 catch_unwind(AssertUnwindSafe(|| draw_image(renderer, page, dpi, format, used)))
-                                    .unwrap_or_else(|_| Err(format!("page {}: the export crashed", page + 1)))
+                                    .unwrap_or_else(|_| Err(format!("page {}: the export crashed", page.saturating_add(1))))
                             } else {
-                                Err(format!("page {} does not exist", page + 1))
+                                Err(format!("page {} does not exist", page.saturating_add(1)))
                             };
                             if tx.send((i, img)).is_err() {
                                 break;
@@ -238,7 +238,7 @@ impl Exporter {
                             ready.insert(i, img);
                         }
                         Err(_) => {
-                            result = Err(format!("page {}: the export stopped unexpectedly", page + 1));
+                            result = Err(format!("page {}: the export stopped unexpectedly", page.saturating_add(1)));
                             break;
                         }
                     }
@@ -290,7 +290,7 @@ impl Exporter {
         let r = self.renderer.render(RenderRequest { page, kind: RequestKind::Text, scale: 1.0, ..Default::default() });
         match r.text {
             Some(t) => Ok(t.plain_text()),
-            None => Err(format!("page {}: {}", page + 1, r.error.unwrap_or_else(|| "no text layer".into()))),
+            None => Err(format!("page {}: {}", page.saturating_add(1), r.error.unwrap_or_else(|| "no text layer".into()))),
         }
     }
 

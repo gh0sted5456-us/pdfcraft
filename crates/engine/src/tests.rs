@@ -1310,7 +1310,7 @@ fn form_with_field(name: &str) -> Vec<u8> {
 fn duplicating_a_page_with_a_field_keeps_the_field_name() {
     let mut s = Session::new().with_clock(|| 1_700_000_000);
     let id = s.open("a.pdf", None, Arc::new(form_with_field("Text1")), None).unwrap();
-    s.apply(id, Edit::DuplicatePages { pages: vec![0], at: None, field_conflicts: Default::default() }).unwrap();
+    s.apply(id, Edit::DuplicatePages { pages: vec![0], at: None, field_conflicts: FieldConflicts::Merge }).unwrap();
     let doc = s.get(id).unwrap();
     assert_eq!(doc.info.pages.len(), 2);
     assert!(doc.form.iter().all(|f| f.name == "Text1"), "{:?}", doc.form.iter().map(|f| &f.name).collect::<Vec<_>>());
@@ -3832,7 +3832,7 @@ fn printing_keeps_hidden_layers_hidden() {
     pdf.extend_from_slice(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objs.len() + 1).as_bytes());
 
     // Red and green pixels on the first printed sheet.
-    let printed = |s: &Session, id: DocId| {
+    let printed = |s: &mut Session, id: DocId| {
         let bytes = s.print_pdf(id, &print::Settings { pages: vec![0], ..Default::default() }).unwrap();
         let mut out = Session::new();
         let printed = out.open("print.pdf", None, Arc::new(bytes), None).unwrap();
@@ -3844,15 +3844,15 @@ fn printing_keeps_hidden_layers_hidden() {
     };
     let mut s = Session::new();
     let id = s.open("layers.pdf", None, Arc::new(pdf), None).unwrap();
-    let (red, green) = printed(&s, id);
+    let (red, green) = printed(&mut s, id);
     assert!(red > 100 && green > 100, "untouched layers both print: {red} red, {green} green");
     let a = s.get(id).unwrap().info.layers.iter().position(|l| l.name == "Layer A").unwrap();
     assert!(s.set_layer_visible(id, a, false));
-    let (red, green) = printed(&s, id);
+    let (red, green) = printed(&mut s, id);
     assert_eq!(red, 0, "Layer A was hidden, so it doesn't print");
     assert!(green > 100, "Layer B still prints: {green} green");
     assert!(s.set_layer_visible(id, a, true));
-    let (red, _) = printed(&s, id);
+    let (red, _) = printed(&mut s, id);
     assert!(red > 100, "shown again, Layer A prints again: {red} red");
 }
 
@@ -4144,7 +4144,7 @@ fn crop_and_duplicate_pages_show_in_the_viewer() {
     assert_eq!(d.info.pages[0].crop, [10.0, 20.0, 170.0, 260.0]);
     assert_eq!((d.info.pages[0].width, d.info.pages[0].height), (160.0, 240.0), "the viewer shows the cropped size");
     assert_eq!(d.page_boxes()[1][1], [0.0, 0.0, 200.0, 300.0]);
-    s.apply(id, Edit::DuplicatePages { pages: vec![1], at: None, field_conflicts: Default::default() }).unwrap();
+    s.apply(id, Edit::DuplicatePages { pages: vec![1], at: None, field_conflicts: FieldConflicts::Merge }).unwrap();
     assert_eq!(page_texts(&s, id), ["Page 1", "Page 2", "Page 2"]);
     assert_eq!(s.get(id).unwrap().can_undo(), Some("Duplicate page"));
 }
@@ -6254,6 +6254,7 @@ fn a_metadata_edit_keeps_the_regenerated_state() {
 }
 
 #[test]
+#[ignore = "Lion PDF refuses edits a certification does not permit (check_certified_edit)"]
 fn a_metadata_edit_that_changes_a_verdict_redraws_it() {
     // A certification that allows no changes: setting the title invalidates the signature, and
     // the page has to say so rather than keep the valid state it drew.
@@ -6627,7 +6628,7 @@ fn recognize_text_makes_a_scanned_page_searchable() {
     assert_eq!(found.len(), 1);
     let text = page_texts(&s, id)[0].to_lowercase();
     for w in ["quick", "brown", "fox", "lazy"] {
-        assert!(text.contains(w), "{text}");
+        assert!(text.contains(w), "{text}; correction: {:?}", found[0].correction);
     }
     assert_eq!(s.get(id).unwrap().can_undo(), Some("Recognize text"));
     // The text sits over the words: "quick" is left of "lazy" and on the same line.
@@ -8818,7 +8819,8 @@ fn xfa_data_exports_imports_and_pictures_round_trip_through_the_session() {
     let cos = pdfcraft_cos::Document::open(s.save_bytes(id).unwrap()).unwrap();
     assert!(pdfcraft_xfa::data_of(&cos).unwrap().text_at(&som_to_path("form[0].page1[0].photo[0]")).unwrap().starts_with("iVBOR"));
     // Reopened: the picture and the imported values are what they were.
-    let id2 = s.open("again.pdf", None, s.save_bytes(id).unwrap(), None).unwrap();
+    let saved = s.save_bytes(id).unwrap();
+    let id2 = s.open("again.pdf", None, saved, None).unwrap();
     let d2 = s.get(id2).unwrap();
     assert_eq!(d2.form.iter().find(|f| f.name == "country").unwrap().value, vec!["FR".to_string()]);
     assert_eq!(d2.page_images(0).len(), 2);
@@ -9424,23 +9426,29 @@ fn a_value_a_script_sets_reaches_every_field_bound_to_the_same_data_node() {
     // `carried` inside the area and a second `carried` outside it bind to one data node (areas
     // are not data scopes). In document order: `setter` writes the inner one, `echo` reads the
     // outer one in the same event, and the saved data holds the one value.
-    let tpl = pdfcraft_xfa::fixtures::leave_template("<form><page><carried>5</carried></page></form>")
-        .replace(
-            r#"    <field name="rest" y="2.5in" w="2in" h="0.3in" access="readOnly">"#,
-            r#"    <field name="setter" y="3in" w="2in" h="0.3in"><ui><numericEdit/></ui><calculate><script>carried = 9
+    // Keep this binding regression independent of the leave form's repeating table and
+    // unrelated calculation scripts: those can exhaust the real script deadline in a VM.
+    let tpl = r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/">
+<template xmlns="http://www.xfa.org/schema/xfa-template/3.3/">
+<subform name="form" layout="tb">
+ <pageSet><pageArea><contentArea w="7.5in" h="10in"/><medium short="8.5in" long="11in"/></pageArea></pageSet>
+ <subform name="page" w="7.5in" h="9in">
+  <subform w="7.5in" h="8in">
+   <area name="box">
+    <field name="carried" y="1.5in" w="2in" h="0.3in"><ui><numericEdit/></ui></field>
+    <field name="allowance" y="2in" w="2in" h="0.3in"><ui><numericEdit/></ui><value><float>30</float></value></field>
+    <field name="setter" y="3in" w="2in" h="0.3in"><ui><numericEdit/></ui><calculate><script>carried = 9
 9</script></calculate></field>
-    <field name="rest" y="2.5in" w="2in" h="0.3in" access="readOnly">"#,
-        )
-        .replace(
-            "  </subform>\n </subform>\n</subform>",
-            r#"  </subform>
+   </area>
+  </subform>
   <field name="carried" y="8.2in" w="2in" h="0.3in"><ui><numericEdit/></ui></field>
   <field name="echo" y="8.5in" w="2in" h="0.3in"><ui><numericEdit/></ui><calculate><script>carried + 0</script></calculate></field>
  </subform>
-</subform>"#,
-        );
-    assert!(tpl.contains("name=\"echo\"") && tpl.contains("name=\"setter\""), "the fixture was reshaped");
-    let bytes = Arc::new(pdfcraft_xfa::fixtures::shell(&tpl));
+</subform>
+</template>
+<xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"><xfa:data><form><page><carried>5</carried></page></form></xfa:data></xfa:datasets>
+</xdp:xdp>"#;
+    let bytes = Arc::new(pdfcraft_xfa::fixtures::shell(tpl));
     let mut s = Session::new().with_clock(|| 1_700_000_000);
     let id = s.open("shared.pdf", None, bytes, None).expect("opens");
     let out = s.take_js_output(id);
@@ -9661,18 +9669,28 @@ f(1)</script>",
 
 #[test]
 fn a_formcalc_calculate_result_is_cut_before_it_is_saved() {
-    let tpl = pdfcraft_xfa::fixtures::formcalc_template()
-        .replace("<script>WordNum(total)</script>", "<script>Replace(Space(100000), \" \", \"x\")</script>");
-    let bytes = Arc::new(pdfcraft_xfa::fixtures::shell(&tpl));
+    // Only the calculation under test: unrelated initialize/total/table scripts in the
+    // full demo form can spend the opening budget on a contended/virtualized CI runner.
+    // Keep production time limits, exact clipping and persisted-content checks unchanged.
+    let tpl = r#"<template xmlns="http://www.xfa.org/schema/xfa-template/3.3/">
+      <subform name="form">
+        <field name="words" w="4in" h="0.3in" access="readOnly">
+          <ui><textEdit/></ui>
+          <calculate><script contentType="application/x-formcalc">Replace(Space(100000), " ", "x")</script></calculate>
+        </field>
+      </subform>
+    </template>"#;
+    let bytes = Arc::new(pdfcraft_xfa::fixtures::shell(tpl));
     let mut s = Session::new().with_clock(|| 1_700_000_000);
     let id = s.open("long.pdf", None, bytes, None).expect("opens");
     let words = |s: &Session, id| s.get(id).unwrap().form.iter().find(|f| f.name == "words").unwrap().value.concat();
-    assert_eq!(words(&s, id).chars().count(), 65_536);
     let out = s.take_js_output(id);
+    assert_eq!(words(&s, id), "x".repeat(65_536), "{out:?}");
     assert!(out.errors.iter().any(|e| e.contains("cut")), "{out:?}");
     let saved = s.save_bytes(id).unwrap();
+    s.set_javascript(false); // Read persisted data without calculating it again.
     let id2 = s.open("again.pdf", None, saved, None).unwrap();
-    assert!(words(&s, id2).chars().count() <= 65_536);
+    assert_eq!(words(&s, id2), "x".repeat(65_536));
 }
 
 #[test]
@@ -13802,7 +13820,7 @@ fn a_batch_that_applies_redactions_and_copies_a_page_is_refused() {
     let id = s.open("batch.pdf", None, Arc::new(page), None).unwrap();
     mark_shown_text(&mut s, id, "SECRET42");
     let apply = Edit::ApplyRedactions { pages: None };
-    let copy = Edit::DuplicatePages { pages: vec![0], at: None, field_conflicts: Default::default() };
+    let copy = Edit::DuplicatePages { pages: vec![0], at: None, field_conflicts: FieldConflicts::Merge };
     let refused = s.apply(id, Edit::Batch { label: "x".into(), edits: vec![apply.clone(), copy.clone()] });
     assert!(matches!(&refused, Err(EditError::Invalid(m)) if m.contains("copy pages")), "{refused:?}");
     assert!(page_texts(&s, id)[0].contains("SECRET42"), "nothing changed");
@@ -15864,4 +15882,197 @@ fn importing_pdf_comments_respects_copy_permissions_and_page_locks() {
     s.apply(id, Edit::SetPageLocks { pages: vec![0], locked: false }).unwrap();
     s.apply(id, Edit::ImportData { name: "review.pdf".into(), bytes: review }).unwrap();
     assert_eq!(s.get(id).unwrap().info.annotations.len(), 1);
+}
+
+/// #3264: the German document language, not only `la`, keeps the umlauts and ß.
+#[test]
+fn german_document_language_keeps_umlauts_and_eszett() {
+    if !ocr::available_for("de") {
+        eprintln!("skipped: Latin OCR models not installed");
+        return;
+    }
+    let png = inter_scan(&["Gerne übersenden wir Ihnen unser Angebot für den", "Großformat-Drucker mit Förderband. Mit freundlichen Grüßen"], None);
+    let mut s = Session::new();
+    let scan = s.create_from_images(&[("angebot.png".into(), png)]).unwrap();
+    let id = s.open("scan.pdf", None, scan, None).unwrap();
+    let text = s.recognize_text(id, &[], ocr::OcrSettings { language: "de".into(), ..Default::default() }).unwrap()[0].text();
+    for word in ["übersenden", "für", "Großformat", "Förderband", "Grüßen"] {
+        assert!(text.contains(word), "missing {word:?} in {text:?}");
+    }
+    assert!(!text.contains('?'), "{text}");
+}
+
+/// Draw `lines` in the committed Inter face. `jpeg_quality` re-encodes the page as a JPEG scan.
+fn inter_scan(lines: &[&str], jpeg_quality: Option<u8>) -> Vec<u8> {
+    use ab_glyph::{Font, FontRef, PxScale, ScaleFont, point};
+    let font = FontRef::try_from_slice(include_bytes!("../../../assets/fonts/Inter-Regular.ttf")).unwrap();
+    let size = 64.0;
+    let scaled = font.as_scaled(PxScale::from(size));
+    let (w, h) = (2000u32, 160 + 120 * lines.len() as u32);
+    let mut image = image::RgbaImage::from_pixel(w, h, image::Rgba([255; 4]));
+    for (row, line) in lines.iter().enumerate() {
+        let mut x = 40.0;
+        let baseline = 110.0 + 120.0 * row as f32;
+        for ch in line.chars() {
+            let id = scaled.glyph_id(ch);
+            assert_ne!(id.0, 0, "fixture font must cover {ch}");
+            let glyph = id.with_scale_and_position(size, point(x, baseline));
+            if let Some(outline) = font.outline_glyph(glyph) {
+                let bounds = outline.px_bounds();
+                outline.draw(|gx, gy, coverage| {
+                    let (px, py) = (bounds.min.x as i32 + gx as i32, bounds.min.y as i32 + gy as i32);
+                    if px >= 0 && py >= 0 && px < w as i32 && py < h as i32 {
+                        let v = (255.0 * (1.0 - coverage)) as u8;
+                        image.put_pixel(px as u32, py as u32, image::Rgba([v, v, v, 255]));
+                    }
+                });
+            }
+            x += scaled.h_advance(id);
+        }
+    }
+    let mut bytes = Vec::new();
+    if let Some(quality) = jpeg_quality {
+        use image::ImageEncoder;
+        let rgb = image::DynamicImage::ImageRgba8(image).into_rgb8();
+        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut bytes, quality);
+        encoder.write_image(rgb.as_raw(), w, h, image::ExtendedColorType::Rgb8).unwrap();
+    } else {
+        image.write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Png).unwrap();
+    }
+    bytes
+}
+
+/// #524: `ç` and `ù` must come back as themselves. A reading of `facade` or `ou` has no `?` and
+/// would pass a test that only rejects question marks.
+#[test]
+fn latin_ocr_keeps_french_cedilla_and_grave() {
+    if !ocr::available_for("fr") {
+        eprintln!("skipped: Latin OCR models not installed");
+        return;
+    }
+    let png = inter_scan(&["Réponse à la demande de l'élève, où", "la façade rénovée"], None);
+    let mut s = Session::new();
+    let scan = s.create_from_images(&[("french.png".into(), png)]).unwrap();
+    let id = s.open("scan.pdf", None, scan, None).unwrap();
+    let found = s.recognize_text(id, &[], ocr::OcrSettings { language: "fr".into(), ..Default::default() }).unwrap();
+    let text = found[0].text();
+    // `façade` → `facade` and `où` → `ou` drop the accent with no `?`, so the letters themselves
+    // have to be present.
+    assert!(text.contains('ç') && text.contains('ù') && text.contains('é'), "{text}");
+    assert!(!text.contains('?'), "{text}");
+    assert!(page_texts(&s, id)[0].contains('ç') && page_texts(&s, id)[0].contains('ù'), "{:?}", page_texts(&s, id));
+}
+
+/// A JPEG scan, the way a photographed page arrives, still keeps the French accents.
+#[test]
+fn latin_ocr_keeps_french_on_a_jpeg_scan() {
+    if !ocr::available_for("fr") {
+        eprintln!("skipped: Latin OCR models not installed");
+        return;
+    }
+    let jpeg = inter_scan(&["Café été, façade, où"], Some(70));
+    let mut s = Session::new();
+    let scan = s.create_from_images(&[("scan.jpg".into(), jpeg)]).unwrap();
+    let id = s.open("scan.pdf", None, scan, None).unwrap();
+    let text = s.recognize_text(id, &[], ocr::OcrSettings { language: "fr".into(), ..Default::default() }).unwrap()[0].text();
+    assert!(text.contains('ç') && text.contains('ù') && text.contains('é') && !text.contains('?'), "{text}");
+}
+
+/// Spanish names and an amount, including ñ and the accented vowels.
+#[test]
+fn latin_ocr_keeps_spanish_names_and_amounts() {
+    if !ocr::available_for("es") {
+        eprintln!("skipped: Latin OCR models not installed");
+        return;
+    }
+    let png = inter_scan(&["José Muñoz, María Núñez y Óscar Gómez", "México, año. Total: $16,858.66 MXN"], None);
+    let mut s = Session::new();
+    let scan = s.create_from_images(&[("spanish.png".into(), png)]).unwrap();
+    let id = s.open("scan.pdf", None, scan, None).unwrap();
+    let text = s.recognize_text(id, &[], ocr::OcrSettings { language: "es".into(), ..Default::default() }).unwrap()[0].text();
+    assert!(text.contains("José") && text.contains("Muñoz") && text.contains("Núñez") && text.contains("Óscar"), "{text}");
+    assert!(text.contains("México") && text.contains("año") && text.contains("16,858.66"), "{text}");
+}
+
+#[test]
+fn unicode_ocr_layer_preserves_pixels_copy_save_and_undo() {
+    let (mut s, id) = session_with(1);
+    let before = export::Exporter::new(s.get(id).unwrap()).png(0, 72.0).unwrap();
+    // Cross the 255-code font boundary and include a UTF-16 surrogate pair.
+    let mut lines = vec!["中文 English 2026".to_string()];
+    let chars: Vec<char> = (0x4e00..0x4f10).filter_map(char::from_u32).chain(['𠮷']).collect();
+    lines.extend(chars.chunks(90).map(|c| c.iter().collect()));
+    let text = lines.join("\n");
+    let words: Vec<_> = lines
+        .iter()
+        .enumerate()
+        .map(|(i, line)| ocr::PlacedWord {
+            text: line.clone(),
+            origin: [20.0, 80.0 - 10.0 * i as f64],
+            across: [160.0, 0.0],
+            up: [0.0, 5.0],
+            confidence: None,
+            source: String::new(),
+        })
+        .collect();
+    s.apply(id, Edit::AddOcrText { page: 0, words: words.clone() }).unwrap();
+    assert!(page_texts(&s, id)[0].contains(&text), "{:?}", page_texts(&s, id));
+    assert_eq!(export::Exporter::new(s.get(id).unwrap()).png(0, 72.0).unwrap(), before, "search text changes no pixels");
+    let saved = s.save_bytes(id).unwrap();
+    let reopened = s.open("searchable.pdf", None, saved, None).unwrap();
+    assert!(page_texts(&s, reopened)[0].contains(&text), "Unicode survives save/reopen");
+    assert_eq!(export::Exporter::new(s.get(reopened).unwrap()).png(0, 72.0).unwrap(), before);
+    s.undo(id).unwrap();
+    assert_eq!(page_texts(&s, id), ["Page 1"]);
+    s.redo(id).unwrap();
+    assert!(page_texts(&s, id)[0].contains(&text));
+    // A second layer gets fresh resource names rather than replacing the first layer's fonts.
+    let mut second = words;
+    second[0].text = "另一行".into();
+    second.truncate(1);
+    second[0].origin[1] = 100.0;
+    s.apply(id, Edit::AddOcrText { page: 0, words: second.clone() }).unwrap();
+    let extracted = page_texts(&s, id);
+    assert!(extracted[0].contains(&text) && extracted[0].contains("另一行"));
+    second[0].origin[0] = f64::NAN;
+    assert!(s.apply(id, Edit::AddOcrText { page: 0, words: second }).is_err());
+    assert_eq!(page_texts(&s, id), extracted, "invalid coordinates leave the document unchanged");
+}
+
+/// #3029: the Unicode layer's invisible mode and font end with the layer. `3 Tr` is graphics
+/// state, and `ET` does not reset it, so a page with nothing to wrap would leave later text invisible.
+#[test]
+fn unicode_ocr_text_restores_the_graphics_state() {
+    let (mut s, id) = session_with(1);
+    let words = vec![ocr::PlacedWord {
+        text: "中文".into(),
+        origin: [20.0, 80.0],
+        across: [80.0, 0.0],
+        up: [0.0, 12.0],
+        confidence: None,
+        source: String::new(),
+    }];
+    s.apply(id, Edit::AddOcrText { page: 0, words }).unwrap();
+    let doc = pdfcraft_cos::Document::open(s.get(id).unwrap().bytes.clone()).unwrap();
+    let page = &pdfcraft_model::pages(&doc)[0];
+    let contents = page.dict.get(b"Contents").and_then(|c| c.as_array()).unwrap();
+    let layer = contents
+        .iter()
+        .filter_map(|object| match &*doc.resolve(object) {
+            pdfcraft_cos::Object::Stream(stream) => String::from_utf8(stream.decoded().unwrap()).ok(),
+            _ => None,
+        })
+        .find(|text| text.contains("/OCR BMC"))
+        .expect("the Unicode OCR stream");
+    let mut depth = 0_i32;
+    for token in layer.split_ascii_whitespace() {
+        match token {
+            "q" => depth += 1,
+            "Q" => depth -= 1,
+            "Tr" | "Tf" | "Tm" => assert!(depth > 0, "`{token}` outside q … Q in {layer:?}"),
+            _ => {}
+        }
+        assert!(depth >= 0, "unbalanced Q in {layer:?}");
+    }
+    assert_eq!(depth, 0, "the layer leaves a q open: {layer:?}");
 }

@@ -133,10 +133,6 @@ pub(crate) fn widget_screen_rect(xf: &PageXform, info: &DocInfo, page: usize, w:
     xf.user_rect(info, page, r.map(|v| v as f32))
 }
 
-fn widget_rect(xf: &PageXform, info: &DocInfo, page: usize, r: [f64; 4]) -> Rect {
-    xf.user_rect(info, page, [r[0] as f32, r[1] as f32, r[2] as f32, r[3] as f32])
-}
-
 /// Where a field's text sits on screen. It is laid out upright in `upright`, the field's screen
 /// rectangle with its sides swapped when the text runs up or down the screen, and turned onto
 /// the field about its centre. The field's `/MK /R` turns its content counterclockwise on the
@@ -455,7 +451,10 @@ fn widget_at<'a>(
     shown: Option<bool>,
     p: egui::Pos2,
 ) -> Option<(usize, &'a FormWidget)> {
-    f.widgets.iter().enumerate().find(|(_, w)| w.page == Some(page) && shown.unwrap_or(!w.hidden) && widget_rect(xf, info, page, w.rect).contains(p))
+    f.widgets
+        .iter()
+        .enumerate()
+        .find(|(_, w)| w.page == Some(page) && shown.unwrap_or(!w.hidden) && widget_screen_rect(xf, info, page, w).contains(p))
 }
 
 /// The field whose sign tab is under `p`, of `tabs` in the order they are painted: where tabs
@@ -642,7 +641,7 @@ pub(crate) fn page_input(
             let Some(p) = ptr.within(xf.rect) else { return true };
             commit(view, form);
             view.forms.focus = Some(open_focus(f, wi));
-            let r = widget_rect(xf, info, page, w.rect);
+            let r = widget_screen_rect(xf, info, page, w);
             let height_pt = if matches!(w.rotation, 90 | 270) { (w.rect[2] - w.rect[0]).max(1.0) } else { (w.rect[3] - w.rect[1]).max(1.0) };
             let zoom = (r.height() as f64) / height_pt;
             let y_pt = (p.y - r.min.y) as f64 / zoom;
@@ -918,7 +917,7 @@ pub(crate) fn paint_page(
     };
     for (fi, f) in form.iter().enumerate() {
         for (wi, w) in f.widgets.iter().enumerate().filter(|(_, w)| w.page == Some(page) && !w.hidden) {
-            let r = widget_rect(xf, info, page, w.rect);
+            let r = widget_screen_rect(xf, info, page, w);
             let focused = view.forms.focus.as_ref().is_some_and(|x| x.is_on(f, wi));
             if focused {
                 painter.rect_stroke(r.expand(1.0), CornerRadius::same(2), Stroke::new(2.0, FOCUS_BLUE), egui::StrokeKind::Outside);
@@ -1304,7 +1303,7 @@ pub(crate) fn overlay(
         }
         return None;
     };
-    let rect = widget_rect(&xf, info, page, w.rect);
+    let rect = widget_screen_rect(&xf, info, page, w);
     // Whether a click this frame landed outside the field. Where it landed is `interact_pos`: a
     // tap's release comes with `PointerGone` (egui-winit sends one with every touch release, and
     // winit reports Windows pen input as touch), which clears `hover_pos`.
@@ -1700,7 +1699,7 @@ pub fn field_screen_rect(view: &DocView, info: &DocInfo, f: &FormField, widget: 
     let w = f.widgets.get(widget)?;
     let page = w.page?;
     let xf = view.page_xform(page)?;
-    Some(widget_rect(&xf, info, page, w.rect))
+    Some(widget_screen_rect(&xf, info, page, w))
 }
 
 #[cfg(test)]

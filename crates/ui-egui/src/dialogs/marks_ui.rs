@@ -61,20 +61,24 @@ impl PageRange {
         ui.horizontal_wrapped(|ui| {
             widgets::radio_value(ui, &mut self.all, true, tl!("All pages"));
             widgets::radio_value(ui, &mut self.all, false, tl!("Pages from"));
-            ui.add_enabled(!self.all, egui::DragValue::new(&mut self.from).range(1..=count.max(1)));
+            ui.add_enabled(!self.all, egui::DragValue::new(&mut self.from).range(1..=count.max(1))).accessible_name(tl!("First page"));
             ui.label(tl!("to"));
-            ui.add_enabled(!self.all, egui::DragValue::new(&mut self.to).range(1..=count.max(1)));
-            ui.label(tl!("Subset"));
+            ui.add_enabled(!self.all, egui::DragValue::new(&mut self.to).range(1..=count.max(1))).accessible_name(tl!("Last page"));
+            let subset_label = ui.label(tl!("Subset"));
             let label = match self.subset {
                 Subset::All => tl!("All pages in range"),
                 Subset::Even => tl!("Even pages only"),
                 Subset::Odd => tl!("Odd pages only"),
             };
-            craft_ui::ComboBox::from_id_salt("mark-subset").selected_text(label).show_ui(ui, |ui| {
-                ui.selectable_value(&mut self.subset, Subset::All, tl!("All pages in range"));
-                ui.selectable_value(&mut self.subset, Subset::Even, tl!("Even pages only"));
-                ui.selectable_value(&mut self.subset, Subset::Odd, tl!("Odd pages only"));
-            });
+            craft_ui::ComboBox::from_id_salt("mark-subset")
+                .selected_text(label)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut self.subset, Subset::All, tl!("All pages in range"));
+                    ui.selectable_value(&mut self.subset, Subset::Even, tl!("Even pages only"));
+                    ui.selectable_value(&mut self.subset, Subset::Odd, tl!("Odd pages only"));
+                })
+                .response
+                .labelled_by(subset_label.id);
         });
     }
 }
@@ -484,25 +488,34 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
             MarkKind::HeaderFooter => {
                 ui.horizontal_wrapped(|ui| {
                     // The standard faces a header can be drawn in (#3754).
-                    ui.label(tl!("Font:"));
-                    craft_ui::ComboBox::from_id_salt("hf-font").selected_text(d.hf.font.label()).width(100.0).show_ui(ui, |ui| {
-                        for f in [FontFamily::Helvetica, FontFamily::Times, FontFamily::Courier] {
-                            ui.selectable_value(&mut d.hf.font, f, f.label());
-                        }
-                    });
-                    ui.label(tl!("Size"));
-                    ui.add(egui::DragValue::new(&mut d.hf.font_size).range(4.0..=72.0).speed(0.5));
+                    let font_label = ui.label(tl!("Font:"));
+                    craft_ui::ComboBox::from_id_salt("hf-font")
+                        .selected_text(d.hf.font.label())
+                        .width(100.0)
+                        .show_ui(ui, |ui| {
+                            for f in [FontFamily::Helvetica, FontFamily::Times, FontFamily::Courier] {
+                                ui.selectable_value(&mut d.hf.font, f, f.label());
+                            }
+                        })
+                        .response
+                        .labelled_by(font_label.id);
+                    let size_label = ui.label(tl!("Size"));
+                    ui.add(egui::DragValue::new(&mut d.hf.font_size).range(4.0..=72.0).speed(0.5)).labelled_by(size_label.id);
                     ui.add(widgets::checkbox(&mut d.hf.underline, tl!("Underline")));
                     color_button(ui, &mut d.hf.color);
                     ui.add_space(16.0);
                     ui.label(format!("{} ({})", tl!("Margins"), units.label()));
                     let per = units.per_point();
                     for (label, k) in [(tl!("Top"), 0), (tl!("Bottom"), 1), (tl!("Left"), 2), (tl!("Right"), 3)] {
-                        ui.label(label);
+                        let margin_label = ui.label(label);
                         let mut v = d.hf.margins[k] * per;
                         // Up to 10 inches, whatever the unit.
                         let max = 720.0 * per;
-                        if ui.add(egui::DragValue::new(&mut v).range(0.0..=max).speed(units.speed()).max_decimals(units.decimals())).changed() {
+                        if ui
+                            .add(egui::DragValue::new(&mut v).range(0.0..=max).speed(units.speed()).max_decimals(units.decimals()))
+                            .labelled_by(margin_label.id)
+                            .changed()
+                        {
                             d.hf.margins[k] = v / per;
                         }
                     }
@@ -516,7 +529,9 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
                         ui.end_row();
                         for col in 0..3 {
                             let k = row * 3 + col;
-                            let r = ui.add_sized([220.0, 40.0], crate::widgets::block(&mut d.hf.text[k]).desired_rows(2).id_salt(("hf-box", k)));
+                            let r = ui
+                                .add_sized([220.0, 40.0], crate::widgets::block(&mut d.hf.text[k]).desired_rows(2).id_salt(("hf-box", k)))
+                                .accessible_name(tl!(BOX_NAMES[k]));
                             if r.gained_focus() || r.has_focus() {
                                 d.focused_box = k;
                             }
@@ -525,32 +540,34 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
                     }
                 });
                 ui.horizontal_wrapped(|ui| {
-                    craft_ui::ComboBox::from_id_salt("hf-page-format").selected_text(PAGE_FORMATS[d.page_format].trim_matches(['<', '>'])).show_ui(
-                        ui,
-                        |ui| {
+                    craft_ui::ComboBox::from_id_salt("hf-page-format")
+                        .selected_text(PAGE_FORMATS[d.page_format].trim_matches(['<', '>']))
+                        .show_ui(ui, |ui| {
                             for (k, f) in PAGE_FORMATS.iter().enumerate() {
                                 ui.selectable_value(&mut d.page_format, k, f.trim_matches(['<', '>']));
                             }
-                        },
-                    );
+                        })
+                        .response
+                        .accessible_name(tl!("Page number format"));
                     if ui.button(tl!("Insert Page Number")).clicked() {
                         d.hf.text[d.focused_box].push_str(PAGE_FORMATS[d.page_format]);
                     }
                     ui.add_space(12.0);
-                    craft_ui::ComboBox::from_id_salt("hf-date-format").selected_text(DATE_FORMATS[d.date_format].trim_matches(['<', '>'])).show_ui(
-                        ui,
-                        |ui| {
+                    craft_ui::ComboBox::from_id_salt("hf-date-format")
+                        .selected_text(DATE_FORMATS[d.date_format].trim_matches(['<', '>']))
+                        .show_ui(ui, |ui| {
                             for (k, f) in DATE_FORMATS.iter().enumerate() {
                                 ui.selectable_value(&mut d.date_format, k, f.trim_matches(['<', '>']));
                             }
-                        },
-                    );
+                        })
+                        .response
+                        .accessible_name(tl!("Date format"));
                     if ui.button(tl!("Insert Date")).clicked() {
                         d.hf.text[d.focused_box].push_str(DATE_FORMATS[d.date_format]);
                     }
                     ui.add_space(12.0);
-                    ui.label(tl!("Start page number"));
-                    ui.add(egui::DragValue::new(&mut d.hf.start_number).range(1..=999_999));
+                    let start_label = ui.label(tl!("Start page number"));
+                    ui.add(egui::DragValue::new(&mut d.hf.start_number).range(1..=999_999)).labelled_by(start_label.id);
                 });
                 ui.add(widgets::checkbox(&mut d.hf.shrink, tl!("Shrink the page content to make room for the header and footer")));
             }
@@ -566,37 +583,38 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.add_enabled_ui(!d.use_file, |ui| {
-                            ui.label(tl!("Text"));
+                            let text_label = ui.label(tl!("Text"));
                             ui.add(
                                 crate::widgets::block(&mut d.wm.text)
                                     .desired_rows(2)
                                     .desired_width(320.0)
                                     .hint_text("CONFIDENTIAL")
                                     .id_salt("wm-text"),
-                            );
+                            )
+                            .labelled_by(text_label.id);
                         });
                         ui.horizontal_wrapped(|ui| {
                             ui.add_enabled_ui(!d.use_file, |ui| ui.add(widgets::checkbox(&mut d.fit, tl!("Fit to page"))));
                             ui.add_enabled_ui(!d.fit, |ui| {
-                                ui.label(tl!("Size"));
+                                let size_label = ui.label(tl!("Size"));
                                 if d.wm.font_size == 0.0 {
                                     d.wm.font_size = 72.0;
                                 }
-                                ui.add(egui::DragValue::new(&mut d.wm.font_size).range(6.0..=300.0));
+                                ui.add(egui::DragValue::new(&mut d.wm.font_size).range(6.0..=300.0)).labelled_by(size_label.id);
                             });
                             color_button(ui, &mut d.wm.color);
                         });
                         ui.horizontal_wrapped(|ui| {
-                            ui.label(tl!("Rotation"));
+                            let rotation_label = ui.label(tl!("Rotation"));
                             for r in [-45.0, 0.0, 45.0] {
                                 widgets::radio_value(ui, &mut d.wm.rotation, r, if r == 0.0 { tl!("None").to_string() } else { format!("{r}°") });
                             }
-                            ui.add(egui::DragValue::new(&mut d.wm.rotation).range(-180.0..=180.0).suffix("°"));
+                            ui.add(egui::DragValue::new(&mut d.wm.rotation).range(-180.0..=180.0).suffix("°")).labelled_by(rotation_label.id);
                         });
                         ui.horizontal_wrapped(|ui| {
-                            ui.label(tl!("Opacity"));
+                            let opacity = ui.label(tl!("Opacity"));
                             let mut pct = d.wm.opacity * 100.0;
-                            if ui.add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%")).changed() {
+                            if ui.add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%")).labelled_by(opacity.id).changed() {
                                 d.wm.opacity = pct / 100.0;
                             }
                         });
@@ -607,10 +625,11 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
                         });
                         ui.horizontal_wrapped(|ui| {
                             ui.label(tl!("Offset from centre"));
-                            ui.label(tl!("Horizontal"));
-                            ui.add(egui::DragValue::new(&mut d.wm.offset[0]).range(-MAX_OFFSET..=MAX_OFFSET).suffix(" pt"));
-                            ui.label(tl!("Vertical"));
-                            ui.add(egui::DragValue::new(&mut d.wm.offset[1]).range(-MAX_OFFSET..=MAX_OFFSET).suffix(" pt"));
+                            let horizontal = ui.label(tl!("Horizontal"));
+                            ui.add(egui::DragValue::new(&mut d.wm.offset[0]).range(-MAX_OFFSET..=MAX_OFFSET).suffix(" pt"))
+                                .labelled_by(horizontal.id);
+                            let vertical = ui.label(tl!("Vertical"));
+                            ui.add(egui::DragValue::new(&mut d.wm.offset[1]).range(-MAX_OFFSET..=MAX_OFFSET).suffix(" pt")).labelled_by(vertical.id);
                         });
                     });
                 });
@@ -627,9 +646,9 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
                     browse |= file_source(ui, d, MarkKind::Background);
                 }
                 ui.horizontal_wrapped(|ui| {
-                    ui.label(tl!("Opacity"));
+                    let opacity = ui.label(tl!("Opacity"));
                     let mut pct = d.bg.opacity * 100.0;
-                    if ui.add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%")).changed() {
+                    if ui.add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%")).labelled_by(opacity.id).changed() {
                         d.bg.opacity = pct / 100.0;
                     }
                 });
@@ -848,15 +867,15 @@ fn file_source(ui: &mut egui::Ui, d: &mut MarksDraft, kind: MarkKind) -> bool {
         }
         ui.label(d.file.as_ref().map(|f| f.0.clone()).unwrap_or_else(|| tl!("No file chosen").to_string()));
         if d.file.as_ref().is_some_and(|f| f.1.starts_with(b"%PDF")) {
-            ui.label(tl!("Page number"));
-            ui.add(egui::DragValue::new(&mut d.file_page).range(1..=9999));
+            let label = ui.label(tl!("Page number"));
+            ui.add(egui::DragValue::new(&mut d.file_page).range(1..=9999)).labelled_by(label.id);
         }
     });
     ui.horizontal_wrapped(|ui| {
-        ui.label(tl!("Scale relative to target page"));
+        let scale_label = ui.label(tl!("Scale relative to target page"));
         let scale = if kind == MarkKind::Background { &mut d.bg.scale } else { &mut d.wm.scale };
         let mut pct = *scale * 100.0;
-        if ui.add(egui::Slider::new(&mut pct, 5.0..=100.0).suffix("%")).changed() {
+        if ui.add(egui::Slider::new(&mut pct, 5.0..=100.0).suffix("%")).labelled_by(scale_label.id).changed() {
             *scale = pct / 100.0;
         }
     });

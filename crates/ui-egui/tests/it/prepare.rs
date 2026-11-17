@@ -416,6 +416,9 @@ fn retype_script(h: &mut Harness<'static, PdfCraftApp>, text: &str) {
 
 /// Pastes `text` into the script box where its cursor is.
 fn paste_script(h: &mut Harness<'static, PdfCraftApp>, text: &str) {
+    // Lion PDF: the dialog body scrolls; bring the box into view first.
+    h.get_by_role(Role::MultilineTextInput).scroll_to_me();
+    h.run_steps(2);
     h.get_by_role(Role::MultilineTextInput).click();
     h.run_steps(1);
     h.event(egui::Event::Paste(text.into()));
@@ -743,9 +746,9 @@ fn button_label_is_editable_without_renaming_the_field() {
     h.get_by_label("OK").click();
     h.run_steps(3);
 
-    let app = h.state();
+    let app = h.state_mut();
     let id = app.views[0].id;
-    let field = app.session.get(id).unwrap().form.iter().find(|f| f.name == "clear_button").unwrap();
+    let field = app.session.get(id).unwrap().form.iter().find(|f| f.name == "clear_button").unwrap().clone();
     let bytes = app.session.save_bytes(id).unwrap();
     let doc = pdfcraft_cos::Document::open(bytes).unwrap();
     let widget = doc.get(field.widgets[0].obj);
@@ -767,12 +770,12 @@ fn button_label_is_editable_without_renaming_the_field() {
     h.run_steps(2);
     h.get_by_label("Cancel").click();
     h.run_steps(2);
-    assert_eq!(h.state().session.save_bytes(id).unwrap(), before);
+    assert_eq!(h.state_mut().session.save_bytes(id).unwrap(), before);
     h.state_mut().open_field_props("clear_button", 0);
     h.run_steps(2);
     h.get_by_label("OK").click();
     h.run_steps(2);
-    assert_eq!(h.state().session.save_bytes(id).unwrap(), before);
+    assert_eq!(h.state_mut().session.save_bytes(id).unwrap(), before);
 }
 
 #[test]
@@ -823,7 +826,7 @@ fn choice_alignment(kind: pdfcraft_engine::NewField, label: &str, quadding: i64)
     let changed = field(&h);
     assert_eq!(changed.quadding, quadding);
     assert_eq!((changed.options, changed.value, changed.flags), (original.options, original.value, original.flags));
-    let app = h.state();
+    let app = h.state_mut();
     let id = app.views[0].id;
     assert_eq!(app.session.get(id).unwrap().can_undo(), Some("Change field properties"));
     let bytes = app.session.save_bytes(id).unwrap();

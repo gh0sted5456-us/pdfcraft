@@ -47,11 +47,6 @@ fn path_arg() -> Value {
 }
 
 /// Lion PDF: the OCR languages its engine reads.
-fn ocr_language() -> Value {
-    let codes: Vec<&str> = pdfcraft_engine::ocr::LANGUAGES.iter().map(|language| language.0).collect();
-    json!({ "type": "string", "enum": codes, "description": "Document language (default en)." })
-}
-
 fn selection_objects() -> Value {
     json!({"type":"array","minItems":1,"maxItems":1000,"uniqueItems":true,"description":"Original page-object references from object_list; use content_indices for added content.","items":{"type":"object","properties":{"kind":{"type":"string","enum":["text","image","path"]},"index":{"type":"integer","minimum":1}},"required":["kind","index"],"additionalProperties":false}})
 }
@@ -278,12 +273,13 @@ pub fn tools() -> Vec<ToolDef> {
             }), &["doc", "page"])),
         t("object_list", "List editable objects", "List existing paragraphs, Image/Form artwork, vector paths and added content once, with source kind/index references, displayed rectangles and document generation. Indexes change when content changes; use generation in object_move to reject stale references.")
             .ro().with(schema(json!({"doc":doc(),"page":{"type":"integer","minimum":1}}), &["doc","page"])),
-        t("object_move", "Move objects together", "Atomically translate 1–1000 mixed references from object_list by [dx, dy] in displayed points (right/down). Preserves glyph codes, fonts, image data and relative spacing; success is one undo step. Clipping and vertical text are refused. A bad/stale reference refuses the entire move.")
+        t("object_move", "Move objects together", "Atomically translate 1–1000 mixed references from object_list (or with all: true every object on the page) by [dx, dy] in displayed points (right/down). Preserves glyph codes, fonts, image data and relative spacing; success is one undo step. Text used as a clipping path and vertical text are refused. A bad/stale reference refuses the entire move.")
             .with(schema(json!({"doc":doc(),"page":{"type":"integer","minimum":1},
                 "objects":{"type":"array","minItems":1,"maxItems":1000,"uniqueItems":true,"items":{
                     "type":"object","properties":{"kind":{"type":"string","enum":["added","text","image","path"]},"index":{"type":"integer","minimum":1}},"required":["kind","index"],"additionalProperties":false}},
+                "all":{"type":"boolean","description":"Every object on the page, instead of objects."},
                 "offset":{"type":"array","items":{"type":"number"},"minItems":2,"maxItems":2},
-                "generation":{"type":"integer","minimum":0,"description":"Use generation returned by object_list to reject a stale selection."}}), &["doc","page","objects","offset"])),
+                "generation":{"type":"integer","minimum":0,"description":"Use generation returned by object_list to reject a stale selection."}}), &["doc","page","offset"])),
         t("object_align", "Align or distribute objects", "Align 2–1000 mixed objects to an edge or center of their selection, or distribute at least three objects with equal gaps. Uses displayed page orientation; preserves content and object sizes. One atomic undo step. References and optional generation come from object_list; a stale or unsupported selection refuses the entire edit.")
             .with(schema(json!({"doc":doc(),"page":{"type":"integer","minimum":1},
                 "objects":{"type":"array","minItems":2,"maxItems":1000,"uniqueItems":true,"items":{
@@ -1087,7 +1083,7 @@ pub fn tools() -> Vec<ToolDef> {
         t("doc_timestamp", "Timestamp a document", "Append an RFC 3161 document timestamp and atomically save to out. Requires --network and an explicit HTTPS server. No signing identity is needed; TSA trust is reported by sign_list, never assumed.")
             .cmd("sign.timestamp")
             .with(schema(json!({ "doc": doc(), "out": {"type": "string"}, "timestamp_server": {"type": "string"} }), &["doc", "out", "timestamp_server"])),
-        t("sign_document", "Sign a document", "Sign with a digital ID (a .p12/.pfx path, or on macOS a Keychain identity: \"keychain:<common name or fingerprint>\" from sign_keychain_ids, or on Windows a store identity: \"windows:<common name or fingerprint>\" from sign_windows_ids) and save the signed file to `out` (signing always saves, as in Acrobat; the document then shows the signed file). Sign an existing empty signature field (`field`), or a new one on `page` at `rect` (omit rect for an invisible signature). certify: no_changes, form_fill or comments makes a certification signature. graphic shows a picture where the signer's name would be large (Acrobat: Configure Signature Appearance): {\"image\": path} (PNG or JPEG), {\"text\": name} (typed in the Fill & Sign script font) or {\"strokes\": [[[x, y], …], …]} (y up, the drawing pad 1 wide); it needs a visible signature. appearance chooses what a visible signature shows (default: name, date and labels; reason, location and distinguished_name are off unless turned on). labels gives the words of its labels, e.g. in another language (default English: \"Digitally signed by\", \"DN: \", \"Reason: \", \"Location: \", \"Date: \"; include the separator); each must be in Western European characters (Windows-1252), the only ones the signature's font draws, or the call is refused naming the label and character. PAdES B-B, SHA-256 (SHA-384 for P-384 keys).")
+        t("sign_document", "Sign a document", "Sign with a digital ID (a .p12/.pfx path, or on macOS a Keychain identity: \"keychain:<common name or fingerprint>\" from sign_keychain_ids, or on Windows a store identity: \"windows:<common name or fingerprint>\" from sign_windows_ids) and save the signed file to `out` (signing always saves, as in Acrobat; the document then shows the signed file). Sign an existing empty signature field (`field`), or a new one on `page` at `rect` (omit rect for an invisible signature). certify: no_changes, form_fill or comments makes a certification signature. graphic shows a picture where the signer's name would be large (Acrobat: Configure Signature Appearance): {\"image\": path} (PNG or JPEG), {\"text\": name} (typed in the Fill & Sign script font) or {\"strokes\": [[[x, y], …], …]} (y up, the drawing pad 1 wide); it needs a visible signature. appearance chooses what a visible signature shows (default: name, date and labels; reason, location and distinguished_name are off unless turned on). labels gives the words of its labels, e.g. in another language (default English: \"Digitally signed by\", \"DN: \", \"Reason: \", \"Location: \", \"Date: \"; include the separator); each must be in Western European characters (Windows-1252), the only ones the signature's font draws, or the call is refused naming the label and character. PAdES B-B, SHA-256 (SHA-384 for P-384 keys). On a dynamic (XFA) form, run_form_scripts: true runs the field's own signing scripts: preSign just before signing, so what it changes is signed too (form_scripts.changed lists each field it changed, with the values before and after), and postSign after, left unsaved. Without it they don't run, and form_scripts.skipped says the field has them.")
             .cmd("sign.digital")
             .with(schema(
                 json!({
@@ -1142,6 +1138,7 @@ pub fn tools() -> Vec<ToolDef> {
                         "additionalProperties": false,
                     },
                     "out": { "type": "string", "description": "Where to save the signed document." },
+                    "run_form_scripts": { "type": "boolean", "description": "Run a dynamic form's preSign and postSign scripts for the field (default false)." },
                 }),
                 &["doc", "id", "out"],
             )),
@@ -1256,26 +1253,6 @@ pub fn tools() -> Vec<ToolDef> {
             "Add the comments of an XFDF text (from comments_copy) to `page` as new comments: copies under names of their own, so nothing in the document is replaced and pasting twice gives two sets; replies keep their copied parent. `at` [x, y] (points, origin at the top-left of the displayed page, y down, as comment_add takes them) puts the centre of the copies' bounding box there; without it they keep their positions. Undoable.",
         )
         .with(schema(json!({ "doc": doc(), "page": { "type": "integer", "minimum": 1 }, "xfdf": { "type": "string" }, "at": point() }), &["doc", "page", "xfdf"])),
-        t(
-            "doc_protect",
-            "Protect with passwords",
-            "Encrypt the document (applied by the next doc_save, a full rewrite). open_password is needed to open it. permissions_password is needed to change security and lifts the restrictions given by printing/changes/copy/accessibility; those restrictions (and their defaults) apply only when permissions_password is given. With open_password alone the document is encrypted and everything stays allowed, so passing a restriction without permissions_password is an error. Passwords are never echoed back. Undoable.",
-        )
-        .cmd("protect.password")
-        .with(schema(
-            json!({
-                "doc": doc(),
-                "open_password": { "type": "string", "minLength": 1, "description": "Required to open the document. On its own it restricts nothing." },
-                "permissions_password": { "type": "string", "minLength": 1, "description": "Required to change security; enables printing/changes/copy/accessibility and their defaults." },
-                "printing": { "type": "string", "enum": ["none", "low", "high"], "description": "Needs permissions_password. Default high." },
-                "changes": { "type": "string", "enum": ["none", "pages", "fill-sign", "comment-fill-sign", "any-except-extract"], "description": "Needs permissions_password. Default none." },
-                "copy": { "type": "boolean", "description": "Allow copying text and images (needs permissions_password; default false)." },
-                "accessibility": { "type": "boolean", "description": "Allow screen readers to read the text (needs permissions_password; default true)." },
-                "compatibility": { "type": "string", "enum": ["aes-256", "aes-128", "rc4-128", "rc4-40"], "description": "Default aes-256 (Acrobat X and later)." },
-                "encrypt_metadata": { "type": "boolean", "description": "Default true." },
-            }),
-            &["doc"],
-        )),
         t("doc_unprotect", "Remove security", "Remove password security (the document must have been opened with its permissions password, or have none). Applied by the next doc_save. Undoable.")
             .cmd("protect.remove")
             .destructive()
@@ -1328,7 +1305,7 @@ pub fn tools() -> Vec<ToolDef> {
         t(
             "doc_header_footer",
             "Add header and footer",
-            "Add a header and/or footer to pages. Text boxes: header_left/center/right, footer_left/center/right. Tokens: <<1>> page number, <<n>> page count, <<1 of n>>, <<Page 1 of n>>, <<1/n>>, dates <<m/d/yyyy>> <<yyyy-mm-dd>> <<mmmm d, yyyy>> <<dd.mm.yyyy>> (and more), Bates <<Bates Number#6#1#PREFIX#SUFFIX>>. shrink: true scales the page content down evenly into the room the header and footer leave free, so they don't cover it. font: Helvetica (default), Times or Courier. replace: true swaps out existing ones (Update). Undoable.",
+            "Add a header and/or footer to pages. Text boxes: header_left/center/right, footer_left/center/right. Tokens: <<1>> page number, <<n>> page count, <<1 of n>>, <<Page 1 of n>>, <<1/n>>, dates <<m/d/yyyy>> <<yyyy-mm-dd>> <<mmmm d, yyyy>> <<dd.mm.yyyy>> (and more), Bates <<Bates Number#6#1#PREFIX#SUFFIX>>. shrink: true scales the page content down evenly into the room the header and footer leave free, so they don't cover it. font: Helvetica (default), Times or Courier; Thai is drawn from PdfCraft's built-in Thai face beside it (a build without one refuses it). replace: true swaps out existing ones (Update). Undoable.",
         )
         .cmd("edit.header_footer")
         .with(schema(
@@ -1571,10 +1548,10 @@ pub fn tools() -> Vec<ToolDef> {
                 json!({ "doc": doc(), "field": { "type": "string" }, "event": { "type": "string", "enum": ["keystroke", "format", "validate", "calculate", "mouse_up"] }, "script": { "type": "string" } }),
                 &["doc", "field", "event"],
             )),
-        t("doc_export_office", "Export to Word, Excel, PowerPoint, HTML, RTF or Markdown", "Export a PDF ▸ Word (.docx), Excel (.xlsx: detected tables as cells, paragraphs as rows; numbers, amounts, percentages and unambiguous dates become values Excel computes with, shown as on the page, anything else stays text; images left out), PowerPoint (.pptx, one slide per page), HTML (.html, one file with images inline) , RTF (.rtf) or Markdown (.md or .markdown: pipe tables, images left out), chosen by path's extension: text, headings, bold and italic. Word uses borderless inferred tables and positioned editable shapes on pages with artwork, rotated or large text; each source page retains its size. Font matching and vector graphics remain limited. Export reads forms 50 deep and up to 50 000 a page, counting forms the page draws itself. Pages that go past either limit are listed in truncated_pages, with a warning; the text and images of the forms left out are missing.")
+        t("doc_export_office", "Export to Word, Excel, PowerPoint, HTML, RTF or Markdown", "Export a PDF ▸ Word (.docx), Excel (.xlsx: detected tables as cells, paragraphs as rows; numbers, amounts, percentages and unambiguous dates become values Excel computes with, shown as on the page, anything else stays text; images left out), PowerPoint (.pptx, one slide per page), HTML (.html, one file with images inline), RTF (.rtf) or Markdown (.md or .markdown: pipe tables, images left out), chosen by path's extension: text, headings, bold and italic. HTML uses rich styling by default; set html_mode to simple for CSS-free headings, paragraphs, emphasis and tables. Simple HTML keeps text and inline images but omits colour and layout styling. Word uses inferred tables, bordered only along the grid lines the page draws, and positioned editable shapes on pages with artwork, rotated or large text; each source page retains its size. Font matching and vector graphics remain limited. Export reads forms 50 deep and up to 50 000 a page, counting forms the page draws itself. Pages that go past either limit, or that have pictures past what one export may hold or decode, are listed in truncated_pages, with a warning; what was left out is missing.")
             .cmd("export.docx")
             .with(schema(
-                json!({ "doc": doc(), "path": { "type": "string" }, "sheets": { "type": "string", "enum": ["document", "page"], "description": "Excel only: one sheet for the whole document (default) or a sheet per page." } }),
+                json!({ "doc": doc(), "path": { "type": "string" }, "sheets": { "type": "string", "enum": ["document", "page"], "description": "Excel only: one sheet for the whole document (default) or a sheet per page." }, "html_mode": { "type": "string", "enum": ["rich", "simple"], "default": "rich" } }),
                 &["doc", "path"],
             )),
         t("pdfa_verify", "Verify PDF/A", "Standards ▸ Verify PDF/A compliance: the PDF/A-2b or 3b rules the document breaks (ISO 19005 clause, message, page, whether Save as PDF/A can fix it), plus what it declares.")
@@ -1637,15 +1614,29 @@ pub fn tools() -> Vec<ToolDef> {
         t("ocr_correct", "Correct recognized text", "Correct an invisible OCR paragraph from text_paragraphs without changing the scan pixels. Visible page text is refused. Undoable; page locks and document permissions apply.")
             .cmd("ocr.correct")
             .with(schema(json!({ "doc": doc(), "page": { "type": "integer", "minimum": 1 }, "paragraph": { "type": "integer", "minimum": 1 }, "text": { "type": "string", "maxLength": 1000000 } }), &["doc", "page", "paragraph", "text"])),
-        t("ocr_recognize", "Recognize text (OCR)", "Scan & OCR ▸ Recognize text: render pages, read the words in them and add them as invisible text over the page image, so scanned pages become searchable and selectable (a searchable image). Automatically corrects orientation and skew by default. Optionally auto_crop detected scanner borders, with crop_margin padding (0..20 pt, default 2). Set auto_rotate, deskew and auto_crop to false for an exact image, or recognize to false for correction only. Pages that already have text are skipped unless skip_text_pages is false; then pictures on those pages are read too, and recognised words that the page's own text already has (an earlier OCR layer included) are left out and counted as already_on_page. Returns each page's recognised text (omitted when copying is forbidden), word count or why it was skipped. Needs the OCR models (ocr_status). Undoable as one step.")
+        t("ocr_recognize", "Recognize text (OCR)", "Scan & OCR ▸ Recognize text: render pages, read the words in them and add them as invisible text over the page image, so scanned pages become searchable and selectable (a searchable image; the image is not changed). Automatically corrects orientation and skew by default (Lion PDF engine). Optionally auto_crop detected scanner borders, with crop_margin padding (0..20 pt, default 2). Set auto_rotate, deskew and auto_crop to false for an exact image, or recognize to false for correction only. Pages that already have text are skipped unless skip_text_pages or force_ocr say otherwise; words overlapping existing text are omitted and counted as already_on_page. With output_mode \"editable\" nothing is applied: a NEW document of visible text at the recognised boxes is written to out (which must not be the source; empty pages stay blank). engine and strategy choose the readers (an engine that cannot run is an error named up front); the four preprocessing flags clean the raster first. region reads just that part of one page ([x0, y0, x1, y1] in points from the top-left of the displayed page). Returns each page's recognised text, word count or why it was skipped. Needs the engines (ocr_status). Searchable output is undoable as one step.")
             .cmd("ocr.recognize")
             .with(schema(
                 json!({
                     "doc": doc(),
                     "pages": pages("to recognise (default: all)"),
                     "dpi": { "type": "number", "minimum": 72, "maximum": 600, "description": "Resolution pages are read at (default 300; a scanned page is read at most at its own resolution)." },
-                    "auto_rotate": { "type": "boolean", "default": true }, "deskew": { "type": "boolean", "default": true }, "auto_crop": { "type": "boolean", "default": false }, "crop_margin": { "type": "number", "minimum": 0, "maximum": 20, "default": 2 }, "recognize": { "type": "boolean", "default": true }, "language": ocr_language(),
-                    "skip_text_pages": { "type": "boolean", "description": "Leave pages that already contain text alone (default true). false also reads pictures on such pages, without adding their text again." },
+                    "language": { "type": "string", "enum": language_enum(), "description": "Document language (default en)." },
+                    "engine": { "type": "string", "enum": ["auto", "lion", "ocrs", "tesseract"], "description": "Which engine reads the pages (default lion: Lion PDF's engine, with PP-OCR for accented and multilingual text). ocrs: the plain ocrs engine. auto: lion first and tesseract as the second engine, combined by strategy (only the engines that can run take part)." },
+                    "strategy": { "type": "string", "enum": ["primary", "confidence", "rover"], "description": "How two engines' readings combine: primary = the first engine alone; confidence = the second engine joins when the first reading's mean confidence is under 70 or unknown; rover = both always read, merged. Default: confidence with engine auto, primary otherwise." },
+                    "output_mode": { "type": "string", "enum": ["searchable", "editable"], "description": "searchable (default): invisible text over the pages of the open document. editable: a NEW <document>_ocr-style file of visible text written to out; the source is not touched." },
+                    "out": { "type": "string", "description": "Where the editable output is written (required with output_mode editable; a new file: never the source path, never an existing file)." },
+                    "region": { "type": "array", "items": { "type": "number" }, "minItems": 4, "maxItems": 4, "description": "[x0, y0, x1, y1] in points from the top-left of the displayed page: read only that part. Needs exactly one page." },
+                    "skip_text_pages": { "type": "boolean", "description": "Leave pages that already contain text alone (default true)." },
+                    "skip_text_files": { "type": "boolean", "description": "Batch: leave whole files that already contain text alone (they come back skipped, not read)." },
+                    "force_ocr": { "type": "boolean", "description": "Read pages and files even when the skip options would leave them alone (default false)." },
+                    "auto_rotate": { "type": "boolean", "description": "Turn pages scanned sideways or upside down upright before reading (default true with the Lion PDF engine)." },
+                    "deskew": { "type": "boolean", "description": "Straighten skewed text lines before reading (default true with the Lion PDF engine)." },
+                    "denoise": { "type": "boolean", "description": "A 3×3 median filter against scan speckle (default false)." },
+                    "binarize": { "type": "boolean", "description": "Sauvola binarization: ink to black, paper to white (default false)." },
+                    "auto_crop": { "type": "boolean", "description": "Crop the page to the detected paper, removing scanner borders (default false)." },
+                    "crop_margin": { "type": "number", "minimum": 0, "maximum": 20, "description": "Points kept around the detected paper with auto_crop (default 2)." },
+                    "recognize": { "type": "boolean", "description": "false: only correct the scans (rotation, skew, crop), adding no text (default true)." },
                 }),
                 &["doc"],
             )),
@@ -1678,15 +1669,26 @@ pub fn tools() -> Vec<ToolDef> {
             .destructive()
             .cmd("ocr.correct")
             .with(schema(json!({ "path": { "type": "string" }, "add": { "type": "array", "maxItems": 65536, "items": { "type": "string" } }, "remove": { "type": "array", "maxItems": 65536, "items": { "type": "string" } } }), &["path"])),
-        t("ocr_recognize_files", "Recognize text in multiple files", "Scan & OCR ▸ Recognize text ▸ In multiple files: read every page of each PDF in paths and write the searchable result into folder under the same name (pages that already have text are left alone unless skip_text_pages is false, as in ocr_recognize). Two inputs that would write the same output file are refused before anything is read or written. Returns, per file, the output path, word count and skipped pages, or the error.")
+        t("ocr_recognize_files", "Recognize text in multiple files", "Scan & OCR ▸ Recognize text ▸ In multiple files: read every page of each PDF in paths and write the searchable result into folder under the same name. skip_text_files leaves whole files that already contain text alone (they are their own skipped bucket, nothing is written); skip_text_pages leaves single text pages alone; force_ocr reads regardless of both. Every output name is checked before the first page is read: two paths sharing a file name (from different folders) are refused, and a file of that name already in folder aborts the batch, with the names in the error. Each written file carries a low_confidence note when words at or under 60 confidence sit on it (1-based sorted pages). Returns, per file, the output path, word count, skipped pages or the error, plus recognized/words/skipped_files totals. Needs the engines (ocr_status).")
             .cmd("ocr.recognize_batch")
             .with(schema(
                 json!({
                     "paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
                     "folder": { "type": "string" },
                     "dpi": { "type": "number", "minimum": 72, "maximum": 600 },
-                    "auto_rotate": { "type": "boolean", "default": true }, "deskew": { "type": "boolean", "default": true }, "auto_crop": { "type": "boolean", "default": false }, "crop_margin": { "type": "number", "minimum": 0, "maximum": 20, "default": 2 }, "recognize": { "type": "boolean", "default": true }, "language": ocr_language(),
-                    "skip_text_pages": { "type": "boolean", "description": "Leave pages that already contain text alone (default true); see ocr_recognize." },
+                    "language": { "type": "string", "enum": language_enum() },
+                    "engine": { "type": "string", "enum": ["auto", "lion", "ocrs", "tesseract"] },
+                    "strategy": { "type": "string", "enum": ["primary", "confidence", "rover"] },
+                    "skip_text_pages": { "type": "boolean", "description": "Leave pages that already contain text alone (default true)." },
+                    "skip_text_files": { "type": "boolean", "description": "Leave whole files that already contain text alone (default false)." },
+                    "force_ocr": { "type": "boolean", "description": "Read even where the skip options would leave things alone (default false)." },
+                    "auto_rotate": { "type": "boolean" },
+                    "deskew": { "type": "boolean" },
+                    "denoise": { "type": "boolean" },
+                    "binarize": { "type": "boolean" },
+                    "auto_crop": { "type": "boolean" },
+                    "crop_margin": { "type": "number", "minimum": 0, "maximum": 20 },
+                    "recognize": { "type": "boolean" },
                 }),
                 &["paths", "folder"],
             )),
@@ -1743,28 +1745,7 @@ pub fn tools() -> Vec<ToolDef> {
         t(
             "doc_create",
             "Create a PDF",
-            "Create a new, unsaved document and return it like doc_open: `blank` (pages, width, height in points; default 1 US Letter page), `images` (paths of PNG, JPEG, TIFF (every page), GIF or BMP files, one page each at the image's resolution) or `text` (a .txt path, or `text` directly; set in Helvetica, or in the bundled Inter face when it has Latin, Greek or Cyrillic letters outside Western European (WinAnsi); other characters are refused). Save it with doc_save and a path.",
-        )
-        .with(schema(
-            json!({
-                "from": { "type": "string", "enum": ["blank", "images", "text"] },
-                "paths": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
-                "dpi": { "type": "number", "minimum": 1, "maximum": 1200, "description": "For images: override the embedded resolution without resampling. 72 gives one point per pixel; omit to use each image's resolution (72 when absent)." },
-                "text": { "type": "string" },
-                "path": { "type": "string" },
-                "pages": { "type": "integer", "minimum": 1, "maximum": 10000 },
-                "width": { "type": "number", "minimum": 3 },
-                "height": { "type": "number", "minimum": 3 },
-                "name": { "type": "string", "description": "Name for the new document (default derived from the source)." },
-            }),
-            &["from"],
-        )),
-        t("template_list","Starter templates","List built-in editable PDF starters, their categories, descriptions and page counts. Booklet pages are in reading order, not imposed for printing.").ro().with(schema(json!({}),&[])),
-        t("template_export","Export reusable template","Write a version-1 .pdfcraft-template snapshot of current contents and form values without saving or changing the original. Signed and password-protected documents must be unsigned/unprotected first. At most 64 MiB.").cmd("create.save_template").with(schema(json!({"doc":doc(),"path":{"type":"string"},"title":{"type":"string","maxLength":120},"description":{"type":"string","maxLength":1000},"category":{"type":"string","maxLength":64}}),&["doc","path"])),
-        t(
-            "doc_create",
-            "Create a PDF",
-            "Create a new, unsaved document and return it like doc_open: `blank` (pages, width, height in points; default 1 US Letter page), `images` (paths of PNG, JPEG, TIFF (every page), GIF or BMP files, one page each at the image's resolution), `text` (a .txt path, or `text` directly; Western European (WinAnsi) characters only, others are refused), or experimental `xps` (a package path, at most 256 MiB; preserves supported text, solid paths and PNG/JPEG pictures, refuses unsupported drawing without raster fallback). Use `starter` with a `template` id from template_list and optional `paper` (letter/a4), or `template` with a .pdfcraft-template `path` to create a new working copy (at most 64 MiB). Save it with doc_save and a path.",
+            "Create a new, unsaved document and return it like doc_open: `blank` (pages, width, height in points; default 1 US Letter page), `images` (paths of PNG, JPEG, TIFF (every page), GIF or BMP files, one page each at the image's resolution) or `text` (a .txt path, or `text` directly; set in Helvetica, or in the bundled Inter face when it has Latin, Greek or Cyrillic letters outside Western European (WinAnsi); other characters are refused), or experimental `xps` (a package path, at most 256 MiB; preserves supported text, solid paths and PNG/JPEG pictures, refuses unsupported drawing without raster fallback). Use `starter` with a `template` id from template_list and optional `paper` (letter/a4), or `template` with a .pdfcraft-template `path` to create a new working copy (at most 64 MiB). Save it with doc_save and a path.",
         )
         .with(schema(
             json!({
@@ -1782,6 +1763,8 @@ pub fn tools() -> Vec<ToolDef> {
             }),
             &["from"],
         )),
+        t("template_list","Starter templates","List built-in editable PDF starters, their categories, descriptions and page counts. Booklet pages are in reading order, not imposed for printing.").ro().with(schema(json!({}),&[])),
+        t("template_export","Export reusable template","Write a version-1 .pdfcraft-template snapshot of current contents and form values without saving or changing the original. Signed and password-protected documents must be unsigned/unprotected first. At most 64 MiB.").cmd("create.save_template").with(schema(json!({"doc":doc(),"path":{"type":"string"},"title":{"type":"string","maxLength":120},"description":{"type":"string","maxLength":1000},"category":{"type":"string","maxLength":64}}),&["doc","path"])),
         t("doc_reduce", "Reduce file size", "Write a smaller copy of the document to `path` with Acrobat's Reduce File Size choices: colour and grey images above 225 ppi downsampled to 150 ppi and JPEG-compressed (medium quality), black-and-white images averaged down to 300 ppi above 450 ppi and each stored as CCITT Group 4 (or 1-bit Flate, once resampled or packed from more bits) whenever that is smaller, thumbnails dropped, identical fonts and images merged, unused objects dropped, compressed object streams. If the copy wouldn't be smaller, nothing is written and `written` is false. Images past what one run may decode stay as they are, counted in images_refused; streams it only stores with Flate past that stay LZW, uncounted. The open document is unchanged.")
             .cmd("optimize.reduce")
             .with(schema(json!({ "doc": doc(), "path": { "type": "string" } }), &["doc", "path"])),
@@ -1806,7 +1789,7 @@ pub fn tools() -> Vec<ToolDef> {
         )),
         t("doc_audit_space", "Audit space usage", "How many bytes each kind of content takes and its share of the file (PDF Optimizer ▸ Audit space usage): images, content streams, fonts, forms, comments, structure, bookmarks, … and document overhead.")
             .ro()
-            .cmd("optimize.advanced")
+            .cmd("optimize.audit")
             .with(schema(json!({ "doc": doc() }), &["doc"])),
         t("text_lines", "List text lines", "The lines of existing text on a page (Edit a PDF ▸ Edit text): number, text, box (top-left-origin points), font and size. Use the number with text_edit.")
             .ro()

@@ -231,7 +231,7 @@ fn main() -> eframe::Result {
         }
     }));
     // Lion PDF: an argument that is not UTF-8 is skipped with a warning rather than a panic.
-    let mut startup = startup::Arguments::parse(std::env::args_os().skip(1).filter_map(text_arg));
+    let mut startup = startup::Arguments::parse_skipping(std::env::args_os().skip(1).map(text_arg));
     if startup.version {
         return print_and_exit(&format!("pdfcraft {}", pdfcraft_engine::build_info::version()));
     }

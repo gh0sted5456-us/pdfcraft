@@ -3126,7 +3126,7 @@ fn signed_field_under(
 }
 
 /// The validated signature appearance is also a hit target when the form cache has no row.
-fn signature_field_at(signatures: &[pdfcraft_engine::SignatureInfo], page: usize, hit: impl Fn([f64; 4]) -> bool) -> Option<String> {
+fn signature_field_at(signatures: &[pdfcraft_engine::SignatureInfo], page: usize, contains: impl Fn([f64; 4]) -> bool) -> Option<String> {
     signatures
         .iter()
         .rev()
@@ -3135,7 +3135,7 @@ fn signature_field_at(signatures: &[pdfcraft_engine::SignatureInfo], page: usize
                 && !s.doc_timestamp
                 && s.visible
                 && s.page == Some(page)
-                && s.rect.is_some_and(|r| r.iter().all(|n| n.is_finite() && n.abs() < f32::MAX as f64) && hit(r))
+                && s.rect.is_some_and(|r| r.iter().all(|n| n.is_finite() && n.abs() < f32::MAX as f64) && contains(r))
         })
         .map(|s| s.field.clone())
 }

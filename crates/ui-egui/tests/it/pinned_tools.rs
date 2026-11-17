@@ -129,7 +129,7 @@ fn pin_tool_dialog_workflow() {
     h.run_steps(3);
 
     // Modal is open
-    h.get_by_label_contains("Pin tools to Home");
+    h.get_by(|n| n.role() == egui::accesskit::Role::Window && n.label().is_some_and(|l| l.contains("Pin tools to Home")));
     h.get_by_label("Done");
 
     // Pin a tool from inside the dialog

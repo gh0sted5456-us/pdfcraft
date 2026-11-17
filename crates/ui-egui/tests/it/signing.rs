@@ -95,6 +95,7 @@ fn ctrl_alt_q_types_an_email_without_quitting() {
 
 #[test]
 fn drawing_a_signature_creating_an_id_signing_and_trusting() {
+    let _gpu = std::env::var_os("PDFCRAFT_SHOTS").map(|_| crate::gpu());
     let dir = dir();
     let mut h = harness(dir.clone());
     create_signing_id(&mut h);
@@ -271,7 +272,7 @@ fn verify_dirty_snapshot_close(h: &mut Harness<'static, PdfCraftApp>) {
     h.run_steps(2);
     assert_eq!(h.state().views.len(), 2);
     h.get_by_label("Save changes to “contract_signed (signed version).pdf” before closing?");
-    h.get_by_label("Don't save").click();
+    h.get_by_label("Exit").click();
     h.run_steps(2);
     assert_eq!(h.state().views.len(), 1);
 }
@@ -311,9 +312,9 @@ fn certifying_without_a_visible_signature() {
     h.get_by_label("Continue").click();
     h.run_steps(2);
     h.get_by_label("Certify as \"Test Signer EC\"");
-    h.get_by_label("Permitted actions after certifying");
+    h.get_by_label("After signing");
     h.state_mut().sign_draft.as_mut().unwrap().password = "test".into();
-    support::outside_menus(&h, "Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
     let s = h.state();
     assert_eq!(s.sign_draft.as_ref().and_then(|d| d.error.clone()), None);
@@ -618,7 +619,7 @@ fn the_fill_and_sign_signature_or_an_image_shows_in_a_digital_signature() {
     h.get_by_label("Fill & Sign signature").click();
     h.run_steps(2);
     assert_eq!(h.state().sign_draft.as_ref().unwrap().graphic, SignGraphic::FillSign);
-    support::outside_menus(&h, "Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
     let s = h.state();
     assert_eq!(s.sign_draft.as_ref().and_then(|d| d.error.clone()), None);
@@ -638,7 +639,7 @@ fn the_fill_and_sign_signature_or_an_image_shows_in_a_digital_signature() {
     h.state_mut().sign_draft.as_mut().unwrap().graphic = SignGraphic::Image(image.clone());
     h.run_steps(2);
     h.get_by_label("Choose image…");
-    support::outside_menus(&h, "Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
     let s = h.state();
     assert_eq!(s.sign_draft.as_ref().and_then(|d| d.error.clone()), None);
@@ -716,13 +717,13 @@ fn os_store_identities_are_not_persisted() {
     app.set_option("language", "en").unwrap();
     for path in ["windows:Store signer", "keychain:Store signer", "file-id.p12"] {
         app.digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+            fingerprint: String::new(),
             path: path.into(),
             name: "Signer".into(),
             issuer: "Test issuer".into(),
             email: String::new(),
             expires: "2030.01.01".into(),
             unusable: None,
-            fingerprint: String::new(),
         });
     }
     let saved = app.persist();
@@ -742,13 +743,13 @@ fn windows_store_identity_does_not_ask_for_a_file_password() {
     h.state_mut().start_signing(0, None, None, None);
     // A synthetic picker entry exercises the dialog without a real Windows identity.
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "windows:No Such Signer".into(),
         name: "Store signer".into(),
         issuer: "Test issuer".into(),
         email: String::new(),
         expires: "2030.01.01".into(),
         unusable: None,
-        fingerprint: String::new(),
     });
     let draft = h.state_mut().sign_draft.as_mut().unwrap();
     draft.step = SignStep::Choose;
@@ -759,7 +760,7 @@ fn windows_store_identity_does_not_ask_for_a_file_password() {
     h.get_by_label("Sign as \"Store signer\"");
     assert_eq!(h.query_all_by_label("Digital ID password").count(), 0);
     h.get_by_label("The key is in the Windows certificate store, which may ask to allow PdfCraft to use it.");
-    support::outside_menus(&h, "Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(3);
     assert_eq!(h.state().dialog, Some(Dialog::Sign));
     assert!(h.state().sign_draft.as_ref().unwrap().error.as_ref().unwrap().contains("Windows certificate store"));
@@ -773,17 +774,17 @@ fn long_digital_id_names_stay_inside_the_picker() {
     h.state_mut().start_signing(0, None, None, None);
     let long = "a certificate subject much longer than the picker is wide ".repeat(4);
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "windows:No Such Signer".into(),
         name: long.clone(),
         issuer: long,
         email: String::new(),
         expires: "2030.01.01".into(),
         unusable: None,
-        fingerprint: String::new(),
     });
     h.state_mut().sign_draft.as_mut().unwrap().step = SignStep::Choose;
     h.run_steps(3);
-    let right = h.get_by_label("Continue").rect().right();
+    let right = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::unique("dialog").with("card"))).unwrap().right() - 16.0;
     let lines: Vec<_> = h
         .output()
         .shapes
@@ -798,7 +799,7 @@ fn long_digital_id_names_stay_inside_the_picker() {
         assert!(line.galley.elided, "{}", line.galley.job.text);
         assert!(
             line.pos.x + line.galley.size().x <= right,
-            "the line ends at {} but the dialog's buttons end at {right}",
+            "the line ends at {} but the dialog's inner edge is {right}",
             line.pos.x + line.galley.size().x
         );
     }
@@ -811,13 +812,13 @@ fn an_unusable_id_is_shown_with_its_reason_and_cannot_be_chosen() {
     let mut h = harness(dir());
     // Not a `windows:` path: those are replaced by the real store listing when signing starts.
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "store-test:broken".into(),
         name: "Broken signer".into(),
         issuer: String::new(),
         email: String::new(),
         expires: String::new(),
         unusable: Some("its private key can't be opened: the key is missing from its key store (Windows error 0x80090016)".into()),
-        fingerprint: String::new(),
     });
     h.state_mut().start_signing(0, None, None, None);
     h.run_steps(3);
@@ -832,13 +833,13 @@ fn an_unusable_id_is_shown_with_its_reason_and_cannot_be_chosen() {
     assert_eq!(h.state().sign_draft.as_ref().unwrap().step, SignStep::Choose);
     // A usable ID after it is the one selected to begin with.
     h.state_mut().digital_ids.push(pdfcraft_ui_egui::DigitalIdEntry {
+        fingerprint: String::new(),
         path: "store-test:fine".into(),
         name: "Working signer".into(),
         issuer: "Test issuer".into(),
         email: String::new(),
         expires: "2030.01.01".into(),
         unusable: None,
-        fingerprint: String::new(),
     });
     h.state_mut().start_signing(0, None, None, None);
     h.run_steps(3);
@@ -907,7 +908,7 @@ fn signing_preserves_destination_opening_attributes() {
     let d = h.state_mut().sign_draft.as_mut().unwrap();
     (d.selected, d.step, d.password) = (Some(entry), SignStep::SignAs, "test".into());
     h.run_steps(2);
-    support::outside_menus(&h, "Sign").click();
+    crate::support::outside_menus(&h, "Sign").click();
     h.run_steps(6);
     assert!(h.state().session.get(h.state().views[0].id).unwrap().signatures.iter().any(|s| s.signed));
     assert_eq!(xattr::get(&dest, "com.apple.LaunchServices.OpenWith").unwrap(), Some(b"existing binding".to_vec()));

@@ -4,7 +4,7 @@
 use pdfcraft_engine::{ColourTarget, ConvertColours, DocId, Edit};
 
 use crate::pageboxes::Range;
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::{PdfCraftApp, widgets};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -46,7 +46,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     let current = app.views[i].current;
     let d = &mut app.convert_colours_draft;
     d.for_document(id);
-    ui.label(egui::RichText::new(tl!("Convert colours")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Convert colours"));
     ui.add_space(8.0);
     widgets::section_title(ui, tl!("Convert to"));
     ui.horizontal(|ui| {
@@ -90,11 +90,11 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     });
     ui.add_space(12.0);
     let (mut go, mut cancel) = (false, false);
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if ui.add_enabled_ui(count > 0, |ui| widgets::pill_button(ui, tl!("Convert"), true)).inner.clicked() {
+    crate::widgets::dialog_footer(ui, |ui| {
+        if ui.add_enabled_ui(count > 0, |ui| widgets::dialog_button(ui, tl!("Convert"), widgets::DialogAction::Confirm)).inner.clicked() {
             go = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             cancel = true;
         }
     });

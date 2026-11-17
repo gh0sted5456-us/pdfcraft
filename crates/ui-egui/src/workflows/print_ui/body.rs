@@ -27,7 +27,8 @@ fn driver_options_header(ui: &mut egui::Ui, show: &mut bool, can_reset: bool) ->
             (room >= TITLE_MIN_WIDTH).then(|| ui.add(egui::Label::new(egui::RichText::new(tl!("Printer properties")).font(theme::semibold(13.0)))))
         },
         |ui| {
-            if widgets::dialog_button(ui, tl!("Done"), widgets::DialogAction::Confirm).clicked() {
+            // An inline panel's header, not a dialog's footer: the compact button fits the row.
+            if ui.button(tl!("Done")).clicked() {
                 *show = false;
             }
             ui.add_enabled(can_reset, egui::Button::new(tl!("Reset to printer defaults")))
@@ -124,22 +125,11 @@ pub(crate) fn body(
     let too_much_creep = d.handling == Handling::Booklet && d.creep > 0.0 && matches!(laid, Some(Err(_)));
     let sheets = laid.and_then(Result::ok).unwrap_or_default();
     d.sheet = d.sheet.min(sheets.len().saturating_sub(1));
-    // Cap the settings+preview area to the screen's available height (#4252, #5317):
-    // on a short screen, or with the driver's own Properties… panel expanded below, this row can
-    // otherwise grow taller than the display and push the Print/Cancel buttons off both edges.
-    // The title and the button row stay outside, so they are always reachable.
-    // `viewport_rect()` is egui's own idea of the current viewport, kept from the latest
-    // `RawInput::screen_rect` it was handed — unlike reading `raw.screen_rect` directly, it
-    // does not go blank on a frame where the backend didn't resend it.
-    let screen_h = ui.ctx().input(|i| i.viewport_rect().height());
-    let max_h = (screen_h - 220.0).max(300.0);
-    // The viewport is `max_h` itself, not what the modal offers this frame: when a different
-    // dialog was shown before, the shared modal remeasures from a height of zero (#5118) and
-    // offers less, which would size this area by the dialog shown before. `auto_shrink` still
-    // shrinks it to contents that fit.
-    egui::ScrollArea::vertical().max_height(max_h).min_scrolled_height(max_h).auto_shrink([false, true]).show(ui, |ui| {
-    let layout = if width >= 800.0 { egui::Layout::left_to_right(egui::Align::Min) } else { egui::Layout::top_down(egui::Align::Min) };
-    ui.with_layout(layout, |ui| {
+    // Lion PDF: the settings and preview scroll inside the dialog window (#4252, #5317), so on a
+    // short screen, or with the driver's Properties… panel expanded, Print and Cancel stay in view.
+    widgets::dialog_scroll(ui, "print-body", |ui| {
+        let layout = if width >= 800.0 { egui::Layout::left_to_right(egui::Align::Min) } else { egui::Layout::top_down(egui::Align::Min) };
+        ui.with_layout(layout, |ui| {
         // Settings.
         ui.vertical(|ui| {
             ui.set_width(width.min(470.0));
@@ -693,7 +683,7 @@ pub(crate) fn body(
             }
         });
     });
-    }); // end ScrollArea (#4252, #5317)
+    }); // end dialog_scroll (#4252, #5317)
     ui.add_space(12.0);
     let (mut go, mut cancel) = (false, false);
     crate::widgets::dialog_footer(ui, |ui| {

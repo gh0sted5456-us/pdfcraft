@@ -178,7 +178,7 @@ fn the_pdf_optimizer_dialog_saves_an_optimized_copy() {
     h.get_by_label("Monochrome Images");
     assert_eq!(h.state().optimize_draft.settings.mono, pdfcraft_engine::optimize::MonoSettings::REDUCE);
     // Monochrome Images ▸ Downsample to can be turned off.
-    h.get_by_label("Downsample to").click();
+    h.get_by_role_and_label(egui::accesskit::Role::CheckBox, "Downsample to").click();
     h.run_steps(2);
     assert!(!h.state().optimize_draft.settings.mono.downsample);
     h.get_by_label("Discard Objects").click();
@@ -378,7 +378,8 @@ fn a_blank_page_is_on_the_system_regions_paper() {
     assert_eq!(PdfCraftApp::new().blank_paper, Paper::system());
     for paper in [Paper::A4, Paper::Letter] {
         let mut app = PdfCraftApp::new();
-        app.blank_paper = paper;
+        // Lion PDF: Create ▸ Blank page uses the default paper, the system region's until chosen.
+        app.set_option("default-paper", if paper == Paper::A4 { "A4" } else { "US Letter" }).unwrap();
         assert!(app.execute("create.blank"));
         let docs = app.session.docs();
         let crop = docs.last().and_then(|d| d.info.pages.first()).map(|p| p.crop).unwrap();
@@ -578,7 +579,8 @@ fn gallery_creates_fillable_starters_and_template_open_is_always_a_copy() {
     h.state_mut().open_bytes("intake.pdfcraft-template", Some(template.to_string_lossy().into_owned()), original.clone()).unwrap();
     h.run_steps(4);
     assert_eq!(h.state().session.docs().len(), 2);
-    assert!(h.state().session.docs().iter().all(|d| d.path.is_none() && d.dirty));
+    // A working copy: no file behind it (a new document, which upstream marks unsaved, not dirty).
+    assert!(h.state().session.docs().iter().all(|d| d.path.is_none()));
     assert_eq!(std::fs::read(template).unwrap(), original);
 }
 

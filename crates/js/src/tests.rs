@@ -22,6 +22,25 @@ fn doc() -> DocInfo {
     DocInfo { file_name: "order.pdf".into(), num_pages: 3, page: 0, info: vec![("title".into(), "Order".into())], ..Default::default() }
 }
 
+#[test]
+fn form_state_sources_and_dynamic_field_methods() {
+    let event = Event::doc("Open");
+    let out = go(
+        "var v = {tab: 2, fields: ['qty', null, undefined]}; console.println(v.toSource().includes('tab')); var f = getField('size'); f.setItems([['Small', 's'], 'Large']); f.strokeColor = color.red; f.setAction('OnFocus', 'console.println(1)');",
+        &event,
+    );
+    assert!(out.error.is_none(), "{out:?}");
+    assert_eq!(out.console, ["true"]);
+    let field = out.changed.iter().find(|f| f.name == "size").unwrap();
+    assert_eq!(field.options, [("s".into(), "Small".into()), ("Large".into(), "Large".into())]);
+    assert_eq!(field.actions, [("OnFocus".into(), "console.println(1)".into())]);
+    assert_eq!(field.stroke_color.as_deref().map(<[String]>::to_vec), Some(vec!["RGB".into(), "1".into(), "0".into(), "0".into()]));
+    let out = go("var v = {}; v.v = v; v.toSource();", &event);
+    assert!(out.error.as_deref().unwrap().contains("refers to itself"));
+    let out = go("var v = []; v.length = 1000000; v.toSource();", &event);
+    assert!(out.error.as_deref().unwrap().contains("too long"));
+}
+
 /// Run AcroForm JavaScript `script` for `event` on these tests' document and fields.
 fn go(script: &str, event: &Event) -> Outcome {
     run(script, event, &doc(), &fields(), &[], Limits::default())

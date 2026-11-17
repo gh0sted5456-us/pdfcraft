@@ -604,7 +604,16 @@ impl PdfCraftApp {
             "export.image" => self.dialog = Some(Dialog::Export(crate::export_ui::ExportKind::Image)),
             "export.text" => self.dialog = Some(Dialog::Export(crate::export_ui::ExportKind::Text)),
             "export.xlsx" => self.dialog = Some(Dialog::Export(crate::export_ui::ExportKind::Excel)),
-            "ocr.recognize" => self.dialog = Some(Dialog::RecognizeText),
+            "ocr.recognize" => {
+                self.ocr_draft.recognize = true;
+                self.dialog = Some(Dialog::RecognizeText);
+            }
+            // Lion PDF: the Recognize Text dialog in its correction mode.
+            "ocr.correct_scans" => {
+                self.ocr_draft.recognize = false;
+                self.ocr_draft.auto_crop = true;
+                self.dialog = Some(Dialog::RecognizeText);
+            }
             "ocr.enhance" => self.dialog = Some(Dialog::EnhanceScan),
             "ocr.recognize_batch" => self.ocr_files_dialog(),
             "ocr.correct" => self.ocr_verify.open = true,

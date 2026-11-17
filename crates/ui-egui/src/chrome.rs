@@ -70,7 +70,8 @@ pub fn tab_strip(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                     app.combine_tab.focused = false;
                 }
                 // Keep the visible utility buttons and their gaps outside the scrolling tabs.
-                let utility_count = if app.show_community { 3.0 } else { 2.0 };
+                // Preferences, theme and shortcuts, and the community button when it is shown.
+                let utility_count = if app.show_community { 4.0 } else { 3.0 };
                 let controls_width = utility_count * (button + 4.0) + window_controls::width(&controls.right);
                 // Open stays in sight after the tabs: its icon, text and padding, and the gaps around it.
                 let open_width = ui.fonts_mut(|f| f.layout_no_wrap(tl!("Open").into(), theme::medium(13.0), t.text).size().x) + 38.0 + 12.0;
@@ -656,9 +657,8 @@ fn tab(ui: &mut egui::Ui, spec: TabSpec<'_>, close: &mut Option<usize>) -> egui:
     theme::hand(resp).on_hover_text(if dirty { crate::i18n::fmt(tl!("{name} — unsaved changes"), &[("name", &shown)]) } else { shown })
 }
 
-/// Width the print, save and info buttons and their gaps take in the mode bar: three buttons, the
-/// 4 pt `item_spacing` after each of them (three gaps, not two), and the 8 pt spacer.
-const MODE_BAR_RIGHT: f32 = 3.0 * 32.0 + 3.0 * 4.0 + 8.0;
+/// Lion PDF: the least the mode bar's right side takes: Save, Undo and Redo, their gaps and spacers.
+const MODE_BAR_NARROWEST: f32 = 3.0 * 32.0 + 3.0 * 4.0 + 4.0 + 8.0;
 /// Narrowest search field the mode bar shows; below it the field becomes an icon button.
 const MODE_BAR_SEARCH_MIN: f32 = 140.0;
 
@@ -688,7 +688,9 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                 // What the right side needs (three 32 px buttons, gaps) and the least search box worth showing.
                 let avail = ui.available_width();
                 let tabs_w: f32 = modes.iter().map(|(_, l)| widgets::mode_tab_width(ui, tl!(*l))).sum::<f32>() + 2.0 * (modes.len() as f32 - 1.0);
-                let inline_tabs = avail >= tabs_w + MODE_BAR_RIGHT + MODE_BAR_SEARCH_MIN;
+                // Lion PDF: the tabs stay in the bar while Save, Undo and Redo fit beside them (Print,
+                // Properties and the search give way first, as in Lion's mode bar).
+                let inline_tabs = avail >= tabs_w + MODE_BAR_NARROWEST;
                 if inline_tabs {
                     for (mode, label) in modes {
                         if widgets::mode_tab(ui, tl!(label), app.mode == mode).clicked() {
@@ -713,7 +715,6 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         }
                     });
                 }
-                let left = ui.available_width();
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 4.0;
                     let room = ui.available_width();
@@ -750,12 +751,16 @@ pub fn mode_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         }
                     }
                     ui.add_space(8.0);
-                    let search_w = (left - MODE_BAR_RIGHT).clamp(0.0, 260.0);
+                    // Lion PDF: the search takes what the buttons leave, down to an icon, then
+                    // gives way (the command search keeps its shortcut).
+                    let search_w = (ui.available_width() - 8.0).clamp(0.0, 260.0);
                     let opened = if search_w >= MODE_BAR_SEARCH_MIN {
                         widgets::search_box(ui, tl!("Find tools and commands"), search_w).clicked()
-                    } else {
+                    } else if search_w >= 32.0 {
                         // Too narrow for the field: a button opens the same command search.
                         icons::button(ui, "search", 32.0, false, tl!("Find tools and commands")).clicked()
+                    } else {
+                        false
                     };
                     if opened {
                         app.palette_open = true;

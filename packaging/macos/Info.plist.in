@@ -11,6 +11,7 @@
   <key>CFBundleLocalizations</key>
   <array>
     <string>en</string>
+    <string>en-GB</string>
     <string>ja</string>
     <string>zh-Hans</string>
     <string>zh-Hant</string>
@@ -47,7 +48,6 @@
     <string>ko</string>
     <string>nb</string>
   </array>
-    <string>en-GB</string>
   <key>CFBundleDisplayName</key>
   <string>Lion PDF</string>
   <key>CFBundleName</key>

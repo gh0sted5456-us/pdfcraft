@@ -30,7 +30,8 @@ fn at_the_minimum_width_the_modes_fold_into_a_menu_and_search_stays() {
     // even the first fits (craft-menu's `MenuBarUi`). macOS's system font is wider, and at this width
     // the bar is the "Menu" button there; a real macOS window has the native menu bar instead.
     let menus = |label| h.query_by_role_and_label(Role::MenuItem, label).is_some();
-    let folded = cfg!(target_os = "macos") && menus("Menu");
+    // Lion PDF's title bar shares the row with the tabs, so the bar can fold to "Menu" anywhere.
+    let folded = menus("Menu");
     assert!(menus("File") || folded, "main menu reachable");
 }
 

@@ -5,7 +5,7 @@
 use pdfcraft_engine::{Edit, Hairlines};
 
 use crate::pageboxes::Range;
-use crate::theme::{self, Tokens};
+use crate::theme::Tokens;
 use crate::units::Unit;
 use crate::{PdfCraftApp, widgets};
 
@@ -54,7 +54,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     let current = app.views[i].current;
     let unit = app.units;
     let d = &mut app.hairlines_draft;
-    ui.label(egui::RichText::new(tl!("Fix hairlines")).font(theme::semibold(18.0)));
+    crate::widgets::dialog_heading(ui, tl!("Fix hairlines"));
     ui.add_space(8.0);
     egui::Grid::new("hairlines").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
         let label = ui.label(tl!("Narrower than")).id;
@@ -93,11 +93,11 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
     ui.add_space(12.0);
     let (mut go, mut cancel) = (false, false);
     let ready = count > 0 && d.settings.width > 0.0;
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        if ui.add_enabled_ui(ready, |ui| widgets::pill_button(ui, tl!("Fix"), true)).inner.clicked() {
+    crate::widgets::dialog_footer(ui, |ui| {
+        if ui.add_enabled_ui(ready, |ui| widgets::dialog_button(ui, tl!("Fix"), widgets::DialogAction::Confirm)).inner.clicked() {
             go = true;
         }
-        if widgets::pill_button(ui, tl!("Cancel"), false).clicked() {
+        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
             cancel = true;
         }
     });
