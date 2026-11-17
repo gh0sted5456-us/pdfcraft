@@ -86,6 +86,7 @@ fn the_graphics_state_carries_from_one_stream_to_the_next() {
 fn a_page_with_an_unreadable_stream_is_left_alone() {
     let mut doc = one_page(&[("", b"0 w 0 0 m 1 1 l S"), ("/Filter /DCTDecode", b"not a picture")]);
     let before = contents(&doc);
-    assert!(fix_hairlines(&mut doc, &[0], &Hairlines::default()).is_err());
+    let fixed = fix_hairlines(&mut doc, &[0], &Hairlines::default()).unwrap();
+    assert_eq!(fixed.lines, 0);
     assert_eq!(contents(&doc), before, "no stream is dropped");
 }

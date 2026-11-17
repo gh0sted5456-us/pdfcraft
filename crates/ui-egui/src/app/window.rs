@@ -1,4 +1,4 @@
-use super::*;
+use super::{PdfCraftApp, QuickTool};
 
 impl PdfCraftApp {
     /// Use the integrated Windows header consistently across appearance modes.

@@ -1,4 +1,7 @@
-use super::*;
+use super::{
+    Arc, BookmarkPage, BookmarkRow, DocId, Document, EditError, LayerOp, OpenError, ReadingColors, RenderConfig, RenderPool, Session, SummarySort,
+    apply_layer_state, comment_summary, display_config, local_utc_offset, outline_rows, parse_ymd, render_threads, use_layer_choices,
+};
 
 impl Session {
     pub fn new() -> Self {
@@ -59,20 +62,54 @@ impl Session {
         return None;
     }
 
-    /// Today's date in local time: (year, month, day). With an injected clock (tests) the clock
-    /// is taken as local time.
     /// A dynamic stamp's second line: "By Ada at 2:14 pm, Oct 02, 2026" (local time).
     pub fn stamp_by_line(&self, author: &str) -> String {
+        let (date, time) = self.stamp_date_time();
+        let who = if author.trim().is_empty() { String::new() } else { format!("By {} ", author.trim()) };
+        format!("{who}at {time}, {date}")
+    }
+
+    /// A custom stamp's text line (#1741): `template` with `{name}` (the author), `{date}`
+    /// ("Oct 02, 2026") and `{time}` ("2:14 pm") filled in now, in local time, as the dynamic
+    /// stamps' "By" line has them. Cut to [`MAX_STAMP_LINE`](crate::MAX_STAMP_LINE) characters.
+    pub fn stamp_line(&self, template: &str, author: &str) -> String {
+        let (date, time) = self.stamp_date_time();
+        // One pass over the template, so a placeholder the author's name happens to contain
+        // (`Ada {date}`) stays as written rather than being filled in too.
+        let mut filled = String::new();
+        let mut rest = template.trim();
+        while let Some(c) = rest.chars().next() {
+            if let Some(after) = rest.strip_prefix("{name}") {
+                filled.push_str(author.trim());
+                rest = after;
+            } else if let Some(after) = rest.strip_prefix("{date}") {
+                filled.push_str(&date);
+                rest = after;
+            } else if let Some(after) = rest.strip_prefix("{time}") {
+                filled.push_str(&time);
+                rest = after;
+            } else {
+                filled.push(c);
+                rest = rest.get(c.len_utf8()..).unwrap_or_default();
+            }
+        }
+        filled.chars().take(crate::MAX_STAMP_LINE).collect()
+    }
+
+    /// Now, as the stamps write it: ("Oct 02, 2026", "2:14 pm"), local time.
+    fn stamp_date_time(&self) -> (String, String) {
         let offset = self.local_offset();
         let d = self.now().map(|t| pdfcraft_cos::pdf_date(t + offset)).unwrap_or_default();
         let num = |a: usize, b: usize| d.get(a..b).and_then(|s| s.parse::<u32>().ok()).unwrap_or(0);
         let (y, mo, day, hh, mm) = (num(2, 6), num(6, 8), num(8, 10), num(10, 12), num(12, 14));
         const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
         let h12 = if hh % 12 == 0 { 12 } else { hh % 12 };
-        let who = if author.trim().is_empty() { String::new() } else { format!("By {} ", author.trim()) };
-        format!("{who}at {h12}:{mm:02} {}, {} {day:02}, {y}", if hh < 12 { "am" } else { "pm" }, MONTHS[(mo.clamp(1, 12) - 1) as usize])
+        let month = MONTHS.get(mo.clamp(1, 12) as usize - 1).copied().unwrap_or("Jan");
+        (format!("{month} {day:02}, {y}"), format!("{h12}:{mm:02} {}", if hh < 12 { "am" } else { "pm" }))
     }
 
+    /// Today's date in local time: (year, month, day). With an injected clock (tests) the clock
+    /// is taken as local time.
     pub fn today(&self) -> (i64, u32, u32) {
         let offset = self.local_offset();
         self.now().map(|t| pdfcraft_cos::pdf_date(t + offset)).as_deref().and_then(parse_ymd).unwrap_or((1970, 1, 1))
@@ -99,11 +136,11 @@ impl Session {
     }
 
     /// Web addresses in the text of every page (Create links from URLs): (page, one rectangle
-    /// per line in user space, URI). Text that already has a link over it is skipped.
+    /// per line in user space, URI). Text that already has a link over it is skipped, and so is
+    /// text on a layer the viewer hides: a link there would sit over nothing the reader can see.
     pub fn find_urls(&self, id: DocId) -> Vec<(usize, Vec<[f64; 4]>, String)> {
         let Some(doc) = self.get(id) else { return Vec::new() };
-        let config = RenderConfig { password: doc.password.as_deref().map(Arc::from), ..Default::default() };
-        let mut r = pdfcraft_render::PageRenderer::new(doc.bytes.clone(), config);
+        let mut r = pdfcraft_render::PageRenderer::new(doc.bytes.clone(), doc.config.clone());
         let mut out = Vec::new();
         for page in 0..doc.info.pages.len() {
             let res = r.render(pdfcraft_render::RenderRequest { page, kind: pdfcraft_render::RequestKind::Text, scale: 1.0, ..Default::default() });
@@ -132,6 +169,40 @@ impl Session {
         out
     }
 
+    /// The addresses written as plain text that the viewer makes clickable
+    /// ([`crate::text_links::find_text_links`]), leaving out any a link annotation lies over, from
+    /// the 0-based page `from` on. One call reads at most
+    /// [`MAX_TEXT_LINK_PAGES_PER_SCAN`](crate::text_links::MAX_TEXT_LINK_PAGES_PER_SCAN) pages
+    /// and stops after the page that brings it to
+    /// [`MAX_TEXT_LINKS_PER_SCAN`](crate::text_links::MAX_TEXT_LINKS_PER_SCAN) addresses; then
+    /// `next_page` says where to go on.
+    pub fn text_links(&self, id: DocId, from: usize) -> crate::text_links::TextLinkScan {
+        use crate::text_links::{MAX_TEXT_LINK_PAGES_PER_SCAN, MAX_TEXT_LINKS_PER_SCAN, TextLinkScan};
+        let Some(doc) = self.get(id) else { return TextLinkScan::default() };
+        // The viewer's settings, so text on a layer it hides is not a link.
+        let mut r = pdfcraft_render::PageRenderer::new(doc.bytes.clone(), doc.config.clone());
+        let mut scan = TextLinkScan::default();
+        let pages = doc.info.pages.len();
+        for (page, info) in doc.info.pages.iter().enumerate().skip(from).take(MAX_TEXT_LINK_PAGES_PER_SCAN) {
+            let res = r.render(pdfcraft_render::RenderRequest { page, kind: pdfcraft_render::RequestKind::Text, scale: 1.0, ..Default::default() });
+            if let Some(text) = res.text {
+                let annotations: Vec<_> = doc.info.links.iter().filter(|l| l.page == page).collect();
+                for link in crate::text_links::find_text_links(&text) {
+                    if !annotations.iter().any(|l| link.covered_by(info, l.rect)) {
+                        scan.links.push((page, link));
+                    }
+                }
+            }
+            let next = page.saturating_add(1);
+            let read = next.saturating_sub(from);
+            if next < pages && (read >= MAX_TEXT_LINK_PAGES_PER_SCAN || scan.links.len() >= MAX_TEXT_LINKS_PER_SCAN) {
+                scan.next_page = Some(next);
+                break;
+            }
+        }
+        scan
+    }
+
     /// A page of the bookmark list in outline order: up to `limit` bookmarks from position `offset`.
     /// The document's own structure is read for it, so every bookmark can be reached by paging.
     pub fn bookmark_page(&self, id: DocId, offset: usize, limit: usize) -> Option<BookmarkPage> {
@@ -155,6 +226,14 @@ impl Session {
         let end = offset.saturating_add(limit);
         let rows = all.iter().skip(offset).take(limit).cloned().collect();
         Some(BookmarkPage { rows, next: (end < all.len()).then_some(end), truncated: doc.info.outline_more })
+    }
+
+    /// The bookmark at `path` with everything under it, or the whole outline for `[]`, as a tree
+    /// another document can take ([`crate::Edit::ImportBookmarks`]). `None` when no document has
+    /// `id`, or its structure could not be read for editing.
+    pub fn outline_tree(&self, id: DocId, path: &[usize]) -> Option<Result<pdfcraft_organize::OutlineTree, pdfcraft_organize::OutlineError>> {
+        let editor = self.get(id)?.editor.as_ref()?;
+        Some(pdfcraft_organize::outline_tree(&editor.cos, path))
     }
 
     /// Top-level bookmarks as split points: (first page of each part, its bookmark's title).
@@ -235,7 +314,7 @@ impl Session {
             return false;
         }
         doc.config.hide_comments = hide;
-        doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), doc.config.clone());
+        doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), display_config(&doc.config));
         doc.generation += 1;
         true
     }
@@ -248,7 +327,7 @@ impl Session {
             return false;
         }
         doc.config.reading_colors = colors;
-        doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), doc.config.clone());
+        doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), display_config(&doc.config));
         doc.generation += 1;
         true
     }
@@ -259,9 +338,11 @@ impl Session {
     }
 
     /// How the document's pages are drawn for viewing: its password and view settings (layer
-    /// visibility, hidden comments, reading colours). `None` when no such document is open.
+    /// visibility, hidden comments, reading colours), and the fields as its page actions and
+    /// timers show them (#169). `None` when no such document is open.
     pub fn render_config(&self, id: DocId) -> Option<RenderConfig> {
-        Some(self.get(id)?.config.clone())
+        let doc = self.get(id)?;
+        Some(crate::live_scripts::with_live_view(doc, doc.config.clone()))
     }
 
     /// Acrobat's Summarize Comments ("Comments only" layout): a new PDF listing every comment

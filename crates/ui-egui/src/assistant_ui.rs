@@ -318,7 +318,7 @@ fn connections(ui: &mut egui::Ui, d: &mut Draft) {
                         .find(|p| p.client_id == d.settings.account)
                         .map_or("Choose an account", |p| if p.email.is_empty() { p.subject.as_str() } else { p.email.as_str() });
                     let before = d.settings.account.clone();
-                    egui::ComboBox::from_id_salt("assistant-account")
+                    craft_ui::ComboBox::from_id_salt("assistant-account")
                         .selected_text(selected)
                         .show_ui(ui, |ui| {
                             for p in &d.profiles {
@@ -461,7 +461,7 @@ fn connections(ui: &mut egui::Ui, d: &mut Draft) {
                 d.connect(&ctx, move |_, _| Ok(Update::Models(platform::models(p, &account)?)));
             }
             if !d.models.is_empty() {
-                egui::ComboBox::from_id_salt("assistant-model")
+                craft_ui::ComboBox::from_id_salt("assistant-model")
                     .selected_text("Choose a model")
                     .width(ui.available_width())
                     .show_ui(ui, |ui| {
@@ -485,7 +485,7 @@ fn microsoft_connection(ui: &mut egui::Ui, d: &mut Draft, ctx: &egui::Context) {
     ui.add(widgets::line(&mut d.settings.microsoft.client_id).char_limit(36).desired_width(ui.available_width())).labelled_by(label.id);
     let label = ui.label("Directory (tenant) ID");
     ui.add(widgets::line(&mut d.settings.microsoft.tenant_id).char_limit(36).desired_width(ui.available_width())).labelled_by(label.id);
-    egui::ComboBox::from_id_salt("copilot-cloud")
+    craft_ui::ComboBox::from_id_salt("copilot-cloud")
         .selected_text(d.settings.microsoft.cloud.label())
         .show_ui(ui, |ui| {
             for cloud in [platform::CopilotCloud::Global, platform::CopilotCloud::Government, platform::CopilotCloud::Defense] {
@@ -578,7 +578,7 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     let mut external = None;
     ui.horizontal_wrapped(|ui| {
         ui.add_enabled_ui(d.job.is_none(), |ui| {
-            egui::ComboBox::from_id_salt("assistant-provider")
+            craft_ui::ComboBox::from_id_salt("assistant-provider")
                 .selected_text(provider_name(d.settings.provider))
                 .width(220.0)
                 .show_ui(ui, |ui| {
@@ -802,7 +802,7 @@ fn context_pane(
     ui.add(widgets::checkbox(&mut d.context_enabled, "Share PDF context"));
     ui.small("Off until you enable it. Review the text before sending or copying.");
     ui.add_space(10.0);
-    egui::ComboBox::from_id_salt("assistant-scope")
+    craft_ui::ComboBox::from_id_salt("assistant-scope")
         .selected_text(match d.scope {
             1 => "All pages",
             2 => "Selected pages",

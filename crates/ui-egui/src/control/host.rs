@@ -1,4 +1,4 @@
-use super::*;
+use super::{Host, Reply, Value, json};
 
 impl Host for crate::PdfCraftApp {
     /// Cancel any in-progress pointer gesture in every open view.
@@ -101,10 +101,14 @@ impl Host for crate::PdfCraftApp {
                 "viewport": [v.viewport_rect().min.x, v.viewport_rect().min.y, v.viewport_rect().max.x, v.viewport_rect().max.y],
                 "find_open": v.find.is_some(),
                 "page_errors": v.page_errors().iter().map(|(p, e)| json!({ "page": p + 1, "error": e })).collect::<Vec<_>>(),
+                // Pages cut at the renderer's limits (#623), 1-based.
+                "cut_pages": v.cut_pages().iter().map(|p| p + 1).collect::<Vec<_>>(),
                 // Where pages are on screen (points), to aim ui.click / ui.drag at page content.
                 "pages_on_screen": v.visible_page_rects().iter().map(|(p, r)| json!({ "page": p + 1, "rect": [r.min.x, r.min.y, r.max.x, r.max.y] })).collect::<Vec<_>>(),
                 "group_selection_count": v.group_selection_count(),
                 "selected_comment": v.comments.selected.map(|(p, i)| json!({ "page": p + 1, "index": i + 1 })),
+                // Every selected comment (⌘-click adds), the one with the handles first.
+                "selected_comments": v.comments.selection().iter().map(|(p, i)| json!({ "page": p + 1, "index": i + 1 })).collect::<Vec<_>>(),
                 "comment_composer_open": v.comments.composer.is_some(),
             })),
             // The Combine files tab: how its files show, and each grid thumbnail's state.
@@ -143,18 +147,23 @@ impl Host for crate::PdfCraftApp {
             "home": self.active.is_none(),
             "mode": format!("{:?}", self.mode),
             "default_mode": self.default_mode,
+            "hotbar": self.hotbar,
             "preferences_category": self.preferences_category.key(),
             "comment_tool_pinned": self.comment_prefs.pinned,
+            // Home's pinned folders, in order, and whether each is folded down to its heading.
+            "pinned_folders": self.pinned.folders.iter().map(|f| json!({ "folder": f, "collapsed": self.pinned.collapsed.contains(f) })).collect::<Vec<_>>(),
             "left_panel": if self.left_open { json!(format!("{:?}", self.left)) } else { Value::Null },
             "tools_side": if self.side_panels.tools_on_right() { "right" } else { "left" },
+            "rail_side": if self.side_panels.rail_on_right() { "right" } else { "left" },
             "right_panel": self.right.map(|r| format!("{r:?}")),
+            "hidden_interface": self.hidden_interface().to_json(),
             "dialog": self.dialog.map(|d| format!("{d:?}")),
             "dialog_windows":crate::dialog_windows::describe(self.ctx.as_ref()),
             "palette_open": self.palette_open,
             "theme": format!("{:?}", self.theme),
             "theme_preference": self.theme_preference,
-            "graphics": self.graphics,
             "show_page_edge_shadows": self.show_page_edge_shadows,
+            "graphics": self.graphics,
             "glass": self.glass,
             "glass_background": {"enabled": self.glass_background.has_image(), "opacity": self.glass_background.opacity},
             "language": self.language,
@@ -179,7 +188,7 @@ impl Host for crate::PdfCraftApp {
     fn commands(&self) -> Value {
         let mut list: Vec<Value> = pdfcraft_engine::commands::COMMANDS
             .iter()
-            .map(|c| json!({ "id": c.id, "label": c.label, "menu": c.menu, "enabled": self.command_enabled(c), "shortcut": c.shortcut.map(|s| s.label(cfg!(target_os = "macos"))) }))
+            .map(|c| json!({ "id": c.id, "label": c.label, "menu": c.menu, "enabled": self.command_enabled(c), "shortcut": c.shortcut_for(cfg!(target_os = "macos")).map(|s| s.label(cfg!(target_os = "macos"))) }))
             .collect();
         list.push(json!({"id": "ui.dock", "label": "Panel layout", "enabled": true, "params": "action: docking action"}));
         list.push(json!({"id": "ui.panel", "label": "Side panel", "enabled": true, "params": "panel: tools or side; open: boolean; width: number (clamped to the panel's limits)"}));

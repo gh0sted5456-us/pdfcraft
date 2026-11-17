@@ -21,21 +21,18 @@ impl PageStreams {
         let refs: Vec<Object> = match page_dict.get(b"Contents") {
             None => Vec::new(),
             Some(c) => match &*doc.resolve(c) {
-                Object::Array(a) if a.len() <= 4096 => a.clone(),
-                Object::Array(_) => return None,
+                Object::Array(a) => a.clone(),
                 _ => vec![c.clone()],
             },
         };
         let mut entries = Vec::with_capacity(refs.len());
         let mut data = Vec::with_capacity(refs.len());
-        let mut remaining = 64usize * 1024 * 1024;
         for e in &refs {
             let r = e.as_ref()?;
             let (dict, bytes) = match &*doc.get(r) {
                 Object::Stream(s) => (s.dict.clone(), s.decoded().ok()?),
                 _ => return None,
             };
-            remaining = remaining.checked_sub(bytes.len())?;
             data.push(bytes);
             entries.push((r, dict));
         }

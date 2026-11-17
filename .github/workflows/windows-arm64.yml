@@ -29,7 +29,9 @@ jobs:
   windows-arm64:
     if: github.event_name != 'schedule' || github.repository == 'storytold/pdfcraft'
     # Pin shared workflows; review suite-wide changes with each fork integration.
-    uses: storytold/craft-common-actions/.github/workflows/windows-arm64.yml@86bc2ce420c548d7b171874b67814217532a1648
+    uses: storytold/craft-common-actions/.github/workflows/windows-arm64.yml@59d1ecc4ea15ab59f8d60d38b147d5016c1f1385
     with:
       app-name: pdfcraft
       app-dir: PdfCraft
+      install-relative-path: Programs/ArtCraft/PdfCraft
+      install-scope: perUser

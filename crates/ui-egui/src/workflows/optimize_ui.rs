@@ -71,6 +71,8 @@ impl OptimizeKind {
 pub struct OptimizeRun {
     pub doc: DocId,
     pub kind: OptimizeKind,
+    /// Where the copy goes, if the command asked first. Otherwise it asks when the run is done.
+    pub destination: Option<String>,
     pub progress: Arc<Mutex<OptimizeProgress>>,
 }
 
@@ -78,6 +80,11 @@ pub struct OptimizeRun {
 fn stage_label(stage: OptimizeStage) -> String {
     match stage {
         OptimizeStage::Discarding => tl!("Optimizing… removing user data").to_string(),
+        OptimizeStage::Reading { done: 0, .. } => tl!("Optimizing… reading the pages").to_string(),
+        OptimizeStage::Reading { done, total } => crate::i18n::fmt(
+            tl!("Optimizing… reading page {d} of {t}"),
+            &[("d", &(done + 1).min(total.max(1)).to_string()), ("t", &total.max(1).to_string())],
+        ),
         OptimizeStage::Fragments => tl!("Optimizing… merging image fragments").to_string(),
         OptimizeStage::Images { done, total } => crate::i18n::fmt(
             tl!("Optimizing… image {d} of {t}"),
@@ -107,45 +114,37 @@ fn summary(r: &OptimizeReport) -> String {
 
 fn image_row(ui: &mut egui::Ui, id: &str, title: &str, s: &mut ImageSettings) {
     ui.label(egui::RichText::new(tl!(title)).font(theme::semibold(13.0)));
-    ui.horizontal_wrapped(|ui| {
-        let target = ui.add(widgets::checkbox(&mut s.downsample, tl!("Bicubic downsampling to")));
-        ui.add_enabled(s.downsample, egui::DragValue::new(&mut s.target_ppi).range(9.0..=2400.0).suffix(" ppi")).labelled_by(target.id);
-        let above = ui.label(tl!("for images above"));
-        ui.add_enabled(s.downsample, egui::DragValue::new(&mut s.above_ppi).range(9.0..=2400.0).suffix(" ppi")).labelled_by(above.id);
+    ui.horizontal(|ui| {
+        ui.add(widgets::checkbox(&mut s.downsample, tl!("Bicubic downsampling to")));
+        ui.add_enabled(s.downsample, egui::DragValue::new(&mut s.target_ppi).range(9.0..=2400.0).suffix(" ppi"));
+        ui.label(tl!("for images above"));
+        ui.add_enabled(s.downsample, egui::DragValue::new(&mut s.above_ppi).range(9.0..=2400.0).suffix(" ppi"));
     });
     s.above_ppi = s.above_ppi.max(s.target_ppi);
-    ui.horizontal_wrapped(|ui| {
-        let compression_label = ui.label(tl!("Compression"));
+    ui.horizontal(|ui| {
+        ui.label(tl!("Compression"));
         let label = match s.compression {
             Compression::Jpeg(_) => "JPEG",
             Compression::Flate => tl!("ZIP"),
             Compression::Retain => tl!("Retain existing"),
         };
-        egui::ComboBox::from_id_salt((id, "compression"))
-            .selected_text(label)
-            .show_ui(ui, |ui| {
-                let q = match s.compression {
-                    Compression::Jpeg(q) => q,
-                    _ => 60,
-                };
-                ui.selectable_value(&mut s.compression, Compression::Jpeg(q), "JPEG");
-                ui.selectable_value(&mut s.compression, Compression::Flate, tl!("ZIP"));
-                ui.selectable_value(&mut s.compression, Compression::Retain, tl!("Retain existing"));
-            })
-            .response
-            .labelled_by(compression_label.id);
+        craft_ui::ComboBox::from_id_salt((id, "compression")).selected_text(label).show_ui(ui, |ui| {
+            let q = match s.compression {
+                Compression::Jpeg(q) => q,
+                _ => 60,
+            };
+            ui.selectable_value(&mut s.compression, Compression::Jpeg(q), "JPEG");
+            ui.selectable_value(&mut s.compression, Compression::Flate, tl!("ZIP"));
+            ui.selectable_value(&mut s.compression, Compression::Retain, tl!("Retain existing"));
+        });
         if let Compression::Jpeg(q) = &mut s.compression {
-            let quality_label = ui.label(tl!("Quality"));
+            ui.label(tl!("Quality"));
             let name = QUALITIES.iter().min_by_key(|(_, v)| (*v as i32 - *q as i32).abs()).map_or(tl!("Medium"), |(n, _)| tl!(n));
-            egui::ComboBox::from_id_salt((id, "quality"))
-                .selected_text(name)
-                .show_ui(ui, |ui| {
-                    for (n, v) in QUALITIES {
-                        ui.selectable_value(q, v, tl!(n));
-                    }
-                })
-                .response
-                .labelled_by(quality_label.id);
+            craft_ui::ComboBox::from_id_salt((id, "quality")).selected_text(name).show_ui(ui, |ui| {
+                for (n, v) in QUALITIES {
+                    ui.selectable_value(q, v, tl!(n));
+                }
+            });
         }
     });
     ui.add_space(8.0);
@@ -154,27 +153,25 @@ fn image_row(ui: &mut egui::Ui, id: &str, title: &str, s: &mut ImageSettings) {
 /// Monochrome Images: how black-and-white images and image masks are resampled and stored.
 fn mono_row(ui: &mut egui::Ui, m: &mut MonoSettings) {
     ui.label(egui::RichText::new(tl!("Monochrome Images")).font(theme::semibold(13.0)));
-    ui.horizontal_wrapped(|ui| {
-        let target = ui.add(widgets::checkbox(&mut m.downsample, tl!("Downsample to")));
-        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.target_ppi).range(9.0..=2400.0).suffix(" ppi")).labelled_by(target.id);
-        let above = ui.label(tl!("for images above"));
-        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.above_ppi).range(9.0..=2400.0).suffix(" ppi")).labelled_by(above.id);
+    ui.horizontal(|ui| {
+        ui.add(widgets::checkbox(&mut m.downsample, tl!("Downsample to")));
+        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.target_ppi).range(9.0..=2400.0).suffix(" ppi"));
+        ui.label(tl!("for images above"));
+        ui.add_enabled(m.downsample, egui::DragValue::new(&mut m.above_ppi).range(9.0..=2400.0).suffix(" ppi"));
     });
     m.above_ppi = m.above_ppi.max(m.target_ppi);
-    ui.horizontal_wrapped(|ui| {
-        let compression_label = ui.label(tl!("Compression"));
+    ui.horizontal(|ui| {
+        ui.label(tl!("Compression"));
         let label = match m.compression {
             MonoCompression::CcittG4 => tl!("CCITT Group 4"),
+            MonoCompression::Jbig2 => tl!("JBIG2 (lossless)"),
             MonoCompression::Retain => tl!("Retain existing"),
         };
-        egui::ComboBox::from_id_salt(("mono", "compression"))
-            .selected_text(label)
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut m.compression, MonoCompression::CcittG4, tl!("CCITT Group 4"));
-                ui.selectable_value(&mut m.compression, MonoCompression::Retain, tl!("Retain existing"));
-            })
-            .response
-            .labelled_by(compression_label.id);
+        craft_ui::ComboBox::from_id_salt(("mono", "compression")).selected_text(label).show_ui(ui, |ui| {
+            ui.selectable_value(&mut m.compression, MonoCompression::CcittG4, tl!("CCITT Group 4"));
+            ui.selectable_value(&mut m.compression, MonoCompression::Jbig2, tl!("JBIG2 (lossless)"));
+            ui.selectable_value(&mut m.compression, MonoCompression::Retain, tl!("Retain existing"));
+        });
     });
     ui.add_space(8.0);
 }
@@ -194,39 +191,31 @@ fn discard_box(ui: &mut egui::Ui, list: &mut Vec<Hidden>, h: Hidden, label: &str
 pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (bool, bool) {
     widgets::dialog_heading(ui, tl!("PDF Optimizer"));
     ui.add_space(6.0);
-    ui.horizontal_wrapped(|ui| {
-        let settings_label = ui.label(tl!("Settings"));
+    ui.horizontal(|ui| {
+        ui.label(tl!("Settings"));
         let name = |p: Preset| match p {
             Preset::Standard => tl!("Standard"),
             Preset::Mobile => tl!("Mobile"),
         };
         let current = Preset::of(&d.settings);
-        egui::ComboBox::from_id_salt("optimize-preset")
-            .selected_text(current.map_or(tl!("Custom"), name))
-            .show_ui(ui, |ui| {
-                for p in Preset::ALL {
-                    if ui.selectable_label(current == Some(p), name(p)).clicked() {
-                        d.settings = p.settings();
-                    }
+        craft_ui::ComboBox::from_id_salt("optimize-preset").selected_text(current.map_or(tl!("Custom"), name)).show_ui(ui, |ui| {
+            for p in Preset::ALL {
+                if ui.selectable_label(current == Some(p), name(p)).clicked() {
+                    d.settings = p.settings();
                 }
-            })
-            .response
-            .labelled_by(settings_label.id);
+            }
+        });
         ui.add_space(8.0);
-        let compatibility_label = ui.label(tl!("Compatibility"));
+        ui.label(tl!("Compatibility"));
         let compat_label = |c: Compatibility| match c {
             Compatibility::Retain => tl!("Retain existing").to_string(),
             _ => format!("PDF {}", c.name()),
         };
-        egui::ComboBox::from_id_salt("optimize-compatibility")
-            .selected_text(compat_label(d.settings.compatibility))
-            .show_ui(ui, |ui| {
-                for c in Compatibility::ALL {
-                    ui.selectable_value(&mut d.settings.compatibility, c, compat_label(c));
-                }
-            })
-            .response
-            .labelled_by(compatibility_label.id);
+        craft_ui::ComboBox::from_id_salt("optimize-compatibility").selected_text(compat_label(d.settings.compatibility)).show_ui(ui, |ui| {
+            for c in Compatibility::ALL {
+                ui.selectable_value(&mut d.settings.compatibility, c, compat_label(c));
+            }
+        });
     });
     ui.add_space(6.0);
     ui.horizontal_wrapped(|ui| {
@@ -243,68 +232,71 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (boo
     });
     ui.separator();
     ui.add_space(6.0);
-    widgets::dialog_scroll(ui, "optimizer-body", |ui| {
-        let s = &mut d.settings;
-        match d.tab {
-            OptimizeTab::Images => {
-                ui.add(widgets::checkbox(&mut s.merge_fragments, tl!("Merge image fragments")));
-                image_row(ui, "color", "Color Images", &mut s.color);
-                image_row(ui, "gray", "Grayscale Images", &mut s.gray);
-                mono_row(ui, &mut s.mono);
-                ui.label(
-                    egui::RichText::new(tl!("Each image is measured where pages draw it; an image is replaced only if the result is smaller."))
-                        .small()
-                        .color(t.text_muted),
-                );
-            }
-            OptimizeTab::DiscardObjects => {
-                discard_box(ui, &mut d.discard, Hidden::LinksActionsScripts, "Discard all links, actions and JavaScript");
-                ui.add(widgets::checkbox(&mut s.discard_alternate_images, tl!("Discard alternate images")));
-                ui.add(widgets::checkbox(&mut s.discard_thumbnails, tl!("Discard embedded page thumbnails")));
-                ui.add(widgets::checkbox(&mut s.discard_tags, tl!("Discard document tags")));
-                ui.add(widgets::checkbox(&mut s.discard_print_settings, tl!("Discard embedded print settings")));
-                discard_box(ui, &mut d.discard, Hidden::Bookmarks, "Discard bookmarks");
-                discard_box(ui, &mut d.discard, Hidden::FormFields, "Flatten form fields");
-                discard_box(ui, &mut d.discard, Hidden::HiddenLayers, "Discard hidden layer content");
-            }
-            OptimizeTab::DiscardUserData => {
-                discard_box(ui, &mut d.discard, Hidden::Comments, "Discard all comments, forms and multimedia");
-                discard_box(ui, &mut d.discard, Hidden::Metadata, "Discard document information and metadata");
-                discard_box(ui, &mut d.discard, Hidden::Attachments, "Discard all object data (file attachments)");
-                discard_box(ui, &mut d.discard, Hidden::PrivateData, "Discard private data of other applications");
-                discard_box(ui, &mut d.discard, Hidden::HiddenText, "Discard hidden text");
-            }
-            OptimizeTab::CleanUp => {
-                ui.add(widgets::checkbox(&mut s.flate_unencoded, tl!("Use Flate to encode streams that are not encoded")));
-                ui.add(widgets::checkbox(&mut s.lzw_to_flate, tl!("In streams that use LZW encoding, use Flate instead")));
-                ui.add(widgets::checkbox(&mut s.remove_invalid_links, tl!("Remove invalid links and bookmarks")));
-                ui.add(widgets::checkbox(&mut s.remove_unreferenced_dests, tl!("Remove unreferenced named destinations")));
-                let mut object_streams = s.effective_object_streams();
-                if ui
-                    .add_enabled(
-                        s.compatibility != Compatibility::Pdf1_4,
-                        widgets::checkbox(&mut object_streams, tl!("Compress document structure (object streams)")),
-                    )
-                    .changed()
-                {
-                    s.object_streams = object_streams;
-                }
-                ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Remove unused objects and merge identical ones")));
-            }
+    let s = &mut d.settings;
+    match d.tab {
+        OptimizeTab::Images => {
+            ui.add(widgets::checkbox(&mut s.merge_fragments, tl!("Merge image fragments")));
+            image_row(ui, "color", "Color Images", &mut s.color);
+            image_row(ui, "gray", "Grayscale Images", &mut s.gray);
+            mono_row(ui, &mut s.mono);
+            ui.label(
+                egui::RichText::new(tl!("Each image is measured where pages draw it; an image is replaced only if the result is smaller."))
+                    .small()
+                    .color(t.text_muted),
+            );
         }
-    });
+        OptimizeTab::DiscardObjects => {
+            discard_box(ui, &mut d.discard, Hidden::LinksActionsScripts, "Discard all links, actions and JavaScript");
+            ui.add(widgets::checkbox(&mut s.discard_alternate_images, tl!("Discard alternate images")));
+            ui.add(widgets::checkbox(&mut s.discard_thumbnails, tl!("Discard embedded page thumbnails")));
+            ui.add(widgets::checkbox(&mut s.discard_tags, tl!("Discard document tags")));
+            ui.add(widgets::checkbox(&mut s.discard_search_index, tl!("Discard embedded search index")));
+            ui.add(widgets::checkbox(&mut s.discard_print_settings, tl!("Discard embedded print settings")));
+            ui.add(widgets::checkbox(&mut s.discard_form_actions, tl!("Discard all form submission, import and reset actions")));
+            discard_box(ui, &mut d.discard, Hidden::Bookmarks, "Discard bookmarks");
+            discard_box(ui, &mut d.discard, Hidden::FormFields, "Flatten form fields");
+            discard_box(ui, &mut d.discard, Hidden::HiddenLayers, "Discard hidden layer content");
+        }
+        OptimizeTab::DiscardUserData => {
+            discard_box(ui, &mut d.discard, Hidden::Comments, "Discard all comments, forms and multimedia");
+            discard_box(ui, &mut d.discard, Hidden::Metadata, "Discard document information and metadata");
+            discard_box(ui, &mut d.discard, Hidden::Attachments, "Discard all object data (file attachments)");
+            ui.add(widgets::checkbox(&mut s.discard_external_refs, tl!("Discard external cross-references")));
+            discard_box(ui, &mut d.discard, Hidden::PrivateData, "Discard private data of other applications");
+            discard_box(ui, &mut d.discard, Hidden::HiddenText, "Discard hidden text");
+        }
+        OptimizeTab::CleanUp => {
+            ui.add(widgets::checkbox(&mut s.flate_unencoded, tl!("Use Flate to encode streams that are not encoded")));
+            ui.add(widgets::checkbox(&mut s.lzw_to_flate, tl!("In streams that use LZW encoding, use Flate instead")));
+            ui.add(widgets::checkbox(&mut s.remove_invalid_links, tl!("Remove invalid links and bookmarks")));
+            ui.add(widgets::checkbox(&mut s.remove_unreferenced_dests, tl!("Remove unreferenced named destinations")));
+            let mut object_streams = s.effective_object_streams();
+            if ui
+                .add_enabled(
+                    s.compatibility != Compatibility::Pdf1_4,
+                    widgets::checkbox(&mut object_streams, tl!("Compress document structure (object streams)")),
+                )
+                .changed()
+            {
+                s.object_streams = object_streams;
+            }
+            ui.add_enabled(false, widgets::checkbox(&mut true, tl!("Remove unused objects and merge identical ones")));
+        }
+    }
     ui.add_space(12.0);
     let (mut ok, mut cancel) = (false, false);
-    widgets::dialog_footer(ui, |ui| {
-        if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
-            ok = true;
-        }
-        if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
-            cancel = true;
-        }
+    ui.horizontal(|ui| {
         if widgets::dialog_button(ui, tl!("Audit space usage…"), widgets::DialogAction::Back).clicked() {
             d.audit = true;
         }
+        crate::widgets::dialog_footer(ui, |ui| {
+            if widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked() {
+                ok = true;
+            }
+            if widgets::dialog_button(ui, tl!("Cancel"), widgets::DialogAction::Cancel).clicked() {
+                cancel = true;
+            }
+        });
     });
     (ok, cancel)
 }
@@ -312,13 +304,15 @@ pub(crate) fn body(ui: &mut egui::Ui, d: &mut OptimizeDraft, t: &Tokens) -> (boo
 /// Audit Space Usage: how the file's bytes are spent now, by kind of content (not what
 /// optimizing would save).
 pub(crate) fn audit_body(ui: &mut egui::Ui, rows: &[pdfcraft_engine::optimize::SpaceUse], t: &Tokens) -> bool {
-    crate::widgets::dialog_heading(ui, tl!("Space Audit"));
+    ui.label(RichText::new(tl!("Space Audit")).font(crate::theme::semibold(18.0)));
     ui.add_space(4.0);
-    widgets::dialog_scroll(ui, "audit-body", |ui| audit_table(ui, rows, t));
+    audit_table(ui, rows, t);
     ui.add_space(12.0);
     let mut ok = false;
-    widgets::dialog_footer(ui, |ui| {
-        ok = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked();
+    ui.horizontal(|ui| {
+        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            ok = widgets::dialog_button(ui, tl!("OK"), widgets::DialogAction::Confirm).clicked()
+        })
     });
     ok
 }
@@ -355,7 +349,7 @@ pub(crate) fn audit_table(ui: &mut egui::Ui, rows: &[pdfcraft_engine::optimize::
     let width = |column: usize| table.iter().filter_map(|row| row.get(column)).map(|g| g.size().x).fold(0.0, f32::max);
     // The description takes what the numbers leave, so the striped rows span the dialog.
     let numbers = width(1) + width(2) + 2.0 * gap;
-    let widths = [width(0).max(ui.available_width() - numbers - 1.0), width(1), width(2)];
+    let widths = [width(0).max(ui.available_width() - numbers), width(1), width(2)];
     let height = table.iter().flatten().map(|g| g.size().y).fold(ui.spacing().interact_size.y, f32::max);
     // No minimum column width: egui's default widened a narrow Bytes column past `widths` and
     // pushed the table beyond the dialog's padding.
@@ -398,18 +392,28 @@ impl PdfCraftApp {
     /// Run an optimization of the active document on a worker thread (inline in tests and on
     /// the web), showing its progress; the copy is saved when it is done.
     pub(crate) fn start_optimize(&mut self, kind: OptimizeKind, settings: &Settings, discard: &[Hidden]) {
+        let Some((_, id)) = self.active_ids() else { return };
+        self.run_optimize(id, kind, settings, discard, None);
+    }
+
+    /// [`Self::start_optimize`] for document `id`, saving to `destination` if that's known already.
+    pub(crate) fn run_optimize(&mut self, id: DocId, kind: OptimizeKind, settings: &Settings, discard: &[Hidden], destination: Option<String>) {
         // What's typed in a form field is part of the document (#166).
         if !self.commit_form_typing() {
             return;
         }
-        let Some((_, id)) = self.active_ids() else { return };
         if self.optimize_run.is_some() {
             self.notify_tr("Optimization is already running");
             return;
         }
+        // Both jobs share the progress card and capture the same document state.
+        if self.scan_clean_run.is_some() {
+            self.notify_tr("Scanned pages are already being enhanced");
+            return;
+        }
         let job = match self.session.optimize_job(id, settings, discard) {
             Ok(job) => job,
-            Err(e) => return self.save_optimized(id, kind, Err(e)),
+            Err(e) => return self.save_optimized(id, kind, Err(e), destination),
         };
         let progress = Arc::new(Mutex::new(OptimizeProgress::default()));
         let p = progress.clone();
@@ -426,7 +430,10 @@ impl PdfCraftApp {
         #[cfg(not(target_arch = "wasm32"))]
         if self.run_inline {
             work();
-        } else if let Err(e) = std::thread::Builder::new().name("pdfcraft-optimize".into()).spawn(work) {
+        } else if let Err(e) = std::thread::Builder::new().name("pdfcraft-optimize".into()).spawn(move || {
+            pdfcraft_engine::optimize::give_way_to_other_programs();
+            work();
+        }) {
             // No worker: report the failure instead of waiting for a result that never comes.
             if let Ok(mut s) = progress.lock() {
                 s.result = Some(Err(EditError::Optimize(e.to_string())));
@@ -434,7 +441,7 @@ impl PdfCraftApp {
         }
         #[cfg(target_arch = "wasm32")]
         work();
-        self.optimize_run = Some(OptimizeRun { doc: id, kind, progress });
+        self.optimize_run = Some(OptimizeRun { doc: id, kind, destination, progress });
         self.poll_optimize();
     }
 
@@ -450,7 +457,7 @@ impl PdfCraftApp {
     /// Show progress; save the copy once the worker is done.
     pub(crate) fn poll_optimize(&mut self) {
         let Some(run) = self.optimize_run.as_ref() else { return };
-        let (doc, kind, progress) = (run.doc, run.kind, run.progress.clone());
+        let (doc, kind, destination, progress) = (run.doc, run.kind, run.destination.clone(), run.progress.clone());
         let Ok(mut s) = progress.lock() else {
             // The worker panicked while holding the lock: it will never report back.
             self.optimize_run = None;
@@ -479,7 +486,7 @@ impl PdfCraftApp {
                     let detail = if kind == OptimizeKind::Advanced { summary(&r) } else { String::new() };
                     (b, detail)
                 });
-                self.save_optimized(doc, kind, result);
+                self.save_optimized(doc, kind, result, destination);
             }
         }
     }
@@ -501,7 +508,7 @@ mod tests {
             app.set_option("language", "en").unwrap();
             app.open_bytes("notes.txt", None, b"hello".to_vec()).unwrap();
             let (_, doc) = app.active_ids().unwrap();
-            app.optimize_run = Some(OptimizeRun { doc, kind: OptimizeKind::Advanced, progress: p });
+            app.optimize_run = Some(OptimizeRun { doc, kind: OptimizeKind::Advanced, destination: None, progress: p });
             app.notify("Saved notes.pdf");
             app
         });
@@ -512,7 +519,7 @@ mod tests {
         }
         h.get_by_label("Optimizing… image 4 of 10");
         let shown = h.state().progress_notice.clone().unwrap();
-        assert!((shown.fraction - 0.275).abs() < 1e-4, "{shown:?}");
+        assert!((shown.fraction - 0.415).abs() < 1e-4, "{shown:?}");
         assert!(shown.cancellable);
 
         h.get_by_label("Cancel").click();
@@ -529,13 +536,41 @@ mod tests {
     }
 
     #[test]
+    fn the_progress_card_says_what_is_happening() {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        assert_eq!(stage_label(OptimizeStage::default()), "Optimizing… reading the pages");
+        assert_eq!(stage_label(OptimizeStage::Reading { done: 11, total: 51 }), "Optimizing… reading page 12 of 51");
+        assert_eq!(stage_label(OptimizeStage::Reading { done: 51, total: 51 }), "Optimizing… reading page 51 of 51");
+        assert_eq!(stage_label(OptimizeStage::Discarding), "Optimizing… removing user data");
+    }
+
+    #[test]
     fn a_second_run_is_refused_while_one_is_going() {
         let mut app = PdfCraftApp::new();
         app.set_option("language", "en").unwrap();
         app.open_bytes("notes.txt", None, b"hello".to_vec()).unwrap();
         let (_, doc) = app.active_ids().unwrap();
-        app.optimize_run = Some(OptimizeRun { doc, kind: OptimizeKind::Reduce, progress: Arc::default() });
+        app.optimize_run = Some(OptimizeRun { doc, kind: OptimizeKind::Reduce, destination: None, progress: Arc::default() });
         app.optimize_with_draft();
         assert_eq!(app.toast.as_ref().map(|t| t.0.as_str()), Some("Optimization is already running"));
+    }
+
+    #[test]
+    fn optimize_and_enhance_scanned_file_do_not_run_at_once() {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.open_bytes("notes.txt", None, b"hello".to_vec()).unwrap();
+        let (_, doc) = app.active_ids().unwrap();
+        app.scan_clean_run = Some(crate::scan_clean_ui::ScanCleanRun { doc, progress: Arc::default() });
+        app.optimize_with_draft();
+        assert_eq!(app.toast.as_ref().map(|t| t.0.as_str()), Some("Scanned pages are already being enhanced"));
+        assert!(app.optimize_run.is_none());
+
+        app.scan_clean_run = None;
+        app.optimize_run = Some(OptimizeRun { doc, kind: OptimizeKind::Reduce, destination: None, progress: Arc::default() });
+        app.start_scan_clean();
+        assert_eq!(app.toast.as_ref().map(|t| t.0.as_str()), Some("Optimization is already running"));
+        assert!(app.scan_clean_run.is_none());
     }
 }

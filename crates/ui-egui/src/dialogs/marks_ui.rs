@@ -3,10 +3,12 @@
 //! page the range selects, with the marks laid out on it. "Update" opens the same dialog in
 //! replace mode.
 
+#[cfg(not(target_arch = "wasm32"))]
+use crate::file_filter::AddFilterAnyCase as _;
 use std::collections::{HashMap, HashSet};
 
 use egui::{Color32, CornerRadius, Rect, Stroke, pos2, vec2};
-use pdfcraft_engine::{Background, Edit, FontFamily, HeaderFooter, MarkKind, Watermark};
+use pdfcraft_engine::{Backdrop, Background, DocId, Edit, FontFamily, HeaderFooter, MarkKind, Watermark};
 
 use crate::theme::{self, Tokens};
 use crate::{PdfCraftApp, icons, widgets};
@@ -58,27 +60,139 @@ impl PageRange {
     pub(crate) fn ui(&mut self, ui: &mut egui::Ui, count: usize) {
         ui.horizontal_wrapped(|ui| {
             widgets::radio_value(ui, &mut self.all, true, tl!("All pages"));
-            let from = widgets::radio_value(ui, &mut self.all, false, tl!("Pages from"));
-            ui.add_enabled(!self.all, egui::DragValue::new(&mut self.from).range(1..=count.max(1))).labelled_by(from.id);
-            let to = ui.label(tl!("to"));
-            ui.add_enabled(!self.all, egui::DragValue::new(&mut self.to).range(1..=count.max(1))).labelled_by(to.id);
-            let subset = ui.label(tl!("Subset"));
+            widgets::radio_value(ui, &mut self.all, false, tl!("Pages from"));
+            ui.add_enabled(!self.all, egui::DragValue::new(&mut self.from).range(1..=count.max(1)));
+            ui.label(tl!("to"));
+            ui.add_enabled(!self.all, egui::DragValue::new(&mut self.to).range(1..=count.max(1)));
+            ui.label(tl!("Subset"));
             let label = match self.subset {
                 Subset::All => tl!("All pages in range"),
                 Subset::Even => tl!("Even pages only"),
                 Subset::Odd => tl!("Odd pages only"),
             };
-            egui::ComboBox::from_id_salt("mark-subset")
-                .selected_text(label)
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut self.subset, Subset::All, tl!("All pages in range"));
-                    ui.selectable_value(&mut self.subset, Subset::Even, tl!("Even pages only"));
-                    ui.selectable_value(&mut self.subset, Subset::Odd, tl!("Odd pages only"));
-                })
-                .response
-                .labelled_by(subset.id);
+            craft_ui::ComboBox::from_id_salt("mark-subset").selected_text(label).show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.subset, Subset::All, tl!("All pages in range"));
+                ui.selectable_value(&mut self.subset, Subset::Even, tl!("Even pages only"));
+                ui.selectable_value(&mut self.subset, Subset::Odd, tl!("Odd pages only"));
+            });
         });
     }
+}
+
+/// How many pages a frame the Background dialog checks for a backdrop of their own, so a long
+/// document never stalls the dialog.
+const BACKDROP_PAGES_PER_FRAME: usize = 24;
+
+/// Which pages paint their own backdrop (it hides a background), for the document and edit
+/// generation they were checked in. Filled a few pages a frame.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BackdropCheck {
+    key: Option<(DocId, u64)>,
+    /// Per page: `None` until checked.
+    pages: Vec<Option<Option<Backdrop>>>,
+}
+
+/// What the check found among the pages a background goes on.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct BackdropCount {
+    /// Pages (0-based, ascending) with a white backdrop that can be replaced.
+    pub fills: Vec<usize>,
+    /// Pages (0-based, ascending) covered by a picture (scans): the background stays hidden there.
+    pub images: Vec<usize>,
+    /// Pages not checked yet.
+    pub pending: usize,
+}
+
+impl BackdropCheck {
+    /// Check up to [`BACKDROP_PAGES_PER_FRAME`] more of `pages` (0-based) and sort them.
+    pub fn update(&mut self, doc: &pdfcraft_engine::Document, pages: &[usize]) -> BackdropCount {
+        let key = (doc.id, doc.edit_generation());
+        let count = doc.info.pages.len();
+        if self.key != Some(key) || self.pages.len() != count {
+            self.key = Some(key);
+            self.pages = vec![None; count];
+        }
+        // One batch a frame: finding a page walks the page tree, so the batch shares one walk.
+        let mut batch = Vec::with_capacity(BACKDROP_PAGES_PER_FRAME);
+        for &p in pages {
+            if batch.len() >= BACKDROP_PAGES_PER_FRAME {
+                break;
+            }
+            if matches!(self.pages.get(p), Some(None)) && !batch.contains(&p) {
+                batch.push(p);
+            }
+        }
+        if !batch.is_empty() {
+            for (p, found) in batch.iter().zip(doc.page_backdrops(&batch)) {
+                if let Some(slot) = self.pages.get_mut(*p) {
+                    *slot = Some(found);
+                }
+            }
+        }
+        let mut n = BackdropCount::default();
+        for &p in pages {
+            let Some(slot) = self.pages.get(p) else { continue };
+            match slot {
+                None => n.pending += 1,
+                Some(Some(Backdrop::Fill)) => n.fills.push(p),
+                Some(Some(Backdrop::Image)) => n.images.push(p),
+                Some(None) => {}
+            }
+        }
+        for list in [&mut n.fills, &mut n.images] {
+            list.sort_unstable();
+            list.dedup();
+        }
+        n
+    }
+
+    /// What the check found on `page` (0-based) of this version of `doc`: `None` until it has
+    /// looked, `Some(None)` for a page with no backdrop of its own.
+    pub fn found(&self, doc: &pdfcraft_engine::Document, page: usize) -> Option<Option<Backdrop>> {
+        if self.key != Some((doc.id, doc.edit_generation())) {
+            return None;
+        }
+        self.pages.get(page).copied().flatten()
+    }
+}
+
+impl MarksDraft {
+    /// The dialog for `kind` is opening. Other settings carry over from last time, but replacing
+    /// a page's own backdrop starts on: Update restores backdrops before it re-applies, so a
+    /// page whose backdrop was replaced shows none and the checkbox stays hidden, and a choice
+    /// left off from an earlier dialog would hide the background again unseen.
+    pub fn opened(&mut self, kind: MarkKind) {
+        if kind == MarkKind::Background {
+            self.bg.replace_backdrop = true;
+        }
+    }
+}
+
+/// How many runs of pages a message lists before it stops with "…".
+const LISTED_PAGE_RUNS: usize = 8;
+
+/// After Remove background: the pages (0-based, ascending) whose own white backdrop stays off,
+/// because they changed after the background was added (`pdfcraft_engine::EditNotice`).
+pub(crate) fn backdrops_left_off_message(pages: &[usize]) -> String {
+    pages_phrase(
+        pages,
+        tl!("Page {pages} changed after the background was added, so its own white backdrop stays off. It looks the same on white paper."),
+        tl!("Pages {pages} changed after the background was added, so their own white backdrops stay off. They look the same on white paper."),
+    )
+}
+
+/// `one` or `many` with `{pages}` replaced by `pages` (0-based, ascending) as 1-based runs
+/// ("1-3, 6"), so the message says which pages it means.
+fn pages_phrase(pages: &[usize], one: &str, many: &str) -> String {
+    // `count` 0 never matches a list that isn't empty, so the list is always written out.
+    let runs = crate::combine_ui::range_of(pages, 0);
+    let mut parts: Vec<&str> = runs.split(", ").take(LISTED_PAGE_RUNS + 1).collect();
+    if parts.len() > LISTED_PAGE_RUNS {
+        parts.truncate(LISTED_PAGE_RUNS);
+        parts.push("…");
+    }
+    let template = if pages.len() == 1 { one } else { many };
+    crate::i18n::fmt(template, &[("pages", &parts.join(", "))])
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -99,6 +213,8 @@ pub struct MarksDraft {
     pub use_file: bool,
     pub file: Option<(String, std::sync::Arc<Vec<u8>>)>,
     pub file_page: usize,
+    /// Background: pages that paint their own backdrop.
+    pub backdrops: BackdropCheck,
     /// The page (0-based) the preview was stepped to; `None` previews the current page. Reset
     /// each time the dialog opens.
     pub preview: Option<usize>,
@@ -119,6 +235,7 @@ impl Default for MarksDraft {
             use_file: false,
             file: None,
             file_page: 1,
+            backdrops: BackdropCheck::default(),
             preview: None,
         }
     }
@@ -189,6 +306,19 @@ fn rgb32(c: [f64; 3]) -> Color32 {
 fn behind(color: [f64; 3], opacity: f64) -> Color32 {
     let a = if opacity.is_finite() { opacity.clamp(0.0, 1.0) } else { 1.0 };
     rgb32(color.map(|c| 1.0 - a * (1.0 - c)))
+}
+
+/// The preview's tint for a background colour on a page whose own backdrop is `found` (`None`
+/// when it has none, or the check hasn't reached it): no colour where the page will still hide
+/// the background after OK, because a picture covers it (a scan) or it keeps its white backdrop
+/// with Replace unticked.
+fn background_tint(d: &MarksDraft, found: Option<Backdrop>) -> Color32 {
+    let hidden = match found {
+        Some(Backdrop::Image) => true,
+        Some(Backdrop::Fill) => !d.bg.replace_backdrop,
+        None => false,
+    };
+    if hidden { Color32::WHITE } else { behind(d.bg.color, d.bg.opacity) }
 }
 
 /// In Update, the pages previewed without the marks the dialog replaces. Their thumbnails still
@@ -343,58 +473,50 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
         MarkKind::HeaderFooter => crate::i18n::fmt(tl!("{verb} Header and Footer"), &[("verb", verb)]),
         MarkKind::Watermark => crate::i18n::fmt(tl!("{verb} Watermark"), &[("verb", verb)]),
         MarkKind::Background => crate::i18n::fmt(tl!("{verb} Background"), &[("verb", verb)]),
+        // Printer marks have a dialog of their own (printer_marks_ui); this one is never opened for them.
         MarkKind::PrinterMarks => tl!("Add printer marks").to_string(),
     };
-    widgets::dialog_heading(ui, title);
+    widgets::dialog_heading(ui, &title);
     ui.add_space(8.0);
+    // Lion PDF: the body scrolls in a short window; the buttons stay below it.
     let undrawable = widgets::dialog_scroll(ui, "marks-body", |ui| {
         match kind {
             MarkKind::HeaderFooter => {
                 ui.horizontal_wrapped(|ui| {
                     // The standard faces a header can be drawn in (#3754).
-                    let font = ui.label(tl!("Font:"));
-                    egui::ComboBox::from_id_salt("hf-font")
-                        .selected_text(d.hf.font.label())
-                        .width(100.0)
-                        .show_ui(ui, |ui| {
-                            for f in [FontFamily::Helvetica, FontFamily::Times, FontFamily::Courier] {
-                                ui.selectable_value(&mut d.hf.font, f, f.label());
-                            }
-                        })
-                        .response
-                        .labelled_by(font.id);
-                    let size = ui.label(tl!("Size"));
-                    ui.add(egui::DragValue::new(&mut d.hf.font_size).range(4.0..=72.0).speed(0.5)).labelled_by(size.id);
+                    ui.label(tl!("Font:"));
+                    craft_ui::ComboBox::from_id_salt("hf-font").selected_text(d.hf.font.label()).width(100.0).show_ui(ui, |ui| {
+                        for f in [FontFamily::Helvetica, FontFamily::Times, FontFamily::Courier] {
+                            ui.selectable_value(&mut d.hf.font, f, f.label());
+                        }
+                    });
+                    ui.label(tl!("Size"));
+                    ui.add(egui::DragValue::new(&mut d.hf.font_size).range(4.0..=72.0).speed(0.5));
                     ui.add(widgets::checkbox(&mut d.hf.underline, tl!("Underline")));
                     color_button(ui, &mut d.hf.color);
                     ui.add_space(16.0);
                     ui.label(format!("{} ({})", tl!("Margins"), units.label()));
                     let per = units.per_point();
                     for (label, k) in [(tl!("Top"), 0), (tl!("Bottom"), 1), (tl!("Left"), 2), (tl!("Right"), 3)] {
-                        let label = ui.label(label);
+                        ui.label(label);
                         let mut v = d.hf.margins[k] * per;
                         // Up to 10 inches, whatever the unit.
                         let max = 720.0 * per;
-                        if ui
-                            .add(egui::DragValue::new(&mut v).range(0.0..=max).speed(units.speed()).max_decimals(units.decimals()))
-                            .labelled_by(label.id)
-                            .changed()
-                        {
+                        if ui.add(egui::DragValue::new(&mut v).range(0.0..=max).speed(units.speed()).max_decimals(units.decimals())).changed() {
                             d.hf.margins[k] = v / per;
                         }
                     }
                 });
                 ui.add_space(8.0);
-                let box_width = ((ui.available_width() - 20.0) / 3.0).max(40.0);
                 egui::Grid::new("hf-boxes").num_columns(3).spacing([10.0, 4.0]).show(ui, |ui| {
                     for row in 0..2 {
-                        let labels: Vec<_> = (0..3).map(|col| ui.label(egui::RichText::new(tl!(BOX_NAMES[row * 3 + col])).small()).id).collect();
+                        for col in 0..3 {
+                            ui.label(egui::RichText::new(tl!(BOX_NAMES[row * 3 + col])).small());
+                        }
                         ui.end_row();
-                        for (col, label) in labels.into_iter().enumerate() {
+                        for col in 0..3 {
                             let k = row * 3 + col;
-                            let r = ui
-                                .add_sized([box_width, 40.0], crate::widgets::block(&mut d.hf.text[k]).desired_rows(2).id_salt(("hf-box", k)))
-                                .labelled_by(label);
+                            let r = ui.add_sized([220.0, 40.0], crate::widgets::block(&mut d.hf.text[k]).desired_rows(2).id_salt(("hf-box", k)));
                             if r.gained_focus() || r.has_focus() {
                                 d.focused_box = k;
                             }
@@ -403,36 +525,32 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
                     }
                 });
                 ui.horizontal_wrapped(|ui| {
-                    let page_format = ui.label(tl!("Page number"));
-                    egui::ComboBox::from_id_salt("hf-page-format")
-                        .selected_text(PAGE_FORMATS[d.page_format].trim_matches(['<', '>']))
-                        .show_ui(ui, |ui| {
+                    craft_ui::ComboBox::from_id_salt("hf-page-format").selected_text(PAGE_FORMATS[d.page_format].trim_matches(['<', '>'])).show_ui(
+                        ui,
+                        |ui| {
                             for (k, f) in PAGE_FORMATS.iter().enumerate() {
                                 ui.selectable_value(&mut d.page_format, k, f.trim_matches(['<', '>']));
                             }
-                        })
-                        .response
-                        .labelled_by(page_format.id);
+                        },
+                    );
                     if ui.button(tl!("Insert Page Number")).clicked() {
                         d.hf.text[d.focused_box].push_str(PAGE_FORMATS[d.page_format]);
                     }
                     ui.add_space(12.0);
-                    let date_format = ui.label(tl!("Date format"));
-                    egui::ComboBox::from_id_salt("hf-date-format")
-                        .selected_text(DATE_FORMATS[d.date_format].trim_matches(['<', '>']))
-                        .show_ui(ui, |ui| {
+                    craft_ui::ComboBox::from_id_salt("hf-date-format").selected_text(DATE_FORMATS[d.date_format].trim_matches(['<', '>'])).show_ui(
+                        ui,
+                        |ui| {
                             for (k, f) in DATE_FORMATS.iter().enumerate() {
                                 ui.selectable_value(&mut d.date_format, k, f.trim_matches(['<', '>']));
                             }
-                        })
-                        .response
-                        .labelled_by(date_format.id);
+                        },
+                    );
                     if ui.button(tl!("Insert Date")).clicked() {
                         d.hf.text[d.focused_box].push_str(DATE_FORMATS[d.date_format]);
                     }
                     ui.add_space(12.0);
-                    let start = ui.label(tl!("Start page number"));
-                    ui.add(egui::DragValue::new(&mut d.hf.start_number).range(1..=999_999)).labelled_by(start.id);
+                    ui.label(tl!("Start page number"));
+                    ui.add(egui::DragValue::new(&mut d.hf.start_number).range(1..=999_999));
                 });
                 ui.add(widgets::checkbox(&mut d.hf.shrink, tl!("Shrink the page content to make room for the header and footer")));
             }
@@ -448,38 +566,37 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
                 ui.horizontal_top(|ui| {
                     ui.vertical(|ui| {
                         ui.add_enabled_ui(!d.use_file, |ui| {
-                            let text = ui.label(tl!("Text"));
+                            ui.label(tl!("Text"));
                             ui.add(
                                 crate::widgets::block(&mut d.wm.text)
                                     .desired_rows(2)
                                     .desired_width(320.0)
                                     .hint_text("CONFIDENTIAL")
                                     .id_salt("wm-text"),
-                            )
-                            .labelled_by(text.id);
+                            );
                         });
                         ui.horizontal_wrapped(|ui| {
                             ui.add_enabled_ui(!d.use_file, |ui| ui.add(widgets::checkbox(&mut d.fit, tl!("Fit to page"))));
                             ui.add_enabled_ui(!d.fit, |ui| {
-                                let label = ui.label(tl!("Size"));
+                                ui.label(tl!("Size"));
                                 if d.wm.font_size == 0.0 {
                                     d.wm.font_size = 72.0;
                                 }
-                                ui.add(egui::DragValue::new(&mut d.wm.font_size).range(6.0..=300.0)).labelled_by(label.id);
+                                ui.add(egui::DragValue::new(&mut d.wm.font_size).range(6.0..=300.0));
                             });
                             color_button(ui, &mut d.wm.color);
                         });
                         ui.horizontal_wrapped(|ui| {
-                            let label = ui.label(tl!("Rotation"));
+                            ui.label(tl!("Rotation"));
                             for r in [-45.0, 0.0, 45.0] {
                                 widgets::radio_value(ui, &mut d.wm.rotation, r, if r == 0.0 { tl!("None").to_string() } else { format!("{r}°") });
                             }
-                            ui.add(egui::DragValue::new(&mut d.wm.rotation).range(-180.0..=180.0).suffix("°")).labelled_by(label.id);
+                            ui.add(egui::DragValue::new(&mut d.wm.rotation).range(-180.0..=180.0).suffix("°"));
                         });
                         ui.horizontal_wrapped(|ui| {
-                            let opacity = ui.label(tl!("Opacity"));
+                            ui.label(tl!("Opacity"));
                             let mut pct = d.wm.opacity * 100.0;
-                            if ui.add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%")).labelled_by(opacity.id).changed() {
+                            if ui.add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%")).changed() {
                                 d.wm.opacity = pct / 100.0;
                             }
                         });
@@ -490,10 +607,10 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
                         });
                         ui.horizontal_wrapped(|ui| {
                             ui.label(tl!("Offset from centre"));
-                            let label = ui.label(tl!("Horizontal"));
-                            ui.add(egui::DragValue::new(&mut d.wm.offset[0]).range(-MAX_OFFSET..=MAX_OFFSET).suffix(" pt")).labelled_by(label.id);
-                            let label = ui.label(tl!("Vertical"));
-                            ui.add(egui::DragValue::new(&mut d.wm.offset[1]).range(-MAX_OFFSET..=MAX_OFFSET).suffix(" pt")).labelled_by(label.id);
+                            ui.label(tl!("Horizontal"));
+                            ui.add(egui::DragValue::new(&mut d.wm.offset[0]).range(-MAX_OFFSET..=MAX_OFFSET).suffix(" pt"));
+                            ui.label(tl!("Vertical"));
+                            ui.add(egui::DragValue::new(&mut d.wm.offset[1]).range(-MAX_OFFSET..=MAX_OFFSET).suffix(" pt"));
                         });
                     });
                 });
@@ -510,12 +627,15 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
                     browse |= file_source(ui, d, MarkKind::Background);
                 }
                 ui.horizontal_wrapped(|ui| {
-                    let opacity = ui.label(tl!("Opacity"));
+                    ui.label(tl!("Opacity"));
                     let mut pct = d.bg.opacity * 100.0;
-                    if ui.add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%")).labelled_by(opacity.id).changed() {
+                    if ui.add(egui::Slider::new(&mut pct, 0.0..=100.0).suffix("%")).changed() {
                         d.bg.opacity = pct / 100.0;
                     }
                 });
+                if let Some(doc) = app.session.get(id) {
+                    backdrop_options(ui, t, d, doc, count);
+                }
             }
         }
         ui.add_space(8.0);
@@ -524,7 +644,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
         ui.add_space(8.0);
         // The preview: the current page (or the page stepped to), or the first one the range selects
         // if it leaves that out, drawn from its thumbnail at its displayed size (after /Rotate), the
-        // frame the engine lays the marks out in.
+        // frame the engine lays the marks out in. Update draws it without the marks it replaces.
         let target = shown_preview(&d.range, &mut d.preview, current, count);
         let page = doc.info.pages.get(target).map(|p| (p.width as f64, p.height as f64)).unwrap_or((612.0, 792.0));
         let near: Vec<usize> = [false, true].into_iter().filter_map(|forward| step_preview(&d.range, target, count, forward)).collect();
@@ -535,7 +655,8 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
                 view.thumb_id(target)
             })
         });
-        let tint = if kind == MarkKind::Background && !d.use_file { behind(d.bg.color, d.bg.opacity) } else { Color32::WHITE };
+        let tint =
+            if kind == MarkKind::Background && !d.use_file { background_tint(d, d.backdrops.found(doc, target).flatten()) } else { Color32::WHITE };
         let hf = d.hf.clone();
         let size_h = page.1.max(1.0);
         let (wm, fit) = (d.wm.clone(), d.fit);
@@ -657,7 +778,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
     });
     ui.add_space(10.0);
     let (mut apply, mut cancel) = (false, false);
-    widgets::dialog_footer(ui, |ui| {
+    crate::widgets::dialog_footer(ui, |ui| {
         let ready = undrawable.is_none()
             && match kind {
                 MarkKind::HeaderFooter => d.hf.text.iter().any(|x| !x.trim().is_empty()),
@@ -683,7 +804,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: M
     #[cfg(not(target_arch = "wasm32"))]
     if browse {
         let dialog = rfd::AsyncFileDialog::new()
-            .add_filter(tl!("PDF or image"), &["pdf", "png", "jpg", "jpeg", "tif", "tiff", "gif", "bmp", "jp2", "j2k", "jpx"]);
+            .add_filter_any_case(tl!("PDF or image"), &["pdf", "png", "jpg", "jpeg", "tif", "tiff", "gif", "bmp", "jp2", "j2k", "jpx"]);
         let epoch = app.dialog_epoch();
         app.ask_one(crate::pickers::Ask::File(dialog), None, move |app, p| {
             // Only into the dialog that asked: not one closed meanwhile, or opened again since.
@@ -720,26 +841,55 @@ fn file_source(ui: &mut egui::Ui, d: &mut MarksDraft, kind: MarkKind) -> bool {
     // Browse… is desktop-only.
     #[cfg_attr(target_arch = "wasm32", allow(unused_mut))]
     let mut browse = false;
-    ui.horizontal(|ui| {
+    ui.horizontal_wrapped(|ui| {
         #[cfg(not(target_arch = "wasm32"))]
         if ui.button(tl!("Browse…")).clicked() {
             browse = true;
         }
         ui.label(d.file.as_ref().map(|f| f.0.clone()).unwrap_or_else(|| tl!("No file chosen").to_string()));
         if d.file.as_ref().is_some_and(|f| f.1.starts_with(b"%PDF")) {
-            let label = ui.label(tl!("Page number"));
-            ui.add(egui::DragValue::new(&mut d.file_page).range(1..=9999)).labelled_by(label.id);
+            ui.label(tl!("Page number"));
+            ui.add(egui::DragValue::new(&mut d.file_page).range(1..=9999));
         }
     });
-    ui.horizontal(|ui| {
-        let scale_label = ui.label(tl!("Scale relative to target page"));
+    ui.horizontal_wrapped(|ui| {
+        ui.label(tl!("Scale relative to target page"));
         let scale = if kind == MarkKind::Background { &mut d.bg.scale } else { &mut d.wm.scale };
         let mut pct = *scale * 100.0;
-        if ui.add(egui::Slider::new(&mut pct, 5.0..=100.0).suffix("%")).labelled_by(scale_label.id).changed() {
+        if ui.add(egui::Slider::new(&mut pct, 5.0..=100.0).suffix("%")).changed() {
             *scale = pct / 100.0;
         }
     });
     browse
+}
+
+/// Pages that paint their own backdrop would hide the background: offer to replace a white one,
+/// and say where a picture (a scan) will still hide it.
+fn backdrop_options(ui: &mut egui::Ui, t: &Tokens, d: &mut MarksDraft, doc: &pdfcraft_engine::Document, count: usize) {
+    let n = d.backdrops.update(doc, &d.range.pages(count));
+    if n.pending > 0 {
+        ui.label(egui::RichText::new(tl!("Checking pages…")).small().color(t.text_faint));
+        ui.ctx().request_repaint();
+    }
+    if !n.fills.is_empty() {
+        ui.add_space(4.0);
+        let label = pages_phrase(
+            &n.fills,
+            tl!("Page {pages} paints its own white backdrop, which would hide the background. Replace it"),
+            tl!("Pages {pages} paint their own white backdrop, which would hide the background. Replace it"),
+        );
+        ui.add(widgets::checkbox(&mut d.bg.replace_backdrop, &label));
+        ui.label(egui::RichText::new(tl!("Removing the background puts the page's own backdrop back.")).small().color(t.text_faint));
+    }
+    if !n.images.is_empty() {
+        ui.add_space(4.0);
+        let text = pages_phrase(
+            &n.images,
+            tl!("A picture covers page {pages} (a scan?), so the background won't show there."),
+            tl!("Pictures cover pages {pages} (scans?), so the background won't show there."),
+        );
+        ui.label(egui::RichText::new(text).small().color(crate::content_ui::UNDRAWABLE));
+    }
 }
 
 /// The edit the dialog's OK makes.
@@ -799,6 +949,18 @@ mod tests {
         d.use_file = true;
         assert_eq!(undrawable(MarkKind::Watermark, &d), None, "a picture watermark draws no text");
         assert_eq!(undrawable(MarkKind::Background, &d), None);
+    }
+
+    #[test]
+    fn backdrop_messages_name_their_pages() {
+        let phrase = |pages: &[usize]| pages_phrase(pages, "Page {pages}", "Pages {pages}");
+        assert_eq!(phrase(&[2]), "Page 3");
+        assert_eq!(phrase(&[0, 1, 2, 5]), "Pages 1-3, 6");
+        assert_eq!(phrase(&[0, 1]), "Pages 1-2", "a whole document is still listed");
+        let every_other: Vec<usize> = (0..40).step_by(2).collect();
+        assert_eq!(phrase(&every_other), "Pages 1, 3, 5, 7, 9, 11, 13, 15, …", "a long list stops");
+        let runs: Vec<usize> = (0..LISTED_PAGE_RUNS * 2).step_by(2).collect();
+        assert_eq!(phrase(&runs), "Pages 1, 3, 5, 7, 9, 11, 13, 15", "exactly the limit: no …");
     }
 
     #[test]
@@ -869,6 +1031,19 @@ mod tests {
         assert_eq!(behind([1.0, 0.0, 0.0], 0.0), Color32::WHITE);
         assert_eq!(behind([0.0, 0.0, 0.0], 0.5), Color32::from_rgb(128, 128, 128));
         assert_eq!(behind([0.2, 0.4, 0.6], f64::NAN), behind([0.2, 0.4, 0.6], 1.0), "opaque, as the engine has it");
+    }
+
+    #[test]
+    fn the_preview_shows_a_background_only_where_ok_lets_it_show() {
+        let mut d = MarksDraft::default();
+        let colour = behind(d.bg.color, d.bg.opacity);
+        assert_ne!(colour, Color32::WHITE);
+        assert_eq!(background_tint(&d, None), colour, "no backdrop of its own");
+        assert_eq!(background_tint(&d, Some(Backdrop::Fill)), colour, "its white backdrop is replaced");
+        assert_eq!(background_tint(&d, Some(Backdrop::Image)), Color32::WHITE, "a picture covers it");
+        d.bg.replace_backdrop = false;
+        assert_eq!(background_tint(&d, Some(Backdrop::Fill)), Color32::WHITE, "its white backdrop stays and hides it");
+        assert_eq!(background_tint(&d, None), colour, "unticked changes nothing without a backdrop");
     }
 
     #[test]

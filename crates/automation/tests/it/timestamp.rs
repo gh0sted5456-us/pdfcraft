@@ -80,14 +80,13 @@ fn server(id: DigitalId) -> (String, std::thread::JoinHandle<()>) {
                 b"malformed timestamp response".to_vec()
             } else {
                 sign::timestamp::respond(
-                    &id.key,
-                    &id.certificate,
-                    &[],
-                    sign::DigestAlg::Sha256,
-                    &query,
-                    "1.2.3.4",
-                    Time { year: 2026, month: 10, day: 24, hour: 12, minute: 0, second: 0 },
-                    7,
+                    sign::timestamp::TimestampSigner { key: &id.key, certificate: &id.certificate, chain: &[], digest: sign::DigestAlg::Sha256 },
+                    sign::timestamp::TimestampIssuance {
+                        query: &query,
+                        policy: "1.2.3.4",
+                        generation_time: Time { year: 2026, month: 10, day: 24, hour: 12, minute: 0, second: 0 },
+                        serial: 7,
+                    },
                 )
                 .unwrap()
             };

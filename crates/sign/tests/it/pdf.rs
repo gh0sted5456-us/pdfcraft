@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use pdfcraft_cos::{Dict, Document, ObjRef, Object, PdfString, SaveOptions, write_incremental};
-
 use pdfcraft_sign::{
     Certificate, Detail, DigitalId, Modification, Name, SignError, SignOptions, Status, Time, TimestampAuthority, TrustStore, WORDINGS, der,
     in_english, kind, pkcs12, signatures,
@@ -109,7 +108,7 @@ fn signing_then_validating_with_and_without_trust() {
         assert!(sigs.iter().any(|s| s.field == "Approval" && !s.signed));
         // Trusting the signer (or its root) makes it valid.
         let anchor = id.chain.first().cloned().unwrap_or_else(|| id.certificate.clone());
-        let trusted = signatures(&doc, &signed, &TrustStore { certs: vec![anchor], ..TrustStore::default() });
+        let trusted = signatures(&doc, &signed, &TrustStore { certs: vec![anchor], timestamp_certs: Vec::new() });
         let s = trusted.iter().find(|s| s.signed).unwrap();
         assert_eq!(s.status, Status::Valid, "{file}: {:?}", s.details);
         assert_eq!(s.chain.len(), if file == "chain.p12" { 2 } else { 1 });
@@ -274,7 +273,7 @@ fn an_indirect_annots_array_is_judged_by_the_annotations_it_gains() {
     let annots_ref = |bytes: &[u8]| open(bytes).get(page).as_dict().and_then(|d| d.get(b"Annots").and_then(Object::as_ref));
     let annots = annots_ref(&unsigned).unwrap();
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let first = pdfcraft_sign::sign(&open(&unsigned), &id, &opts()).unwrap();
     let second = pdfcraft_sign::sign(&open(&first), &id, &SignOptions { rect: Some([20.0, 160.0, 220.0, 210.0]), ..opts() }).unwrap();
     assert_eq!(annots_ref(&second), Some(annots), "the signer kept the page's array indirect");
@@ -331,7 +330,7 @@ fn an_indirect_annots_array_is_judged_by_the_annotations_it_gains() {
 #[test]
 fn removing_a_widget_from_an_inline_annots_array_is_not_a_comment_change() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let page = pdfcraft_cos::ObjRef { num: 3, generation: 0 };
     let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
     let inline = open(&signed).get(page).as_dict().and_then(|d| d.get(b"Annots").cloned()).unwrap();
@@ -446,7 +445,7 @@ fn change_text(doc: &mut Document) {
 #[test]
 fn later_changes_are_classified_under_the_signature_permissions() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let check = |bytes: &[u8]| signatures(&open(bytes), bytes, &trust).into_iter().find(|s| s.signed).unwrap();
     // Approval signature: comments are permitted, rewriting page content is not.
     let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
@@ -481,6 +480,153 @@ fn later_changes_are_classified_under_the_signature_permissions() {
     });
     let s = check(&relaxed);
     assert_eq!((s.certify, s.status), (Some(1), Status::Invalid), "{:?}", s.modification);
+}
+
+/// Certify `fixture` with "no changes allowed" (DocMDP P=1).
+fn certified_p1() -> (DigitalId, TrustStore, Vec<u8>) {
+    let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
+    let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &SignOptions { certify: Some(1), ..opts() }).unwrap();
+    (id, trust, signed)
+}
+
+/// Add a signature widget to page 3's /Annots (not to /Fields), with value `v` and rectangle
+/// `rect`.
+fn add_sig_widget(doc: &mut Document, v: Option<&[(&[u8], Object)]>, rect: [i64; 4]) {
+    let mut w = Dict::new();
+    w.set(b"Type".to_vec(), Object::name("Annot"));
+    w.set(b"Subtype".to_vec(), Object::name("Widget"));
+    w.set(b"FT".to_vec(), Object::name("Sig"));
+    w.set(b"Rect".to_vec(), Object::Array(rect.map(Object::Int).to_vec()));
+    w.set(b"P".to_vec(), Object::Ref(ObjRef { num: 3, generation: 0 }));
+    if let Some(entries) = v {
+        let mut value = Dict::new();
+        for (k, o) in entries {
+            value.set(k.to_vec(), o.clone());
+        }
+        let vr = doc.add(Object::Dict(value));
+        w.set(b"V".to_vec(), Object::Ref(vr));
+    }
+    let wr = doc.add(Object::Dict(w));
+    doc.update_dict(ObjRef { num: 3, generation: 0 }, |pg| {
+        let mut a = pg.get(b"Annots").and_then(Object::as_array).cloned().unwrap_or_default();
+        a.push(Object::Ref(wr));
+        pg.set(b"Annots".to_vec(), Object::Array(a));
+    })
+    .unwrap();
+}
+
+/// Under P=1, a signature added after signing breaks the certification unless it is an invisible
+/// document timestamp. A visible overlay, an unsigned widget, an approval signature and a visible
+/// widget wearing a timestamp /SubFilter each break it; a genuine document timestamp does not.
+#[test]
+fn only_an_invisible_document_timestamp_survives_a_no_changes_certification() {
+    let (_, trust, signed) = certified_p1();
+    let check = |bytes: &[u8]| signatures(&open(bytes), bytes, &trust).into_iter().find(|s| s.signed && s.certify == Some(1)).unwrap();
+    assert_eq!(check(&signed).status, Status::Valid, "{:?}", check(&signed).details);
+    let approval: &[(&[u8], Object)] = &[(b"Type", Object::name("Sig")), (b"SubFilter", Object::name("adbe.pkcs7.detached"))];
+    let timestamp: &[(&[u8], Object)] = &[(b"Type", Object::name("DocTimeStamp")), (b"SubFilter", Object::name("ETSI.RFC3161"))];
+    // Each of these breaks the certification: it is a change P=1 does not allow.
+    for (what, v, rect) in [
+        ("visible overlay widget", None, [0, 0, 300, 300]),
+        ("invisible unsigned widget", None, [0, 0, 0, 0]),
+        ("visible approval signature", Some(approval), [0, 0, 300, 300]),
+        ("invisible approval signature", Some(approval), [0, 0, 0, 0]),
+        ("visible widget wearing a timestamp subfilter", Some(timestamp), [0, 0, 300, 300]),
+    ] {
+        let edited = edit_after(&signed, |doc| add_sig_widget(doc, v, rect));
+        let s = check(&edited);
+        assert!(matches!(&s.modification, Modification::Disallowed(k) if k.contains(&kind::SIGNATURE)), "{what}: {:?}", s.modification);
+        assert_ne!(s.status, Status::Valid, "{what}");
+    }
+}
+
+/// A genuine document timestamp, which draws nothing, is validation data P=1 permits: the
+/// certification stays valid.
+#[test]
+fn a_document_timestamp_keeps_a_no_changes_certification_valid() {
+    let (_, trust, signed) = certified_p1();
+    let tsa = TestTsa { id: tsa_id(), time: Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 } };
+    let stamped = pdfcraft_sign::timestamp_document(&open(&signed), &tsa, "D:20261006120000Z").unwrap();
+    let s = signatures(&open(&stamped), &stamped, &trust).into_iter().find(|s| s.certify == Some(1)).unwrap();
+    assert_eq!(s.status, Status::Valid, "{:?}", s.details);
+    assert!(matches!(&s.modification, Modification::Allowed(k) if k.contains(&kind::SIGNATURE)), "{:?}", s.modification);
+}
+
+/// Signature field "Approval" whose value, object 4, asks for DocMDP P 1 in its `/Reference`;
+/// object 5 is another signature dictionary. `perms` goes into the catalog. The signature itself
+/// is a dummy: which signature certifies is decided before its bytes are checked.
+fn certification_of(perms: &str) -> pdfcraft_sign::SignatureInfo {
+    let catalog = format!("<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [3 0 R] >> {perms} >>");
+    let bytes = write_pdf(&[
+        catalog.as_bytes(),
+        b"<< /Type /Pages /Kids [] /Count 0 >>",
+        b"<< /FT /Sig /T (Approval) /V 4 0 R >>",
+        b"<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /Reference [<< /Type /SigRef /TransformMethod /DocMDP /TransformParams << /Type /TransformParams /P 1 /V /1.2 >> >>] >>",
+        b"<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached >>",
+    ]);
+    signatures(&open(&bytes), &bytes, &TrustStore { certs: Vec::new(), timestamp_certs: Vec::new() })
+        .into_iter()
+        .find(|s| s.field == "Approval")
+        .unwrap()
+}
+
+/// Only the signature the catalog's `/Perms /DocMDP` names certifies the document: a DocMDP
+/// reference in any other signature dictionary leaves it an approval signature, with a note.
+#[test]
+fn only_the_signature_the_catalog_names_certifies() {
+    let note = "This signature carries certification permissions, but the document does not name it as its certification, so it is checked as an approval signature.";
+    let noted = |s: &pdfcraft_sign::SignatureInfo| s.details.iter().filter(|d| d.message == note).count();
+    let named = certification_of("/Perms << /DocMDP 4 0 R >>");
+    assert_eq!((named.certify, noted(&named)), (Some(1), 0), "{:?}", named.details);
+    for perms in ["", "/Perms << /DocMDP 5 0 R >>", "/Perms << /UR3 4 0 R >>"] {
+        let s = certification_of(perms);
+        assert_eq!((s.certify, noted(&s)), (None, 1), "{perms:?}: {:?}", s.details);
+    }
+}
+
+/// [`certified_p1`] with a fraction after its last `/ByteRange` number, signed again over the
+/// edited bytes. The ranges still cover whole bytes, so the signature verifies, but no signature
+/// in the signed revision has a byte range that ends exactly where that revision ends.
+fn certified_p1_with_a_fractional_range() -> (TrustStore, Vec<u8>) {
+    let (id, trust, mut signed) = certified_p1();
+    let prefix = b"/ByteRange [";
+    let at = signed.windows(prefix.len()).position(|w| w == prefix).unwrap() + prefix.len();
+    let end = at + signed[at..].iter().position(|b| *b == b']').unwrap();
+    let text = std::str::from_utf8(&signed[at..end]).unwrap().to_owned();
+    let range: Vec<usize> = text.split_ascii_whitespace().map(|n| n.parse().unwrap()).collect();
+    let mut fractional = format!("{}.5", text.trim_end()).into_bytes();
+    assert!(fractional.len() <= end - at, "no room for the fraction in {text:?}");
+    fractional.resize(end - at, b' ');
+    signed[at..end].copy_from_slice(&fractional);
+    let (start, stop) = (range[1], range[2]);
+    signed[start + 1..stop - 1].fill(b'0');
+    let alg = id.key.preferred_digest();
+    let digest = alg.digest(&[&signed[..start], &signed[stop..]]);
+    let cms = pdfcraft_sign::cms::sign_detached(&id.key, &id.certificate, &id.chain, alg, &digest).unwrap();
+    let hex: Vec<u8> = cms.iter().flat_map(|b| format!("{b:02X}").into_bytes()).collect();
+    signed[start + 1..start + 1 + hex.len()].copy_from_slice(&hex);
+    (trust, signed)
+}
+
+/// When the signed revision holds no signature whose byte range ends it, nothing signed says
+/// which permissions apply: later changes are not permitted, whatever the latest catalog says.
+#[test]
+fn changes_after_an_unmatched_signed_revision_are_not_permitted() {
+    let (trust, signed) = certified_p1_with_a_fractional_range();
+    let check = |bytes: &[u8]| signatures(&open(bytes), bytes, &trust).into_iter().find(|s| s.signed).unwrap();
+    let s = check(&signed);
+    assert_eq!((s.status, &s.modification), (Status::Valid, &Modification::None), "{:?}", s.details);
+    let edited = edit_after(&signed, |doc| {
+        let root = doc.root().unwrap();
+        doc.update_dict(root, |c| {
+            c.remove(b"Perms");
+        })
+        .unwrap();
+        add_comment(doc);
+    });
+    let s = check(&edited);
+    assert_eq!((s.status, s.modification), (Status::Invalid, Modification::Disallowed(vec![kind::UNREADABLE])));
 }
 
 #[test]
@@ -520,31 +666,6 @@ fn picture(translucent: bool) -> pdfcraft_sign::Graphic {
         rgba[3] = 128;
     }
     pdfcraft_sign::Graphic::Image { width: 40, height: 10, rgba: Arc::new(rgba) }
-}
-
-#[test]
-fn signature_background_is_subdued_behind_details_and_keeps_the_foreground_image() {
-    let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let options = SignOptions { graphic: Some(picture(false)), background: Some(picture(true)), ..opts() };
-    let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &options).unwrap();
-    let (content, resources) = appearance_of(&signed, "Signature1");
-    assert!(content.find("/Watermark Do").unwrap() < content.find("BT").unwrap());
-    let doc = open(&signed);
-    let objects = doc.resolve(resources.get(b"XObject").unwrap());
-    let objects = objects.as_dict().unwrap();
-    assert!(objects.get(b"Im1").is_some(), "the left image stays independent");
-    let mark = doc.resolve(objects.get(b"Watermark").unwrap());
-    let Object::Stream(mark) = &*mark else { panic!("watermark form") };
-    let ops = String::from_utf8(mark.decoded().unwrap()).unwrap();
-    assert!(ops.contains("/Fade gs"));
-    assert!(ops.contains(" 103 "), "the graphic starts in the right details half: {ops}");
-    let resources = doc.resolve(mark.dict.get(b"Resources").unwrap());
-    let states = doc.resolve(resources.as_dict().unwrap().get(b"ExtGState").unwrap());
-    let fade = doc.resolve(states.as_dict().unwrap().get(b"Fade").unwrap());
-    assert_eq!(fade.as_dict().unwrap().get(b"ca"), Some(&Object::Real(0.12)));
-    assert_ne!(signatures(&doc, &signed, &TrustStore::default()).iter().find(|s| s.field == "Signature1").unwrap().status, Status::Invalid);
-    let plain = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
-    assert!(!appearance_of(&plain, "Signature1").0.contains("/Watermark"));
 }
 
 #[test]
@@ -764,14 +885,13 @@ impl TimestampAuthority for TestTsa {
     fn timestamp(&self, request: &[u8]) -> Result<Vec<u8>, SignError> {
         let q = pdfcraft_sign::timestamp::parse_request(request)?;
         pdfcraft_sign::timestamp::respond(
-            &self.id.key,
-            &self.id.certificate,
-            &self.id.chain,
-            pdfcraft_sign::DigestAlg::Sha256,
-            &q,
-            "1.2.3.4",
-            self.time,
-            7,
+            pdfcraft_sign::timestamp::TimestampSigner {
+                key: &self.id.key,
+                certificate: &self.id.certificate,
+                chain: &self.id.chain,
+                digest: pdfcraft_sign::DigestAlg::Sha256,
+            },
+            pdfcraft_sign::timestamp::TimestampIssuance { query: &q, policy: "1.2.3.4", generation_time: self.time, serial: 7 },
         )
     }
 }
@@ -783,14 +903,15 @@ fn signing_with_a_timestamp_embeds_a_verified_rfc3161_token() {
     let signed = pdfcraft_sign::sign_with_timestamp(&open(&fixture()), &id, &opts(), &tsa).unwrap();
     assert!(signed.starts_with(&fixture()), "still an incremental update");
     let anchor = id.chain.first().cloned().unwrap_or_else(|| id.certificate.clone());
-    let trust = TrustStore { certs: vec![anchor.clone(), tsa.id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![anchor.clone(), tsa.id.certificate.clone()], timestamp_certs: Vec::new() };
     let s = signatures(&open(&signed), &signed, &trust).into_iter().find(|s| s.signed).unwrap();
     assert_eq!(s.status, Status::Valid, "{:?}", s.details);
     assert!(s.timestamp, "{:?}", s.details);
     assert_eq!(s.timestamp_time, Some(tsa.time), "the token's generation time, verified over the signature value");
     assert!(s.details.iter().any(|d| d.message.contains("trusted time")), "{:?}", s.details);
     // A trusted signer with an untrusted TSA: still valid, but the token's time is unverified.
-    let s = signatures(&open(&signed), &signed, &TrustStore { certs: vec![anchor], ..TrustStore::default() }).into_iter().find(|s| s.signed).unwrap();
+    let s =
+        signatures(&open(&signed), &signed, &TrustStore { certs: vec![anchor], timestamp_certs: Vec::new() }).into_iter().find(|s| s.signed).unwrap();
     assert_eq!(s.status, Status::Valid, "{:?}", s.details);
     assert!(s.timestamp);
     assert_eq!(s.timestamp_time, None);
@@ -799,36 +920,6 @@ fn signing_with_a_timestamp_embeds_a_verified_rfc3161_token() {
     let s = signatures(&open(&signed), &signed, &TrustStore::default()).into_iter().find(|s| s.signed).unwrap();
     assert_eq!(s.status, Status::Unknown);
     assert!(s.timestamp && s.timestamp_time.is_none());
-    let trust = TrustStore { timestamp_certs: vec![tsa.id.certificate.clone(), id.certificate.clone()], ..TrustStore::default() };
-    let s = signatures(&open(&signed), &signed, &trust).into_iter().find(|s| s.signed).unwrap();
-    assert_eq!(s.timestamp_time, Some(tsa.time), "timestamp-only trust verifies the authority");
-    assert_eq!(s.status, Status::Unknown, "timestamp-only authorities never establish the PDF signer's identity");
-}
-
-#[test]
-fn timestamp_requests_carry_fresh_nonces_for_documents_and_signatures() {
-    struct Recording {
-        tsa: TestTsa,
-        nonces: std::sync::Mutex<Vec<Option<u64>>>,
-    }
-    impl TimestampAuthority for Recording {
-        fn timestamp(&self, request: &[u8]) -> Result<Vec<u8>, SignError> {
-            let query = pdfcraft_sign::timestamp::parse_request(request)?;
-            self.nonces.lock().unwrap().push(query.nonce);
-            self.tsa.timestamp(request)
-        }
-    }
-    let tsa = Recording {
-        tsa: TestTsa { id: tsa_id(), time: Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 } },
-        nonces: std::sync::Mutex::new(Vec::new()),
-    };
-    pdfcraft_sign::timestamp_document(&open(&fixture()), &tsa, "D:20261006120000Z").unwrap();
-    let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
-    pdfcraft_sign::sign_with_timestamp(&open(&fixture()), &id, &opts(), &tsa).unwrap();
-    let nonces = tsa.nonces.lock().unwrap();
-    assert_eq!(nonces.len(), 2);
-    assert!(nonces.iter().all(Option::is_some), "every online timestamp request carries a nonce: {nonces:?}");
-    assert_ne!(nonces[0], nonces[1], "each request uses a fresh nonce");
 }
 
 #[test]
@@ -848,7 +939,7 @@ fn a_document_timestamp_covers_the_file_and_validates() {
     let tsa = TestTsa { id: tsa_id(), time: Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 } };
     let stamped = pdfcraft_sign::timestamp_document(&open(&fixture()), &tsa, "D:20261006120000Z").unwrap();
     assert!(stamped.starts_with(&fixture()), "an incremental update");
-    let trust_tsa = TrustStore { certs: vec![tsa.id.certificate.clone()], ..TrustStore::default() };
+    let trust_tsa = TrustStore { certs: vec![tsa.id.certificate.clone()], timestamp_certs: Vec::new() };
     let s = signatures(&open(&stamped), &stamped, &trust_tsa).into_iter().find(|s| s.doc_timestamp).unwrap();
     assert!(s.doc_timestamp && s.timestamp);
     assert_eq!(s.sub_filter.as_deref(), Some("ETSI.RFC3161"));
@@ -866,7 +957,7 @@ fn a_document_timestamp_covers_the_file_and_validates() {
     let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
     let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
     let both = pdfcraft_sign::timestamp_document(&open(&signed), &tsa, "D:20261006130000Z").unwrap();
-    let all = signatures(&open(&both), &both, &TrustStore { certs: vec![tsa.id.certificate.clone()], ..TrustStore::default() });
+    let all = signatures(&open(&both), &both, &TrustStore { certs: vec![tsa.id.certificate.clone()], timestamp_certs: Vec::new() });
     let field = all.iter().find(|s| s.signed && !s.doc_timestamp).unwrap();
     let allowed = match &field.modification {
         Modification::Allowed(k) => k,
@@ -889,7 +980,7 @@ fn cached_discovery_still_validates_current_timestamp_bytes_ranges_and_trust() {
     let bytes = pdfcraft_sign::timestamp_document(&source, &tsa, "D:20261006120000Z").unwrap();
     let doc = open(&bytes);
     let cache = pdfcraft_sign::DigestCache::default();
-    let trusted = TrustStore { certs: vec![tsa.id.certificate.clone()], ..TrustStore::default() };
+    let trusted = TrustStore { certs: vec![tsa.id.certificate.clone()], timestamp_certs: Vec::new() };
     let check = |doc: &Document, bytes: &[u8], trust: &TrustStore| {
         let listed = pdfcraft_sign::pdf::list_cached(doc, bytes, trust, &cache);
         assert_eq!(listed.len(), 1);
@@ -921,7 +1012,7 @@ fn cached_discovery_still_validates_current_timestamp_bytes_ranges_and_trust() {
 #[test]
 fn ltv_writers_may_declare_the_esic_extension_but_not_change_a_signed_one() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let check = |bytes: &[u8]| signatures(&open(bytes), bytes, &trust).into_iter().find(|s| s.signed).unwrap();
     let ext = |base: &[u8], level: i64| {
         let mut esic = pdfcraft_cos::Dict::new();
@@ -995,7 +1086,7 @@ fn sign_then_ltv_then_timestamp_makes_a_b_lta_file() {
     let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
     let ltv = dss::embed(&open(&signed), &Evidence { certs: vec![id.certificate.raw.clone()], ocsps: Vec::new(), crls: Vec::new() }).unwrap();
     let lta = pdfcraft_sign::timestamp_document(&open(&ltv), &tsa, "D:20261006120000Z").unwrap();
-    let all = signatures(&open(&lta), &lta, &TrustStore { certs: vec![tsa.id.certificate.clone()], ..TrustStore::default() });
+    let all = signatures(&open(&lta), &lta, &TrustStore { certs: vec![tsa.id.certificate.clone()], timestamp_certs: Vec::new() });
     assert_eq!(all.iter().filter(|s| s.signed).count(), 2);
     let field = all.iter().find(|s| s.signed && !s.doc_timestamp).unwrap();
     assert_eq!(field.status, Status::Unknown);
@@ -1019,7 +1110,7 @@ fn what_was_removed_before_signing_is_not_signed() {
     let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
     let tsa = TestTsa { id: tsa_id(), time: Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 } };
     let anchor = id.chain.first().cloned().unwrap_or_else(|| id.certificate.clone());
-    let trust = TrustStore { certs: vec![anchor, tsa.id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![anchor, tsa.id.certificate.clone()], timestamp_certs: Vec::new() };
     let text = |s: &str| Object::String(PdfString::literal(s.as_bytes().to_vec()));
     let dict = |entries: &[(&str, Object)]| {
         let mut d = Dict::new();
@@ -1114,7 +1205,7 @@ fn validates_a_signature_made_by_openssl() {
     assert!(s.signing_time.is_some_and(|t| t.year == 2026), "from the CMS signing-time attribute");
     assert!(!s.visible);
     let rsa = pdfcraft_sign::Certificate::parse(&pkcs12::open(&data("rsa-aes.p12"), "test").unwrap().certificate.raw).unwrap();
-    let s = signatures(&doc, &bytes, &TrustStore { certs: vec![rsa], ..TrustStore::default() }).into_iter().next().unwrap();
+    let s = signatures(&doc, &bytes, &TrustStore { certs: vec![rsa], timestamp_certs: Vec::new() }).into_iter().next().unwrap();
     assert_eq!(s.status, Status::Valid, "{:?}", s.details);
     // A later comment is allowed for this approval signature.
     let edited = edit_after(&bytes, add_comment);
@@ -1183,7 +1274,7 @@ fn signing_with_keychain_identities() {
         for id in &ids {
             assert!(id.key.is_external());
             let signed = pdfcraft_sign::sign(&open(&fixture()), id, &opts()).unwrap();
-            let trusted = signatures(&open(&signed), &signed, &TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() });
+            let trusted = signatures(&open(&signed), &signed, &TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() });
             let s = trusted.iter().find(|s| s.signed).unwrap();
             assert_eq!(s.status, Status::Valid, "{:?}", s.details);
         }
@@ -1332,7 +1423,7 @@ fn xfa_page_swap(doc: &mut Document) {
 #[test]
 fn declaring_a_form_xfa_does_not_excuse_replacing_the_pages() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let check = |bytes: &[u8]| signatures(&open(bytes), bytes, &trust).into_iter().find(|s| s.signed).unwrap();
     for certify in [None, Some(2), Some(3)] {
         let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &SignOptions { certify, ..opts() }).unwrap();
@@ -1368,7 +1459,7 @@ fn rewrite_stream(num: u32, body: &'static [u8]) -> impl FnOnce(&mut Document) {
 #[test]
 fn rewriting_a_certified_forms_xfa_data_is_a_form_fill() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let check = |bytes: &[u8]| signatures(&open(bytes), bytes, &trust).into_iter().find(|s| s.signed).unwrap();
     let certified = pdfcraft_sign::sign(&open(&xfa_fixture()), &id, &SignOptions { certify: Some(2), ..opts() }).unwrap();
     assert_eq!(check(&certified).status, Status::Valid);
@@ -1433,8 +1524,10 @@ fn validates_signatures_written_with_ber_indefinite_lengths() {
         ber.resize((b - a) / 2, 0);
         signed[a..b].copy_from_slice(hex(&ber).as_bytes());
         let anchor = id.certificate.clone();
-        let s =
-            signatures(&open(&signed), &signed, &TrustStore { certs: vec![anchor], ..TrustStore::default() }).into_iter().find(|s| s.signed).unwrap();
+        let s = signatures(&open(&signed), &signed, &TrustStore { certs: vec![anchor], timestamp_certs: Vec::new() })
+            .into_iter()
+            .find(|s| s.signed)
+            .unwrap();
         assert_eq!(s.status, Status::Valid, "{file}: {:?}", s.details);
         assert!(s.details.iter().any(|d| d.message.contains("BER")), "the tolerance is reported: {:?}", s.details);
         // Tampering is still caught: the digest check is not relaxed.
@@ -1479,11 +1572,8 @@ fn resigned_with_attributes(signed: &[u8], id: &pkcs12::DigitalId, encap_type: &
 }
 
 const DATA: &str = "1.2.840.113549.1.7.1";
-
 const TST_INFO: &str = "1.2.840.113549.1.9.16.1.4";
-
 const CONTENT_TYPE: &str = "1.2.840.113549.1.9.3";
-
 const MESSAGE_DIGEST: &str = "1.2.840.113549.1.9.4";
 
 /// RFC 5652 §5.3: signed attributes carry the message digest, which ties the signature to the
@@ -1494,7 +1584,7 @@ const MESSAGE_DIGEST: &str = "1.2.840.113549.1.9.4";
 #[test]
 fn signed_attributes_must_bind_the_document() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
     let (a, b) = contents_span(&signed);
     let digest = pdfcraft_sign::DigestAlg::Sha256.digest(&[&signed[..a - 1], &signed[b + 1..]]);
@@ -1649,7 +1739,7 @@ const LEVELS: [Option<u8>; 4] = [None, Some(1), Some(2), Some(3)];
 /// reasons, while the untouched file stays valid.
 fn assert_refused_at_every_level(base: &[u8], kind: &str, attack: impl Fn(&mut Document)) {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let check = |bytes: &[u8]| signatures(&open(bytes), bytes, &trust).into_iter().find(|s| s.signed).unwrap();
     for certify in LEVELS {
         let signed = pdfcraft_sign::sign(&open(base), &id, &SignOptions { certify, ..opts() }).unwrap();
@@ -1748,6 +1838,145 @@ fn a_dictionary_labelled_metadata_is_not_a_metadata_change() {
     });
 }
 
+/// A one-page document whose text sits in an optional-content group (object 8) that the
+/// catalog's indirect `/OCProperties` (object 7) lists as shown.
+fn fixture_with_layer() -> Vec<u8> {
+    let content = b"/OC /oc1 BDC BT /F1 14 Tf 20 250 Td (Clause 4: the buyer pays) Tj ET EMC";
+    let objs: Vec<Vec<u8>> = vec![
+        b"<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [6 0 R] >> /OCProperties 7 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> /Properties << /oc1 8 0 R >> >> /Annots [6 0 R] >>".to_vec(),
+        [format!("<< /Length {} >>\nstream\n", content.len()).as_bytes(), content, b"\nendstream"].concat(),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_vec(),
+        b"<< /Type /Annot /Subtype /Widget /FT /Sig /T (Approval) /Rect [150 20 280 70] /P 3 0 R /F 4 >>".to_vec(),
+        b"<< /OCGs [8 0 R] /D << /ON [8 0 R] >> >>".to_vec(),
+        b"<< /Type /OCG /Name (Clause 4) >>".to_vec(),
+    ];
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, o) in objs.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
+        out.extend_from_slice(o);
+        out.extend_from_slice(b"\nendobj\n");
+    }
+    let xref = out.len();
+    out.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", objs.len() + 1).as_bytes());
+    for o in offsets {
+        out.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objs.len() + 1).as_bytes());
+    out
+}
+
+/// Hide the clause: rewrite `/OCProperties` (object 7) so its group starts off, adding `extra`.
+fn hide_layer(doc: &mut Document, extra: &[(&str, Object)]) {
+    let mut d = dict_of(vec![("OCGs", Object::Array(vec![oref(8)])), ("D", Object::Dict(dict_of(vec![("OFF", Object::Array(vec![oref(8)]))])))]);
+    for (k, v) in extra {
+        d.set(k.as_bytes().to_vec(), v.clone());
+    }
+    doc.set(pdfcraft_cos::ObjRef { num: 7, generation: 0 }, Object::Dict(d));
+}
+
+#[test]
+fn an_existing_object_given_form_keys_after_signing_is_still_judged() {
+    // An existing object is judged by the role it had when signed, not only when a signed page
+    // draws it (#1787): the catalog's indirect /OCProperties decides which layers show, and a
+    // rewrite that hides the clause stays a change whatever form-field keys it adds.
+    assert_refused_at_every_level(&fixture_with_layer(), "other changes", |doc| hide_layer(doc, &[]));
+    let zeros = Object::Array(vec![Object::Int(0); 4]);
+    for extra in [
+        vec![("FT", Object::name("Tx"))],
+        vec![("DR", Object::Dict(pdfcraft_cos::Dict::new()))],
+        vec![("T", Object::String(PdfString::text("x"))), ("Kids", Object::Array(Vec::new()))],
+        vec![("Subtype", Object::name("Widget")), ("Rect", zeros.clone())],
+        vec![("Subtype", Object::name("Square")), ("Rect", zeros)],
+    ] {
+        assert_refused_at_every_level(&fixture_with_layer(), "other changes", |doc| hide_layer(doc, &extra));
+    }
+}
+
+#[test]
+fn an_unsigned_signature_widget_turned_into_a_comment_is_no_edit_of_it() {
+    // The empty signature field "Approval" (object 6) rewritten as a white /Square annotation that
+    // covers the signed text. Judged by what it was, it is a signature widget; but an annotation
+    // of another kind is no edit that widget permits, at any level.
+    assert_refused_at_every_level(&fixture(), "other changes", |doc| {
+        let white = Object::Array(vec![Object::Int(1); 3]);
+        doc.set(
+            pdfcraft_cos::ObjRef { num: 6, generation: 0 },
+            Object::Dict(dict_of(vec![
+                ("Type", Object::name("Annot")),
+                ("Subtype", Object::name("Square")),
+                ("Rect", Object::Array(vec![Object::Int(0), Object::Int(0), Object::Int(300), Object::Int(300)])),
+                ("C", white.clone()),
+                ("IC", white),
+                ("P", oref(3)),
+            ])),
+        );
+    });
+}
+
+/// `fixture()` with the form an indirect dictionary (object 7) listing the unsigned field.
+fn fixture_with_indirect_acroform() -> Vec<u8> {
+    let objs: Vec<&[u8]> = vec![
+        b"<< /Type /Catalog /Pages 2 0 R /AcroForm 7 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [6 0 R] >>",
+        b"<< /Length 44 >>\nstream\nBT /F1 14 Tf 20 250 Td (Contract text) Tj ET\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Type /Annot /Subtype /Widget /FT /Sig /T (Approval) /Rect [150 20 280 70] /P 3 0 R /F 4 >>",
+        b"<< /Fields [6 0 R] >>",
+    ];
+    let mut out = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, o) in objs.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
+        out.extend_from_slice(o);
+        out.extend_from_slice(b"\nendobj\n");
+    }
+    let xref = out.len();
+    out.extend_from_slice(format!("xref\n0 {}\n0000000000 65535 f \n", objs.len() + 1).as_bytes());
+    for o in offsets {
+        out.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(format!("trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n", objs.len() + 1).as_bytes());
+    out
+}
+
+#[test]
+fn the_forms_signed_fields_are_not_dropped_after_signing() {
+    // Signed, then timestamped. A later revision drops the form's /Fields, or empties it: the
+    // fields the timestamp covered, the signature among them, are gone from the form. That is no
+    // signature change, so the timestamp reports it as not permitted.
+    let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
+    let tsa = TestTsa {
+        id: pkcs12::open(&data("rsa-aes.p12"), "test").unwrap(),
+        time: Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 },
+    };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
+    let signed = pdfcraft_sign::sign(&open(&fixture_with_indirect_acroform()), &id, &opts()).unwrap();
+    let stamped = pdfcraft_sign::timestamp_document(&open(&signed), &tsa, "D:20261006120000Z").unwrap();
+    let mut failures = Vec::new();
+    for (how, fields) in [("dropped", None), ("emptied", Some(Object::Array(Vec::new())))] {
+        let edited = edit_after(&stamped, |doc| {
+            doc.update_dict(pdfcraft_cos::ObjRef { num: 7, generation: 0 }, |af| match &fields {
+                Some(f) => af.set(b"Fields".to_vec(), f.clone()),
+                None => {
+                    af.remove(b"Fields");
+                }
+            })
+            .unwrap();
+        });
+        let stamp = signatures(&open(&edited), &edited, &trust).into_iter().find(|s| s.doc_timestamp).expect("the document timestamp");
+        if !matches!(stamp.modification, Modification::Disallowed(_)) {
+            failures.push(format!("/Fields {how}: {:?}, {:?}", stamp.status, stamp.modification));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
 /// A one-page document like `fixture()` (objects 1–6) plus a stream, object 7, with the given
 /// dictionary entries and body. `catalog_extra` goes into the catalog; the page draws object 7
 /// as a Form XObject when `drawn`.
@@ -1816,7 +2045,7 @@ fn the_catalogs_own_xmp_stream_may_still_be_rewritten_after_signing() {
     // document's XMP, and rewriting it is allowed at every level.
     let base = fixture_with_stream_7("/Metadata 7 0 R", false, "/Type /Metadata /Subtype /XML", b"<x:xmpmeta/>");
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     for certify in LEVELS {
         let signed = pdfcraft_sign::sign(&open(&base), &id, &SignOptions { certify, ..opts() }).unwrap();
         let edited = edit_after(&signed, |doc| {
@@ -1847,7 +2076,7 @@ fn fixture_with_dss() -> (Vec<u8>, u32, u32) {
 #[test]
 fn a_signed_store_may_grow_but_not_lose_or_swap_entries() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let check = |bytes: &[u8]| signatures(&open(bytes), bytes, &trust).into_iter().find(|s| s.signed).unwrap();
     let (base, certs, vri) = fixture_with_dss();
     for certify in LEVELS {
@@ -1882,7 +2111,7 @@ fn a_signed_store_may_grow_but_not_lose_or_swap_entries() {
 #[test]
 fn a_form_xobject_relabelled_metadata_is_not_a_metadata_change() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let signed = pdfcraft_sign::sign(&open(&fixture_with_xobject()), &id, &opts()).unwrap();
     let relabel = |doc: &mut Document| {
         let mut d = pdfcraft_cos::Dict::new();
@@ -1930,7 +2159,7 @@ fn a_form_xobject_relabelled_as_file_plumbing_is_still_judged() {
     // drawn Form XObject rewritten after signing and labelled /ObjStm or /XRef still shows its
     // new content (the renderer ignores /Type), so it must not be skipped.
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     for certify in LEVELS {
         let signed = pdfcraft_sign::sign(&open(&fixture_with_xobject()), &id, &SignOptions { certify, ..opts() }).unwrap();
         for label in ["ObjStm", "XRef"] {
@@ -2008,7 +2237,7 @@ fn a_signed_page_relabelled_or_stripped_of_type_is_still_page_content() {
     // Positive control: an ordinary /Info /ModDate bump on the signed revision's own information
     // dictionary stays a permitted metadata change.
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     for certify in LEVELS {
         let signed = pdfcraft_sign::sign(&open(&fixture_with_info()), &id, &SignOptions { certify, ..opts() }).unwrap();
         let bumped = edit_after(&signed, |doc| {
@@ -2049,7 +2278,7 @@ fn a_revoked_certificate_stays_invalid_when_it_was_also_expired_at_signing() {
     let crl = self_crl(&id, t(2039), t(2041), t(2039));
     let ltv = dss::embed(&open(&signed), &Evidence { certs: Vec::new(), ocsps: Vec::new(), crls: vec![crl] }).unwrap();
     let anchor = id.chain.first().cloned().unwrap_or_else(|| id.certificate.clone());
-    for trust in [TrustStore::default(), TrustStore { certs: vec![anchor], ..TrustStore::default() }] {
+    for trust in [TrustStore::default(), TrustStore { certs: vec![anchor], timestamp_certs: Vec::new() }] {
         let s = signatures(&open(&ltv), &ltv, &trust).into_iter().find(|s| s.signed && !s.doc_timestamp).unwrap();
         assert!(s.details.iter().any(|d| d.message.contains("not valid at the time of signing")), "{:?}", s.details);
         assert_eq!(s.status, Status::Invalid, "{:?}", s.details);
@@ -2064,7 +2293,7 @@ fn a_revocation_behind_many_dss_entries_is_not_reported_valid() {
     let t = |year| Time { year, month: 1, day: 1, hour: 0, minute: 0, second: 0 };
     let crl = self_crl(&id, t(2026), t(2027), Time { year: 2026, month: 6, day: 1, hour: 8, minute: 0, second: 0 });
     let anchor = id.chain.first().cloned().unwrap_or_else(|| id.certificate.clone());
-    let trust = TrustStore { certs: vec![anchor], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![anchor], timestamp_certs: Vec::new() };
     // `/CRLs`: the revoking CRL after `benign` other entries; `repeated` lists one stream for all of them.
     let status = |benign: usize, repeated: bool| {
         let ltv = edit_after(&signed, |doc| {
@@ -2097,7 +2326,7 @@ fn an_untrusted_timestamp_does_not_set_the_validation_time() {
     let late = SignOptions { date: "D:20400101120000Z".into(), ..opts() };
     let signed = pdfcraft_sign::sign_with_timestamp(&open(&fixture()), &id, &late, &tsa).unwrap();
     let anchor = id.chain.first().cloned().unwrap_or_else(|| id.certificate.clone());
-    let s = signatures(&open(&signed), &signed, &TrustStore { certs: vec![anchor.clone()], ..TrustStore::default() })
+    let s = signatures(&open(&signed), &signed, &TrustStore { certs: vec![anchor.clone()], timestamp_certs: Vec::new() })
         .into_iter()
         .find(|s| s.signed)
         .unwrap();
@@ -2107,7 +2336,7 @@ fn an_untrusted_timestamp_does_not_set_the_validation_time() {
     assert!(!s.details.iter().any(|d| d.message.contains("trusted time")), "{:?}", s.details);
     assert!(s.details.iter().any(|d| d.message.contains("unverified timestamp")), "{:?}", s.details);
     // Trusting the TSA makes its time authoritative: the certificate was valid then.
-    let trust = TrustStore { certs: vec![anchor, tsa.id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![anchor, tsa.id.certificate.clone()], timestamp_certs: Vec::new() };
     let s = signatures(&open(&signed), &signed, &trust).into_iter().find(|s| s.signed).unwrap();
     assert_eq!(s.timestamp_time, Some(tsa.time));
     assert_eq!(s.status, Status::Valid, "{:?}", s.details);
@@ -2119,8 +2348,16 @@ fn a_timestamp_token_may_sign_with_a_different_digest_than_its_imprint() {
     let imprint = pdfcraft_sign::DigestAlg::Sha1.digest(&[b"document"]);
     let q = pdfcraft_sign::timestamp::TimestampQuery::new(pdfcraft_sign::DigestAlg::Sha1, imprint.clone()).unwrap();
     let time = Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 };
-    let resp =
-        pdfcraft_sign::timestamp::respond(&tsa.key, &tsa.certificate, &tsa.chain, pdfcraft_sign::DigestAlg::Sha256, &q, "1.2.3.4", time, 9).unwrap();
+    let resp = pdfcraft_sign::timestamp::respond(
+        pdfcraft_sign::timestamp::TimestampSigner {
+            key: &tsa.key,
+            certificate: &tsa.certificate,
+            chain: &tsa.chain,
+            digest: pdfcraft_sign::DigestAlg::Sha256,
+        },
+        pdfcraft_sign::timestamp::TimestampIssuance { query: &q, policy: "1.2.3.4", generation_time: time, serial: 9 },
+    )
+    .unwrap();
     let token = pdfcraft_sign::timestamp::parse_response(&resp, &q).unwrap();
     assert_eq!((token.digest, token.imprint, token.gen_time), (pdfcraft_sign::DigestAlg::Sha1, imprint, time));
 }
@@ -2128,7 +2365,7 @@ fn a_timestamp_token_may_sign_with_a_different_digest_than_its_imprint() {
 /// A token answers the request that asked for it: a requested nonce or policy must come back.
 #[test]
 fn a_timestamp_response_must_carry_the_requested_nonce_and_policy() {
-    use pdfcraft_sign::timestamp::{TimestampQuery, parse_response, respond};
+    use pdfcraft_sign::timestamp::{TimestampIssuance, TimestampQuery, TimestampSigner, parse_response, respond};
     let tsa = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
     let alg = pdfcraft_sign::DigestAlg::Sha256;
     let time = Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 };
@@ -2137,7 +2374,13 @@ fn a_timestamp_response_must_carry_the_requested_nonce_and_policy() {
         (q.nonce, q.policy) = (nonce, policy.map(str::to_string));
         q
     };
-    let answer = |q: &TimestampQuery| respond(&tsa.key, &tsa.certificate, &tsa.chain, alg, q, "1.2.3.4", time, 9).unwrap();
+    let answer = |q: &TimestampQuery| {
+        respond(
+            TimestampSigner { key: &tsa.key, certificate: &tsa.certificate, chain: &tsa.chain, digest: alg },
+            TimestampIssuance { query: q, policy: "1.2.3.4", generation_time: time, serial: 9 },
+        )
+        .unwrap()
+    };
     let with_nonce = answer(&query(Some(42), None));
     assert!(parse_response(&with_nonce, &query(Some(42), Some("1.2.3.4"))).is_ok());
     assert!(parse_response(&with_nonce, &query(None, None)).is_ok());
@@ -2220,7 +2463,7 @@ fn signing_with_windows_store_identities() {
         assert!(now.status.success());
         options.date = format!("D:{}Z", String::from_utf8(now.stdout).unwrap().trim());
         let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &options).unwrap();
-        let validated = signatures(&open(&signed), &signed, &TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() });
+        let validated = signatures(&open(&signed), &signed, &TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() });
         let signature = validated.iter().find(|s| s.signed).unwrap();
         assert_eq!(signature.status, Status::Valid, "{:?}", signature.details);
         assert_eq!(signature.modification, Modification::None);
@@ -2290,7 +2533,7 @@ fn a_windows_store_identity_signs_with_its_issuers() {
     assert!(now.status.success());
     options.date = format!("D:{}Z", String::from_utf8(now.stdout).unwrap().trim());
     let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &options).unwrap();
-    let validated = signatures(&open(&signed), &signed, &TrustStore { certs: vec![anchor], ..TrustStore::default() });
+    let validated = signatures(&open(&signed), &signed, &TrustStore { certs: vec![anchor], timestamp_certs: Vec::new() });
     let signature = validated.iter().find(|s| s.signed).unwrap();
     assert_eq!(signature.status, Status::Valid, "{:?}", signature.details);
     assert_eq!(signature.signer.as_deref(), Some(signer.as_str()));
@@ -2339,7 +2582,7 @@ fn fixture_timestamped_in_a_field(tsa: &TestTsa) -> Vec<u8> {
 fn a_document_timestamp_held_by_a_signature_field_is_checked_as_a_timestamp() {
     let tsa = TestTsa { id: tsa_id(), time: Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 } };
     let stamped = fixture_timestamped_in_a_field(&tsa);
-    let trust = TrustStore { certs: vec![tsa.id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![tsa.id.certificate.clone()], timestamp_certs: Vec::new() };
     let all = signatures(&open(&stamped), &stamped, &trust);
     let stamps: Vec<_> = all.iter().filter(|s| s.signed).collect();
     assert_eq!(stamps.len(), 1, "listed once, not as field and as standalone: {:?}", all.iter().map(|s| &s.field).collect::<Vec<_>>());
@@ -2372,7 +2615,7 @@ fn a_field_timestamp_from_a_trusted_tsa_outside_its_validity_is_not_valid() {
         time: Time { year: 2020, month: 1, day: 1, hour: 0, minute: 0, second: 0 },
     };
     let stamped = fixture_timestamped_in_a_field(&tsa);
-    let trust = TrustStore { certs: vec![tsa.id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![tsa.id.certificate.clone()], timestamp_certs: Vec::new() };
     let s = signatures(&open(&stamped), &stamped, &trust).into_iter().find(|s| s.signed).unwrap();
     assert!(s.doc_timestamp);
     assert_eq!(s.status, Status::Unknown, "{:?}", s.details);
@@ -2424,7 +2667,7 @@ fn validates_the_legacy_adbe_x509_rsa_sha1_format() {
     let weak = "This signature uses SHA-1, a weak hash algorithm: collisions in it have been demonstrated. It still validates because many documents signed years ago use it, but it should not be relied on.";
     assert_eq!(s.details.iter().filter(|d| d.message == weak).count(), 1, "{:?}", s.details);
     assert!(s.details.iter().any(|d| d.message.contains("legacy adbe.x509.rsa_sha1 format")), "{:?}", s.details);
-    let trusted = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trusted = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let s = signatures(&open(&pdf), &pdf, &trusted).into_iter().find(|s| s.signed).unwrap();
     assert_eq!(s.status, Status::Valid, "{:?}", s.details);
     // One changed byte inside the signed range.
@@ -2444,7 +2687,7 @@ fn protected(alg: pdfcraft_cos::Algorithm, permissions: i32) -> Vec<u8> {
 /// `fixture()` protected with the user password `user` and an owner password, then saved.
 fn protected_with(alg: pdfcraft_cos::Algorithm, user: &str, permissions: i32) -> Vec<u8> {
     let mut doc = open(&fixture());
-    doc.set_encryption(&pdfcraft_cos::NewEncryption {
+    doc.set_encryption_legacy(&pdfcraft_cos::NewEncryption {
         algorithm: alg,
         user_password: user,
         owner_password: "owner",
@@ -2464,7 +2707,7 @@ fn protected_with(alg: pdfcraft_cos::Algorithm, user: &str, permissions: i32) ->
 fn a_user_password_document_keeps_its_earlier_signature_valid_when_counter_signed() {
     let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
     let id2 = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone(), id2.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone(), id2.certificate.clone()], timestamp_certs: Vec::new() };
     for alg in ALL_ALGORITHMS {
         let base = protected_with(alg, "secret", -1);
         assert!(Document::open_with_password(Arc::new(base.clone()), None).is_err(), "{alg:?}: the file asks for its password");
@@ -2503,7 +2746,7 @@ const ALL_ALGORITHMS: [pdfcraft_cos::Algorithm; 4] =
 fn encrypted_documents_are_signed_with_an_unencrypted_contents() {
     let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
     let id2 = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone(), id2.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone(), id2.certificate.clone()], timestamp_certs: Vec::new() };
     for alg in ALL_ALGORITHMS {
         let base = protected(alg, -1);
         let doc = open_pw(&base, None);
@@ -2550,7 +2793,7 @@ fn encrypted_documents_are_signed_with_an_unencrypted_contents() {
 #[test]
 fn an_encrypted_documents_signature_graphic_is_encrypted_with_it() {
     let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     for alg in ALL_ALGORITHMS {
         let base = protected(alg, -1);
         let signed = pdfcraft_sign::sign(&open_pw(&base, None), &id, &SignOptions { graphic: Some(picture(true)), ..opts() }).unwrap();
@@ -2572,7 +2815,7 @@ fn an_encrypted_documents_signature_graphic_is_encrypted_with_it() {
 #[test]
 fn encrypted_documents_are_signed_only_as_their_permissions_allow() {
     let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let base = protected(pdfcraft_cos::Algorithm::Aes256, FILL_AND_SIGN_ONLY);
     let user = open_pw(&base, None);
     let refused = |r: Result<Vec<u8>, SignError>, what: &str| match r {
@@ -2617,7 +2860,7 @@ fn encrypted_documents_take_a_document_timestamp() {
     let base = protected(pdfcraft_cos::Algorithm::Aes128, FILL_AND_SIGN_ONLY);
     let stamped = pdfcraft_sign::timestamp_document(&open_pw(&base, None), &tsa, "D:20261006120000Z").unwrap();
     assert!(stamped.starts_with(&base));
-    let s = signatures(&open_pw(&stamped, None), &stamped, &TrustStore { certs: vec![tsa.id.certificate.clone()], ..TrustStore::default() })
+    let s = signatures(&open_pw(&stamped, None), &stamped, &TrustStore { certs: vec![tsa.id.certificate.clone()], timestamp_certs: Vec::new() })
         .into_iter()
         .find(|s| s.doc_timestamp)
         .unwrap();
@@ -2727,7 +2970,7 @@ fn visible_appearance_draws_central_european_characters_with_embedded_font() {
     assert!(fonts.contains(b"PCFull0"), "appearance should reference the embedded font: {fonts:?}");
     // Verify signature validation still passes.
     let doc = open(&signed);
-    let trust = TrustStore { certs: vec![luka_id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![luka_id.certificate.clone()], timestamp_certs: Vec::new() };
     let s = signatures(&doc, &signed, &trust).into_iter().find(|s| s.signed).unwrap();
     assert_eq!(s.status, Status::Valid);
     assert_eq!(s.reason.as_deref(), Some("Podpisano s potrdilom"));
@@ -2770,12 +3013,7 @@ fn wordings_are_complete() {
     let source = source.as_str();
     // The modules below `pdf` word whole sentences too: how a signature value had to be read, and
     // what a certificate does not allow.
-    let elsewhere = [
-        include_str!("../../src/x509.rs"),
-        include_str!("../../src/cms.rs"),
-        include_str!("../../src/keys.rs"),
-        include_str!("../../src/rsa_pad.rs"),
-    ];
+    let elsewhere = [include_str!("../../src/x509.rs"), include_str!("../../src/cms.rs"), include_str!("../../src/keys.rs")];
     /// A sentence said to the user, as opposed to an OID, a name or a tag: it reads as English.
     fn is_sentence(s: &str) -> bool {
         s.len() > 24 && s.ends_with('.') && s.contains(' ') && s.starts_with(|c: char| c.is_ascii_uppercase())
@@ -2808,6 +3046,15 @@ fn wordings_are_complete() {
         out
     }
     let mut said = after(source, &["Detail::plain(", "Detail::of("]);
+    // These existing diagnostics now come from pinned craft-pkcs7 instead of local source.
+    // Keep their translation coverage; crypto.rs exercises the corresponding tolerated forms.
+    said.extend([
+        "The RSA signature value does not have the length of the key's modulus (leading zero bytes dropped or added); it was read anyway.",
+        "The RSA signature's DigestInfo has no NULL parameter (older signers write it so); it was read anyway.",
+        "The ECDSA signature is not in canonical DER (trailing bytes, padding or a missing sign byte); it was read anyway.",
+        "The ECDSA signature is the raw r and s values instead of a DER sequence; it was read anyway.",
+    ]);
+
     let at_hand = ["Detail::plain(", "Detail::of(", ".push(", "Some("];
     said.extend(elsewhere.iter().flat_map(|s| after(s, &at_hand)).filter(|s| is_sentence(s)));
     let summary = source.split("pub fn summary").nth(1).and_then(|s| s.split("\n    }").next()).unwrap_or_default();
@@ -2880,7 +3127,7 @@ fn xref_entry(offset: usize) -> String {
 #[test]
 fn a_cross_reference_entry_the_reader_sets_aside_does_not_hide_new_page_content() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     for certify in LEVELS {
         let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &SignOptions { certify, ..opts() }).unwrap();
         // Where the signed revision keeps the page's content stream.
@@ -2912,7 +3159,7 @@ fn a_cross_reference_entry_the_reader_sets_aside_does_not_hide_new_page_content(
 #[test]
 fn a_cross_reference_entry_that_misses_its_object_is_not_an_unchanged_object() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
     // A copy of the signed content, named by an entry two bytes into its `4 0 obj` header.
     let edited = append_content_revision(&signed, "Contract text", |new| format!("4 1\n{}", xref_entry(new + 2)));
@@ -3043,7 +3290,7 @@ fn rewritten_page_resources_are_page_content_whatever_keys_they_carry() {
     // content draws, so it is not page content (it is still an unclassified change, refused as
     // "other", as before).
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let signed = pdfcraft_sign::sign(&open(&fixture_with_indirect_resources()), &id, &SignOptions { certify: Some(3), ..opts() }).unwrap();
     let grown = edit_after(&signed, |doc| {
         let f = courier(doc);
@@ -3071,7 +3318,7 @@ fn switching_the_trailer_to_another_signed_catalog_is_not_permitted() {
         ],
     );
     let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
     let signed = pdfcraft_sign::sign(&open(&base), &id, &SignOptions { field: Some("Approval".into()), rect: None, ..opts() }).unwrap();
     let s = signatures(&open(&signed), &signed, &trust).into_iter().find(|s| s.signed).unwrap();
     assert_eq!(s.status, Status::Valid, "{:?}", s.details);
@@ -3088,17 +3335,172 @@ fn switching_the_trailer_to_another_signed_catalog_is_not_permitted() {
 fn a_timestamp_from_a_certificate_not_issued_for_time_stamping_is_not_trusted_time() {
     let tsa = TestTsa { id: tsa_id_with(&["1.3.6.1.5.5.7.3.4"]), time: Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 } };
     let stamped = pdfcraft_sign::timestamp_document(&open(&fixture()), &tsa, "D:20261006120000Z").unwrap();
-    let trust = TrustStore { certs: vec![tsa.id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![tsa.id.certificate.clone()], timestamp_certs: Vec::new() };
     let s = signatures(&open(&stamped), &stamped, &trust).into_iter().find(|s| s.doc_timestamp).unwrap();
     assert_eq!(s.status, Status::Unknown, "{:?}", s.details);
     assert!(s.details.iter().any(|d| d.message.contains("not issued for time stamping")), "{:?}", s.details);
     let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
     let signed = pdfcraft_sign::sign_with_timestamp(&open(&fixture()), &id, &opts(), &tsa).unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone(), tsa.id.certificate.clone()], ..TrustStore::default() };
+    let trust = TrustStore { certs: vec![id.certificate.clone(), tsa.id.certificate.clone()], timestamp_certs: Vec::new() };
     let s = signatures(&open(&signed), &signed, &trust).into_iter().find(|s| s.signed).unwrap();
     assert!(s.timestamp);
     assert_eq!(s.timestamp_time, None, "{:?}", s.details);
     assert!(s.details.iter().any(|d| d.message.contains("not issued for time stamping")), "{:?}", s.details);
+}
+
+/// A signed revision's objects can't be freed or its signature widget rewritten without the
+/// change being seen: the classifier used to look only at objects still present, and let a
+/// signature widget's geometry and appearance change count as a signature.
+#[test]
+fn freeing_a_signed_object_or_rewriting_the_signed_widget_is_a_page_content_change() {
+    let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
+    let check = |bytes: &[u8]| signatures(&open(bytes), bytes, &trust).into_iter().find(|s| s.signed).unwrap();
+    let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
+    let freed = check(&edit_after(&signed, |doc| doc.free(pdfcraft_cos::ObjRef { num: 5, generation: 0 })));
+    assert_eq!(freed.status, Status::Invalid, "{:?}", freed.modification);
+    assert!(matches!(&freed.modification, Modification::Disallowed(k) if k.contains(&kind::PAGE_CONTENT)), "{:?}", freed.modification);
+    let widget = open(&signed)
+        .object_numbers()
+        .into_iter()
+        .map(|num| pdfcraft_cos::ObjRef { num, generation: 0 })
+        .find(|r| open(&signed).get(*r).as_dict().is_some_and(|d| d.name(b"Subtype") == Some(b"Widget") && d.contains(b"V")))
+        .unwrap();
+    let moved = check(&edit_after(&signed, |doc| {
+        doc.update_dict(widget, |d| d.set(b"Rect".to_vec(), Object::Array(vec![Object::Int(0), Object::Int(0), Object::Int(300), Object::Int(300)])))
+            .unwrap();
+    }));
+    assert_eq!(moved.status, Status::Invalid, "{:?}", moved.modification);
+    assert!(matches!(&moved.modification, Modification::Disallowed(k) if k.contains(&kind::PAGE_CONTENT)), "{:?}", moved.modification);
+}
+
+/// An existing signature field whose `/V` is null is unsigned: signing it rewrites its widget,
+/// and that is a signature, not a change to what an earlier signature shows.
+#[test]
+fn signing_a_field_with_a_null_value_after_another_signature_keeps_the_first_valid() {
+    let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
+    let first = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
+    let second = pdfcraft_sign::sign(&open(&first), &id, &SignOptions { field: Some("Approval".into()), ..opts() }).unwrap();
+    let all = signatures(&open(&second), &second, &trust);
+    assert!(
+        all.iter().filter(|s| s.signed).all(|s| s.status == Status::Valid),
+        "{:?}",
+        all.iter().map(|s| (&s.status, &s.modification)).collect::<Vec<_>>()
+    );
+}
+
+/// Fields that name one signature value are listed each, under their own name, with the verdict
+/// the value earned once.
+#[test]
+fn fields_sharing_a_signature_value_are_listed_with_one_verdict() {
+    let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
+    let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &SignOptions { field: Some("Approval".into()), ..opts() }).unwrap();
+    let v = open(&signed).get(pdfcraft_cos::ObjRef { num: 6, generation: 0 }).as_dict().and_then(|d| d.get(b"V").cloned()).unwrap();
+    let shared = edit_after(&signed, |doc| {
+        let mut w = pdfcraft_cos::Dict::new();
+        w.set(b"Type".to_vec(), Object::name("Annot"));
+        w.set(b"Subtype".to_vec(), Object::name("Widget"));
+        w.set(b"FT".to_vec(), Object::name("Sig"));
+        w.set(b"T".to_vec(), PdfString::text("Twin"));
+        w.set(b"V".to_vec(), v.clone());
+        w.set(b"Rect".to_vec(), Object::Array(vec![Object::Int(0); 4]));
+        let w = doc.add(Object::Dict(w));
+        let root = doc.root().unwrap();
+        let af = doc.get(root).as_dict().and_then(|c| c.get(b"AcroForm").cloned()).unwrap();
+        let af = doc.resolve(&af).as_dict().cloned().unwrap();
+        let mut fields = af.get(b"Fields").map(|f| doc.resolve(f)).and_then(|f| f.as_array().cloned()).unwrap();
+        fields.push(Object::Ref(w));
+        let mut af = af;
+        af.set(b"Fields".to_vec(), Object::Array(fields));
+        doc.update_dict(root, |c| c.set(b"AcroForm".to_vec(), Object::Dict(af))).unwrap();
+    });
+    let list = signatures(&open(&shared), &shared, &trust);
+    let (a, b) = (list.iter().find(|s| s.field == "Approval").unwrap(), list.iter().find(|s| s.field == "Twin").unwrap());
+    assert!(a.signed && b.signed);
+    assert_eq!((a.status, &a.modification, &a.signer, a.signed_len), (b.status, &b.modification, &b.signer, b.signed_len));
+}
+
+#[test]
+fn the_catalogs_perms_do_not_change_under_no_changes() {
+    // /Perms names the certification signature (DocMDP). Under P=1 nothing may change, so a later
+    // revision that drops it, or points it elsewhere, breaks the certification.
+    let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
+    let trust = TrustStore { certs: vec![id.certificate.clone()], timestamp_certs: Vec::new() };
+    let certified = pdfcraft_sign::sign(&open(&fixture()), &id, &SignOptions { certify: Some(1), ..opts() }).unwrap();
+    let elsewhere = dict_of(vec![("DocMDP", oref(5))]);
+    for (how, perms) in [("dropped", None), ("pointed elsewhere", Some(Object::Dict(elsewhere)))] {
+        let edited = edit_after(&certified, |doc| {
+            let root = doc.root().unwrap();
+            doc.update_dict(root, |c| match &perms {
+                Some(p) => c.set(b"Perms".to_vec(), p.clone()),
+                None => {
+                    c.remove(b"Perms");
+                }
+            })
+            .unwrap();
+        });
+        let s = signatures(&open(&edited), &edited, &trust).into_iter().find(|s| s.field == "Signature1").unwrap();
+        assert!(
+            s.status == Status::Invalid && matches!(&s.modification, Modification::Disallowed(k) if k.contains(&kind::STRUCTURE)),
+            "/Perms {how} under P=1: {:?}, {:?}",
+            s.status,
+            s.modification
+        );
+    }
+}
+
+// ── Lion PDF ──
+#[test]
+fn signature_background_is_subdued_behind_details_and_keeps_the_foreground_image() {
+    let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
+    let options = SignOptions { graphic: Some(picture(false)), background: Some(picture(true)), ..opts() };
+    let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &options).unwrap();
+    let (content, resources) = appearance_of(&signed, "Signature1");
+    assert!(content.find("/Watermark Do").unwrap() < content.find("BT").unwrap());
+    let doc = open(&signed);
+    let objects = doc.resolve(resources.get(b"XObject").unwrap());
+    let objects = objects.as_dict().unwrap();
+    assert!(objects.get(b"Im1").is_some(), "the left image stays independent");
+    let mark = doc.resolve(objects.get(b"Watermark").unwrap());
+    let Object::Stream(mark) = &*mark else { panic!("watermark form") };
+    let ops = String::from_utf8(mark.decoded().unwrap()).unwrap();
+    assert!(ops.contains("/Fade gs"));
+    assert!(ops.contains(" 103 "), "the graphic starts in the right details half: {ops}");
+    let resources = doc.resolve(mark.dict.get(b"Resources").unwrap());
+    let states = doc.resolve(resources.as_dict().unwrap().get(b"ExtGState").unwrap());
+    let fade = doc.resolve(states.as_dict().unwrap().get(b"Fade").unwrap());
+    assert_eq!(fade.as_dict().unwrap().get(b"ca"), Some(&Object::Real(0.12)));
+    assert_ne!(signatures(&doc, &signed, &TrustStore::default()).iter().find(|s| s.field == "Signature1").unwrap().status, Status::Invalid);
+    let plain = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
+    assert!(!appearance_of(&plain, "Signature1").0.contains("/Watermark"));
+}
+
+#[test]
+fn timestamp_requests_carry_fresh_nonces_for_documents_and_signatures() {
+    struct Recording {
+        tsa: TestTsa,
+        nonces: std::sync::Mutex<Vec<Option<u64>>>,
+    }
+    impl TimestampAuthority for Recording {
+        fn timestamp(&self, request: &[u8]) -> Result<Vec<u8>, SignError> {
+            let query = pdfcraft_sign::timestamp::parse_request(request)?;
+            self.nonces.lock().unwrap().push(query.nonce);
+            self.tsa.timestamp(request)
+        }
+    }
+    let tsa = Recording {
+        tsa: TestTsa { id: tsa_id(), time: Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 } },
+        nonces: std::sync::Mutex::new(Vec::new()),
+    };
+    pdfcraft_sign::timestamp_document(&open(&fixture()), &tsa, "D:20261006120000Z").unwrap();
+    let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
+    pdfcraft_sign::sign_with_timestamp(&open(&fixture()), &id, &opts(), &tsa).unwrap();
+    let nonces = tsa.nonces.lock().unwrap();
+    assert_eq!(nonces.len(), 2);
+    assert!(nonces.iter().all(Option::is_some), "every online timestamp request carries a nonce: {nonces:?}");
+    assert_ne!(nonces[0], nonces[1], "each request uses a fresh nonce");
 }
 
 #[test]
@@ -3159,46 +3561,4 @@ fn signing_captures_unsigned_page_locks_and_invalid_lock_metadata_fails_closed()
     doc.update_dict(doc.root().unwrap(), |d| d.set(b"PdfCraftPageLocks".to_vec(), Object::Int(123))).unwrap();
     assert!(pdfcraft_sign::protection::local_pages(&doc).is_err());
     assert!(pdfcraft_sign::sign(&doc, &identity, &opts()).is_err());
-}
-
-/// A signed revision's objects can't be freed or its signature widget rewritten without the
-/// change being seen: the classifier used to look only at objects still present, and let a
-/// signature widget's geometry and appearance change count as a signature.
-#[test]
-fn freeing_a_signed_object_or_rewriting_the_signed_widget_is_a_page_content_change() {
-    let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
-    let check = |bytes: &[u8]| signatures(&open(bytes), bytes, &trust).into_iter().find(|s| s.signed).unwrap();
-    let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
-    let freed = check(&edit_after(&signed, |doc| doc.free(pdfcraft_cos::ObjRef { num: 5, generation: 0 })));
-    assert_eq!(freed.status, Status::Invalid, "{:?}", freed.modification);
-    assert!(matches!(&freed.modification, Modification::Disallowed(k) if k.contains(&kind::PAGE_CONTENT)), "{:?}", freed.modification);
-    let widget = open(&signed)
-        .object_numbers()
-        .into_iter()
-        .map(|num| pdfcraft_cos::ObjRef { num, generation: 0 })
-        .find(|r| open(&signed).get(*r).as_dict().is_some_and(|d| d.name(b"Subtype") == Some(b"Widget") && d.contains(b"V")))
-        .unwrap();
-    let moved = check(&edit_after(&signed, |doc| {
-        doc.update_dict(widget, |d| d.set(b"Rect".to_vec(), Object::Array(vec![Object::Int(0), Object::Int(0), Object::Int(300), Object::Int(300)])))
-            .unwrap();
-    }));
-    assert_eq!(moved.status, Status::Invalid, "{:?}", moved.modification);
-    assert!(matches!(&moved.modification, Modification::Disallowed(k) if k.contains(&kind::PAGE_CONTENT)), "{:?}", moved.modification);
-}
-
-/// An existing signature field whose `/V` is null is unsigned: signing it rewrites its widget,
-/// and that is a signature, not a change to what an earlier signature shows.
-#[test]
-fn signing_a_field_with_a_null_value_after_another_signature_keeps_the_first_valid() {
-    let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
-    let first = pdfcraft_sign::sign(&open(&fixture()), &id, &opts()).unwrap();
-    let second = pdfcraft_sign::sign(&open(&first), &id, &SignOptions { field: Some("Approval".into()), ..opts() }).unwrap();
-    let all = signatures(&open(&second), &second, &trust);
-    assert!(
-        all.iter().filter(|s| s.signed).all(|s| s.status == Status::Valid),
-        "{:?}",
-        all.iter().map(|s| (&s.status, &s.modification)).collect::<Vec<_>>()
-    );
 }

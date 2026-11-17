@@ -141,6 +141,22 @@ fn thumbnail_size_is_settable_and_inspectable_through_the_control_channel() {
 }
 
 #[test]
+fn form_tab_numbers_can_be_shown_and_captured_through_the_control_channel() {
+    let (mut h, c) = harness();
+    h.state_mut().open_bytes("form.pdf", None, include_bytes!("../data/form.pdf").to_vec()).unwrap();
+    h.run_steps(3);
+    ok(&mut h, &c, "ui.command", json!({"id": "form.prepare"}));
+    let control = ok(&mut h, &c, "ui.inspect", json!({"query": "Show tab numbers"}));
+    assert!(control["widgets"].as_array().unwrap().iter().any(|widget| widget["label"] == "Show tab numbers"));
+    ok(&mut h, &c, "ui.click", json!({"label": "Show tab numbers"}));
+    h.run_steps(2);
+    assert!(h.state().views[h.state().active.unwrap()].prepare.show_tab_numbers);
+    assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["documents"][1]["dirty"], false);
+    let shot = ok(&mut h, &c, "ui.screenshot", json!({}));
+    assert!(shot["png_base64"].as_str().is_some_and(|png| !png.is_empty()), "the control channel returns a nonempty screenshot");
+}
+
+#[test]
 fn page_shadows_are_an_observable_app_wide_preference() {
     let (mut h, c) = harness();
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["show_page_edge_shadows"], true);
@@ -397,7 +413,7 @@ fn a_save_prompt_answered_in_the_background_withdraws_its_attention_request() {
     open_unsaved(&mut h, "second.pdf");
     h.input_mut().focused = false;
     assert_eq!(attention_during(&mut h, &c, "ui.quit", json!({})), [Critical]);
-    assert!(attention_during(&mut h, &c, "ui.click", json!({"label": "Exit"})).is_empty(), "the request stands");
+    assert!(attention_during(&mut h, &c, "ui.click", json!({"label": "Don't save"})).is_empty(), "the request stands");
     assert_eq!(attention_during(&mut h, &c, "ui.click", json!({"label": "Cancel"})), [Reset]);
 
     open_unsaved(&mut h, "third.pdf");
@@ -405,12 +421,12 @@ fn a_save_prompt_answered_in_the_background_withdraws_its_attention_request() {
     assert!(attention_during(&mut h, &c, "ui.quit", json!({})).is_empty(), "the first question opens in front");
     h.input_mut().focused = false;
     assert!(attention_during(&mut h, &c, "ui.state", json!({})).is_empty(), "leaving it open asks nothing");
-    assert_eq!(attention_during(&mut h, &c, "ui.click", json!({"label": "Exit"})), [Critical], "the next opens in the background");
+    assert_eq!(attention_during(&mut h, &c, "ui.click", json!({"label": "Don't save"})), [Critical], "the next opens in the background");
     assert_eq!(attention_during(&mut h, &c, "ui.click", json!({"label": "Cancel"})), [Reset]);
     let state = ok(&mut h, &c, "ui.state", json!({}));
     assert_eq!(state["close_prompt"], false);
     let left: Vec<_> = state["documents"].as_array().unwrap().iter().map(|d| (d["name"].clone(), d["dirty"].clone())).collect();
-    assert_eq!(left, [(json!("third.pdf"), json!(true))], "Exit closed doc.pdf and second.pdf; Cancel kept third.pdf");
+    assert_eq!(left, [(json!("third.pdf"), json!(true))], "Don't save closed doc.pdf and second.pdf; Cancel kept third.pdf");
 }
 
 #[test]
@@ -478,6 +494,9 @@ fn theme_commands_and_options_report_preference_and_effective_colours() {
 
 #[test]
 fn lithuanian_password_dialog_translates_dynamic_labels_and_validation() {
+    if crate::support::skip_without_catalogs("lithuanian_password_dialog_translates_dynamic_labels_and_validation") {
+        return;
+    }
     let (mut h, c) = harness();
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "lt" }));
     ok(&mut h, &c, "ui.set", json!({ "key": "dialog", "value": "protect" }));
@@ -496,6 +515,9 @@ fn lithuanian_password_dialog_translates_dynamic_labels_and_validation() {
 
 #[test]
 fn lithuanian_inspector_title_updates_through_the_control_channel() {
+    if crate::support::skip_without_catalogs("lithuanian_inspector_title_updates_through_the_control_channel") {
+        return;
+    }
     let (mut h, c) = harness();
     ok(&mut h, &c, "ui.set", json!({ "key": "panel", "value": "comments" }));
     h.run_steps(2);
@@ -515,6 +537,9 @@ fn lithuanian_inspector_title_updates_through_the_control_channel() {
 /// command ids agents drive stay exactly the same.
 #[test]
 fn language_switch_preserves_document_and_command_ids() {
+    if crate::support::skip_without_catalogs("language_switch_preserves_document_and_command_ids") {
+        return;
+    }
     use pdfcraft_ui_egui::i18n;
     let (mut h, c) = harness();
     let doc = h.state().views[0].id;
@@ -925,6 +950,27 @@ fn middle_button_pans_while_held_outside_linux() {
     assert!(!h.state().session.get(h.state().views[0].id).unwrap().dirty);
 }
 
+/// With Invert middle-button drag on, a held middle drag moves the view the way the pointer goes.
+#[cfg(not(target_os = "linux"))]
+#[test]
+fn inverted_middle_drag_moves_the_view_the_way_the_pointer_goes() {
+    let (mut h, c) = harness();
+    h.state_mut().set_option("zoom", "400").unwrap();
+    ok(&mut h, &c, "ui.set", json!({ "key": "invert_middle_drag", "value": "true" }));
+    h.run_steps(3);
+    h.state_mut().views[0].go_to_page(1);
+    h.run_steps(2);
+    let p = h.state().views[0].viewport_rect().center();
+    let top = h.state().views[0].page_screen_rect(1).unwrap().top();
+    ok(&mut h, &c, "ui.drag", json!({ "from": [p.x, p.y], "to": [p.x, p.y - 60.0], "steps": 12, "button": "middle" }));
+    h.run_steps(2);
+    let moved = h.state().views[0].page_screen_rect(1).unwrap().top();
+    assert!((moved - (top + 60.0)).abs() < 1.0, "dragging up scrolls up, so the page moves down: {top} -> {moved}");
+    assert!(!h.state().session.get(h.state().views[0].id).unwrap().dirty);
+}
+
+/// The control channel reports the open document, its page count and current page, and its
+/// view options can be set: the page, and a right-hand panel by name (an unknown one is refused).
 #[test]
 fn state_and_view_options() {
     let (mut h, c) = harness();
@@ -941,8 +987,14 @@ fn state_and_view_options() {
     assert!(call(&mut h, &c, "ui.set", json!({ "key": "panel", "value": "nonsense" })).is_err());
 }
 
+/// In a Japanese interface, the mode tabs and Preferences show Japanese labels, the command
+/// palette finds commands by their Japanese or English names or their ids, and switching back to
+/// English keeps the tabs working.
 #[test]
 fn japanese_controls_and_search_keep_command_ids() {
+    if crate::support::skip_without_catalogs("japanese_controls_and_search_keep_command_ids") {
+        return;
+    }
     if crate::support::skip_without_glyphs("japanese_controls_and_search_keep_command_ids", "ja", "") {
         return;
     }
@@ -953,7 +1005,8 @@ fn japanese_controls_and_search_keep_command_ids() {
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["mode"], "Convert");
 
     ok(&mut h, &c, "ui.command", json!({ "id": "app.preferences" }));
-    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" }));
+    // The command sets the dialog; its content reaches the accessibility tree in the next pass.
+    h.run_steps(2);
     let prefs = ok(&mut h, &c, "ui.inspect", json!({ "query": "表示言語" }));
     assert!(prefs["count"].as_u64().unwrap() > 0, "{prefs}");
     ok(&mut h, &c, "ui.click", json!({ "label": "OK" }));
@@ -972,22 +1025,28 @@ fn japanese_controls_and_search_keep_command_ids() {
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["mode"], "AllTools");
 }
 
+/// In a German interface, the mode tabs and Preferences show German labels, the language
+/// selector switches to English and back, and the command palette finds Split document by its
+/// German name, its English name or its command id.
 #[test]
 fn german_preferences_and_search_keep_command_ids() {
+    if crate::support::skip_without_catalogs("german_preferences_and_search_keep_command_ids") {
+        return;
+    }
     let (mut h, c) = harness();
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "de" }));
     ok(&mut h, &c, "ui.click", json!({ "label": "Konvertieren" }));
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["mode"], "Convert");
     ok(&mut h, &c, "ui.command", json!({ "id": "app.preferences" }));
-    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" }));
+    h.run_steps(2);
     let prefs = ok(&mut h, &c, "ui.inspect", json!({ "query": "Sprache der Oberfläche" }));
     assert!(prefs["count"].as_u64().unwrap() > 0, "{prefs}");
     let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": "Deutsch" }));
     let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");
     ok(&mut h, &c, "ui.click", json!({ "id": combo["id"] }));
-    ok(&mut h, &c, "ui.click", json!({ "label": "English (US)" }));
+    ok(&mut h, &c, "ui.click", json!({ "label": "English" }));
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["language"], "en");
-    let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": "English (US)" }));
+    let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": "English" }));
     let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");
     ok(&mut h, &c, "ui.click", json!({ "id": combo["id"] }));
     ok(&mut h, &c, "ui.click", json!({ "label": "Deutsch" }));
@@ -1004,12 +1063,18 @@ fn german_preferences_and_search_keep_command_ids() {
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["documents"][0]["name"], "doc.pdf");
 }
 
+/// In a Ukrainian interface, Preferences and dialogs show Ukrainian labels, the command palette
+/// finds Split document by its Ukrainian name, its English name or its command id, and a refused
+/// edit's notice names the command in Ukrainian.
 #[test]
 fn ukrainian_preferences_and_search_keep_command_ids() {
+    if crate::support::skip_without_catalogs("ukrainian_preferences_and_search_keep_command_ids") {
+        return;
+    }
     let (mut h, c) = harness();
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "uk" }));
     ok(&mut h, &c, "ui.command", json!({ "id": "app.preferences" }));
-    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" }));
+    h.run_steps(2);
     for label in ["Мова інтерфейсу", "Українська"] {
         let found = ok(&mut h, &c, "ui.inspect", json!({ "query": label }));
         assert!(found["count"].as_u64().unwrap() > 0, "{label}: {found}");
@@ -1026,7 +1091,6 @@ fn ukrainian_preferences_and_search_keep_command_ids() {
     for (dialog, label) in [("properties", "Властивості документа"), ("protect", "Захистити паролем"), ("about", "Учасники")]
     {
         ok(&mut h, &c, "ui.set", json!({ "key": "dialog", "value": dialog }));
-        settle(&mut h);
         let found = ok(&mut h, &c, "ui.inspect", json!({ "query": label }));
         assert!(found["count"].as_u64().unwrap() > 0, "{dialog}: {found}");
     }
@@ -1038,41 +1102,54 @@ fn ukrainian_preferences_and_search_keep_command_ids() {
     assert_eq!(state["documents"][0]["name"], "doc.pdf");
 }
 
+/// In a Japanese interface, Preferences opened from the menu bar switches the language to English,
+/// Ukrainian and back, and opens again with Cmd+,; the shortcuts list then reads in Japanese and
+/// the document stays open. Preferences is in Edit on Windows and Linux, and in the app menu (as
+/// Settings…) on macOS.
 #[test]
 fn preferences_menu_and_shortcut_allow_switching_interface_languages() {
+    if crate::support::skip_without_catalogs("preferences_menu_and_shortcut_allow_switching_interface_languages") {
+        return;
+    }
     if crate::support::skip_without_glyphs("preferences_menu_and_shortcut_allow_switching_interface_languages", "ja", "") {
         return;
     }
     let (mut h, c) = harness();
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "ja" }));
-    settle(&mut h);
-    let edit = ok(&mut h, &c, "ui.inspect", json!({ "query": "編集", "role": "MenuItem" }));
-    let edit = edit["widgets"].as_array().unwrap().iter().find(|w| w["clickable"] == true).expect("Edit menu title");
-    ok(&mut h, &c, "ui.click", json!({ "id": edit["id"] }));
-    settle(&mut h);
-    let menu = ok(&mut h, &c, "ui.inspect", json!({ "query": "環境設定", "role": "MenuItem" }));
-    let prefs = menu["widgets"].as_array().unwrap().iter().find(|w| w["clickable"] == true).expect("Preferences menu item");
-    ok(&mut h, &c, "ui.click", json!({ "id": prefs["id"] }));
-    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" }));
-    for (current, next, code) in [("日本語", "English (US)", "en"), ("English (US)", "Українська", "uk"), ("Українська", "日本語", "ja")]
+    // The menu bar's Edit menu holds Preferences on Windows and Linux. On macOS the in-window bar
+    // takes the Mac layout (`Target::current()`), which moves it to the app menu as Settings….
+    // Titles and rows carry their mnemonic ("編集(E)", "環境設定(P)…"), so match by the start of
+    // the label.
+    let (menu, preferences) = if cfg!(target_os = "macos") {
+        let ja = pdfcraft_ui_egui::i18n::Lang::from_code("ja").unwrap();
+        ("PdfCraft", pdfcraft_ui_egui::i18n::tr(ja, "Settings…").trim_end_matches('…'))
+    } else {
+        ("編集", "環境設定")
+    };
+    let menu_row = |text: &'static str| {
+        move |n: &egui_kittest::kittest::AccessKitNode<'_>| {
+            n.role() == egui::accesskit::Role::MenuItem && n.label().is_some_and(|l| l.starts_with(text))
+        }
+    };
+    h.get_by(menu_row(menu)).click();
+    h.run_steps(2);
+    h.get_by(menu_row(preferences)).click();
+    h.run_steps(2);
+    for (current, next, code) in [("日本語", "English", "en"), ("English", "Українська", "uk"), ("Українська", "日本語", "ja")]
     {
-        settle(&mut h);
         let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": current }));
         let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");
         ok(&mut h, &c, "ui.click", json!({ "id": combo["id"] }));
-        settle(&mut h);
         ok(&mut h, &c, "ui.click", json!({ "label": next }));
         assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["language"], code);
     }
     ok(&mut h, &c, "ui.click", json!({ "label": "OK" }));
     ok(&mut h, &c, "ui.key", json!({ "key": ",", "modifiers": ["command"] }));
-    settle(&mut h);
     let prefs = ok(&mut h, &c, "ui.inspect", json!({ "query": "表示言語" }));
     assert!(prefs["count"].as_u64().unwrap() > 0, "{prefs}");
     ok(&mut h, &c, "ui.click", json!({ "label": "OK" }));
 
     ok(&mut h, &c, "ui.command", json!({ "id": "help.shortcuts" }));
-    settle(&mut h);
     for label in ["キーボードショートカット", "開く", "環境設定", "次／前の検索結果", "ダブルクリック", "閉じる"]
     {
         let found = ok(&mut h, &c, "ui.inspect", json!({ "query": label }));
@@ -1086,6 +1163,9 @@ fn preferences_menu_and_shortcut_allow_switching_interface_languages() {
 
 #[test]
 fn japanese_dialogs_errors_and_custom_action_names() {
+    if crate::support::skip_without_catalogs("japanese_dialogs_errors_and_custom_action_names") {
+        return;
+    }
     if crate::support::skip_without_glyphs("japanese_dialogs_errors_and_custom_action_names", "ja", "") {
         return;
     }
@@ -1103,7 +1183,6 @@ fn japanese_dialogs_errors_and_custom_action_names() {
         ("sign", "署名用のデジタル ID を設定"),
     ] {
         ok(&mut h, &c, "ui.set", json!({"key": "dialog", "value": dialog}));
-        settle(&mut h);
         let found = ok(&mut h, &c, "ui.inspect", json!({"query": label}));
         assert!(found["count"].as_u64().unwrap() > 0, "{dialog}: {found}");
     }
@@ -1122,22 +1201,17 @@ fn japanese_dialogs_errors_and_custom_action_names() {
     });
     h.state_mut().wizard.selected = Some("Save".to_string());
     ok(&mut h, &c, "ui.set", json!({"key": "dialog", "value": "action-wizard"}));
-    settle(&mut h);
     for label in ["アクションウィザード", "Save", "Print"] {
         let found = ok(&mut h, &c, "ui.inspect", json!({"query": label}));
-        assert!(
-            found["widgets"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|w| w["label"] == label || w["label"] == format!("Title: {label}") || w["value"] == label),
-            "{found}"
-        );
+        assert!(found["widgets"].as_array().unwrap().iter().any(|w| w["label"] == label || w["value"] == label), "{found}");
     }
 }
 
 #[test]
 fn simplified_chinese_about_tabs_and_credit_controls() {
+    if crate::support::skip_without_catalogs("simplified_chinese_about_tabs_and_credit_controls") {
+        return;
+    }
     if crate::support::skip_without_glyphs("simplified_chinese_about_tabs_and_credit_controls", "zh-hans", "") {
         return;
     }
@@ -1170,6 +1244,9 @@ fn simplified_chinese_about_tabs_and_credit_controls() {
 
 #[test]
 fn simplified_chinese_signature_prompts_and_errors_keep_document_state() {
+    if crate::support::skip_without_catalogs("simplified_chinese_signature_prompts_and_errors_keep_document_state") {
+        return;
+    }
     if crate::support::skip_without_glyphs("simplified_chinese_signature_prompts_and_errors_keep_document_state", "zh-hans", "") {
         return;
     }
@@ -1397,6 +1474,10 @@ fn drawing_a_comment_by_drag_and_its_context_menu() {
 #[test]
 fn screenshots_of_window_and_region() {
     let (mut h, c) = harness();
+    // The harness makes its GPU renderer on the first render. The app has one before the control
+    // channel answers anything, so make it here, outside the screenshot's 5 s deadline: with 16
+    // tests at once on Windows, making it took up to 6 s and every copy of this test failed.
+    h.render().expect("the test renderer draws");
     let shot = ok(&mut h, &c, "ui.screenshot", json!({}));
     let ppp = shot["pixels_per_point"].as_f64().unwrap();
     assert_eq!(shot["width"].as_f64().unwrap(), (1400.0 * ppp).round());
@@ -1707,8 +1788,7 @@ fn a_script_opened_panel_shows() {
     assert!(h.query_by_label("This document has no bookmarks.").is_none());
     let id = h.state().active_ids().unwrap().1;
     h.state_mut().run_button_script(id, "", "app.execMenuItem('ShowHideBookmarks')");
-    h.run_steps(4);
-    h.get_by_label("This document has no bookmarks.");
+    assert!(crate::support::step_until(&mut h, |h| h.query_by_label("This document has no bookmarks.").is_some()));
 }
 
 #[test]
@@ -1744,9 +1824,8 @@ fn malformed_panel_settings_preserve_other_preferences() {
     let saved: Value = serde_json::from_str(&app.persist()).unwrap();
     assert_eq!(saved["default_mode"], "edit");
     assert_eq!(saved["flatten_fill_sign"], true);
-    // The invalid value is replaced with a valid floating-workspace default.
-    let workspace: pdfcraft_ui_egui::docking::Workspace = serde_json::from_value(saved["docking"].clone()).unwrap();
-    workspace.validate().unwrap();
+    // The old value is dropped on the next save.
+    assert!(saved.get("docking").is_none());
     assert_eq!(saved["side_panels"]["version"], 1);
 }
 
@@ -1767,8 +1846,15 @@ fn rail_opens_a_panel_then_closes_the_open_one() {
 #[test]
 fn control_quit_retains_inactive_fill_sign_typing_after_cancel() {
     let (mut h, c) = harness();
-    h.state_mut().views[0].fill_text =
-        Some(pdfcraft_ui_egui::fill_sign::TypeBox { page: 0, at: [40.0, 200.0], text: "Unsaved signature note".into(), size: 10.0, focus: false });
+    h.state_mut().views[0].fill_text = Some(pdfcraft_ui_egui::fill_sign::TypeBox {
+        page: 0,
+        at: [40.0, 200.0],
+        text: "Unsaved signature note".into(),
+        size: 10.0,
+        color: [0.0; 3],
+        border: pdfcraft_ui_egui::fill_sign::TextBorder::NONE,
+        focus: false,
+    });
     h.state_mut().active = None;
     assert!(!h.state().session.get(h.state().views[0].id).unwrap().dirty);
     assert_eq!(ok(&mut h, &c, "ui.quit", json!({})), json!({"quitting":false,"needs_confirmation":true}));
@@ -2103,4 +2189,85 @@ fn routine_continuous_scrolling_does_not_add_navigation_history() {
     assert!(h.state().views[0].current > 0, "the wheel really moved to a later page");
     assert!(h.state().views[0].back.is_empty());
     assert!(h.state().views[0].forward.is_empty());
+}
+
+/// CodeRabbit on #5341: the control channel folds a pinned folder on Home down to its heading
+/// and opens it again, as its chevron does, and `ui.state` says which are folded. Folders that
+/// aren't pinned, and states other than on and off, are refused with the reason.
+#[test]
+fn control_collapses_and_expands_a_pinned_folder() {
+    let dir = std::env::temp_dir().join(format!("pdfcraft-ui-fold-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("inside.pdf"), fixture(1)).unwrap();
+    let folder = dir.to_string_lossy().into_owned();
+    let slot: Arc<Mutex<Option<ControlClient>>> = Arc::default();
+    let (s, pin) = (slot.clone(), folder.clone());
+    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 900.0)).build_eframe(move |cc| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.run_inline = true;
+        app.pin_folder(&pin);
+        *s.lock().unwrap() = Some(app.attach_control(&cc.egui_ctx));
+        app
+    });
+    h.run_steps(4);
+    let c = slot.lock().unwrap().take().unwrap();
+    let folded = |h: &mut Harness<'static, PdfCraftApp>| ok(h, &c, "ui.state", json!({}))["pinned_folders"].clone();
+    assert_eq!(folded(&mut h), json!([{ "folder": folder, "collapsed": false }]));
+    h.get_by_label("inside.pdf");
+    ok(&mut h, &c, "ui.set", json!({ "key": "folder-collapsed", "value": format!("{folder}=on") }));
+    h.run_steps(2);
+    assert_eq!(folded(&mut h), json!([{ "folder": folder, "collapsed": true }]));
+    assert!(h.query_by_label("inside.pdf").is_none(), "a collapsed folder lists nothing");
+    let unpinned = call(&mut h, &c, "ui.set", json!({ "key": "folder-collapsed", "value": "/not/pinned=on" })).unwrap_err();
+    assert!(unpinned.contains("not a pinned folder"), "{unpinned}");
+    let bad = call(&mut h, &c, "ui.set", json!({ "key": "folder-collapsed", "value": format!("{folder}=yes") })).unwrap_err();
+    assert!(bad.contains("=on or"), "{bad}");
+    assert_eq!(folded(&mut h), json!([{ "folder": folder, "collapsed": true }]), "refusals change nothing");
+    ok(&mut h, &c, "ui.set", json!({ "key": "folder-collapsed", "value": format!("{folder}=off") }));
+    h.run_steps(2);
+    assert_eq!(folded(&mut h), json!([{ "folder": folder, "collapsed": false }]));
+    h.get_by_label("inside.pdf");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn accessible_labels_on_format_text_and_pin_dialog() {
+    let (mut h, c) = harness();
+
+    // 1. Check Dialog::PinTool accessibility labels
+    h.state_mut().dialog = Some(pdfcraft_ui_egui::Dialog::PinTool);
+    h.run_steps(3);
+
+    let search = ok(&mut h, &c, "ui.inspect", json!({"role": "TextInput", "query": "Search tools…"}));
+    assert!(search["count"].as_u64().unwrap() >= 1, "search box has accessible label: {search}");
+
+    let result_rows = ok(&mut h, &c, "ui.inspect", json!({"query": "Organize Pages"}));
+    assert!(result_rows["count"].as_u64().unwrap() >= 1, "result row has accessible label: {result_rows}");
+
+    let pin_toggles = ok(&mut h, &c, "ui.inspect", json!({"query": "Pin"}));
+    assert!(pin_toggles["count"].as_u64().unwrap() >= 1, "pin toggle has accessible label: {pin_toggles}");
+
+    h.state_mut().dialog = None;
+    h.run_steps(2);
+
+    // 2. Open Add Text so Format text panel is visible
+    ok(&mut h, &c, "ui.command", json!({"id": "edit.text"}));
+    h.run_steps(3);
+
+    let font_combo = ok(&mut h, &c, "ui.inspect", json!({"query": "Font", "role": "ComboBox"}));
+    assert!(font_combo["count"].as_u64().unwrap() >= 1, "format-font has accessible label: {font_combo}");
+
+    let size_combo = ok(&mut h, &c, "ui.inspect", json!({"query": "Font size"}));
+    assert!(size_combo["count"].as_u64().unwrap() >= 1, "format-size has accessible label: {size_combo}");
+
+    let line_spacing_combo = ok(&mut h, &c, "ui.inspect", json!({"query": "Line spacing", "role": "ComboBox"}));
+    assert!(line_spacing_combo["count"].as_u64().unwrap() >= 1, "format-line-spacing has accessible label: {line_spacing_combo}");
+
+    let scale_spin = ok(&mut h, &c, "ui.inspect", json!({"query": "Horizontal scale", "role": "SpinButton"}));
+    assert!(scale_spin["count"].as_u64().unwrap() >= 1, "horizontal scale spin button has accessible label: {scale_spin}");
+
+    let char_spin = ok(&mut h, &c, "ui.inspect", json!({"query": "Character spacing", "role": "SpinButton"}));
+    assert!(char_spin["count"].as_u64().unwrap() >= 1, "character spacing spin button has accessible label: {char_spin}");
 }

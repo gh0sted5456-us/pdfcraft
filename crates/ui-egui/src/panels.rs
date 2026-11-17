@@ -33,12 +33,15 @@ pub(crate) enum Nav {
     Page(usize),
     /// A bookmark's destination: its page and where on it.
     Dest(usize, pdfcraft_render::DestView),
+    /// A bookmark's action that goes nowhere in this document, run as a link's is.
+    Action(pdfcraft_render::LinkTarget),
     Flash(usize, [f32; 4]),
 }
 
 pub fn human_size(n: usize) -> String {
     match n {
-        n if n >= 1 << 20 => format!("{:.1} MB", n as f64 / (1u64 << 20) as f64),
+        // A size that rounds to "1024.0 KB" reads as the next unit.
+        n if n as f64 / 1024.0 >= 1023.95 => format!("{:.1} MB", n as f64 / (1u64 << 20) as f64),
         n if n >= 1 << 10 => format!("{:.1} KB", n as f64 / (1u64 << 10) as f64),
         n => byte_count(n),
     }
@@ -68,8 +71,8 @@ impl PdfCraftApp {
             return;
         }
         let focused = ctx.memory(|m| m.focused());
-        let editing = view.line_editor.is_some() && focused == Some(egui::Id::unique("edit-text-line-input"))
-            || view.content.draft.is_some() && focused == Some(crate::content_ui::editor_id(id));
+        let editing = view.line_editor.is_some() && focused == Some(crate::edit_text_ui::input_id(view.place()))
+            || view.content.draft.is_some() && focused == Some(crate::content_ui::input_id());
         if ctx.text_edit_focused() && !editing || ctx.input(|input| input.modifiers.shift || input.modifiers.alt) {
             return;
         }
@@ -95,5 +98,18 @@ impl PdfCraftApp {
                 self.text_style.align = align;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod human_size_tests {
+    use super::human_size;
+
+    #[test]
+    fn rounds_up_into_next_unit() {
+        assert_eq!(human_size(1_048_524), "1023.9 KB");
+        assert_eq!(human_size(1_048_525), "1.0 MB");
+        assert_eq!(human_size(1_048_575), "1.0 MB");
+        assert_eq!(human_size(1_048_576), "1.0 MB");
     }
 }

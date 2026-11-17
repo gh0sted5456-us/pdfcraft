@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    Appearance, AppearanceLabels, Color32, CornerRadius, KEY_ALGORITHMS, NewIdDraft, PdfCraftApp, Rect, SavedSig, SignGraphic, SignStep,
+    StatusCaptions, Stroke, Tokens, icons, sign, theme, vec2, widgets,
+};
+// Lion PDF: signature background and page protection.
+use super::{GraphicPreview, SignBackground, SignDraft, SignProtection};
+#[cfg(not(target_arch = "wasm32"))]
+use crate::file_filter::AddFilterAnyCase as _;
 
 /// Draw the signing dialogs; returns `true` when the dialog should close.
 pub(crate) fn dialog(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
@@ -169,7 +176,7 @@ fn configure(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
                 ui.add(crate::widgets::line(&mut n.country).hint_text("US").char_limit(2).desired_width(60.0)).labelled_by(l.id);
                 ui.end_row();
                 ui.label(tl!("Key Algorithm"));
-                egui::ComboBox::from_id_salt("key-alg").selected_text(KEY_ALGORITHMS[n.key].0).show_ui(ui, |ui| {
+                craft_ui::ComboBox::from_id_salt("key-alg").selected_text(KEY_ALGORITHMS[n.key].0).show_ui(ui, |ui| {
                     for (i, (label, _)) in KEY_ALGORITHMS.iter().enumerate() {
                         ui.selectable_value(&mut n.key, i, *label);
                     }
@@ -214,6 +221,7 @@ fn configure(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
             close = true;
         }
         if !app.digital_ids.is_empty() && widgets::dialog_button(ui, tl!("Back"), widgets::DialogAction::Back).clicked() {
+            d.new_id = NewIdDraft::default();
             d.step = SignStep::Choose;
             d.error = None;
         }
@@ -235,7 +243,7 @@ fn configure(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
     // The picker answers on a later frame, into the draft if the same dialog is still open.
     #[cfg(not(target_arch = "wasm32"))]
     if browse {
-        let dialog = rfd::AsyncFileDialog::new().add_filter(tl!("Digital ID"), &["p12", "pfx"]);
+        let dialog = rfd::AsyncFileDialog::new().add_filter_any_case(tl!("Digital ID"), &["p12", "pfx"]);
         let epoch = app.dialog_epoch();
         app.ask_one(crate::pickers::Ask::File(dialog), None, move |app, p| {
             // Not one closed meanwhile, or opened again since.
@@ -287,6 +295,19 @@ pub(crate) fn appearance_labels(lang: crate::i18n::Lang) -> (AppearanceLabels, b
         Some(labels) => (labels, false),
         None => (english, true),
     }
+}
+
+/// The words a named-layer signature appearance's status caption is drawn with: all three in
+/// `lang`, or all three in English when `lang` misses one of them. The sign crate picks the
+/// face and shapes right-to-left words itself, so they go in the catalogue's logical order.
+pub(crate) fn status_captions(lang: crate::i18n::Lang) -> StatusCaptions {
+    let english = StatusCaptions::default();
+    if lang == crate::i18n::Lang::EN {
+        return english;
+    }
+    let said = |s: &str| crate::i18n::has(lang, s).then(|| crate::i18n::tr(lang, s).to_owned());
+    (|| Some(StatusCaptions { valid: said(&english.valid)?, unknown: said(&english.unknown)?, invalid: said(&english.invalid)? }))()
+        .unwrap_or(english)
 }
 
 /// The detail lines of a visible signature, as `sign::pdf` stamps them (the distinguished name
@@ -455,7 +476,7 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
         }
         egui::Grid::new("sign-as").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
             let label = ui.label("After signing");
-            egui::ComboBox::from_id_salt("signature-protection")
+            craft_ui::ComboBox::from_id_salt("signature-protection")
                 .selected_text(d.protection.label())
                 .width(360.0)
                 .show_ui(ui, |ui| {
@@ -552,6 +573,7 @@ fn sign_as(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
             close = true;
         }
         if widgets::dialog_button(ui, tl!("Back"), widgets::DialogAction::Back).clicked() {
+            zeroize::Zeroize::zeroize(&mut d.password);
             d.step = SignStep::Choose;
             d.error = None;
         }

@@ -489,8 +489,10 @@ impl Painter<'_, '_> {
         let name = part_uri(self.part, required(brush, "ImageSource")?)?;
         let bytes = self.package.read(&name)?;
         let image = if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
-            let reader = png::Decoder::new(Cursor::new(&bytes)).read_info().map_err(|e| bad(e.to_string()))?;
-            self.package.image_budget(reader.info().width, reader.info().height)?;
+            // The IHDR chunk comes first: its width and height, before anything is decoded.
+            let side = |at: usize| bytes.get(at..at + 4).and_then(|b| b.try_into().ok()).map(u32::from_be_bytes);
+            let (Some(width), Some(height)) = (side(16), side(20)) else { return Err(bad("the PNG print image is truncated")) };
+            self.package.image_budget(width, height)?;
             crate::png_image(&name, &bytes, 96.0)?
         } else if bytes.starts_with(&[0xff, 0xd8]) {
             let image = crate::jpeg(&name, &bytes, 96.0)?;
@@ -748,11 +750,10 @@ mod tests {
 
     #[test]
     fn image_brush_keeps_source_pixels_and_uses_xps_96_dpi_default() {
-        let mut image = Vec::new();
-        let mut encoder = png::Encoder::new(&mut image, 2, 2);
-        encoder.set_color(png::ColorType::Rgb);
-        encoder.set_depth(png::BitDepth::Eight);
-        encoder.write_header().unwrap().write_image_data(&[255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255]).unwrap();
+        let pixels =
+            craft_image_codecs::Image::from_u8(2, 2, craft_image_codecs::ChannelLayout::Rgb, vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255])
+                .unwrap();
+        let image = craft_image_codecs::encode(&pixels, craft_image_codecs::Format::Png, &craft_image_codecs::EncodeOptions::default()).unwrap();
         let page=br##"<FixedPage Width="816" Height="1056"><Path Data="M96,96L192,96 192,192 96,192Z"><Path.Fill><ImageBrush ImageSource="/Resources/picture.png" Viewport="96,96,96,96" Viewbox="0,0,2,2" ViewportUnits="Absolute" ViewboxUnits="Absolute"/></Path.Fill></Path></FixedPage>"##;
         let doc = from_xps("Image print", &package_parts(page, &[("Resources/picture.png", &image)])).unwrap();
         let images: Vec<_> =

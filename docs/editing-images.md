@@ -24,6 +24,11 @@ other uses of the artwork intact and supports Undo/Redo. **Save Image As** remai
 only for raster Image XObjects. The tool does not ungroup Forms, edit their individual internal
 elements, select arbitrary ungrouped vector paths, or edit inline images (`BI`/`ID`/`EI`).
 A Form's bounding box may include whitespace.
+**Replace Image** and **Save Image As** apply only to raster Image XObjects; these menu
+items are disabled for grouped Form artwork. **Ungroup** (right-click) draws one placement's
+content in place so its text and pictures can be edited; while grouped, the tool does not edit
+a Form's individual internal elements. It does not select arbitrary ungrouped vector paths or
+edit inline images (`BI`/`ID`/`EI`). A Form's bounding box may include whitespace.
 
 For automation, `page_images` lists both kinds with `kind: "image"` or `kind: "form"`.
 Forms have `pixels: [0, 0]`, since they have no single bitmap resolution. Use the returned

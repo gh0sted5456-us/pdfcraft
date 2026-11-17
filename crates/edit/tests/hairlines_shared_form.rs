@@ -105,3 +105,61 @@ fn a_form_drawn_under_two_scales_gets_one_object_for_each() {
     assert_eq!(flat(&doc, half), "0.4 w 1.44 w 0 0 m 1 0 l S 0.4 w");
     assert_eq!(flat(&doc, full), ORIGINAL, "at full size the 0.4 pt line is left as it was");
 }
+
+const SHADED: &str = "/Pattern cs /P0 scn 0 0 10 10 re f";
+const PATTERN: &str = "/Type /Pattern /PatternType 1 /PaintType 1 /TilingType 1 /BBox [0 0 9 9] /XStep 9 /YStep 9 /Resources << >>";
+const THIN: &str = "0 w 0 0 m 9 9 l S";
+
+#[test]
+fn a_pattern_another_page_uses_is_reported() {
+    let mut doc = pdf(&[
+        ("<< /Type /Catalog /Pages 2 0 R >>", None),
+        ("<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 /MediaBox [0 0 600 800] >>", None),
+        ("<< /Type /Page /Parent 2 0 R /Contents 5 0 R /Resources 6 0 R >>", None),
+        ("<< /Type /Page /Parent 2 0 R /Contents 5 0 R /Resources 6 0 R >>", None),
+        ("", Some(SHADED.as_bytes())),
+        ("<< /Pattern << /P0 7 0 R >> >>", None),
+        (PATTERN, Some(THIN.as_bytes())),
+    ]);
+    let h = Hairlines { patterns: true, ..Hairlines::default() };
+    let mut both = doc.clone();
+    assert_eq!(fix_hairlines(&mut both, &[0, 1], &h).unwrap().elsewhere, 0, "every use is in the run");
+    let fixed = fix_hairlines(&mut doc, &[0], &h).unwrap();
+    assert_eq!((fixed.lines, fixed.elsewhere), (1, 1));
+}
+
+#[test]
+fn a_pattern_a_form_uses_is_fixed_too() {
+    let mut doc = pdf(&[
+        ("<< /Type /Catalog /Pages 2 0 R >>", None),
+        ("<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 600 800] >>", None),
+        ("<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources << /XObject << /Fm0 5 0 R >> >> >>", None),
+        ("", Some(b"/Fm0 Do")),
+        // The form lists itself: walking the resources ends all the same.
+        (
+            "/Type /XObject /Subtype /Form /BBox [0 0 100 100] /Resources << /Pattern << /P0 6 0 R >> /XObject << /Fm0 5 0 R >> >>",
+            Some(SHADED.as_bytes()),
+        ),
+        (PATTERN, Some(THIN.as_bytes())),
+    ]);
+    let fixed = fix_hairlines(&mut doc, &[0], &Hairlines { patterns: true, ..Hairlines::default() }).unwrap();
+    assert_eq!(fixed.lines, 1);
+    assert_ne!(flat(&doc, ObjRef { num: 6, generation: 0 }), THIN);
+}
+
+#[test]
+fn widths_out_of_range_are_refused() {
+    let mut doc = pdf(&[
+        ("<< /Type /Catalog /Pages 2 0 R >>", None),
+        ("<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 600 800] >>", None),
+        ("<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>", None),
+        ("", Some(THIN.as_bytes())),
+    ]);
+    for (narrower_than, width) in [(0.2, -1.0), (0.2, f64::NAN), (0.2, f64::INFINITY), (0.2, 10_000.0), (-1.0, 0.7), (f64::NAN, 0.7), (10_000.0, 0.7)]
+    {
+        let h = Hairlines { narrower_than, width, ..Hairlines::default() };
+        assert!(fix_hairlines(&mut doc, &[0], &h).is_err(), "{narrower_than} {width}");
+    }
+    let most = Hairlines { narrower_than: Hairlines::MAX_POINTS, width: Hairlines::MAX_POINTS, ..Hairlines::default() };
+    assert_eq!(fix_hairlines(&mut doc, &[0], &most).unwrap().lines, 1);
+}

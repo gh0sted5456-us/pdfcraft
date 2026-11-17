@@ -1,6 +1,10 @@
 use super::cache::{GRID_TAG, thumbnail_density, thumbnail_rows, thumbnail_scale};
 use super::zoom::{GRID_ZOOM_RANGE, GRID_ZOOM_STEP};
-use super::*;
+use super::{
+    Align2, Color32, CornerRadius, DocInfo, DocView, Edit, Pos2, Rect, RenderRequest, RequestKind, Sense, Stroke, Tokens, Vec2, ViewAction,
+    device_pixels, icons, pos2, theme, vec2, widgets,
+};
+use crate::page_keys::PageKeys;
 
 /// How far a sharp grid render may be from the size drawn before it is redone: a pinch changes
 /// the size on every frame, and a slightly soft or slightly large image is fine meanwhile.
@@ -89,7 +93,7 @@ pub(crate) fn grid_page_rect(cell: Rect, page: Vec2) -> Rect {
 }
 
 /// The organize toolbar: page operations on the selection (Acrobat's Organize Pages bar).
-fn organize_toolbar(view: &mut DocView, info: &DocInfo, editable: bool, dirty: bool, unobstructed: bool, ui: &mut egui::Ui, t: &Tokens) {
+fn organize_toolbar(view: &mut DocView, info: &DocInfo, editable: bool, dirty: bool, keys: PageKeys, ui: &mut egui::Ui, t: &Tokens) {
     let targets = view.target_pages();
     let n = info.pages.len();
     let (first, last) = (targets.first().copied().unwrap_or(0), targets.last().copied().unwrap_or(0));
@@ -150,19 +154,12 @@ fn organize_toolbar(view: &mut DocView, info: &DocInfo, editable: bool, dirty: b
     });
     // Keys act on the selection unless a text field or a dialog has them (Delete under
     // Preferences deleted the selected pages).
-    if editable && unobstructed && !ui.ctx().egui_wants_keyboard_input() {
-        use egui::{Key, Modifiers};
-        let (del, esc) = ui.input_mut(|i| {
-            (
-                i.consume_key(Modifiers::NONE, Key::Delete) || i.consume_key(Modifiers::NONE, Key::Backspace),
-                i.consume_key(Modifiers::NONE, Key::Escape),
-            )
-        });
+    if editable && !ui.ctx().egui_wants_keyboard_input() {
+        use egui::Key;
+        let ctx = ui.ctx();
+        let (del, esc) = (keys.take(ctx, Key::Delete) || keys.take(ctx, Key::Backspace), keys.take(ctx, Key::Escape));
         // ⌘C / ⌘X / ⌘V copy, cut and paste pages (egui delivers them as clipboard events).
-        let (copy, cut, paste) = ui.input(|i| {
-            let any = |f: &dyn Fn(&egui::Event) -> bool| i.events.iter().any(f);
-            (any(&|e| matches!(e, egui::Event::Copy)), any(&|e| matches!(e, egui::Event::Cut)), any(&|e| matches!(e, egui::Event::Paste(_))))
-        });
+        let crate::page_keys::Clipboard { copy, cut, paste } = keys.clipboard(ctx);
         if copy || cut {
             view.pending_action = Some(ViewAction::CopyPages { cut });
         }
@@ -210,15 +207,75 @@ fn gap_button(ui: &mut egui::Ui, gap: usize, at: Pos2, height: f32, label: Strin
     resp.on_hover_text(label).clicked()
 }
 
+/// Middle-button auto-scroll: its delta scrolls the grid, and the page controls under it are
+/// disabled (but not dimmed) while the gesture lasts.
+fn apply_auto_scroll(ui: &mut egui::Ui, middle_gesture: bool, auto_delta: Vec2) {
+    if middle_gesture {
+        let opacity = ui.opacity();
+        ui.disable();
+        ui.set_opacity(opacity);
+    }
+    if auto_delta != Vec2::ZERO {
+        ui.scroll_with_delta_animation(auto_delta, egui::style::ScrollAnimation::none());
+    }
+}
+
+/// Drag pages to move them (the selection, or the page grabbed); `drop` is set when the drag ends.
+fn drag_pages(view: &mut DocView, resp: &egui::Response, page: usize, drop: &mut bool) {
+    if resp.drag_started() {
+        if !view.selected.contains(&page) {
+            view.selected = [page].into();
+            view.select_anchor = Some(page);
+        }
+        let mut pages: Vec<usize> = view.selected.iter().copied().collect();
+        pages.sort_unstable();
+        view.org_drag = Some(pages);
+    }
+    if resp.drag_stopped() {
+        *drop = true;
+    }
+}
+
+/// A page drawn larger than its thumbnail gets a render at the size drawn, while it is in view;
+/// until that arrives the thumbnail stands in.
+fn request_sharper(
+    view: &DocView,
+    page: usize,
+    want: f32,
+    page_width: f32,
+    drawn_width: Option<u32>,
+    in_view: &mut Vec<(usize, f32)>,
+    sharper: &mut Vec<RenderRequest>,
+) {
+    in_view.push((page, want));
+    if !drawn_width.is_some_and(|w| sharp_enough(w, want)) && !view.errors.contains_key(&page) {
+        sharper.push(RenderRequest {
+            page,
+            kind: RequestKind::Pixels,
+            tile: None,
+            scale: want / page_width.max(1.0),
+            tag: GRID_TAG,
+            // Grid cells are previews: tiny images are skipped for them.
+            preview: true,
+        });
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+#[allow(clippy::cognitive_complexity)]
 pub(super) fn organize_grid(
     view: &mut DocView,
     doc: &pdfcraft_engine::Document,
     unobstructed: bool,
+    keys: PageKeys,
     show_page_edge_shadows: bool,
+    invert_middle: bool,
     ui: &mut egui::Ui,
     t: &Tokens,
 ) {
     let info = &doc.info;
+    // Lion PDF: a certified document's pages, and the grid opened to pick pages for signing,
+    // can't be rearranged; locked pages can't be deleted.
     let editable = doc.allows_assembly() && doc.certification().is_none() && !view.organize_pick;
     let dirty = doc.dirty;
     let protected = doc.protected_pages();
@@ -230,12 +287,12 @@ pub(super) fn organize_grid(
     let reveal = view.grid_reveal.take();
     let mut open_page = None;
     if !view.organize_pick {
-        organize_toolbar(view, info, editable, dirty, unobstructed, ui, t);
+        organize_toolbar(view, info, editable, dirty, keys, ui, t);
     }
     let viewport = ui.available_rect_before_wrap();
     view.viewport_screen = viewport;
     let auto_delta = if unobstructed {
-        view.auto_scroll.update(ui, viewport, true)
+        view.auto_scroll.update(ui, viewport, true, invert_middle)
     } else {
         view.auto_scroll.cancel();
         Vec2::ZERO
@@ -252,6 +309,8 @@ pub(super) fn organize_grid(
         ui.spacing_mut().scroll.fade.strength = 0.0;
     }
     egui::ScrollArea::vertical().auto_shrink([false, false]).show_viewport(ui, |ui, clip| {
+        apply_auto_scroll(ui, middle_gesture, auto_delta);
+        // Lion PDF: pages dragged here, from this grid or another window's, scroll it at its edges.
         if (view.org_drag.is_some() || crate::page_transfer_ui::incoming(ui.ctx(), view.id))
             && let Some(p) = ui.input(|i| i.pointer.hover_pos()).filter(|p| viewport.contains(*p))
         {
@@ -266,14 +325,6 @@ pub(super) fn organize_grid(
                 ui.scroll_with_delta(vec2(0.0, delta));
                 ui.ctx().request_repaint();
             }
-        }
-        if middle_gesture {
-            let opacity = ui.opacity();
-            ui.disable();
-            ui.set_opacity(opacity);
-        }
-        if auto_delta != Vec2::ZERO {
-            ui.scroll_with_delta_animation(auto_delta, egui::style::ScrollAnimation::none());
         }
         ui.add_space(20.0);
         let cols = ((ui.available_width() - 40.0) / cell.x).floor().max(1.0) as usize;
@@ -303,18 +354,8 @@ pub(super) fn organize_grid(
                 }
                 // A click-only child does not stop egui giving its parent the drag gesture.
                 let from_lock = ui.input(|input| input.pointer.press_origin().is_some_and(|p| lock.contains(p)));
-                // Drag pages to move them (the selection, or the page grabbed).
-                if resp.drag_started() && !from_lock {
-                    if !view.selected.contains(&i) {
-                        view.selected = [i].into();
-                        view.select_anchor = Some(i);
-                    }
-                    let mut pages: Vec<usize> = view.selected.iter().copied().collect();
-                    pages.sort_unstable();
-                    view.org_drag = Some(pages);
-                }
-                if resp.drag_stopped() {
-                    drop = true;
+                if !from_lock {
+                    drag_pages(view, &resp, i, &mut drop);
                 }
                 let page_label = crate::i18n::fmt(tl!("Page {label}"), &[("label", &p.label)]);
                 resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::CheckBox, true, view.selected.contains(&i), page_label.clone()));
@@ -338,23 +379,13 @@ pub(super) fn organize_grid(
                 let thumb_ok = thumb.is_some_and(|t| t.size()[0] as f32 >= want * GRID_SHARP.start());
                 let sharp = view.grid_pages.get(&i).filter(|_| !thumb_ok);
                 if !thumb_ok && ui.is_rect_visible(c) {
-                    in_view.push((i, want));
-                    if !sharp.is_some_and(|(w, _)| sharp_enough(*w, want)) && !view.errors.contains_key(&i) {
-                        sharper.push(RenderRequest {
-                            page: i,
-                            kind: RequestKind::Pixels,
-                            tile: None,
-                            scale: want / p.width.max(1.0),
-                            tag: GRID_TAG,
-                            // Grid cells are previews: tiny images are skipped for them.
-                            preview: true,
-                        });
-                    }
+                    request_sharper(view, i, want, p.width, sharp.map(|(w, _)| *w), &mut in_view, &mut sharper);
                 }
                 if let Some(tex) = sharp.map(|(_, t)| t).or(thumb) {
                     ui.painter().image(tex.id(), pr, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
                 }
                 ui.painter().rect_stroke(pr, CornerRadius::ZERO, Stroke::new(1.0, t.border), egui::StrokeKind::Outside);
+                // Lion PDF: each page's lock.
                 let locked = protected.contains(&i) || doc.certification().is_some();
                 let may_toggle = editable && doc.allows_modification() && !signed.contains(&i) && unobstructed && !middle_gesture && ui.is_enabled();
                 let lock_resp = ui.interact(lock, ui.scope_id().with(("page-lock", i)), if may_toggle { Sense::click() } else { Sense::hover() });
@@ -555,6 +586,7 @@ pub(super) fn organize_grid(
         }
     });
     ui.spacing_mut().scroll.fade.strength = fade_strength;
+    // Lion PDF: pages dragged from another window's grid.
     crate::window_drop::grid(ui, view.id, viewport, &cells, editable && unobstructed);
     // Files dragged in from outside go to the gap under the pointer. Some platforms don't say
     // where the pointer is until the files are dropped; then the whole grid is the target.

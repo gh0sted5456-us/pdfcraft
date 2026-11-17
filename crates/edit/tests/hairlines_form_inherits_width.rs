@@ -41,22 +41,6 @@ fn flat(doc: &Document, r: ObjRef) -> String {
     }
 }
 
-fn selected_form(doc: &Document, names: &[&[u8]]) -> ObjRef {
-    let mut object = pdfcraft_model::pages(doc).remove(0).obj;
-    for name in names {
-        let owner = doc.get(object);
-        let dict = match &*owner {
-            Object::Dict(d) => d,
-            Object::Stream(s) => &s.dict,
-            _ => panic!("not a page or form"),
-        };
-        let res = doc.resolve(dict.get(b"Resources").unwrap());
-        let xo = doc.resolve(res.as_dict().unwrap().get(b"XObject").unwrap());
-        object = xo.as_dict().unwrap().get(name).and_then(Object::as_ref).unwrap();
-    }
-    object
-}
-
 const CATALOG: (&str, Option<&[u8]>) = ("<< /Type /Catalog /Pages 2 0 R >>", None);
 const PAGES: (&str, Option<&[u8]>) = ("<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 600 800] >>", None);
 const PAGE: (&str, Option<&[u8]>) = ("<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Resources << /XObject << /Fm0 5 0 R >> >> >>", None);
@@ -68,8 +52,7 @@ fn a_form_without_its_own_width_is_measured_with_the_width_at_its_do() {
     let mut doc = pdf(&[CATALOG, PAGES, PAGE, ("", Some(b"0.1 w /Fm0 Do")), (FORM, Some(b"0 0 m 10 0 l S"))]);
     let fixed = fix_hairlines(&mut doc, &[0], &Hairlines::default()).unwrap();
     assert_eq!(fixed.lines, 1);
-    assert_eq!(flat(&doc, ObjRef { num: 5, generation: 0 }), "0 0 m 10 0 l S");
-    assert_eq!(flat(&doc, selected_form(&doc, &[b"Fm0"])), "0.72 w 0 0 m 10 0 l S 0.1 w");
+    assert_eq!(flat(&doc, ObjRef { num: 5, generation: 0 }), "0.72 w 0 0 m 10 0 l S 0.1 w");
 }
 
 #[test]
@@ -79,8 +62,7 @@ fn a_widened_stroke_in_a_form_gets_the_inherited_width_back() {
     let mut doc = pdf(&[CATALOG, PAGES, PAGE, ("", Some(b"0.5 0 0 0.5 0 0 cm 0.4 w /Fm0 Do")), (FORM, Some(b"0 0 m 1 0 l S"))]);
     let fixed = fix_hairlines(&mut doc, &[0], &Hairlines::default()).unwrap();
     assert_eq!(fixed.lines, 1);
-    assert_eq!(flat(&doc, ObjRef { num: 5, generation: 0 }), "0 0 m 1 0 l S");
-    assert_eq!(flat(&doc, selected_form(&doc, &[b"Fm0"])), "1.44 w 0 0 m 1 0 l S 0.4 w");
+    assert_eq!(flat(&doc, ObjRef { num: 5, generation: 0 }), "1.44 w 0 0 m 1 0 l S 0.4 w");
 }
 
 #[test]
@@ -89,7 +71,5 @@ fn a_form_drawn_by_a_form_inherits_the_width_too() {
     let mut doc = pdf(&[CATALOG, PAGES, PAGE, ("", Some(b"0.1 w /Fm0 Do")), (fm0, Some(b"/Fm1 Do")), (FORM, Some(b"0 0 m 10 0 l S"))]);
     let fixed = fix_hairlines(&mut doc, &[0], &Hairlines::default()).unwrap();
     assert_eq!(fixed.lines, 1);
-    assert_eq!(flat(&doc, ObjRef { num: 5, generation: 0 }), "/Fm1 Do");
-    assert_eq!(flat(&doc, ObjRef { num: 6, generation: 0 }), "0 0 m 10 0 l S");
-    assert_eq!(flat(&doc, selected_form(&doc, &[b"Fm0", b"Fm1"])), "0.72 w 0 0 m 10 0 l S 0.1 w");
+    assert_eq!(flat(&doc, ObjRef { num: 6, generation: 0 }), "0.72 w 0 0 m 10 0 l S 0.1 w");
 }

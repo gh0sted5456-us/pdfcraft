@@ -1,0 +1,13 @@
+# Lion PDF British English (en-gb) catalog: UK spellings of the US English source text. Same columns
+# and rules as craft-i18n's catalogs; a string without a row shows in US English.
+# Written for Lion PDF; embedded by build.rs with or without CRAFT_I18N_DIR.
+
+@id	language.name	English (UK)
+	Organize pages	Organise pages
+	Organize Pages	Organise Pages
+	Organize	Organise
+	Optimize PDF	Optimise PDF
+	Optimize	Optimise
+	Color	Colour
+	Colors	Colours
+	Center	Centre

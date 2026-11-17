@@ -233,7 +233,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
                 d.own_id = files[0].0.clone();
             }
             ui.label(tl!("Add your digital ID"));
-            egui::ComboBox::from_id_salt("cert-own-id")
+            craft_ui::ComboBox::from_id_salt("cert-own-id")
                 .width(ui.available_width().min(300.0))
                 .selected_text(id_label(&files, &d.own_id))
                 .show_ui(ui, |ui| {
@@ -266,7 +266,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
                     p.algorithm = Algorithm::Aes256;
                 }
                 let cur = algos.iter().find(|(a, _)| *a == p.algorithm).map_or(algos[0].1, |(_, l)| *l);
-                egui::ComboBox::from_id_salt("cert-algo")
+                craft_ui::ComboBox::from_id_salt("cert-algo")
                     .width(300.0)
                     .selected_text(cur)
                     .show_ui(ui, |ui| {
@@ -287,7 +287,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
                 let opts =
                     [(Printing::None, tl!("None")), (Printing::Low, tl!("Low Resolution (150 dpi)")), (Printing::High, tl!("High Resolution"))];
                 let cur = opts.iter().find(|(o, _)| *o == p.printing).map_or(tl!("High Resolution"), |(_, l)| *l);
-                egui::ComboBox::from_id_salt("cert-print")
+                craft_ui::ComboBox::from_id_salt("cert-print")
                     .width(300.0)
                     .selected_text(cur)
                     .show_ui(ui, |ui| {
@@ -307,7 +307,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> (boo
                     (Changes::AnyExceptExtract, tl!("Any except extracting pages")),
                 ];
                 let cur = opts.iter().find(|(o, _)| *o == p.changes).map_or(tl!("None"), |(_, l)| *l);
-                egui::ComboBox::from_id_salt("cert-changes")
+                craft_ui::ComboBox::from_id_salt("cert-changes")
                     .width(300.0)
                     .selected_text(cur)
                     .show_ui(ui, |ui| {
@@ -415,7 +415,7 @@ pub(crate) fn open_prompt(app: &mut PdfCraftApp, ctx: &egui::Context) {
         ui.add_space(8.0);
         ui.horizontal(|ui| {
             let shown = if chosen.is_empty() { tl!("Choose a digital ID file").to_string() } else { id_label(&files, chosen) };
-            egui::ComboBox::from_id_salt("certificate-password-id")
+            craft_ui::ComboBox::from_id_salt("certificate-password-id")
                 .width(300.0)
                 .selected_text(shown)
                 .show_ui(ui, |ui| {

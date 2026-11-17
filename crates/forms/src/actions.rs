@@ -128,6 +128,21 @@ fn read(doc: &Document, o: &Object, pages: &[pdfcraft_cos::ObjRef], scripts: &mu
     })
 }
 
+/// The JavaScript widget annotation `widget` runs for `trigger` (ISO 32000-2 Table 197: `/A`
+/// or `/AA /U` for Mouse Up, the other `/AA` entries for the rest): that action's, when it is a
+/// JavaScript action, then those of the actions chained after it with `/Next`, in the order
+/// they run (bounded as [`crate::document_action_scripts`] is). Reads only the widget's own
+/// dictionary, so a pointer moving over a large form costs nothing per field.
+pub fn widget_scripts(doc: &Document, widget: pdfcraft_cos::ObjRef, trigger: Trigger) -> Vec<String> {
+    let w = doc.get(widget);
+    let Some(wd) = w.as_dict() else { return Vec::new() };
+    let action = match trigger.key() {
+        None => wd.get(b"A").cloned().or_else(|| wd.get(b"AA").map(|a| doc.resolve(a)).and_then(|a| a.as_dict()?.get(b"U").cloned())),
+        Some(k) => wd.get(b"AA").map(|a| doc.resolve(a)).and_then(|a| a.as_dict()?.get(k).cloned()),
+    };
+    crate::scripting::chained_scripts(doc, action)
+}
+
 /// The actions of field `name` (its first widget), by trigger, in the tab's order.
 pub fn field_actions(doc: &Document, name: &str) -> Result<Vec<(Trigger, FieldAction)>, FormError> {
     let all = fields(doc);
@@ -254,17 +269,21 @@ fn write(doc: &mut Document, a: &FieldAction, pages: &[pdfcraft_cos::ObjRef]) ->
 
 /// Rewrite one trigger of a widget to `new` (`None` clears it), given the `old` value read from
 /// the widget. `aa` and `a_entry` are the widget's `/AA` dict and `/A` entry, updated in place.
-#[allow(clippy::too_many_arguments)]
+struct TriggerUpdate<'a> {
+    trigger: Trigger,
+    replacement: Option<&'a FieldAction>,
+    previous: Option<Object>,
+}
+
 fn replace_trigger(
     doc: &mut Document,
     pages: &[pdfcraft_cos::ObjRef],
     scripts: &mut pdfcraft_cos::DecodeBudget,
-    t: Trigger,
-    new: Option<&FieldAction>,
-    old: Option<Object>,
+    update: TriggerUpdate<'_>,
     aa: &mut Dict,
     a_entry: &mut Option<Object>,
 ) -> Result<(), FormError> {
+    let TriggerUpdate { trigger: t, replacement: new, previous: old } = update;
     let old_action = old.as_ref().and_then(|o| read(doc, o, pages, scripts));
     if new.is_some() && new == old_action.as_ref() {
         return Ok(());
@@ -314,7 +333,7 @@ pub fn set_field_actions(doc: &mut Document, name: &str, actions: &[(Trigger, Fi
                 None => wd.get(b"A").cloned().or_else(|| aa.get(b"U").cloned()),
                 Some(k) => aa.get(k).cloned(),
             };
-            replace_trigger(doc, &pages, &mut scripts, t, new, old, &mut aa, &mut a_entry)?;
+            replace_trigger(doc, &pages, &mut scripts, TriggerUpdate { trigger: t, replacement: new, previous: old }, &mut aa, &mut a_entry)?;
         }
         doc.update_dict(w.obj, |d| {
             match &a_entry {

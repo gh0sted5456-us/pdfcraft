@@ -1,133 +1,60 @@
 //! pdfcraft-ocr — Scan & OCR ▸ Recognize text (L4).
 //!
-//! Recognition runs the ocrs engine (MIT/Apache-2.0) with its pre-trained models (CC-BY-SA-4.0,
-//! fetched by `cargo xtask models`; see ATTRIBUTION.toml). The caller renders a page to pixels;
-//! [`Ocr::recognize`] finds text in them. The engine writes placed text as an invisible layer
-//! (rendering mode 3), making a searchable image without changing the original image.
-//! [`text_layer`] is the legacy WinAnsi writer; the engine supplies Unicode fonts for text
-//! outside WinAnsi, including Latin letters no standard font encodes.
+//! The caller renders a page to pixels ([`OcrImage`]) and hands it to a [`Recognizer`]. Two
+//! engines exist: the pure-Rust `OcrsRecognizer` (ocrs, MIT/Apache-2.0, with its pre-trained
+//! models, CC-BY-SA-4.0, fetched by `cargo xtask models`; see ATTRIBUTION.toml) and — off the
+//! web — `tesseract::TesseractCli`, which drives an installed `tesseract` binary as an external
+//! process. `merge` combines two engines' readings (ROVER), `preprocess` cleans the raster up
+//! between rendering and recognition, and [`text_layer`] turns words placed in user space into
+//! page content: invisible text (rendering mode 3) over each word, so the page becomes a
+//! searchable image (Acrobat's "Searchable Image (Exact)": the image is left untouched).
 //!
-//! English uses ocrs; accented Latin (`la`) uses a PP-OCR model on the same
-//! local runtime, each with its own recognition model and character dictionary.
-//! Optional multilingual recognition and orientation use the additional pinned PaddleOCR models.
+//! Visible editable output uses [`pdfcraft_fonts::TextPlan`] and optional craft-fonts glyph
+//! outlines; unsupported visible characters become `?` and are counted. The engine's invisible
+//! searchable layer uses empty Type3 programs and ToUnicode maps, preserving Unicode without
+//! display fonts. WinAnsi-only invisible text keeps the standard Helvetica layout here.
+//!
+//! The ocrs models read the Latin alphabet (English and other languages written without
+//! accents); Tesseract (the `tesseract` module, off the web build) reads whatever its installed
+//! language packs cover.
 
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
-use rten_imageproc::BoundingRect;
-use std::path::{Path, PathBuf};
+pub mod confidence;
+// Lion PDF: its own engine (PP-OCR, multilingual, orientation), and deskew and paper-edge crop.
 pub mod crop;
 mod lines;
+pub mod lion;
+pub mod merge;
 mod multilingual;
-pub mod scan;
-
+mod ocrs;
 mod ppocr;
+pub mod preprocess;
+pub mod scan;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod tesseract;
 
+pub use confidence::{ConfidenceBand, band_for, is_suspect, low_confidence};
+pub use merge::{MergeStrategy, StrategyOutcome, mean_confidence, recognize_with_strategy, rover_merge};
+pub use ocrs::{
+    ALPHABET, DETECTION_MODEL, DETECTION_MODEL_SHA256, LANGUAGES, Models, Ocr, OcrsRecognizer, RECOGNITION_MODEL, RECOGNITION_MODEL_SHA256,
+};
+
+pub use lion::{LION_LANGUAGES, LionModels, LionOcr, LionRecognizer, language_for_locale, preferred_letters};
+pub use pdfcraft_fonts::TextPlan;
 pub use pdfcraft_fonts::helvetica_width;
 
-/// The model files, as named in ATTRIBUTION.toml.
-pub const DETECTION_MODEL: &str = "text-detection.rten";
-pub const RECOGNITION_MODEL: &str = "text-recognition.rten";
-pub const LATIN_MODEL: &str = "latin-recognition.onnx";
-pub const LATIN_DICTIONARY: &str = "latin-keys.txt";
+/// Hard cap on either side of an image any code in this crate will touch, in pixels; larger
+/// images are rejected with [`OcrError::ImageTooLarge`] instead of being processed.
+pub const MAX_SIDE: u32 = 10_000;
 
-/// The PP-OCR languages: (code, model file, dictionary file, output classes = CTC blank +
-/// one per dictionary line + the appended space). The class count is pinned per model, so a
-/// wrong or truncated dictionary fails at load instead of decoding garbage.
-const PP_OCR: &[(&str, &str, &str, usize)] = &[
-    ("la", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("ca", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("nb", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("fr", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("de", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("es", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("pt", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("it", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("nl", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("da", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("no", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("sv", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("is", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("fi", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("cs", LATIN_MODEL, LATIN_DICTIONARY, 504),
-    ("pl", LATIN_MODEL, LATIN_DICTIONARY, 504),
-];
-pub const MULTILINGUAL_MODEL: &str = "multilingual-recognition.onnx";
-pub const ORIENTATION_MODEL: &str = "document-orientation.onnx";
-pub const DICTIONARY: &str = "multilingual-dictionary.txt";
-
-/// The recognition model's alphabet, as it was trained (ocrs-models' `DEFAULT_ALPHABET`): its
-/// output classes follow this order. The ocrs crate's own copy has an `E` where the training had
-/// `€`, which made a scanned "€250" read as "E250".
-pub const ALPHABET: &str = " 0123456789!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~€ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
-/// The languages the models read (ISO 639-1). `la` uses the Latin dictionary; a listed letter can still be misread.
-/// The named languages use that same model and, when two letters score close together, prefer
-/// the ones that language writes (`å` for Danish, `à` for French) without forbidding the others.
-pub const LANGUAGES: &[(&str, &str)] = &[
-    ("en", "English"),
-    ("la", "Latin (accented)"),
-    ("fr", "Français"),
-    ("de", "Deutsch"),
-    ("es", "Español"),
-    ("pt", "Português"),
-    ("it", "Italiano"),
-    ("nl", "Nederlands"),
-    ("da", "Dansk"),
-    ("no", "Norsk"),
-    ("sv", "Svenska"),
-    ("is", "Íslenska"),
-    ("fi", "Suomi"),
-    ("cs", "Čeština"),
-    ("pl", "Polski"),
-    ("ja", "日本語"),
-    ("ca", "Català"),
-    ("nb", "Norsk bokmål"),
-    ("zh-Hant", "繁體中文"),
-    ("zh-Hans", "简体中文"),
-];
-
-/// Letters a document language prefers when the recogniser is unsure. Empty means no preference.
-pub fn preferred_letters(language: &str) -> &'static str {
-    match language {
-        "fr" => "àâæçéèêëîïôœùûüÿÀÂÆÇÉÈÊËÎÏÔŒÙÛÜŸ",
-        "de" => "äöüßÄÖÜ",
-        "es" => "áéíñóúü¿¡ÁÉÍÑÓÚÜ",
-        "pt" => "áàâãçéêíóôõúÁÀÂÃÇÉÊÍÓÔÕÚ",
-        "it" => "àèéìíîòóùÀÈÉÌÍÎÒÓÙ",
-        "nl" => "áéëïóöüÁÉËÏÓÖÜ",
-        "da" | "no" | "nb" => "åæøÅÆØ",
-        "sv" | "fi" => "åäöÅÄÖ",
-        "is" => "áðéíóúýþæöÁÐÉÍÓÚÝÞÆÖ",
-        "cs" => "áčďéěíňóřšťúůýžÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ",
-        "pl" => "ąćęłńóśźżĄĆĘŁŃÓŚŹŻ",
-        _ => "",
-    }
-}
-
-pub fn language_for_locale(locale: Option<&str>) -> &'static str {
-    let locale = locale.unwrap_or_default().trim().split(['.', '@']).next().unwrap_or_default();
-    let mut parts = locale.split(['-', '_']);
-    let primary = parts.next().unwrap_or_default();
-    if primary.eq_ignore_ascii_case("zh") {
-        // Only language/script/region subtags matter, never a later extension or private use.
-        let next = parts.next().unwrap_or_default();
-        if next.eq_ignore_ascii_case("Hant") {
-            return "zh-Hant";
-        }
-        if next.eq_ignore_ascii_case("Hans") {
-            return "zh-Hans";
-        }
-        return if ["TW", "HK", "MO"].iter().any(|region| next.eq_ignore_ascii_case(region)) { "zh-Hant" } else { "zh-Hans" };
-    }
-    // Older platforms use the generic Norwegian tag for Bokmål.
-    let primary = if primary.eq_ignore_ascii_case("no") { "nb" } else { primary };
-    LANGUAGES.iter().find(|(code, _)| code.eq_ignore_ascii_case(primary)).map_or("en", |(code, _)| *code)
-}
+/// Hard cap on an image's TOTAL area, in pixels (64 MP): sides under [`MAX_SIDE`] can still
+/// multiply out to a raster no engine should have to read; larger images are rejected with
+/// [`OcrError::ImageTooLarge`] instead of being processed.
+pub const MAX_PIXELS: u32 = 64_000_000;
 
 #[derive(Debug, thiserror::Error)]
 pub enum OcrError {
-    /// Shown to end users (release packages ship the models; a source build fetches them with
-    /// `cargo xtask models`). The UI catalogs key this exact text.
     #[error("the text recognition models are not installed (reinstall PdfCraft, or set PDFCRAFT_MODELS to the folder that holds them)")]
     NoModels,
     #[error("loading {0}: {1}")]
@@ -136,84 +63,124 @@ pub enum OcrError {
     Recognize(String),
     #[error("the image is empty")]
     EmptyImage,
+    #[error("the image is larger than the {MAX_SIDE}-pixel side or {MAX_PIXELS}-pixel limit")]
+    ImageTooLarge,
+    #[error("the image buffer holds {got} bytes, expected {want} for {width}x{height} RGBA")]
+    ImageSize { got: usize, want: usize, width: u32, height: u32 },
+    #[error("the tesseract program is not available: {0}")]
+    NoTesseract(String),
+    #[error("tesseract did not finish within {0} seconds")]
+    Timeout(u64),
+    #[error("tesseract produced more than {0} bytes of output")]
+    OutputTooLarge(u64),
+    #[error("tesseract failed: {0}")]
+    Process(String),
+    /// Lion PDF's engine was asked for a language it doesn't read.
     #[error("unsupported OCR language {0:?}; choose a language from ocr_status")]
     Language(String),
 }
 
-/// Where a language's detector and recogniser are. The PP-OCR languages also require their
-/// character dictionary beside the recognition model.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Models {
-    pub detection: PathBuf,
-    pub recognition: PathBuf,
-    pub language: &'static str,
+/// An RGBA8 raster, row-major, top-left origin: what the engines read. The fields are private
+/// so the invariants (non-zero, capped, exactly `width * height * 4` bytes) hold by
+/// construction: an [`OcrImage`] in hand has always been validated, whatever produced it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OcrImage {
+    width: u32,
+    height: u32,
+    rgba: Vec<u8>,
 }
 
-impl Models {
-    /// The models in `dir`, if every required file is there.
-    pub fn in_dir(dir: &Path) -> Option<Models> {
-        Self::in_dir_for(dir, "en")
-    }
-
-    pub fn in_dir_for(dir: &Path, language: &str) -> Option<Models> {
-        let language = LANGUAGES.iter().find(|l| l.0 == language)?.0;
-        let multilingual = [MULTILINGUAL_MODEL, ORIENTATION_MODEL, DICTIONARY].iter().all(|f| dir.join(f).is_file());
-        let recognition = if language == "en" {
-            RECOGNITION_MODEL
-        } else if let Some(&(_, model, dictionary, _)) = PP_OCR.iter().find(|(code, ..)| *code == language)
-            && dir.join(model).is_file()
-            && dir.join(dictionary).is_file()
-        {
-            model
-        } else if multilingual {
-            RECOGNITION_MODEL
-        } else {
-            return None;
-        };
-        let m = Models { detection: dir.join(DETECTION_MODEL), recognition: dir.join(recognition), language };
-        (m.detection.is_file() && m.recognition.is_file()).then_some(m)
-    }
-
-    /// Look for the models: `$PDFCRAFT_MODELS`, then where the release packages install them
-    /// beside the executable ([`Models::dirs_beside_exe`]), then the source tree's `assets/models/`.
-    pub fn find() -> Option<Models> {
-        Self::find_for("en")
-    }
-
-    pub fn find_for(language: &str) -> Option<Models> {
-        Self::search_dirs().iter().find_map(|d| Self::in_dir_for(d, language))
-    }
-
-    /// The directories [`Models::find`] looks in, in order.
-    pub fn search_dirs() -> Vec<PathBuf> {
-        let mut dirs = Vec::new();
-        if let Some(d) = std::env::var_os("PDFCRAFT_MODELS") {
-            dirs.push(PathBuf::from(d));
+impl OcrImage {
+    /// Validate the sides ([`MAX_SIDE`]) and total area ([`MAX_PIXELS`]) and that `rgba` holds
+    /// exactly `width * height * 4` bytes (checked arithmetic; the counts come from documents,
+    /// so they are untrusted).
+    pub fn new(width: u32, height: u32, rgba: Vec<u8>) -> Result<OcrImage, OcrError> {
+        if width == 0 || height == 0 {
+            return Err(OcrError::EmptyImage);
         }
-        if let Some(exe) = std::env::current_exe().ok().and_then(|e| e.parent().map(Path::to_path_buf)) {
-            dirs.extend(Self::dirs_beside_exe(&exe));
+        if width > MAX_SIDE || height > MAX_SIDE {
+            return Err(OcrError::ImageTooLarge);
         }
-        dirs.push(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../assets/models"));
-        dirs
+        let pixels = (width as usize).checked_mul(height as usize).ok_or(OcrError::ImageTooLarge)?;
+        if pixels > MAX_PIXELS as usize {
+            return Err(OcrError::ImageTooLarge);
+        }
+        match pixels.checked_mul(4) {
+            Some(want) if rgba.len() == want => Ok(OcrImage { width, height, rgba }),
+            Some(want) => Err(OcrError::ImageSize { got: rgba.len(), want, width, height }),
+            None => Err(OcrError::ImageTooLarge),
+        }
     }
 
-    /// Where the release packages put the models, relative to the directory holding the
-    /// executable (packaging/*):
-    /// - `models/` beside it: the Windows MSI and portable zip;
-    /// - `../Resources/models`: the macOS app bundle (`Contents/MacOS` → `Contents/Resources`);
-    /// - `../share/pdfcraft/models`: the FHS-style trees (`bin/` → `share/`) of the Linux
-    ///   deb/rpm/tar.gz/AppImage/Flatpak and the FreeBSD tarball, wherever they are installed.
-    pub fn dirs_beside_exe(exe_dir: &Path) -> Vec<PathBuf> {
-        vec![exe_dir.join("models"), exe_dir.join("../Resources/models"), exe_dir.join("../share/pdfcraft/models")]
+    /// The image's width, in pixels.
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    /// The image's height, in pixels.
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    /// The RGBA bytes, row-major, exactly `width * height * 4` of them.
+    pub fn rgba(&self) -> &[u8] {
+        &self.rgba
+    }
+
+    /// The smallest side, in pixels.
+    pub fn min_side(&self) -> u32 {
+        self.width.min(self.height)
+    }
+
+    /// One RGBA byte at integer pixel (`x`, `y`), edges clamped; 255 (white) outside. Only
+    /// whole-pixel positions and channel 0–3 make sense; anything else reads clamped.
+    pub fn byte(&self, x: f64, y: f64, ch: usize) -> u8 {
+        let stride = self.width as usize * 4;
+        if stride == 0 || self.height == 0 || ch > 3 {
+            return 255;
+        }
+        let xi = (x.round().max(0.0) as usize).min(self.width as usize - 1);
+        let yi = (y.round().max(0.0) as usize).min(self.height as usize - 1);
+        self.rgba.get(yi * stride + xi * 4 + ch).copied().unwrap_or(255)
+    }
+
+    /// The grayscale value of the pixel at (`x`, `y`), 0 (ink) … 255 (paper), with the borders
+    /// clamped (edges replicate). `None` only when the image is empty.
+    pub fn gray(&self, x: i64, y: i64) -> Option<u8> {
+        let x = x.clamp(0, self.width as i64 - 1);
+        let y = y.clamp(0, self.height as i64 - 1);
+        let row = y as usize * self.width as usize * 4;
+        let o = row + x as usize * 4;
+        let px = self.rgba.get(o..o + 4)?;
+        Some(((299 * px[0] as u32 + 587 * px[1] as u32 + 114 * px[2] as u32) / 1000) as u8)
     }
 }
 
-/// A recognised text segment and its box in image pixels `[left, top, right, bottom]`.
-/// English segments are words; accented Latin segments are whole lines.
+/// A recognised word: its text and its box in image pixels `[left, top, right, bottom]`.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Word {
     pub text: String,
     pub rect: [f32; 4],
+    /// How sure the engine is, 0–100, when it reports a confidence at all (`None`: the ocrs
+    /// engine does not).
+    pub confidence: Option<f32>,
+    /// Which engine read this word: the recogniser's [`Recognizer::id`], or `"ROVER"` when two
+    /// engines were merged and the surviving text is the merged choice.
+    pub source: String,
+}
+
+impl Word {
+    pub fn new(text: impl Into<String>, rect: [f32; 4], source: &str) -> Word {
+        Word { text: text.into(), rect, confidence: None, source: source.into() }
+    }
+
+    /// Set the confidence (builder style), clamped to the documented 0–100 scale (a negative
+    /// value is 0, anything over 100 is 100). NaN means no confidence was reported (`None`),
+    /// the same unknown the engines that report nothing carry.
+    pub fn with_confidence(mut self, confidence: f32) -> Word {
+        self.confidence = if confidence.is_nan() { None } else { Some(confidence.clamp(0.0, 100.0)) };
+        self
+    }
 }
 
 /// A recognised line of words, in reading order.
@@ -228,174 +195,34 @@ impl Line {
     }
 }
 
-/// A loaded recogniser. Loading takes a moment; keep one and reuse it.
-pub struct Ocr {
-    engine: ocrs::OcrEngine,
-    ppocr: Option<ppocr::PpOcr>,
-    /// Letters this document language prefers when two readings are close. Empty for English,
-    /// and the unrestricted Latin choice.
-    preferred: &'static str,
-    multilingual: Option<multilingual::Multilingual>,
-    language: &'static str,
+/// What a recogniser needs to know beyond the pixels.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RecognizeOptions {
+    /// Language code from [`LANGUAGES`] (`"en"`, `"de"`, …). Engines map it to their own codes
+    /// (Tesseract: `tesseract::language_code`, allow-listed before anything reaches a process);
+    /// unknown codes fall back to the engine's default.
+    pub language: String,
 }
 
-impl Ocr {
-    pub fn load(models: &Models) -> Result<Ocr, OcrError> {
-        let load = |p: &Path| rten::Model::load_file(p).map_err(|e| OcrError::Load(p.display().to_string(), e.to_string()));
-        let name = models.recognition.file_name().and_then(|f| f.to_str()).unwrap_or_default();
-        let ppocr = PP_OCR
-            .iter()
-            .find(|(_, model, _, _)| *model == name)
-            .map(|(_, _, dictionary, classes)| ppocr::PpOcr::load(&models.recognition, &models.recognition.with_file_name(dictionary), *classes))
-            .transpose()?;
-        let params = ocrs::OcrEngineParams {
-            detection_model: Some(load(&models.detection)?),
-            recognition_model: if ppocr.is_none() { Some(load(&models.recognition)?) } else { None },
-            alphabet: Some(ALPHABET.into()),
-            ..Default::default()
-        };
-        let engine = ocrs::OcrEngine::new(params).map_err(|e| OcrError::Load("ocr engine".into(), e.to_string()))?;
-        let dir = models.recognition.parent().ok_or(OcrError::NoModels)?;
-        let multilingual = if [MULTILINGUAL_MODEL, ORIENTATION_MODEL, DICTIONARY].iter().all(|f| dir.join(f).is_file()) {
-            Some(multilingual::Multilingual::load(dir)?)
-        } else {
-            None
-        };
-        Ok(Ocr { engine, ppocr, preferred: preferred_letters(models.language), multilingual, language: models.language })
+impl Default for RecognizeOptions {
+    fn default() -> Self {
+        RecognizeOptions { language: "en".into() }
     }
+}
 
-    /// Load the models found by [`Models::find`].
-    pub fn find() -> Result<Ocr, OcrError> {
-        Self::find_for("en")
-    }
-
-    pub fn find_for(language: &str) -> Result<Ocr, OcrError> {
-        if !LANGUAGES.iter().any(|l| l.0 == language) {
-            return Err(OcrError::Language(language.into()));
-        }
-        Self::load(&Models::find_for(language).ok_or(OcrError::NoModels)?)
-    }
-
-    /// Recognise the text in an RGBA (or RGB, or grey) image, `width` × `height` pixels.
-    pub fn recognize(&self, pixels: &[u8], width: u32, height: u32) -> Result<Vec<Line>, OcrError> {
-        let count = (width as usize)
-            .checked_mul(height as usize)
-            .filter(|n| *n <= 64 * 1024 * 1024)
-            .ok_or_else(|| OcrError::Recognize("image exceeds 64 megapixels".into()))?;
-        if count == 0 || pixels.is_empty() {
-            return Err(OcrError::EmptyImage);
-        }
-        let channels = pixels.len() / count;
-        if !pixels.len().is_multiple_of(count) || !matches!(channels, 1 | 3 | 4) {
-            return Err(OcrError::Recognize("image must contain exactly 1, 3 or 4 channels per pixel".into()));
-        }
-        // ocrs wants 1 or 3 channels.
-        let rgb: std::borrow::Cow<[u8]> = if channels == 4 {
-            pixels.as_chunks::<4>().0.iter().flat_map(|p| [p[0], p[1], p[2]]).collect::<Vec<u8>>().into()
-        } else if channels == 1 && (self.ppocr.is_some() || self.multilingual.is_some()) {
-            pixels.iter().flat_map(|p| [*p; 3]).collect::<Vec<_>>().into()
-        } else {
-            pixels.into()
-        };
-        if self.uses_multilingual(self.language) {
-            let image = image::RgbImage::from_raw(width, height, rgb.into_owned()).ok_or(OcrError::EmptyImage)?;
-            return self.recognize_language(&image, self.language);
-        }
-        let err = |e: &dyn std::fmt::Display| OcrError::Recognize(e.to_string());
-        let source = ocrs::ImageSource::from_bytes(&rgb, (width, height)).map_err(|e| err(&e))?;
-        let input = self.engine.prepare_input(source).map_err(|e| err(&e))?;
-        let found = self.engine.detect_words(&input).map_err(|e| err(&e))?;
-        let lines = self.engine.find_text_lines(&input, &found);
-        if let Some(ppocr) = &self.ppocr {
-            if lines.len() > 4096 {
-                return Err(OcrError::Recognize("page has more than 4096 text lines".into()));
-            }
-            let mut result = Vec::new();
-            for line in lines {
-                let rect = line
-                    .iter()
-                    .map(|r| r.bounding_rect())
-                    .fold(None, |rect: Option<rten_imageproc::Rect<f32>>, r| Some(rect.map_or(r, |b| b.union(r))));
-                let Some(r) = rect else { continue };
-                let rect = [r.left(), r.top(), r.right(), r.bottom()];
-                let text = ppocr.recognize(&rgb, width, height, rect, self.preferred)?;
-                if !text.is_empty() {
-                    result.push(Line { words: vec![Word { text, rect }] });
-                }
-            }
-            return Ok(result);
-        }
-        let read = self.engine.recognize_text(&input, &lines).map_err(|e| err(&e))?;
-        use ocrs::TextItem;
-        Ok(read
-            .into_iter()
-            .flatten()
-            .map(|line| Line {
-                words: line
-                    .words()
-                    .map(|w| {
-                        let r = w.bounding_rect();
-                        Word { text: w.to_string(), rect: [r.left() as f32, r.top() as f32, r.right() as f32, r.bottom() as f32] }
-                    })
-                    .filter(|w| !w.text.trim().is_empty())
-                    .collect(),
-            })
-            .filter(|l| !l.words.is_empty())
-            .collect())
-    }
-
-    fn uses_multilingual(&self, language: &str) -> bool {
-        // The bundled multilingual model retains Nordic rings where the Latin model misreads them.
-        (self.ppocr.is_none() && language != "en") || (self.multilingual.is_some() && matches!(language, "da" | "no" | "nb" | "sv" | "fi"))
-    }
-
-    pub fn recognize_language(&self, image: &image::RgbImage, language: &str) -> Result<Vec<Line>, OcrError> {
-        let pixels = u64::from(image.width()) * u64::from(image.height());
-        if pixels == 0 {
-            return Err(OcrError::EmptyImage);
-        }
-        if pixels > 64 * 1024 * 1024 {
-            return Err(OcrError::Recognize("image exceeds 64 megapixels".into()));
-        }
-        if language == self.language && !self.uses_multilingual(language) {
-            return self.recognize(image.as_raw(), image.width(), image.height());
-        }
-        let multilingual = self.multilingual.as_ref().ok_or(OcrError::NoModels)?;
-        if !LANGUAGES.iter().any(|l| l.0 == language) {
-            return Err(OcrError::Recognize(format!("unsupported language: {language}")));
-        }
-        use rten_imageproc::BoundingRect;
-        let source = ocrs::ImageSource::from_bytes(image.as_raw(), image.dimensions()).map_err(|e| OcrError::Recognize(e.to_string()))?;
-        let input = self.engine.prepare_input(source).map_err(|e| OcrError::Recognize(e.to_string()))?;
-        let found = self.engine.detect_words(&input).map_err(|e| OcrError::Recognize(e.to_string()))?;
-        let boxes = self.engine.find_text_lines(&input, &found);
-        let rects: Vec<[f32; 4]> = boxes
-            .into_iter()
-            .map(|line| {
-                line.iter().map(|r| r.bounding_rect()).fold([f32::INFINITY, f32::INFINITY, 0.0f32, 0.0f32], |a, r| {
-                    [a[0].min(r.left()), a[1].min(r.top()), a[2].max(r.right()), a[3].max(r.bottom())]
-                })
-            })
-            .collect();
-        if rects.len() > 4096 {
-            return Err(OcrError::Recognize("page has more than 4096 text lines".into()));
-        }
-        // CJK's centred punctuation can split one horizontal line into several detections.
-        // Join their geometry before padded crops reach the recognizer, avoiding duplicate ink.
-        let rects = if matches!(language, "zh-Hant" | "zh-Hans") { lines::join_fragments(rects) } else { rects };
-        let mut out = Vec::new();
-        for rect in rects {
-            let words = multilingual.read_line(image, rect, language)?;
-            if !words.is_empty() {
-                out.push(Line { words });
-            }
-        }
-        Ok(out)
-    }
-
-    pub fn orientation(&self, image: &image::RgbImage) -> Result<u16, OcrError> {
-        self.multilingual.as_ref().map_or(Ok(0), |m| m.orientation(image))
-    }
+/// One text-recognition engine. Implementations are shared across threads
+/// (`Arc<dyn Recognizer>`); `available` and `recognize` may spawn processes only off the web
+/// build (see the `tesseract` module).
+pub trait Recognizer: Send + Sync {
+    /// The engine's short name (`"ocrs"`, `"tesseract"`): what [`Word::source`] carries and
+    /// what settings and tools name it by.
+    fn id(&self) -> &'static str;
+    /// Whether this engine can run right now (models installed, binary found).
+    fn available(&self) -> bool;
+    /// The languages it reads, as `(code, name)` pairs (`"en"`, `"English"`).
+    fn languages(&self) -> Vec<(String, String)>;
+    /// Read the words in `image`, in reading order.
+    fn recognize(&self, image: &OcrImage, options: &RecognizeOptions) -> Result<Vec<Line>, OcrError>;
 }
 
 /// A word placed on a page, in PDF user space: the bottom-left corner of its box, and the
@@ -406,6 +233,10 @@ pub struct PlacedWord {
     pub origin: [f64; 2],
     pub across: [f64; 2],
     pub up: [f64; 2],
+    /// Confidence 0–100, when the engine reported one.
+    pub confidence: Option<f32>,
+    /// Which engine read this word (see [`Word::source`]).
+    pub source: String,
 }
 
 impl PlacedWord {
@@ -416,7 +247,14 @@ impl PlacedWord {
         let o = to_user(l, b);
         let br = to_user(r, b);
         let tl = to_user(l, t);
-        PlacedWord { text: word.text.clone(), origin: o, across: [br[0] - o[0], br[1] - o[1]], up: [tl[0] - o[0], tl[1] - o[1]] }
+        PlacedWord {
+            text: word.text.clone(),
+            origin: o,
+            across: [br[0] - o[0], br[1] - o[1]],
+            up: [tl[0] - o[0], tl[1] - o[1]],
+            confidence: word.confidence,
+            source: word.source.clone(),
+        }
     }
 }
 
@@ -447,138 +285,274 @@ fn num(v: f64) -> String {
     if s == "-0" { "0".into() } else { s.into() }
 }
 
-/// Helvetica's space width (em fraction).
-const SPACE_EM: f64 = 0.278;
-/// The width of the space written between words, in word heights.
-const SPACE_SLIVER: f64 = 0.01;
-/// How far apart along its line, in word heights, two words can be and still be one line's
-/// neighbours, and how far their bottoms may be offset across it (a descender, a slight skew).
-const NEIGHBOUR_GAP: f64 = 1.5;
-const NEIGHBOUR_OFFSET: f64 = 0.6;
-
-/// The gap from `w` to `next` along `w`'s line, when `next` is the next word on that line: it
-/// reads the same way, sits on about the same baseline and starts not far after `w` ends.
-fn gap_to(w: &PlacedWord, next: &PlacedWord) -> Option<f64> {
-    let (len, next_len) = (w.across[0].hypot(w.across[1]), next.across[0].hypot(next.across[1]));
-    let h = w.up[0].hypot(w.up[1]).max(next.up[0].hypot(next.up[1]));
-    if !(len > 0.0 && next_len > 0.0 && h > 0.0 && h.is_finite()) {
-        return None;
-    }
-    let u = [w.across[0] / len, w.across[1] / len];
-    let dot = |a: [f64; 2], b: [f64; 2]| a[0] * b[0] + a[1] * b[1];
-    let same_way = dot(u, next.across) / next_len > 0.9;
-    let from_end = [next.origin[0] - w.origin[0] - w.across[0], next.origin[1] - w.origin[1] - w.across[1]];
-    let along = dot(from_end, u);
-    // Across the line: the part of the offset that is not along it.
-    let offset = (from_end[0] - along * u[0]).hypot(from_end[1] - along * u[1]);
-    (same_way && offset < NEIGHBOUR_OFFSET * h && along > -NEIGHBOUR_OFFSET * h && along < NEIGHBOUR_GAP * h).then_some(along)
+/// One run of a word's planned characters in one Type3 font: the resource name, the codes to
+/// show (one byte per character), and the run's start as an offset in em units from the word's
+/// origin (the accumulated advances of the runs before it).
+struct PlannedRun {
+    font: String,
+    codes: Vec<u8>,
+    start: f64,
 }
 
-/// Page content that writes `words` as invisible text in `/PCHelv` (standard Helvetica,
-/// WinAnsiEncoding), each word stretched to its box so selection and search highlight the
-/// right place. Marked content `/OCR` so it can be told apart from the page's own text.
-///
-/// Between neighbours on a line it writes a space: recognised words sit closer than the gap a
-/// copy needs to read as a word break, so copied text ran words together ("Thequick brown
-/// foxjumps", #2306). The space is a sliver at the word's end, so the word's box (what search
-/// highlights and an edit keeps the width of) stays the scanned word's.
-pub fn text_layer(words: &[PlacedWord]) -> Vec<u8> {
-    // `3 Tr` and the font are graphics state, which `ET` doesn't reset: without `q … Q` they
-    // would stay set for every later content stream on the page, so text added after OCR (a
-    // header or footer) drew invisibly (#3029).
-    let mut out = b"/OCR BMC\nq\nBT\n3 Tr\n/PCHelv 1 Tf\n".to_vec();
-    let mut tm = |m: [f64; 6], text: &[u8]| {
-        let nums: Vec<String> = m.iter().map(|v| num(*v)).collect();
-        out.extend_from_slice(nums.join(" ").as_bytes());
-        out.extend_from_slice(b" Tm ");
-        out.extend(pdfcraft_fonts::literal(text));
-        out.extend_from_slice(b" Tj\n");
-    };
+/// The planned runs of word `i` (the same index [`pdfcraft_fonts::TextPlan::for_words`] planned
+/// the words with), or `None` when the word is drawn in Helvetica: every character has a
+/// WinAnsi code, or nothing could be planned/registered for it (the pre-Unicode output).
+fn planned_runs(plan: &pdfcraft_fonts::TextPlan, word: usize) -> Option<(Vec<PlannedRun>, f64)> {
+    let enc = plan.encoding(word);
+    if enc.is_empty() || !plan.registered(enc) {
+        return None;
+    }
+    let mut runs: Vec<PlannedRun> = Vec::new();
+    let mut total = 0.0;
+    for &(f, code) in enc {
+        let font = plan.fonts[f].name.as_str();
+        match runs.last_mut() {
+            Some(last) if last.font == font => last.codes.push(code),
+            _ => runs.push(PlannedRun { font: font.to_string(), codes: vec![code], start: total }),
+        }
+        total += plan.advance(f, code);
+    }
+    (total.is_finite() && total > 0.0).then_some((runs, total))
+}
+
+/// Page content that writes `words` as VISIBLE text at their original boxes: the
+/// editable-text output's page content. WinAnsi words are set in `/PCHelv` (standard
+/// Helvetica); words with characters beyond WinAnsi are set in the plan's Type3 fonts, one run
+/// per font. Each word fills its box — the font size comes from the box height and the
+/// horizontal scaling is computed from the real advances of the font that draws the word
+/// (Helvetica's approximated, the Type3 faces' exact) and emitted as an explicit `Tz`
+/// percentage. Words whose box is empty (or whose text has no measurable width) are skipped; a
+/// page that ends up with nothing simply shows nothing.
+pub fn visible_text_layer(words: &[PlacedWord], plan: &pdfcraft_fonts::TextPlan) -> Vec<u8> {
+    visible_text_layer_at(words, plan, 0)
+}
+
+/// Visible text for words starting at `word_offset` in a shared document plan.
+pub fn visible_text_layer_at(words: &[PlacedWord], plan: &pdfcraft_fonts::TextPlan, word_offset: usize) -> Vec<u8> {
+    // The rendering mode and the font are graphics state, which `ET` doesn't reset: without
+    // `q … Q` they would stay set for every later content stream on the page, so text added
+    // after OCR (a header or footer) drew invisibly (#3029).
+    let mut out = b"/OCR BMC\nq\nBT\n0 Tr\n/PCHelv 1 Tf\n".to_vec();
+    // The font and size the text state is set in, so a Tf is written only when they change.
+    // (The header's size-1 Helvetica covers layers of WinAnsi words only.)
+    let mut current: Option<(String, f64)> = Some(("PCHelv".to_string(), 1.0));
     for (i, w) in words.iter().enumerate() {
-        let width = helvetica_width(&w.text, 1.0);
         let height = w.up[0].hypot(w.up[1]);
-        if width <= 0.0 || height <= 0.0 {
+        let across = w.across[0].hypot(w.across[1]);
+        let (ux, uy) = (w.across[0] / across, w.across[1] / across);
+        let (vx, vy) = (w.up[0] / height, w.up[1] / height);
+        if !across.is_finite()
+            || !height.is_finite()
+            || across <= 0.0
+            || height <= 0.0
+            || !ux.is_finite()
+            || !vx.is_finite()
+            || !w.origin.iter().all(|v| v.is_finite())
+        {
             continue;
         }
-        // The em square: the word's own ink (cap height or x-height, descenders or not) spans the
-        // box, so the text is as tall as the scanned word; its width is stretched to fit the word.
-        let (top, bottom) = ink_extent(&w.text);
-        let em = [w.up[0] / (top - bottom), w.up[1] / (top - bottom)];
-        let ax = [w.across[0] / width, w.across[1] / width];
-        let o = [w.origin[0] - em[0] * bottom, w.origin[1] - em[1] * bottom];
-        tm([ax[0], ax[1], em[0], em[1], o[0], o[1]], &pdfcraft_fonts::win_ansi(&w.text));
-        // The space starts where the word ends, on its baseline.
-        if words.get(i + 1).and_then(|next| gap_to(w, next)).is_some() {
-            let len = w.across[0].hypot(w.across[1]);
-            let reach = SPACE_SLIVER * height / (SPACE_EM * len);
-            tm([w.across[0] * reach, w.across[1] * reach, em[0], em[1], o[0] + w.across[0], o[1] + w.across[1]], b" ");
+        let size = height / BOX_EM;
+        let runs = planned_runs(plan, word_offset.saturating_add(i));
+        // The word's natural advance at this size: Helvetica's approximation, or the exact sum
+        // of the planned glyphs' widths.
+        let natural = runs.as_ref().map_or_else(|| helvetica_width(&w.text, size), |(_, total)| total * size);
+        if natural.is_nan() || natural <= 0.0 {
+            continue;
+        }
+        // Horizontal scaling as a percentage of the natural advance at this size, so the word
+        // lands exactly on its box (100 = no scaling; a long box on a short word stretches it).
+        let tz = (across / natural * 100.0).max(1.0);
+        // The baseline sits above the box's bottom edge by the descender depth.
+        let o = [w.origin[0] + vx * DESCENT * size, w.origin[1] + vy * DESCENT * size];
+        out.extend_from_slice(format!("{} Tz ", num(tz)).as_bytes());
+        match &runs {
+            None => {
+                if current.as_ref().is_some_and(|(f, s)| f != "PCHelv" || *s != size) {
+                    out.extend_from_slice(format!("/PCHelv {} Tf ", num(size)).as_bytes());
+                    current = Some(("PCHelv".to_string(), size));
+                }
+                out.extend_from_slice(format!("{} {} {} {} {} {} Tm ", num(ux), num(uy), num(vx), num(vy), num(o[0]), num(o[1])).as_bytes());
+                out.extend(pdfcraft_fonts::literal(&pdfcraft_fonts::win_ansi(&w.text)));
+                out.extend_from_slice(b" Tj\n");
+            }
+            Some((planned, total)) => {
+                for run in planned {
+                    if current.as_ref().is_some_and(|(f, s)| *f != run.font || *s != size) {
+                        out.extend_from_slice(format!("/{} {} Tf ", run.font, num(size)).as_bytes());
+                        current = Some((run.font.clone(), size));
+                    }
+                    // The run's origin: the word's baseline plus the across vector scaled by
+                    // the advances before this run (the stretch applies to runs alike).
+                    let frac = run.start / total;
+                    out.extend_from_slice(
+                        format!(
+                            "{} {} {} {} {} {} Tm ",
+                            num(ux),
+                            num(uy),
+                            num(vx),
+                            num(vy),
+                            num(o[0] + w.across[0] * frac),
+                            num(o[1] + w.across[1] * frac)
+                        )
+                        .as_bytes(),
+                    );
+                    out.extend(pdfcraft_fonts::literal(&run.codes));
+                    out.extend_from_slice(b" Tj\n");
+                }
+            }
         }
     }
     out.extend_from_slice(b"ET\nQ\nEMC\n");
     out
 }
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn system_locale_selects_ocr_language_with_english_fallback() {
-        for (locale, expected) in [
-            ("de-AT", "de"),
-            ("de_CH.UTF-8", "de"),
-            ("JA-jp", "ja"),
-            ("fr-CA", "fr"),
-            ("es-MX", "es"),
-            ("it-IT", "it"),
-            ("nl-BE", "nl"),
-            ("da-DK", "da"),
-            ("nb-NO", "nb"),
-            ("no_NO", "nb"),
-            ("sv-FI", "sv"),
-            ("fi_FI", "fi"),
-            ("pt-BR", "pt"),
-            ("pt_PT@euro", "pt"),
-            (" EN-us ", "en"),
-            ("is-IS", "is"),
-            ("nn-NO", "en"),
-            ("ca-ES", "ca"),
-            ("ca_ES.UTF-8", "ca"),
-            ("ca-AD", "ca"),
-            ("ca-ES-valencia", "ca"),
-            ("zh-Hans", "zh-Hans"),
-            ("zh", "zh-Hans"),
-            ("zh-CN", "zh-Hans"),
-            ("zh_SG.UTF-8", "zh-Hans"),
-            ("zh-TW", "zh-Hant"),
-            ("zh_HK", "zh-Hant"),
-            ("zh-MO", "zh-Hant"),
-            (" ZH-hANT-cn ", "zh-Hant"),
-            ("zh-Hans-TW", "zh-Hans"),
-            ("zh-Hant-HK", "zh-Hant"),
-            ("C.UTF-8", "en"),
-            ("POSIX", "en"),
-            ("", "en"),
-            ("日本語", "en"),
-            ("deutsch", "en"),
-        ] {
-            assert_eq!(super::language_for_locale(Some(locale)), expected, "{locale}");
+/// Page content that writes `words` as invisible text (rendering mode 3), each word stretched
+/// to its box so selection and search highlight the right place. WinAnsi words are set in
+/// `/PCHelv` (standard Helvetica); words with characters beyond WinAnsi are set in the plan's
+/// Type3 fonts, one run per font, with the same exact box fit. Marked content `/OCR` so it can
+/// be told apart from the page's own text.
+pub fn text_layer(words: &[PlacedWord], plan: &pdfcraft_fonts::TextPlan) -> Vec<u8> {
+    // `3 Tr` and the font are graphics state, which `ET` doesn't reset: without `q … Q` they
+    // would stay set for every later content stream on the page, so text added after OCR (a
+    // header or footer) drew invisibly (#3029).
+    let mut out = b"/OCR BMC\nq\nBT\n3 Tr\n/PCHelv 1 Tf\n".to_vec();
+    let mut current: Option<(String, f64)> = Some(("PCHelv".to_string(), 1.0));
+    for (i, w) in words.iter().enumerate() {
+        let runs = planned_runs(plan, i);
+        let width = runs.as_ref().map_or_else(|| helvetica_width(&w.text, 1.0), |(_, total)| *total);
+        let height = w.up[0].hypot(w.up[1]);
+        let across = w.across[0].hypot(w.across[1]);
+        // Only positive, finite geometry reaches the content stream: a zero-sized box cannot
+        // be drawn, and a NaN or infinite one would put non-finite numbers on the page. (NaN
+        // fails every comparison, so the positivity checks already refuse it; the finiteness
+        // checks keep that property explicit.)
+        if width <= 0.0 || !(height > 0.0 && height.is_finite()) || !(across > 0.0 && across.is_finite()) || !w.origin.iter().all(|v| v.is_finite()) {
+            continue;
         }
-        assert_eq!(super::language_for_locale(None), "en");
-        for (code, _) in super::LANGUAGES {
-            let expected = if *code == "no" { "nb" } else { *code };
-            assert_eq!(super::language_for_locale(Some(code)), expected);
+        // The em square. Helvetica words: the word's own ink (cap height or x-height,
+        // descenders or not) spans the box, so the text is as tall as the scanned word. Planned
+        // (Type3) words: those Helvetica letter heights do not describe the face, so the box spans
+        // the ascender-descender height. Either way the width is stretched to fit the word.
+        let (top, bottom) = if runs.is_some() { (BOX_EM - DESCENT, -DESCENT) } else { ink_extent(&w.text) };
+        let em = [w.up[0] / (top - bottom), w.up[1] / (top - bottom)];
+        let o = [w.origin[0] - em[0] * bottom, w.origin[1] - em[1] * bottom];
+        match &runs {
+            None => {
+                let ax = [w.across[0] / width, w.across[1] / width];
+                if current.as_ref().is_some_and(|(f, s)| f != "PCHelv" || *s != 1.0) {
+                    out.extend_from_slice(b"/PCHelv 1 Tf ");
+                    current = Some(("PCHelv".to_string(), 1.0));
+                }
+                let m = [ax[0], ax[1], em[0], em[1], o[0], o[1]];
+                let nums: Vec<String> = m.iter().map(|v| num(*v)).collect();
+                out.extend_from_slice(nums.join(" ").as_bytes());
+                out.extend_from_slice(b" Tm ");
+                out.extend(pdfcraft_fonts::literal(&pdfcraft_fonts::win_ansi(&w.text)));
+                out.extend_from_slice(b" Tj\n");
+            }
+            Some((planned, total)) => {
+                for run in planned {
+                    if current.as_ref().is_some_and(|(f, s)| *f != run.font || *s != 1.0) {
+                        out.extend_from_slice(format!("/{} 1 Tf ", run.font).as_bytes());
+                        current = Some((run.font.clone(), 1.0));
+                    }
+                    let m = [
+                        w.across[0] / total,
+                        w.across[1] / total,
+                        em[0],
+                        em[1],
+                        o[0] + w.across[0] * run.start / total,
+                        o[1] + w.across[1] * run.start / total,
+                    ];
+                    let nums: Vec<String> = m.iter().map(|v| num(*v)).collect();
+                    out.extend_from_slice(nums.join(" ").as_bytes());
+                    out.extend_from_slice(b" Tm ");
+                    out.extend(pdfcraft_fonts::literal(&run.codes));
+                    out.extend_from_slice(b" Tj\n");
+                }
+            }
         }
     }
+    out.extend_from_slice(b"ET\nQ\nEMC\n");
+    out
+}
 
+/// The recognised lines as JSON, `[[["word", left, top, right, bottom], …], …]`, with the
+/// word's confidence as a sixth item when it has one: how the web build's OCR workers send what
+/// they found back to the page.
+pub fn lines_to_json(lines: &[Line]) -> String {
+    let word = |w: &Word| {
+        let mut items = vec![serde_json::json!(w.text), w.rect[0].into(), w.rect[1].into(), w.rect[2].into(), w.rect[3].into()];
+        items.extend(w.confidence.map(serde_json::Value::from));
+        serde_json::Value::Array(items)
+    };
+    serde_json::Value::Array(lines.iter().map(|l| serde_json::Value::Array(l.words.iter().map(word).collect())).collect()).to_string()
+}
+
+/// At most this many words come back for one page (a dense page has a few thousand).
+const MAX_JSON_WORDS: usize = 100_000;
+
+/// [`lines_to_json`] read back, the words credited to `source` (the engine the worker ran).
+/// Anything else (a word without its box, a box or confidence that isn't a finite number, too
+/// many words) is an error rather than a guess.
+pub fn lines_from_json(json: &str, source: &str) -> Result<Vec<Line>, OcrError> {
+    let bad = |why: &str| OcrError::Recognize(format!("unreadable result: {why}"));
+    let value: serde_json::Value = serde_json::from_str(json).map_err(|e| bad(&e.to_string()))?;
+    let lines = value.as_array().ok_or_else(|| bad("not a list of lines"))?;
+    let number = |v: &serde_json::Value| v.as_f64().map(|v| v as f32).filter(|v| v.is_finite());
+    let mut count = 0usize;
+    let mut out = Vec::with_capacity(lines.len().min(MAX_JSON_WORDS));
+    for line in lines {
+        let mut words = Vec::new();
+        for word in line.as_array().ok_or_else(|| bad("a line is not a list of words"))? {
+            count += 1;
+            if count > MAX_JSON_WORDS {
+                return Err(bad("too many words"));
+            }
+            let (text, rect, confidence) = match word.as_array().map(Vec::as_slice) {
+                Some([serde_json::Value::String(text), l, t, r, b]) => (text, [l, t, r, b], None),
+                Some([serde_json::Value::String(text), l, t, r, b, c]) => (text, [l, t, r, b], Some(c)),
+                _ => return Err(bad("a word is not [text, left, top, right, bottom, confidence?]")),
+            };
+            let mut r = [0f32; 4];
+            for (slot, v) in r.iter_mut().zip(rect) {
+                *slot = number(v).ok_or_else(|| bad("a word's box is not finite numbers"))?;
+            }
+            let mut w = Word::new(text.clone(), r, source);
+            if let Some(c) = confidence {
+                w = w.with_confidence(number(c).ok_or_else(|| bad("a word's confidence is not a finite number"))?);
+            }
+            words.push(w);
+        }
+        out.push(Line { words });
+    }
+    Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
     use super::*;
 
     #[test]
     fn places_words_through_the_mapping() {
         // 2 pixels per point, page 612 × 792, y flipped.
         let to_user = |x: f32, y: f32| [x as f64 / 2.0, 792.0 - y as f64 / 2.0];
-        let w = PlacedWord::place(&Word { text: "Hello".into(), rect: [100.0, 200.0, 300.0, 240.0] }, to_user);
+        let w = PlacedWord::place(&Word::new("Hello", [100.0, 200.0, 300.0, 240.0], "ocrs"), to_user);
         assert_eq!(w.origin, [50.0, 672.0]);
         assert_eq!(w.across, [100.0, 0.0]);
         assert_eq!(w.up, [0.0, 20.0]);
+        assert_eq!(w.source, "ocrs");
+        assert_eq!(w.confidence, None);
+    }
+
+    /// Confidence and source survive placement.
+    #[test]
+    fn placed_words_carry_confidence_and_source() {
+        let to_user = |x: f32, y: f32| [x as f64, y as f64];
+        let w = Word::new("Hi", [1.0, 2.0, 3.0, 4.0], "tesseract").with_confidence(87.5);
+        let p = PlacedWord::place(&w, to_user);
+        assert_eq!(p.confidence, Some(87.5));
+        assert_eq!(p.source, "tesseract");
     }
 
     /// The text layer is Helvetica in WinAnsiEncoding: every character the model can recognise
@@ -589,10 +563,27 @@ mod tests {
         assert_eq!(pdfcraft_fonts::first_undrawable(ALPHABET), None);
     }
 
+    /// `with_confidence` is clamped to the documented 0–100 scale: negatives (and −inf) are 0,
+    /// anything over 100 (and +inf) is 100, in-scale values pass through, and NaN means no
+    /// confidence was reported — the same `None` unknown the unreporting engines carry.
+    #[test]
+    fn with_confidence_clamps_and_treats_nan_as_unknown() {
+        let c = |v: f32| Word::new("w", [0.0; 4], "ocrs").with_confidence(v).confidence;
+        assert_eq!(c(0.0), Some(0.0));
+        assert_eq!(c(50.0), Some(50.0));
+        assert_eq!(c(100.0), Some(100.0));
+        assert_eq!(c(-1.0), Some(0.0), "negatives clamp to 0");
+        assert_eq!(c(f32::NEG_INFINITY), Some(0.0));
+        assert_eq!(c(150.0), Some(100.0), "over 100 clamps to 100");
+        assert_eq!(c(f32::INFINITY), Some(100.0));
+        assert_eq!(c(f32::NAN), None, "NaN is unknown, not a confidence");
+        assert_eq!(c(f32::EPSILON), Some(f32::EPSILON), "in-scale values are untouched");
+    }
+
     #[test]
     fn text_layer_is_invisible_text_fitted_to_each_box() {
-        let w = PlacedWord { text: "Hi".into(), origin: [10.0, 20.0], across: [30.0, 0.0], up: [0.0, 9.3] };
-        let s = String::from_utf8(text_layer(&[w])).unwrap();
+        let w = PlacedWord { text: "Hi".into(), origin: [10.0, 20.0], across: [30.0, 0.0], up: [0.0, 9.3], confidence: None, source: "ocrs".into() };
+        let s = String::from_utf8(text_layer(&[w], &TextPlan::default())).unwrap();
         assert!(s.contains("3 Tr") && s.contains("/PCHelv 1 Tf"), "{s}");
         let width = helvetica_width("Hi", 1.0);
         // "Hi" has no descender: its box spans the cap height, from the baseline up.
@@ -605,8 +596,8 @@ mod tests {
     /// after it on the page starts from the graphics state it had before.
     #[test]
     fn the_layer_restores_the_graphics_state_it_changes() {
-        let w = PlacedWord { text: "Hi".into(), origin: [10.0, 20.0], across: [30.0, 0.0], up: [0.0, 9.3] };
-        let s = String::from_utf8(text_layer(&[w])).unwrap();
+        let w = PlacedWord { text: "Hi".into(), origin: [10.0, 20.0], across: [30.0, 0.0], up: [0.0, 9.3], confidence: None, source: "ocrs".into() };
+        let s = String::from_utf8(text_layer(&[w], &TextPlan::default())).unwrap();
         let mut depth = 0_i32;
         for token in s.split_ascii_whitespace() {
             match token {
@@ -631,37 +622,196 @@ mod tests {
         assert_eq!(ink_extent("Gallus.Ze@camtel.cm"), (CAP_HEIGHT, 0.0));
         assert_eq!(ink_extent("Corporation"), (CAP_HEIGHT, -DESCENT));
         assert_eq!(ink_extent("--"), (BOX_EM - DESCENT, -DESCENT));
-        let w = PlacedWord { text: "gap".into(), origin: [0.0, 100.0], across: [20.0, 0.0], up: [0.0, 7.3] };
-        let s = String::from_utf8(text_layer(&[w])).unwrap();
+        let w = PlacedWord { text: "gap".into(), origin: [0.0, 100.0], across: [20.0, 0.0], up: [0.0, 7.3], confidence: None, source: "ocrs".into() };
+        let s = String::from_utf8(text_layer(&[w], &TextPlan::default())).unwrap();
         let em = 7.3 / (X_HEIGHT + DESCENT);
         assert!(s.contains(&format!(" 0 0 {} 0 {} Tm (gap) Tj", num(em), num(100.0 + em * DESCENT))), "{s}");
     }
 
-    /// #2306: a space joins neighbours on a line, a sliver at the end of the first word on its
-    /// baseline; words on another line, or far along this one, get none.
+    /// A word whose box is not positive, finite geometry never reaches the content stream:
+    /// NaN, infinite and zero-sized boxes are dropped, so the layer never carries non-finite
+    /// numbers.
     #[test]
-    fn neighbours_on_a_line_are_joined_by_a_space() {
-        let w = |text: &str, x0: f64, x1: f64, y: f64| PlacedWord { text: text.into(), origin: [x0, y], across: [x1 - x0, 0.0], up: [0.0, 10.0] };
-        let words = [w("Hi", 10.0, 30.0, 100.0), w("there", 32.0, 60.0, 100.0), w("far", 200.0, 220.0, 100.0), w("next", 10.0, 30.0, 85.0)];
-        let s = String::from_utf8(text_layer(&words)).unwrap();
-        assert_eq!(s.matches("( ) Tj").count(), 1, "{s}");
-        // At x 30, where "Hi" ends, on its baseline: a tenth of a point wide (0.01 × 10).
-        let em = 10.0 / CAP_HEIGHT;
-        assert!(s.contains(&format!("{} 0 0 {} 30 100 Tm ( ) Tj", num(0.1 / SPACE_EM), num(em))), "{s}");
-        let order: Vec<&str> = s.lines().filter_map(|l| l.split(" Tm ").nth(1)).collect();
-        assert_eq!(order, ["(Hi) Tj", "( ) Tj", "(there) Tj", "(far) Tj", "(next) Tj"]);
-        // Touching boxes are still neighbours; a rotated line reads along its own axis.
-        assert_eq!(gap_to(&w("a", 0.0, 10.0, 0.0), &w("b", 9.0, 20.0, 0.0)), Some(-1.0));
-        let up = |y0: f64, y1: f64| PlacedWord { text: "x".into(), origin: [50.0, y0], across: [0.0, y1 - y0], up: [-10.0, 0.0] };
-        assert_eq!(gap_to(&up(0.0, 20.0), &up(23.0, 40.0)), Some(3.0));
-        assert_eq!(gap_to(&up(0.0, 20.0), &w("b", 50.0, 70.0, 23.0)), None, "a word that reads another way is not a neighbour");
+    fn text_layer_refuses_non_finite_and_degenerate_boxes() {
+        let word = |across: [f64; 2], up: [f64; 2], origin: [f64; 2]| PlacedWord {
+            text: "Hi".into(),
+            origin,
+            across,
+            up,
+            confidence: Some(90.0),
+            source: "tesseract".into(),
+        };
+        for (why, w) in [
+            ("NaN across", word([f64::NAN, 0.0], [0.0, 9.3], [0.0; 2])),
+            ("NaN up", word([30.0, 0.0], [f64::NAN, 1.0], [0.0; 2])),
+            ("inf up", word([30.0, 0.0], [0.0, f64::INFINITY], [0.0; 2])),
+            ("inf origin", word([30.0, 0.0], [0.0, 9.3], [0.0, f64::INFINITY])),
+            ("zero across", word([0.0, 0.0], [0.0, 9.3], [0.0; 2])),
+            ("NaN origin", word([30.0, 0.0], [0.0, 9.3], [0.0, f64::NAN])),
+        ] {
+            let s = String::from_utf8(text_layer(&[w], &TextPlan::default())).unwrap();
+            assert_eq!(s, "/OCR BMC\nq\nBT\n3 Tr\n/PCHelv 1 Tf\nET\nQ\nEMC\n", "{why}: {s}");
+            assert!(!s.contains("NaN") && !s.contains("inf"), "{why}: {s}");
+        }
+    }
+
+    /// The editable-text layer draws visible text whose horizontal scaling is an explicit
+    /// percentage computed from real Helvetica metrics: `Tz` × natural advance = box width.
+    #[test]
+    fn visible_text_layer_scales_by_a_percentage_of_real_metrics() {
+        let w = PlacedWord { text: "Hi".into(), origin: [10.0, 20.0], across: [40.0, 0.0], up: [0.0, 9.3], confidence: None, source: "ocrs".into() };
+        let s = String::from_utf8(visible_text_layer(&[w], &TextPlan::default())).unwrap();
+        assert!(s.contains("0 Tr"), "visible, not invisible: {s}");
+        let size = 9.3 / BOX_EM;
+        let natural = helvetica_width("Hi", size);
+        let tz = 40.0 / natural * 100.0;
+        assert!(s.contains(&format!("{} Tz", num(tz))), "{s}");
+        assert!(s.contains("(Hi) Tj"), "{s}");
+        assert!(s.starts_with("/OCR BMC") && s.ends_with("EMC\n"));
+    }
+
+    /// Degenerate boxes and words with no measurable width are skipped, never divide by zero.
+    #[test]
+    fn visible_text_layer_skips_degenerate_words() {
+        let word = |across: [f64; 2], up: [f64; 2], text: &str| PlacedWord {
+            text: text.into(),
+            origin: [0.0; 2],
+            across,
+            up,
+            confidence: None,
+            source: "ocrs".into(),
+        };
+        let words = vec![
+            word([0.0, 0.0], [0.0, 9.0], "flat"),
+            word([10.0, 0.0], [0.0, 0.0], "short"),
+            word([f64::NAN, 0.0], [0.0, 9.0], "nan"),
+            word([10.0, 0.0], [0.0, 9.0], ""),
+            word([10.0, 0.0], [0.0, 9.0], "Hi"),
+        ];
+        let s = String::from_utf8(visible_text_layer(&words, &TextPlan::default())).unwrap();
+        assert_eq!(s.matches("Tj").count(), 1, "only the one drawable word is written: {s}");
+    }
+
+    /// A word whose ORIGIN is not finite never reaches the visible layer either: a NaN or
+    /// infinite origin would put "NaN"/"inf" into the content stream.
+    #[test]
+    fn visible_text_layer_refuses_non_finite_origins() {
+        let word =
+            |origin: [f64; 2]| PlacedWord { text: "Hi".into(), origin, across: [10.0, 0.0], up: [0.0, 9.0], confidence: None, source: "ocrs".into() };
+        for (why, origin) in [("NaN x", [f64::NAN, 100.0]), ("inf y", [10.0, f64::INFINITY]), ("NaN both", [f64::NAN; 2])] {
+            let s = String::from_utf8(visible_text_layer(&[word(origin)], &TextPlan::default())).unwrap();
+            assert!(!s.contains("NaN") && !s.contains("inf"), "{why}: {s}");
+            assert_eq!(s.matches("Tj").count(), 0, "{why}: {s}");
+        }
+    }
+
+    /// After a Type3 word the text state goes back to Helvetica: the Latin words around a
+    /// planned word must not inherit its font.
+    #[test]
+    fn helvetica_is_restored_after_a_planned_word() {
+        if pdfcraft_fonts::CRAFT_FONTS.is_empty() {
+            eprintln!("skipping: built without craft-fonts (set CRAFT_FONTS_DIR to run it)");
+            return;
+        }
+        let word = |text: &str| PlacedWord {
+            text: text.into(),
+            origin: [10.0, 20.0],
+            across: [60.0, 0.0],
+            up: [0.0, 9.3],
+            confidence: None,
+            source: "ocrs".into(),
+        };
+        let words = [word("Hi"), word("日本"), word("Ho")];
+        let mut plan = TextPlan::for_words(["Hi", "日本", "Ho"]);
+        for (i, font) in plan.fonts.iter_mut().enumerate() {
+            font.name = format!("PCOcr{i}");
+        }
+        let s = String::from_utf8(text_layer(&words, &plan)).unwrap();
+        assert!(s.contains("/PCOcr0 1 Tf"), "{s}");
+        // The last Helvetica selection comes after the Type3 run, and the Latin word after it
+        // is drawn in Helvetica, not left in the planned font.
+        assert!(s.rfind("/PCOcr0 1 Tf").unwrap_or(0) < s.rfind("/PCHelv 1 Tf").unwrap_or(usize::MAX), "{s}");
+        // The `Q` closes the `q … Q` scope that keeps `3 Tr` from leaking into later content.
+        assert!(s.ends_with("Tm (Ho) Tj\nET\nQ\nEMC\n"), "{s}");
+        // The visible layer restores Helvetica with the word's size.
+        let v = String::from_utf8(visible_text_layer(&words, &plan)).unwrap();
+        assert!(v.rfind("/PCOcr0").unwrap_or(0) < v.rfind("/PCHelv").unwrap_or(usize::MAX), "{v}");
+        assert!(v.contains("(Ho) Tj"), "{v}");
+    }
+
+    /// Words with characters beyond WinAnsi draw in the plan's Type3 font, one run, with the
+    /// same exact box fit as the Helvetica words (the matrix x-axis spans across / advance).
+    #[test]
+    fn planned_words_draw_in_their_font_with_the_same_exact_fit() {
+        if pdfcraft_fonts::CRAFT_FONTS.is_empty() {
+            eprintln!("skipping: built without craft-fonts (set CRAFT_FONTS_DIR to run it)");
+            return;
+        }
+        let w =
+            PlacedWord { text: "日本".into(), origin: [10.0, 20.0], across: [60.0, 0.0], up: [0.0, 9.3], confidence: None, source: "ocrs".into() };
+        let mut plan = TextPlan::for_words(["日本"]);
+        // The names the registrar (pdfcraft_edit::add_type3_fonts) fills in — this crate
+        // cannot reach it, so the test sets them where it reads them.
+        for (i, font) in plan.fonts.iter_mut().enumerate() {
+            font.name = format!("PCOcr{i}");
+        }
+        let codes: Vec<u8> = plan.encoding(0).iter().map(|&(_, c)| c).collect();
+        assert_eq!(codes.len(), 2, "{codes:?}");
+        let total = plan.advance_of(plan.encoding(0));
+        let s = String::from_utf8(text_layer(std::slice::from_ref(&w), &plan)).unwrap();
+        assert!(s.contains("/PCOcr0 1 Tf"), "{s}");
+        assert!(s.contains(&format!("{} 0 0 10 10 22.1 Tm ", num(60.0 / total))), "{s}");
+        assert!(s.contains(&format!("Tm {} Tj\n", String::from_utf8_lossy(&pdfcraft_fonts::literal(&codes)))), "{s}");
+        // The visible layer: size from the box height, Tz from the Type3's own advance.
+        let v = String::from_utf8(visible_text_layer(std::slice::from_ref(&w), &plan)).unwrap();
+        let size = 9.3 / BOX_EM;
+        assert!(v.contains(&format!("/PCOcr0 {} Tf ", num(size))), "{v}");
+        assert!(v.contains(&format!("{} Tz", num(60.0 / (total * size) * 100.0))), "{v}");
+    }
+
+    /// Without planned characters (an empty plan: built without craft-fonts, or before the
+    /// fonts are registered) the WinAnsi path stands, '?' included.
+    #[test]
+    fn unplanned_words_fall_back_to_win_ansi_question_marks() {
+        let w =
+            PlacedWord { text: "日本".into(), origin: [10.0, 20.0], across: [60.0, 0.0], up: [0.0, 9.3], confidence: None, source: "ocrs".into() };
+        let s = String::from_utf8(text_layer(&[w], &TextPlan::default())).unwrap();
+        assert!(s.contains("(??) Tj"), "{s}");
+        assert!(!s.contains("PCOcr"), "{s}");
+    }
+
+    /// A character no face has a glyph for becomes the font's '?', still in the run, counted
+    /// by the plan.
+    #[test]
+    fn substitutions_are_written_as_the_font_s_question_mark() {
+        if pdfcraft_fonts::CRAFT_FONTS.is_empty() {
+            eprintln!("skipping: built without craft-fonts (set CRAFT_FONTS_DIR to run it)");
+            return;
+        }
+        let w = PlacedWord {
+            text: "日\u{1f4a9}語".into(),
+            origin: [0.0, 0.0],
+            across: [60.0, 0.0],
+            up: [0.0, 9.3],
+            confidence: None,
+            source: "ocrs".into(),
+        };
+        let mut plan = TextPlan::for_words(["日\u{1f4a9}語"]);
+        for (i, font) in plan.fonts.iter_mut().enumerate() {
+            font.name = format!("PCOcr{i}");
+        }
+        assert_eq!(plan.missing(), 1, "the emoji has no glyph anywhere");
+        assert_eq!(plan.encoding(0).len(), 3, "it still gets an encoding: the font's ?");
+        let codes: Vec<u8> = plan.encoding(0).iter().map(|&(_, c)| c).collect();
+        let s = String::from_utf8(text_layer(&[w], &plan)).unwrap();
+        assert!(s.contains(&format!("Tm {} Tj\n", String::from_utf8_lossy(&pdfcraft_fonts::literal(&codes)))), "{s}");
     }
 
     #[test]
     fn rotated_pages_keep_the_reading_direction() {
         // A page turned 90°: image x runs up the page.
         let to_user = |x: f32, y: f32| [y as f64, x as f64];
-        let w = PlacedWord::place(&Word { text: "Up".into(), rect: [0.0, 0.0, 50.0, 10.0] }, to_user);
+        let w = PlacedWord::place(&Word::new("Up", [0.0, 0.0, 50.0, 10.0], "ocrs"), to_user);
         assert_eq!(w.across, [0.0, 50.0]);
         assert_eq!(w.up, [-10.0, 0.0]);
     }
@@ -687,7 +837,7 @@ mod tests {
             std::fs::create_dir_all(&models_dir).unwrap();
             let found = || Models::dirs_beside_exe(&exe_dir).iter().find_map(|d| Models::in_dir(d));
             assert_eq!(found(), None, "{name}: no models yet");
-            for file in [DETECTION_MODEL, RECOGNITION_MODEL, MULTILINGUAL_MODEL, ORIENTATION_MODEL, DICTIONARY] {
+            for file in [DETECTION_MODEL, RECOGNITION_MODEL] {
                 std::fs::write(models_dir.join(file), b"model").unwrap();
             }
             let models = found().unwrap_or_else(|| panic!("{name}: models in {} not found", models_dir.display()));
@@ -704,61 +854,6 @@ mod tests {
         // The euro sign follows the ASCII punctuation (class 44; 0 is the CTC blank), not a second E.
         assert_eq!(chars.iter().position(|&c| c == '€'), Some(43));
         assert_eq!(chars.iter().filter(|&&c| c == 'E').count(), 1);
-    }
-
-    /// #524 and #3264: German is a named language on the accented Latin model, and it prefers
-    /// ä ö ü ß. The same model serves the other European names. English stays on its own model.
-    #[test]
-    fn named_european_languages_use_the_latin_model() {
-        let dir = std::env::temp_dir().join(format!("pdfcraft-ocr-langs-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        for file in [DETECTION_MODEL, RECOGNITION_MODEL, LATIN_MODEL, LATIN_DICTIONARY] {
-            std::fs::write(dir.join(file), b"x").unwrap();
-        }
-        for code in std::iter::once("en").chain(PP_OCR.iter().map(|(code, ..)| *code)) {
-            let models = Models::in_dir_for(&dir, code).unwrap_or_else(|| panic!("{code} was not found"));
-            let expect = if code == "en" { RECOGNITION_MODEL } else { LATIN_MODEL };
-            assert!(models.recognition.ends_with(expect), "{code}: {}", models.recognition.display());
-            if !matches!(code, "en" | "la" | "ca") {
-                assert!(!preferred_letters(code).is_empty(), "{code} has no preferred letters");
-            }
-        }
-        assert!(Models::in_dir_for(&dir, "ja").is_none());
-        for file in [MULTILINGUAL_MODEL, ORIENTATION_MODEL, DICTIONARY] {
-            std::fs::write(dir.join(file), b"x").unwrap();
-        }
-        for code in ["ja", "zh-Hant", "zh-Hans"] {
-            assert!(Models::in_dir_for(&dir, code).is_some(), "{code}: optional models enable recognition");
-        }
-        let german = preferred_letters("de");
-        assert!(german.contains('ä') && german.contains('ö') && german.contains('ü') && german.contains('ß'), "{german}");
-        assert!(Models::in_dir_for(&dir, "xx").is_none());
-        assert!(matches!(Ocr::find_for("xx"), Err(OcrError::Language(_))));
-        std::fs::remove_dir_all(&dir).ok();
-    }
-
-    /// A language can only prefer a letter the Latin dictionary actually contains.
-    #[test]
-    fn preferred_letters_are_in_the_latin_dictionary() {
-        let Some(models) = Models::find_for("la") else {
-            eprintln!("skipped: Latin OCR models not installed");
-            return;
-        };
-        let path = models.recognition.with_file_name(LATIN_DICTIONARY);
-        let text = std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
-        let have: std::collections::BTreeSet<char> = text.chars().collect();
-        for (code, _) in LANGUAGES {
-            for ch in preferred_letters(code).chars() {
-                assert!(have.contains(&ch), "{code} prefers {ch} (U+{:04X}), which {} does not contain", u32::from(ch), path.display());
-            }
-        }
-    }
-
-    #[test]
-    fn french_prefers_cedilla_and_grave_and_does_not_claim_the_nordic_ring() {
-        assert!(preferred_letters("fr").contains('ç') && preferred_letters("fr").contains('ù'));
-        assert!(preferred_letters("da").contains('å') && !preferred_letters("da").contains('à'));
-        assert!(preferred_letters("la").is_empty() && preferred_letters("en").is_empty());
     }
 
     #[test]
@@ -781,10 +876,130 @@ mod tests {
         assert!(text.iter().any(|t| t.contains("HELL") && t.contains("WOR")), "{text:?}");
         let word = lines.iter().flat_map(|l| &l.words).find(|w| w.text.contains("HELL")).unwrap();
         assert!(word.rect[0] >= 10.0 && word.rect[0] < 60.0, "{word:?}");
-        let image = image::DynamicImage::ImageRgba8(image::RgbaImage::from_raw(w, h, px).unwrap()).to_rgb8();
-        let multi = ocr.recognize_language(&image, "de").unwrap();
-        assert!(multi.iter().map(Line::text).collect::<Vec<_>>().join(" ").contains("HELLO"), "{multi:?}");
-        let _ = ocr.orientation(&image).unwrap();
+    }
+
+    /// The recognised words name their engine.
+    #[test]
+    fn ocrs_recognizer_names_its_words() {
+        let Ok(rec) = OcrsRecognizer::find() else {
+            eprintln!("skipped: OCR models not installed");
+            return;
+        };
+        assert_eq!(rec.id(), "ocrs");
+        assert!(rec.languages().iter().any(|(c, n)| c == "en" && n == "English"), "{:?}", rec.languages());
+        let (w, h, px) = test_image::hello();
+        let image = OcrImage::new(w, h, px).unwrap();
+        let lines = rec.recognize(&image, &RecognizeOptions::default()).unwrap();
+        let words: Vec<&Word> = lines.iter().flat_map(|l| &l.words).collect();
+        assert!(!words.is_empty());
+        assert!(words.iter().all(|w| w.source == "ocrs"), "{words:?}");
+    }
+
+    /// Hostile images are rejected with errors, never panics: zero sides, sides over the cap,
+    /// totals over the area cap (even with legal sides), buffers that do not fit, counts that
+    /// overflow.
+    #[test]
+    fn hostile_image_dimensions_are_rejected_not_panicked_at() {
+        assert!(matches!(OcrImage::new(0, 10, vec![]), Err(OcrError::EmptyImage)));
+        assert!(matches!(OcrImage::new(10, 0, vec![]), Err(OcrError::EmptyImage)));
+        assert!(matches!(OcrImage::new(u32::MAX, u32::MAX, vec![]), Err(OcrError::ImageTooLarge)));
+        assert!(matches!(OcrImage::new(MAX_SIDE + 1, 1, vec![0; 4]), Err(OcrError::ImageTooLarge)));
+        // 10 000 × 7 000 = 70 MP: legal on both sides, over the 64 MP area cap (no allocation
+        // is needed to reject it — the buffer is never inspected).
+        assert!(matches!(OcrImage::new(MAX_SIDE, 7000, vec![]), Err(OcrError::ImageTooLarge)));
+        // 8 000 × 8 000 = exactly the area cap: accepted shape (the short buffer proves the
+        // cap check passed), while one more row is refused.
+        assert!(matches!(OcrImage::new(8000, 8000, vec![0; 16]), Err(OcrError::ImageSize { .. })));
+        assert!(matches!(OcrImage::new(8000, 8001, vec![0; 16]), Err(OcrError::ImageTooLarge)));
+        assert!(matches!(OcrImage::new(2, 2, vec![0; 15]), Err(OcrError::ImageSize { .. })));
+        let ok = OcrImage::new(2, 2, vec![255; 16]).unwrap();
+        assert_eq!((ok.width(), ok.height()), (2, 2));
+        assert_eq!(ok.rgba().len(), 16);
+        assert_eq!(ok.gray(5, 5), Some(255), "clamped reads stay inside");
+        assert_eq!(ok.gray(-1, -1), Some(255));
+    }
+
+    /// The web build loads the models from downloaded bytes; they read the same text.
+    #[test]
+    fn reads_rendered_text_with_models_from_bytes() {
+        let Some(models) = Models::find().filter(|m| m.detection.ends_with(DETECTION_MODEL)) else {
+            eprintln!("skipped: ONNX OCR models not installed");
+            return;
+        };
+        let ocr = Ocr::from_bytes(std::fs::read(&models.detection).unwrap(), std::fs::read(&models.recognition).unwrap()).unwrap();
+        let rec = OcrsRecognizer::from_ocr(ocr);
+        assert!(rec.available(), "a recogniser loaded from bytes needs no model files");
+        let (w, h, px) = test_image::hello();
+        let lines = rec.recognize(&OcrImage::new(w, h, px).unwrap(), &RecognizeOptions::default()).unwrap();
+        let text: Vec<String> = lines.iter().map(Line::text).collect();
+        assert!(text.iter().any(|t| t.contains("HELL") && t.contains("WOR")), "{text:?}");
+    }
+
+    /// The web build's workers send lines back as JSON; they arrive unchanged, credited to the
+    /// engine the worker ran.
+    #[test]
+    fn lines_survive_json() {
+        let lines = vec![
+            Line {
+                words: vec![
+                    Word::new("Total \"€250\"", [1.5, 2.0, 30.25, 12.0], "ocrs"),
+                    Word::new("due", [32.0, 2.0, 50.0, 12.0], "ocrs").with_confidence(87.5),
+                ],
+            },
+            Line::default(),
+            Line { words: vec![Word::new("日本語", [0.0, 20.0, 9.0, 30.0], "ocrs")] },
+        ];
+        assert_eq!(lines_from_json(&lines_to_json(&lines), "ocrs").unwrap(), lines);
+        assert_eq!(lines_from_json(&lines_to_json(&[]), "ocrs").unwrap(), Vec::<Line>::new());
+        let other = lines_from_json(&lines_to_json(&lines), "tesseract").unwrap();
+        assert!(other.iter().flat_map(|l| &l.words).all(|w| w.source == "tesseract"));
+    }
+
+    /// A result that isn't what a worker sends is an error, not a crash or a guess.
+    #[test]
+    fn malformed_json_lines_are_an_error() {
+        for json in [
+            "",
+            "{}",
+            "[1]",
+            "[[1]]",
+            "[[[\"a\", 1, 2, 3]]]",
+            "[[[\"a\", 1, 2, 3, 4, 5, 6]]]",
+            "[[[1, 1, 2, 3, 4]]]",
+            "[[[\"a\", \"1\", 2, 3, 4]]]",
+            "[[[\"a\", 1e999, 2, 3, 4]]]",
+            "[[[\"a\", null, 2, 3, 4]]]",
+            "[[[\"a\", 1, 2, 3, 4, null]]]",
+            "[[[\"a\", 1, 2, 3, 4, \"90\"]]]",
+        ] {
+            assert!(matches!(lines_from_json(json, "ocrs"), Err(OcrError::Recognize(_))), "{json}");
+        }
+        let many = format!("[[{}]]", vec!["[\"a\",0,0,1,1]"; MAX_JSON_WORDS + 1].join(","));
+        assert!(lines_from_json(&many, "ocrs").is_err());
+        let deep = format!("{}{}", "[".repeat(10_000), "]".repeat(10_000));
+        assert!(lines_from_json(&deep, "ocrs").is_err());
+    }
+
+    /// A download that isn't a model (an HTML error page, a truncated file) is an error, not a
+    /// crash or a hang.
+    #[test]
+    fn models_from_bad_bytes_are_an_error() {
+        for (detection, recognition) in [(Vec::new(), Vec::new()), (b"<!doctype html>".to_vec(), b"RTEN".to_vec()), (vec![0xff; 64], vec![0; 64])] {
+            assert!(matches!(Ocr::from_bytes(detection, recognition), Err(OcrError::Load(..))));
+        }
+    }
+
+    /// The hashes [`Ocr::from_bytes`] checks are the ones `cargo xtask models` verifies.
+    #[test]
+    fn model_hashes_match_attribution() {
+        let manifest = include_str!("../../../ATTRIBUTION.toml");
+        for (file, sha256) in [(DETECTION_MODEL, DETECTION_MODEL_SHA256), (RECOGNITION_MODEL, RECOGNITION_MODEL_SHA256)] {
+            let entry = manifest
+                .split("[[fetched]]")
+                .find(|e| e.contains(&format!("file = \"{file}\"")))
+                .unwrap_or_else(|| panic!("{file} is not in ATTRIBUTION.toml"));
+            assert!(entry.lines().any(|l| l == format!("sha256 = \"{sha256}\"")), "{file}: SHA-256 differs from ATTRIBUTION.toml");
+        }
     }
 
     mod test_image {

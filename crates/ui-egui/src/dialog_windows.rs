@@ -185,6 +185,11 @@ pub(crate) fn title(dialog: Dialog) -> String {
         CreateStamp => "Create stamp",
         AltText => "Alternate text",
         AuditSpace => "Space audit",
+        ConvertColours => "Convert colours",
+        AttachmentDescription => "Attachment description",
+        LockSignatures => "Lock signatures",
+        EnhanceScan => "Enhance scanned document",
+        PinTool => "Pin tool",
     }
     .into()
 }
@@ -289,6 +294,21 @@ pub(crate) fn chrome(ui: &mut egui::Ui, rect: Rect, key: &str) {
     title_response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, format!("Title: {}", entry.title)));
 }
 pub(crate) fn show<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut egui::Ui) -> R) -> Response {
+    render(ctx, id, true, content)
+}
+/// [`show`], growing from its contents' own height when `remeasure` is set rather than from the
+/// height it had last frame: one dialog id that shows different contents would otherwise keep
+/// the height of the previous ones (#5118). A size the user gave the window stays.
+pub(crate) fn show_sized<R>(ctx: &egui::Context, id: &str, remeasure: bool, content: impl FnOnce(&mut egui::Ui) -> R) -> Response {
+    if remeasure && !resized(ctx, id) {
+        let stored = Id::unique(effective(ctx, id));
+        if let Some(mut state) = egui::AreaState::load(ctx, stored) {
+            state.size = state.size.map(|s| vec2(s.x, 0.0));
+            ctx.memory_mut(|m| m.areas_mut().set_state(egui::Modal::default_area(stored).layer(), state));
+            // The card is centred on the height it ends with: draw once more at that height.
+            ctx.request_repaint();
+        }
+    }
     render(ctx, id, true, content)
 }
 pub(crate) fn window<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut egui::Ui) -> R) -> Response {

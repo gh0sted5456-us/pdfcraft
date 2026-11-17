@@ -47,6 +47,30 @@ In **Edit a PDF → Edit text & images**, select several items on the same page:
 - Modifier-clicks prefer added items and text over background artwork, so labels remain selectable.
 - Clear the selection or double-click an item to return to ordinary text editing and image resizing.
   Finish or discard a text draft before starting a multi-selection.
+- **⌘A / Ctrl+A** selects every item on the current page (paragraphs, artwork and added items),
+  as Acrobat's Edit PDF does, instead of the page's text. Inside a paragraph or text box open for
+  typing it still selects that text.
+
+## Copy, cut and paste
+
+With items selected together, **⌘C / Ctrl+C** (Edit ▸ Copy) copies them and **⌘X / Ctrl+X**
+(Edit ▸ Cut) copies them, then deletes them as one undo step. **⌘V / Ctrl+V** (Edit ▸ Paste) pastes
+them onto the current page of any open document, also after the original changed or closed, as
+one undo step, and selects what it pasted. Onto the page they came from they land 18 points down
+and to the right, as Acrobat offsets a paste onto the same page; elsewhere where they were; each
+further paste onto a page steps another 18 points; a copy that would land off the page is centred.
+
+A paste draws the same: it copies the items' content operators with the graphics state they were
+drawn in (transformation, clip, colours, transparency, text state) and every resource they use
+(fonts, images and Form artwork, ExtGStates, colour spaces, patterns, shadings), merged into the
+target page's resources under names that don't clash, as Ungroup merges them. Within a document the
+same font and image objects are drawn again. Into another document they are copied with what they
+refer to, each once whatever the cycles, sharing objects it already holds; a paste whose resources
+take more than 20,000 objects or 256 MB is refused with that reason. Pasted items are ordinary page
+content: an added text box comes as page text, untagged and in no layer. The system clipboard gets
+the copied text (or, without text, the first picture) for other applications; a newer copy there,
+here or in another application, wins ⌘V. Text drawn as a clipping path before the selection is
+refused, as is artwork without resources of its own that names one, where a paste would change it.
 
 While editing an original paragraph or an added text box, **Ctrl+L**, **Ctrl+E** and **Ctrl+R**
 set its alignment to left, centre and right (Command on macOS). They also work on a selected
@@ -132,9 +156,19 @@ session. For a CLI script, include `doc_open` in that script before the move:
 ]
 ```
 
+`{"all": true}` instead of `objects` takes every item on the page, as ⌘A does. `object_copy` takes
+the same references (with `cut: true` it deletes them afterwards, one undo step) and `object_paste
+{doc, page}` pastes them, into the same or another open document, as the app does:
+
+```json
+[
+  {"tool":"object_copy","args":{"doc":1,"page":1,"all":true}},
+  {"tool":"object_paste","args":{"doc":2,"page":3}}
+]
+```
+
 To delete the same selection, use `object_delete` with `doc`, `page`, `generation` and `objects`
 (the same references), without `offset`. It returns `deleted` and creates one undo step.
-
 Use the actual generation and references from your document, rather than assuming these example
 values. `offset` is in displayed points: positive x moves right, positive y moves down. The optional
 generation guard rejects a changed document before interpreting references. Re-list after any edit,
@@ -160,3 +194,9 @@ bookmarks, metadata or attachments. Existing shared resources are kept when thei
 
 The full-save policy builds on @srt8hellcat2-ui’s upstream PR #4279. Regression coverage includes
 ordinary Cut → Save, shared-image reclamation, undo/save/reopen, and preservation of signatures.
+rotated/cropped/UserUnit pages and refusal), `crates/edit/src/objects/clip_tests.rs` (copies that
+render the same pixels, renamed resources, hostile content), `crates/engine/src/tests.rs` and
+`crates/engine/src/object_clip_tests.rs` (permissions, history, rendering, save/reopen, pastes into
+another document, cycles and the size limit), `crates/automation/tests/it/automation.rs` (generation
+guards, hostile references, copy/cut/paste tools), and `crates/ui-egui/tests/it/object_selection.rs`
+(real-shell selection, gestures, ⌘A and the clipboard keys).

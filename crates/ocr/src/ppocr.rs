@@ -204,11 +204,11 @@ mod tests {
     /// that scale. Skipped when the model has not been fetched.
     #[test]
     fn the_latin_recogniser_emits_a_probability_per_class() {
-        let Some(models) = crate::Models::find_for("la") else {
+        let Some(models) = crate::LionModels::find_for("la") else {
             eprintln!("skipped: Latin OCR models not installed");
             return;
         };
-        let ocr = PpOcr::load(&models.recognition, &models.recognition.with_file_name(crate::LATIN_DICTIONARY), 504).unwrap();
+        let ocr = PpOcr::load(&models.recognition, &models.recognition.with_file_name(crate::lion::LATIN_DICTIONARY), 504).unwrap();
         let (w, h) = (120u32, 40u32);
         let mut rgb = vec![255u8; (w * h * 3) as usize];
         for x in 8..100 {

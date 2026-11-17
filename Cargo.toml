@@ -12,26 +12,42 @@ rust-version = "1.95"
 repository = "https://github.com/storytold/pdfcraft"
 
 [workspace.dependencies]
+craft-markdown = { version = "0.1.0", git = "https://github.com/storytold/craft-libs", rev = "fbb3f47f7ae712192586984af11ca8f6c0f64d33" }
+# Small, revision-bound UI drafts; the existing engine remains the owner of PDF edits/history.
+edit-session = { path = "vendor/edit-session", version = "=0.1.0-alpha.2" }
 # Shared frontend components; engines remain independent of egui.
-craft-ui = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "edc41f68fa24c46651c3b5117d10f0ead75ec9cb", features = ["serde"] }
+craft-ui = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3", features = ["serde"] }
 # Quit the macOS way (#1136): ⌘Q asks about unsaved changes, and closing quits through `terminate:`.
-craft-quit = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "edc41f68fa24c46651c3b5117d10f0ead75ec9cb" }
+craft-quit = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
 # One menu definition for the native macOS menu bar and the in-window bar elsewhere.
-craft-menu = { path = "vendor/craft-menu", version = "0.1.0" }
-craft-keymap = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "edc41f68fa24c46651c3b5117d10f0ead75ec9cb", default-features = false }
+craft-menu = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+craft-keymap = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3", default-features = false }
+# Interface translations: lookup, fallback, CLDR plurals and language names over the craft-i18n
+# catalogs that `crates/ui-egui/build.rs` embeds from `CRAFT_I18N_DIR` (storytold/craft-i18n, at
+# the commit in `craft-i18n.rev`). Already in the tree through craft-ui.
+craft-i18n = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
 # Shared system spooler; document composition remains in pdfcraft-print.
-craft-print = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "42e30cd5b3f4b114270dd053fccbc33bedc47f68" }
+craft-print = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+# ICC transforms for app-managed print colour; at craft-print's commit, so one craft-libs checkout.
+craft-cms = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+craft-zip = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
 # Whether a path stored in a document may be opened (GoToR link targets).
-craft-docpath = { version = "0.1.0", git = "https://github.com/storytold/craft-libs", rev = "82a24b006eefa036b43c09a67fb9a3fbd17ffe63" }
-# PDF object layer, standard security handler and stream filters (storytold/craft-libs).
-craft-pdf = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3", features = ["cos", "crypt", "filters"] }
-# The writer the RTF export maps onto (storytold/craft-libs#793), at storytold/craft-libs#1467:
-# its font and colour lookups take constant time, as PdfCraft's own writer did.
+craft-docpath = { version = "0.1.0", git = "https://github.com/storytold/craft-libs", rev = "e2dc681a3" }
+craft-pdf = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "8e03cd016d42032b867fef6bad86bc69bf2c1920", features = ["cos", "crypt", "filters"] }
 # The writer the RTF export maps onto (storytold/craft-libs#793), at storytold/craft-libs#1467:
 # its font and colour lookups take constant time, as PdfCraft's own writer did.
 craft-rtf = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "f29e82f1a7a009e68312bd2e84adab72be23344d" }
+# Shared Base64 encoder; use the existing RTF revision to reuse its codepage dependency.
+craft-mime = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "f29e82f1a7a009e68312bd2e84adab72be23344d" }
 craft-csv = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
-craft-zip = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+craft-xml = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+craft-image-codecs = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+craft-tiff = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+craft-jpeg = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+craft-docx = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+craft-pptx = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+craft-drawingml = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+craft-opc = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
 # internal
 pdfcraft-geom = { path = "crates/geom", version = "1.0.0" }
 pdfcraft-filters = { path = "crates/filters", version = "1.0.0" }
@@ -66,19 +82,32 @@ pdfcraft-engine = { path = "crates/engine", version = "1.0.0" }
 pdfcraft-platform = { path = "crates/platform", version = "1.0.0" }
 pdfcraft-ui-egui = { path = "crates/ui-egui", version = "1.0.0" }
 pdfcraft-automation = { path = "crates/automation", version = "1.0.0", default-features = false }
+pdfcraft-prc = { package = "craft-prc", git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+craft-prc = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3" }
+pdfcraft-prc-render = { path = "crates/prc-render", version = "1.0.0" }
 
 # pdf
 hayro = "0.7.1"
 hayro-syntax = "0.7.2"
 lopdf = "0.45"
-flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+# zlib-rs: miniz_oxide took about 1.7 µs for every fixed-Huffman block, empty or not
+# (`pdfcraft_filters::FLATE_READ_WORK`). Other dependencies still build flate2's default
+# miniz_oxide backend; flate2 prefers zlib-rs when both are built, as the Windows build already did
+# through craft-update. `flate::tests::a_copy_from_before_the_start_is_damage` shows which runs.
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
 weezl = "0.2"
-# Existing locked codecs, now used directly for bounded monochrome image operations.
+# CCITT Group 4 encoding (pdfcraft-filters); already in the tree through tiff.
 fax = "0.2.7"
+# Independent CCITT and JBIG2 codecs, already in the tree through hayro.
 hayro-ccitt = "0.3"
+hayro-jbig2 = "0.3"
 
 # foundation
 thiserror = "2"
+zeroize = "1"
+# Linear-time matching (no backtracking) for caller-supplied redaction patterns. `perf-dfa` gives
+# the lazy-DFA cache that `RegexBuilder::dfa_size_limit` bounds (the limit is inert without it).
+regex = { version = "1", default-features = false, features = ["std", "unicode", "perf-dfa"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 log = "0.4"
@@ -102,6 +131,9 @@ web-time = "1.1"
 unsafe_code = "forbid"
 
 [workspace.lints.clippy]
+cognitive_complexity = "deny"
+too_many_arguments = "deny"
+wildcard_imports = "deny"
 dbg_macro = "warn"
 todo = "warn"
 
@@ -153,7 +185,10 @@ egui-wgpu = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "4aa7a09
 egui_glow = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "4aa7a0993e4f003c4cdc5ea297e59d749ef98523" }
 egui_extras = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "4aa7a0993e4f003c4cdc5ea297e59d749ef98523" }
 egui_kittest = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "4aa7a0993e4f003c4cdc5ea297e59d749ef98523" }
+egui_system_font_provider = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "4aa7a0993e4f003c4cdc5ea297e59d749ef98523" }
 eframe = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "4aa7a0993e4f003c4cdc5ea297e59d749ef98523" }
+egui_demo_lib = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "4aa7a0993e4f003c4cdc5ea297e59d749ef98523" }
+egui_inspection = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "4aa7a0993e4f003c4cdc5ea297e59d749ef98523" }
 winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457d84ee4975110bfda6797c44dc" }
 
 # craft-pdf at the craft-libs pin above, with Lion PDF's public-key (certificate) security added

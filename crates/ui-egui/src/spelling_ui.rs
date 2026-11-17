@@ -166,7 +166,7 @@ pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut crate::PdfCraftApp) {
             },
             |(_, name)| (*name).to_owned(),
         );
-        egui::ComboBox::from_id_salt("spelling-language")
+        craft_ui::ComboBox::from_id_salt("spelling-language")
             .selected_text(selected)
             .show_ui(ui, |ui| {
                 ui.selectable_value(&mut app.spelling.language, "auto".into(), tl!("Same as interface"));

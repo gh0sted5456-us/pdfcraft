@@ -1,0 +1,7 @@
+# Lion PDF overlay for fa: rows Lion PDF adds or changes on top of storytold/craft-i18n's
+# pdfcraft.tsv and common.tsv (craft-i18n.rev). Same columns and rules as craft-i18n's catalogs;
+# build.rs puts these rows first and drops craft-i18n rows with the same context and source.
+# Clean room: written from the plain meaning of the English text, as craft-i18n's rows are.
+
+	{app} {v} is available.	{app} {v} در دسترس است.
+	{app} {c} is up to date.	{app} {c} به‌روز است.

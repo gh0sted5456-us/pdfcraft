@@ -75,7 +75,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     let before = app.pdfa.level;
     ui.horizontal(|ui| {
         let level = ui.label(tl!("Conformance level:"));
-        egui::ComboBox::from_id_salt("pdfa-level")
+        craft_ui::ComboBox::from_id_salt("pdfa-level")
             .selected_text(app.pdfa.level.label())
             .show_ui(ui, |ui| {
                 for l in [Level::A2b, Level::A3b] {

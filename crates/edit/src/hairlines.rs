@@ -3,15 +3,20 @@
 //! transformation, is below a threshold - are given a chosen width. Page content and the Form
 //! XObjects it draws are rewritten; Type 3 glyphs and tiling patterns on request.
 //!
-//! Changed forms, glyphs and patterns are copied into the selected pages' resources. Their
-//! original objects stay intact even when an unknown object graph also references them.
+//! A form is rewritten for the scale and line width it is drawn under. One drawn under several
+//! (or drawn by a page that is not being fixed) is rewritten as a copy for each use that needs
+//! one, and the resources of what draws it point at the copy, so no other use changes.
+//!
+//! Type 3 glyphs and tiling patterns are each a content stream of their own, reached from the
+//! resources of the page and of the forms it draws. They are rewritten in place, so a page
+//! outside the run that uses one changes too; [`Fixed::elsewhere`] counts those.
 
 use pdfcraft_content::{Op, parse, serialize_ops};
 use pdfcraft_cos::{Dict, Document, Name, ObjRef, Object, Stream};
 use std::collections::{HashMap, HashSet};
 
 use crate::page_streams::PageStreams;
-use crate::{EditError, check, page_list};
+use crate::{EditError, check, n, page_list};
 
 /// The stream `r` holds, if it is one.
 fn stream_of(doc: &Document, r: ObjRef) -> Option<Stream> {
@@ -41,6 +46,17 @@ impl Default for Hairlines {
     }
 }
 
+impl Hairlines {
+    /// The widest either width may be, in points: past this it is no hairline.
+    pub const MAX_POINTS: f64 = 10.0;
+
+    /// Whether both widths are numbers a run accepts: a width above 0, a threshold of 0 or
+    /// more, neither past [`Self::MAX_POINTS`].
+    pub fn in_range(&self) -> bool {
+        (0.0..=Self::MAX_POINTS).contains(&self.narrower_than) && self.width > 0.0 && self.width <= Self::MAX_POINTS
+    }
+}
+
 /// What a run changed.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Fixed {
@@ -48,16 +64,14 @@ pub struct Fixed {
     pub lines: usize,
     /// Pages on which something changed.
     pub pages: usize,
+    /// Type 3 glyphs and tiling patterns changed that a page outside the run, or an
+    /// annotation's appearance, also uses: what those draw changed too.
+    pub elsewhere: usize,
 }
 
 /// The uniform scale a matrix applies to lengths (the geometric mean of its two axes).
 fn scale_of(m: [f64; 6]) -> f64 {
-    // Normalize first so tiny and large finite transforms keep their scale.
-    let largest = m.into_iter().take(4).map(f64::abs).fold(0.0, f64::max);
-    if largest == 0.0 {
-        return 0.0;
-    }
-    ((m[0] / largest) * (m[3] / largest) - (m[1] / largest) * (m[2] / largest)).abs().sqrt() * largest
+    (m[0] * m[3] - m[1] * m[2]).abs().sqrt()
 }
 
 fn mul(a: [f64; 6], b: [f64; 6]) -> [f64; 6] {
@@ -111,11 +125,9 @@ struct Drawn {
 type Renames = HashMap<(Name, Key), Name>;
 
 /// How deep forms drawing forms are followed, and how many form rewrites one run makes; past
-/// either, the whole edit is refused.
+/// either, a form is drawn as it is.
 const MAX_DEPTH: usize = 32;
 const MAX_FORMS: usize = 4096;
-const MAX_OPS: usize = 1_000_000;
-const MAX_RESOURCE_READS: usize = 100_000;
 
 /// The width `/name gs` sets, when its ExtGState has an `/LW`.
 fn line_width_of(doc: &Document, gstates: Option<&Dict>, name: &[u8]) -> Option<f64> {
@@ -139,20 +151,14 @@ fn rewrite(
     doc: &Document,
     forms: &mut Vec<Drawn>,
     renames: &Renames,
-) -> Result<(Option<Vec<u8>>, usize), EditError> {
+) -> (Option<Vec<u8>>, usize) {
     let parsed = parse(data);
-    if parsed.skipped != 0 || parsed.ambiguous_images != 0 || parsed.ops.len() > MAX_OPS {
-        return Err(EditError::Invalid("hairline repair requires complete, bounded content streams".into()));
-    }
-    if !state.ctm.iter().all(|v| v.is_finite()) || !state.width.is_finite() || state.width < 0.0 {
-        return Err(EditError::Invalid("invalid graphics state while repairing hairlines".into()));
-    }
     let mut ops: Vec<Op> = parsed.ops;
     let mut fixed = 0usize;
     let mut changed = false;
     // Where in `out` the path being built began (None when it began in an earlier stream).
     let mut path_start: Option<usize> = None;
-    let mut out: Vec<Op> = Vec::with_capacity(ops.len().saturating_add(8));
+    let mut out: Vec<Op> = Vec::with_capacity(ops.len() + 8);
     let dict_of = |key: &[u8]| resources.and_then(|r| r.get(key)).map(|x| doc.resolve(x)).and_then(|x| x.as_dict().cloned());
     let xobjects = dict_of(&b"XObject"[..]);
     let gstates = dict_of(&b"ExtGState"[..]);
@@ -161,7 +167,7 @@ fn rewrite(
             b"q" => {
                 state.stack.push((state.ctm, state.width));
                 if state.stack.len() > 512 {
-                    return Err(EditError::Invalid("hairline repair supports at most 512 nested graphics states".into()));
+                    state.stack.remove(0);
                 }
             }
             b"Q" => {
@@ -171,14 +177,14 @@ fn rewrite(
                 }
             }
             b"cm" => {
-                let m =
-                    op.nums::<6>().ok_or_else(|| EditError::Invalid("a transform needs six numeric operands; hairlines were not changed".into()))?;
-                state.ctm = mul(m, state.ctm);
+                if let Some(m) = op.nums::<6>() {
+                    state.ctm = mul(m, state.ctm);
+                }
             }
             b"w" => {
-                let [w] =
-                    op.nums::<1>().ok_or_else(|| EditError::Invalid("a line width needs one numeric operand; hairlines were not changed".into()))?;
-                state.width = w;
+                if let Some([w]) = op.nums::<1>() {
+                    state.width = w;
+                }
             }
             b"gs" => {
                 // An ExtGState's /LW sets the width as `w` does (so the width put back after
@@ -214,9 +220,6 @@ fn rewrite(
             }
             b"S" | b"s" | b"B" | b"B*" | b"b" | b"b*" => {
                 let scale = scale_of(state.ctm);
-                if !scale.is_finite() || scale <= 0.0 {
-                    return Err(EditError::Invalid("a stroke has an unrepresentable transform; hairlines were not changed".into()));
-                }
                 let on_page = state.width * scale;
                 let thin = state.width <= 0.0 || (scale > 0.0 && on_page < h.narrower_than);
                 // A path begun in an earlier stream cannot get its `w` before it here; it is
@@ -233,18 +236,12 @@ fn rewrite(
                     && let Some(at) = at
                 {
                     let new_w = h.width / scale;
-                    if !new_w.is_finite() || new_w <= 0.0 {
-                        return Err(EditError::Invalid("the requested stroke width cannot be represented under this transform".into()));
-                    }
-                    if (new_w - state.width).abs() > 1e-9 * new_w.abs().max(state.width.abs()) {
-                        // `at` was this output's length when the path began; output only grows.
-                        out.insert(at, Op::new("w", vec![Object::Real(new_w)]));
-                        out.push(op);
-                        out.push(Op::new("w", vec![Object::Real(state.width)]));
-                        fixed += 1;
-                        changed = true;
-                        continue;
-                    }
+                    out.insert(at, Op::new("w", vec![Object::Real(new_w)]));
+                    out.push(op);
+                    out.push(Op::new("w", vec![Object::Real(state.width)]));
+                    fixed += 1;
+                    changed = true;
+                    continue;
                 }
             }
             b"f" | b"F" | b"f*" | b"n" => {
@@ -253,48 +250,89 @@ fn rewrite(
             }
             _ => {}
         }
-        if !state.ctm.iter().all(|v| v.is_finite()) || !state.width.is_finite() || state.width < 0.0 {
-            return Err(EditError::Invalid("invalid graphics state while repairing hairlines".into()));
-        }
         out.push(op);
     }
-    Ok((changed.then(|| serialize_ops(&out)), fixed))
+    (changed.then(|| serialize_ops(&out)), fixed)
 }
 
-/// Memoized repairs and bounded work for one atomic edit.
+/// What a run keeps across pages.
 struct Run {
-    done: HashMap<(ObjRef, Key), (ObjRef, usize)>,
-    active: HashSet<ObjRef>,
+    /// Each form already rewritten under a key, and the object drawn for it there.
+    done: HashMap<(ObjRef, Key), ObjRef>,
+    /// The forms drawn where this run does not rewrite: they are never changed in place.
+    shared: HashSet<ObjRef>,
+    /// The forms already drawn as themselves: `true` when rewritten in place, `false` when
+    /// left as they were. Any other use that needs something else gets a copy.
+    used: HashMap<ObjRef, bool>,
+    /// Each form's stream as it was before the run.
+    original: HashMap<ObjRef, Stream>,
+    /// Form rewrites left.
     budget: usize,
-    operators_left: usize,
-    resource_copies: HashMap<(ObjRef, Key), (ObjRef, usize)>,
-    resource_budget: usize,
-    resource_reads: usize,
 }
 
-fn charge_ops(data: &[u8], remaining: &mut usize) -> Result<(), EditError> {
-    let count = pdfcraft_content::ops(data).take(remaining.saturating_add(1)).count();
-    *remaining =
-        remaining.checked_sub(count).ok_or_else(|| EditError::Invalid("too much content for one hairline repair; select fewer pages".into()))?;
-    Ok(())
+/// The XObjects (forms and images, and those the forms draw), tiling patterns and Type 3
+/// glyphs that the pages not in `pages` use, and those any page's annotation appearances use
+/// (this run does not rewrite them): rewriting one of those in place would change what they
+/// show.
+fn drawn_elsewhere(doc: &Document, pages: &[usize]) -> HashSet<ObjRef> {
+    let mut seen: HashSet<ObjRef> = HashSet::new();
+    let mut todo: Vec<Object> = Vec::new();
+    let xobjects_of = |res: Option<&Object>, todo: &mut Vec<Object>| {
+        let Some(res) = res.map(|r| doc.resolve(r)) else { return };
+        let Some(res) = res.as_dict() else { return };
+        let dict_at = |key: &[u8]| res.get(key).map(|x| doc.resolve(x)).and_then(|x| x.as_dict().cloned());
+        for dict in [dict_at(b"XObject"), dict_at(b"Pattern")].into_iter().flatten() {
+            todo.extend(dict.iter().map(|(_, o)| o.clone()));
+        }
+        for (_, font) in dict_at(b"Font").iter().flat_map(Dict::iter) {
+            let font = doc.resolve(font);
+            if let Some(procs) = font.as_dict().and_then(|f| f.get(b"CharProcs")).map(|p| doc.resolve(p)).and_then(|p| p.as_dict().cloned()) {
+                todo.extend(procs.iter().map(|(_, g)| g.clone()));
+            }
+        }
+    };
+    for (i, page) in page_list(doc).into_iter().enumerate() {
+        if !pages.contains(&i) {
+            xobjects_of(page.dict.get(b"Resources"), &mut todo);
+        }
+        let annots = page.dict.get(b"Annots").map(|a| doc.resolve(a)).and_then(|a| a.as_array().cloned()).unwrap_or_default();
+        for a in annots {
+            let Some(ap) = doc.resolve(&a).as_dict().and_then(|d| d.get(b"AP").cloned()) else { continue };
+            let Some(ap) = doc.resolve(&ap).as_dict().cloned() else { continue };
+            for (_, v) in ap.iter() {
+                match &*doc.resolve(v) {
+                    Object::Dict(states) => todo.extend(states.iter().map(|(_, s)| s.clone())),
+                    _ => todo.push(v.clone()),
+                }
+            }
+        }
+    }
+    while let Some(o) = todo.pop() {
+        let Some(r) = o.as_ref() else { continue };
+        if !seen.insert(r) {
+            continue;
+        }
+        let res = match &*doc.get(r) {
+            Object::Stream(s) => s.dict.get(b"Resources").cloned(),
+            _ => None,
+        };
+        xobjects_of(res.as_ref(), &mut todo);
+    }
+    seen
 }
 
 /// A name for another copy drawn by `name` that `xobjects` does not hold yet.
-fn fresh_name(xobjects: &Dict, name: &[u8]) -> Result<Name, EditError> {
-    if name.len() > 4096 {
-        return Err(EditError::Invalid("a form resource name is too long to repair safely".into()));
-    }
-    for i in 1..=xobjects.len().saturating_add(1) {
+fn fresh_name(xobjects: &Dict, name: &[u8]) -> Name {
+    let mut i = 1usize;
+    loop {
         let mut candidate = name.to_vec();
         candidate.extend_from_slice(format!("_hl{i}").as_bytes());
         if !xobjects.contains(&candidate) {
-            return Ok(candidate);
+            return candidate;
         }
+        i = i.saturating_add(1);
     }
-    Err(EditError::Invalid("could not allocate a hairline-repair resource name".into()))
 }
-
-type ContextRepair = (Vec<Option<Vec<u8>>>, usize, Option<Dict>);
 
 /// Rewrite one drawing context - a page's streams, or a form's - that starts in `start`, and
 /// the forms it draws. Returns each stream's new bytes (`None` where it did not change), the
@@ -308,23 +346,22 @@ fn fix_context(
     start: &State,
     resources: Option<&Dict>,
     depth: usize,
-) -> Result<ContextRepair, EditError> {
+) -> (Vec<Option<Vec<u8>>>, usize, Option<Dict>) {
     let none = Renames::new();
     let mut drawn: Vec<Drawn> = Vec::new();
     let mut state = start.clone();
     let mut new: Vec<Option<Vec<u8>>> = Vec::with_capacity(data.len());
     let mut fixed = 0usize;
     for d in data {
-        charge_ops(d, &mut run.operators_left)?;
-        let (bytes, count) = rewrite(d, &mut state, h, resources, doc, &mut drawn, &none)?;
-        fixed = fixed.checked_add(count).ok_or_else(|| EditError::Invalid("hairline count overflow".into()))?;
+        let (bytes, count) = rewrite(d, &mut state, h, resources, doc, &mut drawn, &none);
+        fixed += count;
         new.push(bytes);
     }
     if drawn.is_empty() {
-        return Ok((new, fixed, None));
+        return (new, fixed, None);
     }
     let Some(xo) = resources.and_then(|r| r.get(b"XObject")).map(|x| doc.resolve(x)).and_then(|x| x.as_dict().cloned()) else {
-        return Ok((new, fixed, None));
+        return (new, fixed, None);
     };
     // The object each (name, key) is drawn as, and each name's objects in order of first use.
     let mut chosen: HashMap<(Name, Key), ObjRef> = HashMap::new();
@@ -334,8 +371,8 @@ fn fix_context(
         if chosen.contains_key(&(d.name.clone(), k)) {
             continue;
         }
-        let (to, count) = fix_form(doc, run, h, d.r, d.ctm, d.width, depth + 1)?;
-        fixed = fixed.checked_add(count).ok_or_else(|| EditError::Invalid("hairline count overflow".into()))?;
+        let (to, count) = fix_form(doc, run, h, d.r, d.ctm, d.width, depth + 1);
+        fixed += count;
         chosen.insert((d.name.clone(), k), to);
         match targets.iter_mut().find(|(name, _)| *name == d.name) {
             Some((_, list)) => {
@@ -353,7 +390,7 @@ fn fix_context(
     let mut renames = Renames::new();
     for (name, list) in &targets {
         for (i, to) in list.iter().enumerate() {
-            let at = if i == 0 { name.clone() } else { fresh_name(&repointed, name)? };
+            let at = if i == 0 { name.clone() } else { fresh_name(&repointed, name) };
             if repointed.get(&at).and_then(Object::as_ref) != Some(*to) {
                 repointed.set(at.clone(), Object::Ref(*to));
                 changed = true;
@@ -371,103 +408,107 @@ fn fix_context(
         // The same rewrite again, with the renamed `Do`s.
         let mut state = start.clone();
         let mut again: Vec<Drawn> = Vec::new();
-        new = data.iter().map(|d| rewrite(d, &mut state, h, resources, &*doc, &mut again, &renames).map(|r| r.0)).collect::<Result<_, _>>()?;
+        new = data.iter().map(|d| rewrite(d, &mut state, h, resources, &*doc, &mut again, &renames).0).collect();
     }
-    Ok((new, fixed, changed.then_some(repointed)))
+    (new, fixed, changed.then_some(repointed))
 }
 
-/// Repair a form for this use-context without changing any original resource object.
-fn fix_form(
-    doc: &mut Document,
-    run: &mut Run,
-    h: &Hairlines,
-    r: ObjRef,
-    ctm: [f64; 6],
-    width: f64,
-    depth: usize,
-) -> Result<(ObjRef, usize), EditError> {
-    let key = key_of(ctm, width);
-    if let Some(&done) = run.done.get(&(r, key)) {
-        return Ok(done);
+/// The object `r` is drawn as under `ctm` with line width `width` in effect, rewritten for
+/// them, and the strokes that rewrite fixed. It is `r` itself, rewritten in place, unless
+/// something else draws `r` differently; then it is a copy.
+fn fix_form(doc: &mut Document, run: &mut Run, h: &Hairlines, r: ObjRef, ctm: [f64; 6], width: f64, depth: usize) -> (ObjRef, usize) {
+    let k = key_of(ctm, width);
+    if let Some(&to) = run.done.get(&(r, k)) {
+        return (to, 0);
     }
-    if depth > MAX_DEPTH || run.budget == 0 || !run.active.insert(r) {
-        return Err(EditError::Invalid("hairline repair encountered recursive forms or exceeded its form budget".into()));
+    if depth > MAX_DEPTH || run.budget == 0 {
+        return (r, 0);
     }
     run.budget -= 1;
-    let stream = stream_of(doc, r).ok_or_else(|| EditError::Invalid("a form is not a readable stream".into()))?;
-    let data = stream.decoded().map_err(|e| EditError::Invalid(format!("could not decode a form for hairline repair: {e}")))?;
-    let base = mul(matrix_of(doc, &stream.dict, b"Matrix", [1.0, 0.0, 0.0, 1.0, 0.0, 0.0])?, ctm);
-    let resources = stream.dict.get(b"Resources").map(|x| doc.resolve(x)).and_then(|x| x.as_dict().cloned());
-    let (new, count, xobjects) = fix_context(doc, run, h, std::slice::from_ref(&data), &State::new(base, width), resources.as_ref(), depth)?;
+    // Marked before rewriting, so a form that draws itself ends.
+    run.done.insert((r, k), r);
+    let s = match run.original.get(&r) {
+        Some(s) => s.clone(),
+        None => {
+            let Some(s) = stream_of(doc, r) else { return (r, 0) };
+            run.original.insert(r, s.clone());
+            s
+        }
+    };
+    let Ok(data) = s.decoded() else { return (r, 0) };
+    let matrix = s.dict.get(b"Matrix").map(|m| doc.resolve(m)).and_then(|m| m.as_array().cloned()).and_then(|a| {
+        let v: Vec<f64> = a.iter().filter_map(|x| doc.resolve(x).as_f64()).collect();
+        <[f64; 6]>::try_from(v).ok()
+    });
+    let base = match matrix {
+        Some(m) => mul(m, ctm),
+        None => ctm,
+    };
+    let res = s.dict.get(b"Resources").map(|x| doc.resolve(x)).and_then(|x| x.as_dict().cloned());
+    let (new, fixed, xo) = fix_context(doc, run, h, std::slice::from_ref(&data), &State::new(base, width), res.as_ref(), depth);
     let bytes = new.into_iter().next().flatten();
-    let to = if bytes.is_none() && xobjects.is_none() {
-        r
+    let to = if bytes.is_none() && xo.is_none() {
+        if run.used.get(&r) == Some(&true) {
+            // `r` was rewritten in place for another use; this one draws it as it was.
+            doc.add(Object::Stream(s))
+        } else {
+            run.used.insert(r, false);
+            r
+        }
     } else {
-        let mut result = stream;
-        if let Some(xobjects) = xobjects {
-            let mut resources = resources.unwrap_or_default();
-            resources.set(b"XObject".to_vec(), Object::Dict(xobjects));
-            result.dict.set(b"Resources".to_vec(), Object::Dict(resources));
+        let mut form = s;
+        if let Some(xo) = xo {
+            let mut res = res.unwrap_or_default();
+            res.set(b"XObject".to_vec(), Object::Dict(xo));
+            form.dict.set(b"Resources".to_vec(), Object::Dict(res));
         }
         if let Some(bytes) = bytes {
-            let mut dict = result.dict;
-            for key in [&b"Length"[..], b"Filter", b"DecodeParms", b"DL"] {
+            let mut dict = form.dict;
+            for key in [&b"Length"[..], b"Filter", b"DecodeParms"] {
                 dict.remove(key);
             }
-            result = Stream::flate(dict, &bytes);
+            form = Stream::flate(dict, &bytes);
         }
-        doc.add(Object::Stream(result))
+        if run.shared.contains(&r) || run.used.contains_key(&r) {
+            doc.add(Object::Stream(form))
+        } else {
+            doc.set(r, Object::Stream(form));
+            run.used.insert(r, true);
+            r
+        }
     };
-    run.active.remove(&r);
-    run.done.insert((r, key), (to, count));
-    Ok((to, count))
+    run.done.insert((r, k), to);
+    (to, fixed)
 }
 
-/// Fix hairlines on 0-based pages, atomically. Changed forms and optional glyph/pattern
-/// procedures are copied, with only the selected pages repointed. Glyphs use a nominal
-/// 10-point scale; their nested Forms are not followed. Transformed width uses the geometric
-/// mean of the matrix axes, matching the basic device-space repair model.
-/// shortcut: optional glyphs use 10 pt and nested glyph/pattern Forms are not followed;
-/// use-context traversal is needed before promising exact repair of those strokes.
+/// Fix the hairlines on `pages` (0-based). Each page's content, and each Form XObject it draws
+/// (for the scale and line width it is drawn under), is rewritten where a stroke is thinner
+/// than `h.narrower_than` points on the page. A form drawn under more than one, or drawn by a
+/// page not in `pages` or by an annotation's appearance, is rewritten as a copy for the uses
+/// that need one, and the page's (or drawing form's) resources point at the copy; a resource
+/// dictionary other pages share is not changed. Type 3 glyphs and tiling patterns are rewritten
+/// in place, once, at a nominal scale (see `fix_in_resources`), and those other uses of them are
+/// counted in [`Fixed::elsewhere`].
 pub fn fix_hairlines(doc: &mut Document, pages: &[usize], h: &Hairlines) -> Result<Fixed, EditError> {
-    let mut next = doc.clone();
-    let result = fix_hairlines_inner(&mut next, pages, h)?;
-    *doc = next;
-    Ok(result)
-}
-
-fn fix_hairlines_inner(doc: &mut Document, pages: &[usize], h: &Hairlines) -> Result<Fixed, EditError> {
     let all = page_list(doc);
     check(pages, all.len())?;
-    if !(h.narrower_than.is_finite() && h.narrower_than >= 0.0 && h.width.is_finite() && h.width > 0.0) {
-        return Err(EditError::Invalid("the hairline widths must be positive numbers of points".into()));
-    }
-    if pages.iter().copied().collect::<HashSet<_>>().len() != pages.len() {
-        return Err(EditError::Invalid("choose each page only once for hairline repair".into()));
+    if !h.in_range() {
+        return Err(EditError::Invalid(format!("the hairline widths must be numbers of points, above 0 and at most {}", Hairlines::MAX_POINTS)));
     }
     let mut result = Fixed::default();
-    let mut run = Run {
-        done: HashMap::new(),
-        active: HashSet::new(),
-        budget: MAX_FORMS,
-        operators_left: MAX_OPS,
-        resource_copies: HashMap::new(),
-        resource_budget: MAX_FORMS,
-        resource_reads: MAX_RESOURCE_READS,
-    };
+    let mut run =
+        Run { done: HashMap::new(), shared: drawn_elsewhere(doc, pages), used: HashMap::new(), original: HashMap::new(), budget: MAX_FORMS };
+    let mut done_glyphs: HashSet<ObjRef> = HashSet::new();
     for &i in pages {
-        let page = all.get(i).cloned().ok_or(EditError::NoSuchPage(i))?;
+        let Some(page) = page_list(doc).get(i).cloned() else { continue };
         let resources = page.dict.get(b"Resources").map(|r| doc.resolve(r)).and_then(|r| r.as_dict().cloned());
         let mut page_fixed = 0usize;
         // The page's streams, each rewritten on its own (state carries across them), and the
-        // forms they draw. Unreadable content refuses the whole atomic edit.
-        {
-            let streams = PageStreams::read(doc, &page.dict)
-                .ok_or_else(|| EditError::Invalid(format!("page {} has unreadable content; hairlines were not changed", i.saturating_add(1))))?;
-            let unit = page.user_unit(doc);
-            let start = State::new([unit, 0.0, 0.0, unit, 0.0, 0.0], 1.0);
-            let (new, fixed, xo) = fix_context(doc, &mut run, h, &streams.data, &start, resources.as_ref(), 0)?;
-            page_fixed = page_fixed.checked_add(fixed).ok_or_else(|| EditError::Invalid("hairline count overflow".into()))?;
+        // forms they draw. A page with a stream that cannot be read is left alone.
+        if let Some(streams) = PageStreams::read(doc, &page.dict) {
+            let start = State::new([1.0, 0.0, 0.0, 1.0, 0.0, 0.0], 1.0);
+            let (new, fixed, xo) = fix_context(doc, &mut run, h, &streams.data, &start, resources.as_ref(), 0);
+            page_fixed += fixed;
             streams.write(doc, page.obj, new)?;
             if let Some(xo) = xo {
                 // This page's own resources point at the copies; a resource dictionary other
@@ -478,158 +519,120 @@ fn fix_hairlines_inner(doc: &mut Document, pages: &[usize], h: &Hairlines) -> Re
             }
         }
         if h.type3 || h.patterns {
-            let current = doc.get(page.obj);
-            let resources = current.as_dict().and_then(|d| d.get(b"Resources")).or_else(|| page.dict.get(b"Resources")).map(|r| doc.resolve(r));
-            let resources = resources.as_ref().and_then(|r| r.as_dict());
-            let (next, count) = fix_in_resources(doc, resources, h, page.user_unit(doc), &mut run)?;
-            page_fixed = page_fixed.checked_add(count).ok_or_else(|| EditError::Invalid("hairline count overflow".into()))?;
-            if let Some(next) = next {
-                doc.update_dict(page.obj, |d| d.set(b"Resources".to_vec(), Object::Dict(next)))?;
+            for res in resources_below(doc, resources.as_ref()) {
+                page_fixed += fix_in_resources(doc, Some(&res), h, &mut done_glyphs, &run.shared, &mut result.elsewhere)?;
             }
         }
         if page_fixed > 0 {
-            result.lines = result.lines.checked_add(page_fixed).ok_or_else(|| EditError::Invalid("hairline count overflow".into()))?;
+            result.lines += page_fixed;
             result.pages += 1;
         }
     }
     Ok(result)
 }
 
-/// Read a bounded finite matrix; missing matrices use their PDF-defined defaults.
-fn matrix_of(doc: &Document, dict: &Dict, key: &[u8], default: [f64; 6]) -> Result<[f64; 6], EditError> {
-    let Some(value) = dict.get(key) else {
-        return Ok(default);
-    };
-    let value = doc.resolve(value);
-    let array = value.as_array().ok_or_else(|| EditError::Invalid("a repair resource has an invalid matrix".into()))?;
-    let [a, b, c, d, e, f] = array.as_slice() else {
-        return Err(EditError::Invalid("a repair matrix must contain six finite numbers".into()));
-    };
-    let mut out = [0.0; 6];
-    for (slot, value) in out.iter_mut().zip([a, b, c, d, e, f]) {
-        *slot = doc
-            .resolve(value)
-            .as_f64()
-            .filter(|v| v.is_finite())
-            .ok_or_else(|| EditError::Invalid("a repair matrix must contain six finite numbers".into()))?;
-    }
-    Ok(out)
-}
-
-fn repaired_resource(doc: &mut Document, reference: ObjRef, base: [f64; 6], h: &Hairlines, run: &mut Run) -> Result<(ObjRef, usize), EditError> {
-    run.resource_reads = run.resource_reads.checked_sub(1).ok_or_else(|| EditError::Invalid("too many glyph/pattern uses for one repair".into()))?;
-    let key = (reference, key_of(base, 1.0));
-    if let Some(&done) = run.resource_copies.get(&key) {
-        return Ok(done);
-    }
-    if run.resource_budget == 0 {
-        return Err(EditError::Invalid("too many glyphs or patterns for hairline repair".into()));
-    }
-    run.resource_budget -= 1;
-    let stream = stream_of(doc, reference).ok_or_else(|| EditError::Invalid("a glyph or pattern is not a stream".into()))?;
-    let bytes = stream.decoded().map_err(|e| EditError::Invalid(format!("could not decode a repair resource: {e}")))?;
-    let resources = stream.dict.get(b"Resources").map(|r| doc.resolve(r)).and_then(|r| r.as_dict().cloned());
-    charge_ops(&bytes, &mut run.operators_left)?;
-    let (new, count) = rewrite(&bytes, &mut State::new(base, 1.0), h, resources.as_ref(), doc, &mut Vec::new(), &Renames::new())?;
-    let to = if let Some(new) = new {
-        let mut dict = stream.dict;
-        for key in [&b"Length"[..], b"Filter", b"DecodeParms", b"DL"] {
-            dict.remove(key);
+/// `resources` and the resources of every form they reach (a form that names none uses its
+/// parent's), each once.
+fn resources_below(doc: &Document, resources: Option<&Dict>) -> Vec<Dict> {
+    let mut all: Vec<Dict> = resources.into_iter().cloned().collect();
+    let mut seen: HashSet<ObjRef> = HashSet::new();
+    let mut at = 0;
+    while let Some(res) = all.get(at).cloned() {
+        at += 1;
+        let Some(xo) = res.get(b"XObject").map(|x| doc.resolve(x)).and_then(|x| x.as_dict().cloned()) else { continue };
+        for (_, x) in xo.iter() {
+            let Some(r) = x.as_ref() else { continue };
+            if !seen.insert(r) {
+                continue;
+            }
+            let Some(s) = stream_of(doc, r) else { continue };
+            if s.dict.name(b"Subtype") == Some(b"Form")
+                && let Some(inner) = s.dict.get(b"Resources").map(|x| doc.resolve(x)).and_then(|x| x.as_dict().cloned())
+            {
+                all.push(inner);
+            }
         }
-        doc.add(Object::Stream(Stream::flate(dict, &new)))
-    } else {
-        reference
-    };
-    run.resource_copies.insert(key, (to, count));
-    Ok((to, count))
+    }
+    all
 }
 
-/// Type 3 glyphs use a nominal 10-point size; tiling patterns use their matrix. The Form
-/// XObjects these procedures call are not followed. Copies keep unselected pages untouched.
+/// Strokes inside Type 3 glyph procedures and tiling patterns of `resources`, on request. Their
+/// drawing scale is the font matrix or the pattern matrix (the text size and placement are
+/// not known here, so the glyph's own scale stands in). They are rewritten in place, once per
+/// run: a pattern's space is set by its matrix whatever CTM it is painted under, and a glyph
+/// is measured at a nominal size, so there is no per-use scale to make a copy for. The forms
+/// they draw are not followed. Each one changed that is in `shared` is added to `elsewhere`.
 fn fix_in_resources(
     doc: &mut Document,
     resources: Option<&Dict>,
     h: &Hairlines,
-    unit: f64,
-    run: &mut Run,
-) -> Result<(Option<Dict>, usize), EditError> {
-    let Some(resources) = resources else {
-        return Ok((None, 0));
-    };
-    let mut next = resources.clone();
+    done: &mut HashSet<ObjRef>,
+    shared: &HashSet<ObjRef>,
+    elsewhere: &mut usize,
+) -> Result<usize, EditError> {
+    let Some(res) = resources else { return Ok(0) };
     let mut fixed = 0usize;
-    let mut changed = false;
+    let mut targets: Vec<(ObjRef, [f64; 6])> = Vec::new();
     if h.type3
-        && let Some(fonts) = resources.get(b"Font").map(|f| doc.resolve(f)).and_then(|f| f.as_dict().cloned())
+        && let Some(fonts) = res.get(b"Font").map(|f| doc.resolve(f)).and_then(|f| f.as_dict().cloned())
     {
-        let mut next_fonts = fonts.clone();
-        let mut fonts_changed = false;
-        for (name, font) in fonts.iter() {
-            run.resource_reads =
-                run.resource_reads.checked_sub(1).ok_or_else(|| EditError::Invalid("too many font resources for one repair".into()))?;
-            let resolved = doc.resolve(font);
-            let Some(font) = resolved.as_dict().filter(|f| f.name(b"Subtype") == Some(b"Type3")) else {
+        for (_, f) in fonts.iter() {
+            let fd = doc.resolve(f);
+            let Some(fd) = fd.as_dict() else { continue };
+            if fd.name(b"Subtype") != Some(b"Type3") {
                 continue;
-            };
-            let base = mul(matrix_of(doc, font, b"FontMatrix", [0.001, 0.0, 0.0, 0.001, 0.0, 0.0])?, [10.0 * unit, 0.0, 0.0, 10.0 * unit, 0.0, 0.0]);
-            let Some(procs) = font.get(b"CharProcs").map(|p| doc.resolve(p)).and_then(|p| p.as_dict().cloned()) else {
-                continue;
-            };
-            if procs.len() > MAX_FORMS {
-                return Err(EditError::Invalid("too many Type 3 procedures for hairline repair".into()));
             }
-            let mut next_procs = procs.clone();
-            let mut font_changed = false;
-            for (name, procedure) in procs.iter() {
-                let reference = procedure.as_ref().ok_or_else(|| EditError::Invalid("a Type 3 procedure must be an indirect stream".into()))?;
-                let (to, count) = repaired_resource(doc, reference, base, h, run)?;
-                fixed = fixed.checked_add(count).ok_or_else(|| EditError::Invalid("hairline count overflow".into()))?;
-                if to != reference {
-                    next_procs.set(name.clone(), Object::Ref(to));
-                    font_changed = true;
+            let fm = fd.get(b"FontMatrix").map(|m| doc.resolve(m)).and_then(|m| m.as_array().cloned()).and_then(|a| {
+                let v: Vec<f64> = a.iter().filter_map(|x| doc.resolve(x).as_f64()).collect();
+                <[f64; 6]>::try_from(v).ok()
+            });
+            // Glyph space → text space at a nominal 10 pt.
+            let base = fm.map(|m| mul(m, [10.0, 0.0, 0.0, 10.0, 0.0, 0.0])).unwrap_or([0.01, 0.0, 0.0, 0.01, 0.0, 0.0]);
+            if let Some(procs) = fd.get(b"CharProcs").map(|p| doc.resolve(p)).and_then(|p| p.as_dict().cloned()) {
+                for (_, g) in procs.iter() {
+                    if let Some(r) = g.as_ref() {
+                        targets.push((r, base));
+                    }
                 }
             }
-            if font_changed {
-                let mut font = font.clone();
-                font.set(b"CharProcs".to_vec(), Object::Dict(next_procs));
-                next_fonts.set(name.clone(), Object::Ref(doc.add(Object::Dict(font))));
-                fonts_changed = true;
-            }
-        }
-        if fonts_changed {
-            next.set(b"Font".to_vec(), Object::Dict(next_fonts));
-            changed = true;
         }
     }
     if h.patterns
-        && let Some(patterns) = resources.get(b"Pattern").map(|p| doc.resolve(p)).and_then(|p| p.as_dict().cloned())
+        && let Some(pats) = res.get(b"Pattern").map(|p| doc.resolve(p)).and_then(|p| p.as_dict().cloned())
     {
-        if patterns.len() > MAX_FORMS {
-            return Err(EditError::Invalid("too many patterns for hairline repair".into()));
-        }
-        let mut next_patterns = patterns.clone();
-        let mut patterns_changed = false;
-        for (name, pattern) in patterns.iter() {
-            run.resource_reads =
-                run.resource_reads.checked_sub(1).ok_or_else(|| EditError::Invalid("too many pattern resources for one repair".into()))?;
-            let Some(reference) = pattern.as_ref() else {
+        for (_, p) in pats.iter() {
+            let Some(r) = p.as_ref() else { continue };
+            let Some(s) = stream_of(doc, r) else { continue };
+            if s.dict.int(b"PatternType") != Some(1) {
                 continue;
-            };
-            let Some(stream) = stream_of(doc, reference).filter(|s| s.dict.int(b"PatternType") == Some(1)) else {
-                continue;
-            };
-            let base = mul(matrix_of(doc, &stream.dict, b"Matrix", [1.0, 0.0, 0.0, 1.0, 0.0, 0.0])?, [unit, 0.0, 0.0, unit, 0.0, 0.0]);
-            let (to, count) = repaired_resource(doc, reference, base, h, run)?;
-            fixed = fixed.checked_add(count).ok_or_else(|| EditError::Invalid("hairline count overflow".into()))?;
-            if to != reference {
-                next_patterns.set(name.clone(), Object::Ref(to));
-                patterns_changed = true;
             }
-        }
-        if patterns_changed {
-            next.set(b"Pattern".to_vec(), Object::Dict(next_patterns));
-            changed = true;
+            let pm = s.dict.get(b"Matrix").map(|m| doc.resolve(m)).and_then(|m| m.as_array().cloned()).and_then(|a| {
+                let v: Vec<f64> = a.iter().filter_map(|x| doc.resolve(x).as_f64()).collect();
+                <[f64; 6]>::try_from(v).ok()
+            });
+            targets.push((r, pm.unwrap_or([1.0, 0.0, 0.0, 1.0, 0.0, 0.0])));
         }
     }
-    Ok((changed.then_some(next), fixed))
+    let none = Renames::new();
+    for (r, base) in targets {
+        if !done.insert(r) {
+            continue;
+        }
+        let Some(s) = stream_of(doc, r) else { continue };
+        let Ok(data) = s.decoded() else { continue };
+        let res = s.dict.get(b"Resources").map(|x| doc.resolve(x)).and_then(|x| x.as_dict().cloned());
+        let mut inner = Vec::new();
+        let (new, n_fixed) = rewrite(&data, &mut State::new(base, 1.0), h, res.as_ref(), doc, &mut inner, &none);
+        if let Some(bytes) = new {
+            let mut dict = s.dict.clone();
+            dict.remove(b"Length");
+            dict.remove(b"Filter");
+            dict.remove(b"DecodeParms");
+            doc.set(r, Object::Stream(Stream::flate(dict, &bytes)));
+            fixed += n_fixed;
+            *elsewhere += usize::from(n_fixed > 0 && shared.contains(&r));
+        }
+    }
+    let _ = n;
+    Ok(fixed)
 }

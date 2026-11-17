@@ -2,141 +2,9 @@
 
 use pdfcraft_ui_egui::PdfCraftApp;
 
-#[test]
-fn physical_paper_defaults_roundtrip_and_create_print_sized_cards() {
-    let mut app = PdfCraftApp::new();
-    app.set_option("default-paper", "European business card").unwrap();
-    app.set_option("actual-size-zoom", "1.25").unwrap();
-    let saved = app.persist();
-    let mut restored = PdfCraftApp::new();
-    restored.restore(&saved);
-    assert!(restored.execute("create.blank"));
-    let p = &restored.session.docs()[0].info.pages[0];
-    assert!((p.width - 85.0 * 72.0 / 25.4).abs() < 0.001);
-    assert!((p.height - 55.0 * 72.0 / 25.4).abs() < 0.001);
-    assert_eq!(serde_json::from_str::<serde_json::Value>(&restored.persist()).unwrap()["actual_size_zoom"], 1.25);
-    assert!(restored.set_option("default-page-width", "NaN").is_err());
-    assert!(restored.set_option("default-page-height", "0").is_err());
-    assert!(restored.set_option("actual-size-zoom", "100").is_err());
-    restored.set_option("default-page-width", "144").unwrap();
-    restored.set_option("default-page-height", "252").unwrap();
-    assert!(restored.execute("create.blank"));
-    let p = &restored.session.docs()[1].info.pages[0];
-    assert_eq!((p.width, p.height), (144.0, 252.0));
-}
-
-#[test]
-fn paper_settings_calibrate_view_without_resizing_the_pdf() {
-    use egui_kittest::{Harness, kittest::Queryable};
-    let mut h = Harness::builder().with_size(egui::vec2(1100.0, 800.0)).build_eframe(|_| {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        app.execute("create.blank");
-        app.set_option("preferences-category", "paper").unwrap();
-        app.set_option("dialog", "preferences").unwrap();
-        app.measured_ruler_mm = 40.0;
-        app
-    });
-    h.run_steps(3);
-    let original = h.state().session.docs()[0].bytes.clone();
-    h.get_by_label("Calibrate").scroll_to_me();
-    h.run_steps(24);
-    h.get_by_label("Calibrate").click();
-    h.run_steps(2);
-    h.get_by_label("Show actual size").scroll_to_me();
-    h.run_steps(24);
-    h.get_by_label("Show actual size").click();
-    h.run_steps(3);
-    assert!(h.state().dialog.is_none());
-    assert_eq!(h.state().views[0].zoom, 1.25);
-    h.state_mut().views[0].set_zoom(0.8);
-    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Num1);
-    h.run_steps(3);
-    assert_eq!(h.state().views[0].zoom, 1.25, "the normal Actual size shortcut uses calibration too");
-    assert_eq!(h.state().session.docs()[0].bytes, original);
-}
-
-#[test]
-fn custom_page_dialog_creates_the_requested_dimensions() {
-    use egui_kittest::{Harness, kittest::Queryable};
-    let mut h = Harness::builder().with_size(egui::vec2(900.0, 700.0)).build_eframe(|_| {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        app.set_option("default-paper", "US business card").unwrap();
-        assert!(app.execute("create.custom"));
-        app
-    });
-    h.run_steps(3);
-    if let Ok(dir) = std::env::var("PDFCRAFT_PAPER_SHOTS") {
-        let _gpu = crate::gpu();
-        h.render().unwrap().save(format!("{dir}/custom-page.png")).unwrap();
-    }
-    h.get_by_label("Swap width and height").click();
-    h.run_steps(2);
-    h.get_by_label("Create").click();
-    h.run_steps(3);
-    assert!(h.state().dialog.is_none());
-    let p = &h.state().session.docs()[0].info.pages[0];
-    assert_eq!((p.width, p.height), (144.0, 252.0));
-}
-
-#[test]
-fn export_to_opens_a_format_picker() {
-    use egui_kittest::{Harness, kittest::Queryable};
-    let mut h = Harness::builder().with_size(egui::vec2(900.0, 700.0)).build_eframe(|_| {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        app.execute("create.blank");
-        assert!(app.execute("export.choose"));
-        app
-    });
-    h.run_steps(3);
-    if let Ok(dir) = std::env::var("PDFCRAFT_PAPER_SHOTS") {
-        let _gpu = crate::gpu();
-        h.render().unwrap().save(format!("{dir}/export-to.png")).unwrap();
-    }
-    h.get_by_label("WordCraft / Microsoft Word (.docx)");
-    h.get_by_label("PowerPoint (.pptx)");
-    h.get_by_label("Cancel").click();
-    h.run_steps(2);
-    assert!(h.state().dialog.is_none());
-    assert_eq!(h.state().session.docs().len(), 1);
-}
-
-#[test]
-fn office_export_preserves_open_original_and_exports_docx_and_pptx() {
-    let dir = std::env::temp_dir().join(format!("pdfcraft-export-picker-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    let source = dir.join("source.pdf");
-    let mut app = PdfCraftApp::new();
-    let bytes = app.session.create_from_text("Example", "Editable export example").unwrap();
-    std::fs::write(&source, bytes.as_ref()).unwrap();
-    app.open_bytes("source.pdf", Some(source.to_string_lossy().into_owned()), bytes.as_ref().clone()).unwrap();
-    app.save_override = Some(source.to_string_lossy().into_owned());
-    app.execute("export.docx");
-    assert_eq!(std::fs::read(&source).unwrap(), bytes.as_ref().clone(), "an export cannot replace an open PDF");
-    for ext in ["docx", "pptx"] {
-        let out = dir.join(format!("output.{ext}"));
-        app.save_override = Some(out.to_string_lossy().into_owned());
-        assert!(app.execute(&format!("export.{ext}")));
-        let exported = std::fs::read(&out).unwrap();
-        assert!(exported.starts_with(b"PK"));
-        let entry = if ext == "docx" { b"word/document.xml".as_slice() } else { b"ppt/presentation.xml".as_slice() };
-        assert!(exported.windows(entry.len()).any(|w| w == entry));
-    }
-    std::fs::remove_dir_all(dir).unwrap();
-}
-
 fn png() -> Vec<u8> {
-    let mut out = Vec::new();
-    {
-        let mut enc = png::Encoder::new(&mut out, 8, 4);
-        enc.set_color(png::ColorType::Rgb);
-        enc.set_depth(png::BitDepth::Eight);
-        let mut w = enc.write_header().unwrap();
-        w.write_image_data(&[120u8; 8 * 4 * 3]).unwrap();
-    }
-    out
+    let img = craft_image_codecs::Image::from_u8(8, 4, craft_image_codecs::ChannelLayout::Rgb, vec![120u8; 8 * 4 * 3]).unwrap();
+    craft_image_codecs::encode(&img, craft_image_codecs::Format::Png, &craft_image_codecs::EncodeOptions::default()).unwrap()
 }
 
 #[test]
@@ -248,13 +116,8 @@ fn reduce_file_size_writes_a_compact_copy() {
     // A photo-like picture, stored losslessly: Reduce recompresses it as JPEG.
     let (w, h) = (600u32, 400u32);
     let px: Vec<u8> = (0..w * h).flat_map(|i| [(i % w * 255 / w) as u8 ^ (i & 7) as u8, (i / w * 255 / h) as u8, 128]).collect();
-    let mut photo = Vec::new();
-    {
-        let mut enc = png::Encoder::new(&mut photo, w, h);
-        enc.set_color(png::ColorType::Rgb);
-        enc.set_depth(png::BitDepth::Eight);
-        enc.write_header().unwrap().write_image_data(&px).unwrap();
-    }
+    let img = craft_image_codecs::Image::from_u8(w, h, craft_image_codecs::ChannelLayout::Rgb, px).unwrap();
+    let photo = craft_image_codecs::encode(&img, craft_image_codecs::Format::Png, &craft_image_codecs::EncodeOptions::default()).unwrap();
     let dir = ReduceDir::new();
     let out = dir.0.join("reduced.pdf");
     let h = reduce("photo.png", photo, &out);
@@ -315,7 +178,7 @@ fn the_pdf_optimizer_dialog_saves_an_optimized_copy() {
     h.get_by_label("Monochrome Images");
     assert_eq!(h.state().optimize_draft.settings.mono, pdfcraft_engine::optimize::MonoSettings::REDUCE);
     // Monochrome Images ▸ Downsample to can be turned off.
-    h.get_by_role_and_label(egui::accesskit::Role::CheckBox, "Downsample to").click();
+    h.get_by_label("Downsample to").click();
     h.run_steps(2);
     assert!(!h.state().optimize_draft.settings.mono.downsample);
     h.get_by_label("Discard Objects").click();
@@ -504,6 +367,153 @@ fn multiple_files_past_a_thousand_are_all_used() {
     assert_eq!(app.views.len(), 1);
     let doc = app.session.get(app.views[0].id).unwrap();
     assert_eq!(doc.info.pages.len(), 1001, "every picked file is used, in order");
+}
+
+/// Create ▸ Blank page uses the system region's paper, not always US Letter (#5644): the app
+/// starts with the system's, and a blank page is on A4 and on Letter as the paper says
+/// (CodeRabbit on #5651: a Letter host alone would not tell a hard-coded Letter apart).
+#[test]
+fn a_blank_page_is_on_the_system_regions_paper() {
+    use pdfcraft_ui_egui::paper::Paper;
+    assert_eq!(PdfCraftApp::new().blank_paper, Paper::system());
+    for paper in [Paper::A4, Paper::Letter] {
+        let mut app = PdfCraftApp::new();
+        app.blank_paper = paper;
+        assert!(app.execute("create.blank"));
+        let docs = app.session.docs();
+        let crop = docs.last().and_then(|d| d.info.pages.first()).map(|p| p.crop).unwrap();
+        let (w, h) = paper.points();
+        assert!(
+            ((crop[2] - crop[0]) as f64 - w).abs() < 0.01 && ((crop[3] - crop[1]) as f64 - h).abs() < 0.01,
+            "{paper:?}: {crop:?} is not {w} × {h}"
+        );
+    }
+}
+
+// ── Lion PDF ──
+#[test]
+fn physical_paper_defaults_roundtrip_and_create_print_sized_cards() {
+    let mut app = PdfCraftApp::new();
+    app.set_option("default-paper", "European business card").unwrap();
+    app.set_option("actual-size-zoom", "1.25").unwrap();
+    let saved = app.persist();
+    let mut restored = PdfCraftApp::new();
+    restored.restore(&saved);
+    assert!(restored.execute("create.blank"));
+    let p = &restored.session.docs()[0].info.pages[0];
+    assert!((p.width - 85.0 * 72.0 / 25.4).abs() < 0.001);
+    assert!((p.height - 55.0 * 72.0 / 25.4).abs() < 0.001);
+    assert_eq!(serde_json::from_str::<serde_json::Value>(&restored.persist()).unwrap()["actual_size_zoom"], 1.25);
+    assert!(restored.set_option("default-page-width", "NaN").is_err());
+    assert!(restored.set_option("default-page-height", "0").is_err());
+    assert!(restored.set_option("actual-size-zoom", "100").is_err());
+    restored.set_option("default-page-width", "144").unwrap();
+    restored.set_option("default-page-height", "252").unwrap();
+    assert!(restored.execute("create.blank"));
+    let p = &restored.session.docs()[1].info.pages[0];
+    assert_eq!((p.width, p.height), (144.0, 252.0));
+}
+
+#[test]
+fn paper_settings_calibrate_view_without_resizing_the_pdf() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let mut h = Harness::builder().with_size(egui::vec2(1100.0, 800.0)).build_eframe(|_| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.execute("create.blank");
+        app.set_option("preferences-category", "paper").unwrap();
+        app.set_option("dialog", "preferences").unwrap();
+        app.measured_ruler_mm = 40.0;
+        app
+    });
+    h.run_steps(3);
+    let original = h.state().session.docs()[0].bytes.clone();
+    h.get_by_label("Calibrate").scroll_to_me();
+    h.run_steps(24);
+    h.get_by_label("Calibrate").click();
+    h.run_steps(2);
+    h.get_by_label("Show actual size").scroll_to_me();
+    h.run_steps(24);
+    h.get_by_label("Show actual size").click();
+    h.run_steps(3);
+    assert!(h.state().dialog.is_none());
+    assert_eq!(h.state().views[0].zoom, 1.25);
+    h.state_mut().views[0].set_zoom(0.8);
+    h.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::Num1);
+    h.run_steps(3);
+    assert_eq!(h.state().views[0].zoom, 1.25, "the normal Actual size shortcut uses calibration too");
+    assert_eq!(h.state().session.docs()[0].bytes, original);
+}
+
+#[test]
+fn custom_page_dialog_creates_the_requested_dimensions() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let mut h = Harness::builder().with_size(egui::vec2(900.0, 700.0)).build_eframe(|_| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.set_option("default-paper", "US business card").unwrap();
+        assert!(app.execute("create.custom"));
+        app
+    });
+    h.run_steps(3);
+    if let Ok(dir) = std::env::var("PDFCRAFT_PAPER_SHOTS") {
+        let _gpu = crate::gpu();
+        h.render().unwrap().save(format!("{dir}/custom-page.png")).unwrap();
+    }
+    h.get_by_label("Swap width and height").click();
+    h.run_steps(2);
+    h.get_by_label("Create").click();
+    h.run_steps(3);
+    assert!(h.state().dialog.is_none());
+    let p = &h.state().session.docs()[0].info.pages[0];
+    assert_eq!((p.width, p.height), (144.0, 252.0));
+}
+
+#[test]
+fn export_to_opens_a_format_picker() {
+    use egui_kittest::{Harness, kittest::Queryable};
+    let mut h = Harness::builder().with_size(egui::vec2(900.0, 700.0)).build_eframe(|_| {
+        let mut app = PdfCraftApp::new();
+        app.set_option("language", "en").unwrap();
+        app.execute("create.blank");
+        assert!(app.execute("export.choose"));
+        app
+    });
+    h.run_steps(3);
+    if let Ok(dir) = std::env::var("PDFCRAFT_PAPER_SHOTS") {
+        let _gpu = crate::gpu();
+        h.render().unwrap().save(format!("{dir}/export-to.png")).unwrap();
+    }
+    h.get_by_label("WordCraft / Microsoft Word (.docx)");
+    h.get_by_label("PowerPoint (.pptx)");
+    h.get_by_label("Cancel").click();
+    h.run_steps(2);
+    assert!(h.state().dialog.is_none());
+    assert_eq!(h.state().session.docs().len(), 1);
+}
+
+#[test]
+fn office_export_preserves_open_original_and_exports_docx_and_pptx() {
+    let dir = std::env::temp_dir().join(format!("pdfcraft-export-picker-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let source = dir.join("source.pdf");
+    let mut app = PdfCraftApp::new();
+    let bytes = app.session.create_from_text("Example", "Editable export example").unwrap();
+    std::fs::write(&source, bytes.as_ref()).unwrap();
+    app.open_bytes("source.pdf", Some(source.to_string_lossy().into_owned()), bytes.as_ref().clone()).unwrap();
+    app.save_override = Some(source.to_string_lossy().into_owned());
+    app.execute("export.docx");
+    assert_eq!(std::fs::read(&source).unwrap(), bytes.as_ref().clone(), "an export cannot replace an open PDF");
+    for ext in ["docx", "pptx"] {
+        let out = dir.join(format!("output.{ext}"));
+        app.save_override = Some(out.to_string_lossy().into_owned());
+        assert!(app.execute(&format!("export.{ext}")));
+        let exported = std::fs::read(&out).unwrap();
+        assert!(exported.starts_with(b"PK"));
+        let entry = if ext == "docx" { b"word/document.xml".as_slice() } else { b"ppt/presentation.xml".as_slice() };
+        assert!(exported.windows(entry.len()).any(|w| w == entry));
+    }
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 #[test]

@@ -1,4 +1,4 @@
-# Vendored from storytold/craft-libs crates/pdf at e2dc681a3ad8a47038da2f11ddd2c5e1c0454991
+# Vendored from storytold/craft-libs crates/pdf at 8e03cd016d42032b867fef6bad86bc69bf2c1920
 # (the pin upstream PdfCraft uses), with Lion PDF patches marked `Lion patch:` in the source
 # (see vendor/README.md). Workspace-inherited fields are written out.
 [package]
@@ -25,6 +25,9 @@ write-raster = ["dep:flate2", "dep:roxmltree"]
 write-simple-text = ["write", "krilla/simple-text"]
 filters = ["dep:craft-stream-codecs", "dep:flate2", "dep:thiserror"]
 cos = ["crypt", "filters", "dep:chrono", "dep:js-sys", "dep:wasm-bindgen"]
+# Content streams on the object layer (`cos::content`); inline images end where hayro-syntax's
+# tokenizer ends them.
+content = ["cos", "dep:hayro-syntax"]
 crypt = ["dep:aes", "dep:md-5", "dep:sha1", "dep:sha2", "dep:stringprep", "dep:zeroize", "dep:thiserror"]
 
 [dependencies]

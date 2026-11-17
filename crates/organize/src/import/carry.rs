@@ -1,5 +1,5 @@
 use super::copy::Copier;
-use super::*;
+use super::{Dict, Document, HashMap, HashSet, ObjRef, Object, OrganizeError, name_tree_entries};
 
 /// Copy a source's document-level attachments (`/Names /EmbeddedFiles`) into `dst`.
 pub(super) fn collect_attachments(dst: &mut Document, src: &Document, out: &mut Vec<(Vec<u8>, Object)>) -> Result<(), OrganizeError> {
@@ -23,35 +23,48 @@ pub(super) fn collect_attachments(dst: &mut Document, src: &Document, out: &mut 
 
 /// Write attachments as a flat, sorted `/EmbeddedFiles` name tree; duplicate names get " (2)"…
 pub(crate) fn set_attachments(dst: &mut Document, mut entries: Vec<(Vec<u8>, Object)>) -> Result<(), OrganizeError> {
+    write_attachments(dst, &mut entries, true)
+}
+
+/// Rewrite the name tree without changing attachment keys (used when editing one file spec).
+pub(crate) fn set_attachments_exact(dst: &mut Document, mut entries: Vec<(Vec<u8>, Object)>) -> Result<(), OrganizeError> {
+    write_attachments(dst, &mut entries, false)
+}
+
+/// Write a flat, sorted `/EmbeddedFiles` name tree, optionally renaming duplicate keys.
+fn write_attachments(dst: &mut Document, entries: &mut [(Vec<u8>, Object)], uniquify: bool) -> Result<(), OrganizeError> {
     if entries.is_empty() {
         return Ok(());
     }
     // Names are compared and numbered as text: a key written as UTF-16 (a name with an accent
     // or Chinese letters) must not get ASCII bytes appended to it.
-    let reserved: std::collections::HashSet<String> = entries.iter().map(|(k, _)| pdfcraft_cos::PdfString::literal(k.clone()).to_text()).collect();
-    let mut seen = std::collections::HashSet::new();
-    for (k, _) in entries.iter_mut() {
-        let base = pdfcraft_cos::PdfString::literal(k.clone()).to_text();
-        let mut text = base.clone();
-        let mut n = 2;
-        if !seen.insert(text.clone()) {
-            loop {
-                text = format!("{base} ({n})");
-                n += 1;
-                if !reserved.contains(&text) && seen.insert(text.clone()) {
-                    break;
+    if uniquify {
+        let reserved: std::collections::HashSet<String> =
+            entries.iter().map(|(k, _)| pdfcraft_cos::PdfString::literal(k.clone()).to_text()).collect();
+        let mut seen = std::collections::HashSet::new();
+        for (k, _) in entries.iter_mut() {
+            let base = pdfcraft_cos::PdfString::literal(k.clone()).to_text();
+            let mut text = base.clone();
+            let mut n = 2;
+            if !seen.insert(text.clone()) {
+                loop {
+                    text = format!("{base} ({n})");
+                    n += 1;
+                    if !reserved.contains(&text) && seen.insert(text.clone()) {
+                        break;
+                    }
                 }
             }
-        }
-        if text != base {
-            *k = pdfcraft_cos::PdfString::text(&text).bytes;
+            if text != base {
+                *k = pdfcraft_cos::PdfString::text(&text).bytes;
+            }
         }
     }
     entries.sort_by(|a, b| a.0.cmp(&b.0));
     let mut names = Vec::new();
-    for (k, v) in entries {
-        names.push(Object::String(pdfcraft_cos::PdfString::literal(k)));
-        names.push(v);
+    for (k, v) in entries.iter() {
+        names.push(Object::String(pdfcraft_cos::PdfString::literal(k.clone())));
+        names.push(v.clone());
     }
     let mut tree = Dict::new();
     tree.set(b"Names".to_vec(), Object::Array(names));
@@ -104,9 +117,13 @@ pub(super) fn source_outline(src: &Document, pages: HashMap<ObjRef, ObjRef>) -> 
         .and_then(|r| src.get(r).as_dict().cloned())
         .and_then(|c| c.get(b"Outlines").map(|o| src.resolve(o)))
         .and_then(|o| o.as_dict().and_then(|d| d.reference(b"First")));
+    let whole = crate::page_count(src).is_ok_and(|n| pages.len() >= n);
     let mapper = Copier::new(src, HashMap::new(), pages);
     let mut budget = 10_000usize;
-    outline_level(&mapper, first, 0, &mut budget)
+    let outline = outline_level(&mapper, first, 0, &mut budget);
+    // Of some of the pages, only the bookmarks that lead to a copied page and those above them:
+    // the others would carry their titles along into a file without their pages.
+    if whole { outline } else { kept_bookmarks(outline) }
 }
 
 /// `nodes` without the bookmarks whose page was not copied (no destination left), unless a bookmark

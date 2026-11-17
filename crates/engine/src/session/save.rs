@@ -1,4 +1,9 @@
-use super::*;
+// Lion PDF: certificate security.
+use super::{
+    Arc, DocId, Document, EditError, Keys, OpenError, RecoverySnapshot, RenderPool, SaveOptions, Session, SignOptions, StatusCaptions, TrustStore,
+    display_bytes, display_config, guard, render_threads, signatures_of, writable, write_full, write_incremental, xfa_sync_datasets,
+};
+use crate::{certificate_secured, js, plain_copy};
 
 impl Session {
     /// The bytes to write for Save: normally an incremental update of the file as opened/last saved,
@@ -9,8 +14,7 @@ impl Session {
     /// was edited: its bytes as opened are the damaged file, and this save is how the repair the
     /// user was told about reaches the disk (#1937). Not a signed one: a full rewrite would
     /// break its signatures, so with no edits it keeps its bytes, damage and all.
-    pub fn save_bytes(&mut self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
-        self.run_document_event(id, "WillSave")?;
+    pub fn save_bytes(&self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
         let doc = self.get(id).ok_or(EditError::NoDocument)?;
         let Some(editor) = doc.editor.as_ref() else { return Ok(doc.bytes.clone()) };
         let on_saved = Arc::ptr_eq(editor.cos.bytes(), &editor.saved);
@@ -40,12 +44,11 @@ impl Session {
     }
 
     /// A compact, garbage-collected rewrite (Save As ▸ "Optimized" / Reduce File Size groundwork).
-    pub fn save_full_bytes(&mut self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
+    pub fn save_full_bytes(&self, id: DocId) -> Result<Arc<Vec<u8>>, EditError> {
         let doc = self.get(id).ok_or(EditError::NoDocument)?;
         if doc.is_signed() {
             return Err(EditError::Signed);
         }
-        self.run_document_event(id, "WillSave")?;
         let doc = self.get(id).ok_or(EditError::NoDocument)?;
         let editor = doc.editor.as_ref().ok_or_else(|| EditError::ReadOnly(doc.read_only_reason.clone().unwrap_or_default()))?;
         let opts = SaveOptions { mod_date: self.now().map(pdfcraft_cos::pdf_date), ..SaveOptions::default() };
@@ -80,7 +83,14 @@ impl Session {
             let keys = editor.keys.clone();
             // The saved file carries no Password-field values (#3943, #3944); the open document keeps them.
             let typed = pdfcraft_forms::password_values(&editor.cos);
-            editor.cos = keys.open(bytes.clone()).map_err(|e| EditError::Reopen(e.to_string()))?;
+            // An incremental save keeps the old byte prefix and its object identities. A
+            // rewrite can reuse the same numbers for unrelated fields and icons.
+            let preserves_objects = bytes.starts_with(editor.saved.as_slice()) || bytes.starts_with(editor.cos.bytes().as_slice());
+            let reopened = keys.open(bytes.clone()).map_err(|e| EditError::Reopen(e.to_string()))?;
+            if !preserves_objects {
+                crate::js::replace_runtime(&mut doc.js_runtime);
+            }
+            editor.cos = reopened;
             pdfcraft_forms::restore_password_values(&mut editor.cos, &typed).map_err(|e| EditError::Reopen(e.to_string()))?;
             if !typed.is_empty() && doc.info.xfa.is_some() {
                 let mut datasets = None;
@@ -133,8 +143,9 @@ impl Session {
     }
 
     /// File ▸ Revert: back to the last saved version (or the file as opened). Undo history is
-    /// cleared, as in Acrobat.
+    /// cleared, as in Acrobat, and the document's opening scripts run again.
     pub fn revert(&mut self, id: DocId) -> Result<(), EditError> {
+        self.invalidate_javascript(id);
         let doc = self.doc_mut(id)?;
         let editor = doc.editor.as_mut().ok_or_else(|| EditError::ReadOnly(doc.read_only_reason.clone().unwrap_or_default()))?;
         let base = editor.saved.clone();
@@ -147,7 +158,7 @@ impl Session {
             .into_iter()
             .find_map(|k| k.open(base.clone()).ok().map(|c| (c, k)))
             .ok_or_else(|| EditError::Reopen("the saved file can't be opened".into()))?;
-        doc.js_runtime = None;
+        js::replace_runtime(&mut doc.js_runtime);
         doc.js_output = js::JsOutput::default();
         editor.cos = cos;
         editor.keys = keys;
@@ -155,8 +166,14 @@ impl Session {
         editor.redo.clear();
         Self::adopt_keys(doc);
         Self::sync_dirty(doc);
+        // The changes whose exits ran are gone with the rest: skip no exit.
+        doc.xfa_exited.clear();
         doc.generation += 1;
-        Self::refresh(doc).inspect_err(|_| Self::show_released(doc))
+        Self::refresh(doc).inspect_err(|_| Self::show_released(doc))?;
+        // Reverting reopens the saved file, in a fresh realm: its opening scripts run again,
+        // as they do on opening it (#269).
+        self.run_open_scripts(id);
+        Ok(())
     }
 
     /// The document's file changed on disk (a LaTeX or Typst build rewrote it, #431): open
@@ -167,6 +184,12 @@ impl Session {
     pub fn reload(&mut self, id: DocId, bytes: Arc<Vec<u8>>) -> Result<(), OpenError> {
         let old = self.docs.iter().position(|d| d.id == id).ok_or_else(|| OpenError::Invalid("the document is not open".into()))?;
         let doc = &self.docs[old];
+        // Opening the replacement can initialize a new worker. Wait for the old
+        // invocation to finish before allowing repeated reloads of this document.
+        #[cfg(not(target_arch = "wasm32"))]
+        if doc.js_runtime.lock().map_err(|_| OpenError::Invalid("script runtime unavailable".into()))?.is_executing() {
+            return Err(OpenError::Invalid("a script is still running in this document; retry the reload once it finishes".into()));
+        }
         let (name, path, generation) = (doc.name.clone(), doc.path.clone(), doc.generation);
         let password = doc.editor.as_ref().and_then(|e| e.keys.reopen.clone()).or_else(|| doc.password.clone());
         let new_id = self.open(name, path, bytes, password.as_deref())?;
@@ -180,7 +203,7 @@ impl Session {
         {
             doc.config.reading_colors = old.config.reading_colors;
             doc.config.hide_comments = old.config.hide_comments;
-            doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), doc.config.clone());
+            doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), display_config(&doc.config));
         }
         // Caches keyed by the edit generation (edit lines, images, measurements) must see a new
         // one; there is nothing new to autosave.
@@ -265,7 +288,63 @@ impl Session {
     /// generation/dirty unchanged: trust alone is not an edit).
     pub fn set_trusted_certificates(&mut self, certs: Vec<pdfcraft_sign::Certificate>) {
         self.trust = Arc::new(TrustStore { certs, ..(*self.trust).clone() });
-        self.refresh_signature_trust();
+        for doc in &mut self.docs {
+            Self::revalidate(doc, self.trust.clone());
+        }
+    }
+
+    /// Validate `doc`'s signatures against `trust`, and rebuild its display copy and renderer
+    /// with them: the verdicts choose what the copy draws. An unsigned document has nothing to
+    /// validate and keeps both. Viewer caches are invalidated by the UI trust path.
+    pub(crate) fn revalidate(doc: &mut Document, trust: Arc<TrustStore>) {
+        doc.trust = trust;
+        if doc.signatures.is_empty() {
+            return;
+        }
+        let Some(editor) = doc.editor.as_mut() else { return };
+        // Lion PDF: a certificate-protected document's `bytes` are a decrypted copy; its
+        // signatures cover the file itself. Where that can't be written, the verdicts stay.
+        let mut signatures = if crate::certificate_secured(&editor.cos) {
+            match crate::working_file(&editor.cos) {
+                Ok(file) => signatures_of(&editor.cos, &file, &doc.trust, &doc.sig_cache),
+                Err(_) => doc.signatures.as_ref().clone(),
+            }
+        } else {
+            signatures_of(&editor.cos, &doc.bytes, &doc.trust, &doc.sig_cache)
+        };
+        doc.display = display_bytes(Some(editor), &doc.bytes, &mut signatures, &doc.captions);
+        doc.signatures = Arc::new(signatures);
+        doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), display_config(&doc.config));
+    }
+
+    /// The words the caption of a named-layer signature appearance is drawn with
+    /// ([`pdfcraft_sign::show_status_layers`]), in the interface language. When they change, every
+    /// open document's display copy and renderer are rebuilt; like trust, this is not an edit.
+    /// Returns whether they changed.
+    pub fn set_signature_captions(&mut self, captions: StatusCaptions) -> bool {
+        if *self.captions == captions {
+            return false;
+        }
+        self.captions = Arc::new(captions);
+        for doc in &mut self.docs {
+            Self::draw_captions(doc, self.captions.clone());
+        }
+        true
+    }
+
+    /// Draw `doc`'s signature status layers with `captions`: the display copy and renderer are
+    /// rebuilt when it draws a signature's state (working file, generation and dirty unchanged).
+    /// Whether a state is drawn does not depend on the words: a caption that can't be drawn in
+    /// them is drawn in English.
+    pub(crate) fn draw_captions(doc: &mut Document, captions: Arc<StatusCaptions>) {
+        doc.captions = captions;
+        if !doc.signatures.iter().any(|s| s.verdict_shown) {
+            return;
+        }
+        let Some(editor) = doc.editor.as_mut() else { return };
+        let signatures = Arc::make_mut(&mut doc.signatures);
+        doc.display = display_bytes(Some(editor), &doc.bytes, signatures, &doc.captions);
+        doc.renderer = RenderPool::new(doc.display.clone(), render_threads(), display_config(&doc.config));
     }
 
     /// The signing time as a PDF date in local time with its offset (`D:…+02'00'`).

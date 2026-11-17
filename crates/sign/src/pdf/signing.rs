@@ -1,5 +1,8 @@
-use super::listing::{mk_rotation, nums, sig_fields};
-use super::*;
+use super::listing::{mk_rotation, nums, sig_fields, text, walk_sig_fields};
+use super::{
+    Certificate, Dict, DigestAlg, DigitalId, Document, HashSet, Object, PdfString, SaveOptions, SignError, SignedData, Stream, TrustStore, list,
+    timestamp_query,
+};
 
 // ── signing ─────────────────────────────────────────────────────────────────────────────────
 
@@ -277,6 +280,10 @@ fn sign_inner(
             w.set(b"Subtype".to_vec(), Object::name("Widget"));
             w.set(b"FT".to_vec(), Object::name("Sig"));
             w.set(b"T".to_vec(), PdfString::text(&fname));
+            // The walk lists no field without a usable name, and counts a signed one as unread.
+            if text(&doc, &w, b"T").is_none() {
+                return Err(SignError::Pdf("a signature field needs a name that isn't blank".into()));
+            }
             w.set(b"V".to_vec(), Object::Ref(sig));
             w.set(b"Rect".to_vec(), Object::Array(rect.iter().map(|x| Object::Real(*x)).collect()));
             w.set(b"P".to_vec(), Object::Ref(page));
@@ -324,6 +331,14 @@ fn sign_inner(
                 Some(r) => doc.set(r, Object::Dict(af)),
                 // Inline (or new) AcroForms stay in the catalog.
                 None => doc.update_dict(root, |c| c.set(b"AcroForm".to_vec(), Object::Dict(af)))?,
+            }
+            // The walk has to read the whole form, the new field included: past its caps the
+            // signature would be listed as unread fields, and its name could repeat an unread one.
+            if !walk_sig_fields(&doc).1 {
+                return Err(SignError::Pdf(
+                    "this form has too many fields, or a field name too long, for PdfCraft to read them all, so it can't add a signature field"
+                        .into(),
+                ));
             }
             (wr, rect, turn)
         }
@@ -496,6 +511,7 @@ pub fn display_date(pdf: &str) -> String {
 ///
 /// `turn` is the widget's `/MK /R` (0, 90, 180 or 270; anything else counts as 0): the layout is
 /// drawn upright in the box as turned by it, and a `/Matrix` maps that box onto `rect`.
+#[allow(clippy::cognitive_complexity)]
 fn appearance(doc: &mut Document, rect: [f64; 4], turn: i64, name: &str, cert: &Certificate, opts: &SignOptions) -> Result<Stream, SignError> {
     use pdfcraft_fonts::{first_undrawable, helvetica_width, inter_width, literal, undrawable_message, win_ansi, wrap, wrap_with};
     let turn = if matches!(turn, 90 | 180 | 270) { turn } else { 0 };
