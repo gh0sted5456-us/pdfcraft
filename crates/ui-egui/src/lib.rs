@@ -532,6 +532,7 @@ pub struct PdfCraftApp {
     #[cfg(not(target_arch = "wasm32"))]
     launch_display_target: Option<DocId>,
     /// The folder scan behind File ▸ Open next / previous PDF in folder, while it runs.
+    #[cfg(not(target_arch = "wasm32"))]
     pub(crate) folder_step: Option<folder_step::FolderStep>,
     #[cfg(all(test, not(target_arch = "wasm32")))]
     open_prepare_gate: Option<std::sync::Arc<open_worker::PrepareGate>>,

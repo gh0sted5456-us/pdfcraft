@@ -198,6 +198,7 @@ impl PdfCraftApp {
             launch_layout: None,
             #[cfg(not(target_arch = "wasm32"))]
             launch_display_target: None,
+            #[cfg(not(target_arch = "wasm32"))]
             folder_step: None,
             #[cfg(all(test, not(target_arch = "wasm32")))]
             open_prepare_gate: None,
@@ -617,7 +618,7 @@ impl eframe::App for PdfCraftApp {
     /// every open tab, keeps running; see `frame_guard`.
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.begin_logic();
-        self.guarded_frame(|app| app.logic_unguarded(ctx));
+        self.guarded_frame(|app| app.logic_unguarded(ctx, _frame));
         if self.frame_panicked {
             self.close_after_panic(ctx);
         }
@@ -625,7 +626,7 @@ impl eframe::App for PdfCraftApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         self.begin_ui();
-        self.guarded_frame(|app| app.ui_unguarded(ui));
+        self.guarded_frame(|app| app.ui_unguarded(ui, _frame));
         self.end_ui();
     }
 
@@ -640,7 +641,24 @@ impl eframe::App for PdfCraftApp {
 }
 
 impl PdfCraftApp {
-    fn logic_unguarded(&mut self, ctx: &egui::Context) {
+    /// Lion PDF: Windows draws the native title bar and border in the theme's colours.
+    #[cfg(target_os = "windows")]
+    fn sync_native_frame_colours(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
+        if ctx.viewport_id() != egui::ViewportId::ROOT || self.native_frame_theme == Some(self.theme) {
+            return;
+        }
+        use winit::platform::windows::{Color, WindowExtWindows};
+        if let Some(window) = frame.winit_window() {
+            let t = theme::Tokens::for_kind(self.theme);
+            let color = |c: egui::Color32| Color::from_rgb(c.r(), c.g(), c.b());
+            window.set_title_background_color(Some(color(t.titlebar)));
+            window.set_title_text_color(color(t.text));
+            window.set_border_color(Some(color(t.titlebar)));
+            self.native_frame_theme = Some(self.theme);
+        }
+    }
+
+    fn logic_unguarded(&mut self, ctx: &egui::Context, _frame: &eframe::Frame) {
         #[cfg(test)]
         self.injected_panic(crate::frame_guard::FramePart::Logic);
         self.ctx = Some(ctx.clone());
@@ -692,17 +710,7 @@ impl PdfCraftApp {
         }
         self.sync_theme(ctx);
         #[cfg(target_os = "windows")]
-        if ctx.viewport_id() == egui::ViewportId::ROOT && self.native_frame_theme != Some(self.theme) {
-            use winit::platform::windows::{Color, WindowExtWindows};
-            if let Some(window) = _frame.winit_window() {
-                let t = theme::Tokens::for_kind(self.theme);
-                let color = |c: egui::Color32| Color::from_rgb(c.r(), c.g(), c.b());
-                window.set_title_background_color(Some(color(t.titlebar)));
-                window.set_title_text_color(color(t.text));
-                window.set_border_color(Some(color(t.titlebar)));
-                self.native_frame_theme = Some(self.theme);
-            }
-        }
+        self.sync_native_frame_colours(ctx, _frame);
         let native = ctx.native_pixels_per_point().unwrap_or(1.0);
         ui_scale::sync(ctx, ui_scale::zoom(self.ui_scale, self.system_text_scale, native), &mut self.ui_scale_applied);
         // Remember user work even if its tab is subsequently closed or Home is selected.
@@ -887,7 +895,7 @@ impl PdfCraftApp {
         self.sync_titles(ctx);
     }
 
-    fn ui_unguarded(&mut self, ui: &mut egui::Ui) {
+    fn ui_unguarded(&mut self, ui: &mut egui::Ui, _frame: &eframe::Frame) {
         #[cfg(test)]
         self.injected_panic(crate::frame_guard::FramePart::Ui);
         let ctx = ui.ctx().clone();
