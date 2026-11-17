@@ -1113,6 +1113,9 @@ fn added_picture_resizes_repeatedly_and_drags_back_from_out_of_bounds_without_sm
         _ => panic!(),
     };
     assert!(h.state_mut().apply_edit(pdfcraft_engine::Edit::UpdateContent { page: 0, index: 0, content: pdfcraft_engine::AddedContent::Image(img) }));
+    // Lion PDF: on Windows its header takes a second row, which leaves the page's bottom edge at
+    // the window's; show the whole page so the picture can be grabbed there.
+    assert!(h.state_mut().execute("view.fit_one_page"));
     crate::support::settle(&mut h);
     let from = item_on_screen(&h, [120.0, -30.0, 180.0, 30.0]);
     let grab = pos2(from.center().x, from.top() + 10.0);

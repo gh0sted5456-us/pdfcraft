@@ -1517,10 +1517,13 @@ fn use_system_title_bar_swaps_the_header_bar_for_the_window_frame() {
     assert!(!restored.system_title_bar);
     assert!(restored.set_option("system-title-bar", "maybe").is_err());
     // Where the desktop draws the frame there is nothing to choose.
-    let mut h = harness(|app| app.set_option("dialog", "preferences").unwrap());
+    let mut h = harness(|app| {
+        app.set_option("preferences-category", "appearance").unwrap();
+        app.set_option("dialog", "preferences").unwrap()
+    });
     h.run_steps(2);
     assert!(h.query_by_label("Use system title bar").is_none());
-    assert!(h.query_by_label("Minimize").is_none());
+    assert_eq!(h.query_by_label("Minimize").is_some(), cfg!(target_os = "windows"), "Windows uses the integrated header by default");
     assert_eq!(decorations(&h), None);
 }
 
