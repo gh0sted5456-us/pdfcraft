@@ -73,7 +73,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &theme::Tokens) 
         let config =
             pdfcraft_engine::ai_connect::claude_desktop_config().map_or_else(|| "claude_desktop_config.json".to_owned(), |p| p.display().to_string());
         ui.label(crate::i18n::fmt(
-            tl!("In Claude, choose Settings ▸ Developer ▸ Edit Config, add this to {file}, then restart Claude:"),
+            tl!("In Claude, choose Settings > Developer > Edit Config, add this to {file}, then restart Claude:"),
             &[("file", &config)],
         ));
         copy_block(ui, app, t, "ai-connect-json", &connection.json());
