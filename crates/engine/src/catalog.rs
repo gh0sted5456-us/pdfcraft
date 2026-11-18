@@ -268,6 +268,8 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
                 item("In this file", "scan-text", "ocr.recognize", Ready),
                 item("In multiple files", "files", "ocr.recognize_batch", Ready),
                 item("Enhance scanned file", "sparkles", "ocr.enhance", Ready),
+                // Lion PDF: rotate, deskew and crop scans without adding text.
+                item("Correct scans", "crop", "ocr.correct_scans", Ready),
                 item("Enhance camera image", "camera", "ocr.enhance_camera", Ready),
                 item("Correct recognized text", "text-select", "ocr.correct", Ready),
             ],
@@ -412,7 +414,7 @@ pub static TOOL_GROUPS: &[ToolGroup] = &[
             items: &[
                 item("Output preview", "layers", "prepress.output_preview", Ready),
                 item("Preflight", "file-check", "preflight.run", Ready),
-                item("Convert colors", "palette", "prepress.convert_colors", Planned("M11")),
+                item("Convert colours", "palette", "prepress.convert_colors", Ready),
                 item("Set page boxes", "square-dashed-mouse-pointer", "page.boxes", Ready),
                 item("Add printer marks", "ruler", "prepress.marks", Ready),
                 item("Fix hairlines", "minus", "prepress.hairlines", Ready),

@@ -1,5 +1,6 @@
 //! Unicode search text has no visible glyphs. A generated Type 3 font supplies advance widths
 //! and a ToUnicode map, with empty character programs; no display font is needed or embedded.
+//! Adapted from the searchable-layer implementation in #433 (32e09fbe).
 
 use std::collections::BTreeMap;
 
@@ -7,33 +8,43 @@ use pdfcraft_cos::{Dict, Document, Object, Stream};
 use pdfcraft_edit::EditError;
 use pdfcraft_ocr::PlacedWord;
 
+/// Refuse oversized text or invalid geometry before cloning words or allocating fonts.
+/// These limits apply to the complete input, including all editable export pages.
+pub(crate) fn validate_words<'a>(words: impl IntoIterator<Item = &'a PlacedWord>) -> Result<usize, EditError> {
+    let mut count = 0usize;
+    let mut length = 0usize;
+    for w in words {
+        count += 1;
+        length = length.checked_add(w.text.len()).ok_or_else(|| EditError::Invalid("OCR text layer is too large".into()))?;
+        if count > 65536 || length > 4 * 1024 * 1024 {
+            return Err(EditError::Invalid("OCR text layer is too large".into()));
+        }
+        if !w.origin.iter().chain(&w.across).chain(&w.up).all(|v| v.is_finite())
+            || !w.across[0].hypot(w.across[1]).is_finite()
+            || !w.up[0].hypot(w.up[1]).is_finite()
+            || (0..2).any(|i| !(w.origin[i] + 0.2 * w.up[i]).is_finite() || !(w.origin[i] + w.across[i] + 0.2 * w.up[i]).is_finite())
+        {
+            return Err(EditError::Invalid("OCR text coordinates must be finite".into()));
+        }
+    }
+    Ok(count)
+}
+
 pub(crate) fn add_text(doc: &mut Document, page: usize, words: &[PlacedWord]) -> Result<(), EditError> {
-    let length = words.iter().try_fold(0usize, |n, w| n.checked_add(w.text.len()));
-    if length.is_none_or(|n| n > 4 * 1024 * 1024) || words.len() > 65536 {
-        return Err(EditError::Invalid("OCR text layer is too large".into()));
-    }
-    if words.iter().any(|w| !w.origin.iter().chain(&w.across).chain(&w.up).all(|v| v.is_finite())) {
-        return Err(EditError::Invalid("OCR text coordinates must be finite".into()));
-    }
+    validate_words(words)?;
     // Keep the existing Latin layout, including Helvetica's proportional advance widths.
     if words.iter().all(|w| {
         w.text
             .chars()
             .all(|c| matches!(c, '\u{20}'..='\u{7e}' | '\u{a0}'..='\u{ff}' | '€' | '‚' | '„' | '…' | '‘' | '’' | '“' | '”' | '•' | '–' | '—' | '™'))
     }) {
-        return pdfcraft_edit::stamp(doc, page, "OCR", pdfcraft_ocr::text_layer(words)).map(|_| ());
+        pdfcraft_edit::stamp(doc, page, "OCR", pdfcraft_ocr::text_layer(words, &pdfcraft_fonts::TextPlan::default()))?;
+        return Ok(());
     }
     let p = pdfcraft_model::pages(doc).get(page).cloned().ok_or_else(|| EditError::Invalid("OCR page does not exist".into()))?;
     let mut res = p.dict.get(b"Resources").map(|r| doc.resolve(r)).and_then(|r| r.as_dict().cloned()).unwrap_or_default();
     let mut fonts = res.get(b"Font").map(|f| doc.resolve(f)).and_then(|f| f.as_dict().cloned()).unwrap_or_default();
-    let mut unique = std::collections::BTreeSet::new();
-    for ch in words.iter().flat_map(|w| w.text.chars()) {
-        unique.insert(ch);
-        if unique.len() > 65_536 {
-            return Err(EditError::Invalid("OCR text exceeds 65536 distinct characters".into()));
-        }
-    }
-    let chars: Vec<char> = unique.into_iter().collect();
+    let chars: Vec<char> = words.iter().flat_map(|w| w.text.chars()).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
     // Match the extractor's em box (-200..800). Baselines below are offset by 0.2 em,
     // so search/selection rectangles span the detected image box.
     let blank = doc.add(Object::Stream(Stream::from_raw(Dict::new(), b"1000 0 0 -200 1000 800 d1\n".to_vec())));
@@ -42,9 +53,6 @@ pub(crate) fn add_text(doc: &mut Document, page: usize, words: &[PlacedWord]) ->
     for (index, chunk) in chars.chunks(255).enumerate() {
         let mut name = format!("PCOcr{index}");
         while fonts.contains(name.as_bytes()) {
-            if name.len() >= 128 {
-                return Err(EditError::Invalid("no free OCR font resource name".into()));
-            }
             name.push('x');
         }
         let mut differences = vec![Object::Int(1)];
@@ -88,8 +96,9 @@ pub(crate) fn add_text(doc: &mut Document, page: usize, words: &[PlacedWord]) ->
     }
     res.set(b"Font".to_vec(), Object::Dict(fonts));
     doc.update_dict(p.obj, |d| d.set(b"Resources".to_vec(), Object::Dict(res)))?;
-    // `3 Tr` and the font are graphics state. `ET` does not reset them, and a page with no earlier
-    // content is not wrapped, so without `q … Q` text added afterwards draws invisibly (#3029).
+    // `3 Tr` and the font are graphics state, which `ET` doesn't reset: like
+    // `pdfcraft_ocr::text_layer` (#3029), the text is drawn inside `q … Q` so the invisible
+    // rendering mode cannot leak into later content streams on the page.
     let mut content = String::from("/OCR BMC\nq\nBT\n3 Tr\n");
     for w in words {
         let count = w.text.chars().count();
@@ -99,14 +108,13 @@ pub(crate) fn add_text(doc: &mut Document, page: usize, words: &[PlacedWord]) ->
         let mut start = 0;
         let mut run = Vec::new();
         let mut font_index = None;
-        let emit = |content: &mut String, font: usize, start: usize, run: &[u8]| -> Result<(), EditError> {
-            let name = names.get(font).ok_or_else(|| EditError::Invalid("missing OCR font resource".into()))?;
+        let emit = |content: &mut String, font: usize, start: usize, run: &[u8]| {
             let n = count as f64;
             let at = start as f64 / n;
             let hex: String = run.iter().map(|b| format!("{b:02X}")).collect();
             content.push_str(&format!(
                 "/{} 1 Tf\n{} {} {} {} {} {} Tm <{hex}> Tj\n",
-                name,
+                names[font],
                 w.across[0] / n,
                 w.across[1] / n,
                 w.up[0],
@@ -114,14 +122,13 @@ pub(crate) fn add_text(doc: &mut Document, page: usize, words: &[PlacedWord]) ->
                 w.origin[0] + at * w.across[0] + 0.2 * w.up[0],
                 w.origin[1] + at * w.across[1] + 0.2 * w.up[1]
             ));
-            Ok(())
         };
         for (i, ch) in w.text.chars().enumerate() {
             let Some(&(font, code)) = codes.get(&ch) else { continue };
             if let Some(previous) = font_index
                 && previous != font
             {
-                emit(&mut content, previous, start, &run)?;
+                emit(&mut content, previous, start, &run);
                 run.clear();
                 start = i;
             }
@@ -129,9 +136,52 @@ pub(crate) fn add_text(doc: &mut Document, page: usize, words: &[PlacedWord]) ->
             run.push(code);
         }
         if let Some(font) = font_index {
-            emit(&mut content, font, start, &run)?;
+            emit(&mut content, font, start, &run);
         }
     }
     content.push_str("ET\nQ\nEMC\n");
-    pdfcraft_edit::stamp(doc, page, "OCR", content.into_bytes()).map(|_| ())
+    pdfcraft_edit::stamp(doc, page, "OCR", content.into_bytes())?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unicode_ocr_layer_restores_graphics_state() {
+        let session = crate::Session::new();
+        let bytes = session.create_from_text("OCR state", "Original text").unwrap();
+        let mut doc = Document::open(bytes).unwrap();
+        add_text(
+            &mut doc,
+            0,
+            &[PlacedWord {
+                text: "Été 中文".into(),
+                origin: [10.0, 20.0],
+                across: [90.0, 0.0],
+                up: [0.0, 12.0],
+                confidence: None,
+                source: String::new(),
+            }],
+        )
+        .unwrap();
+        let page = pdfcraft_model::pages(&doc).remove(0);
+        let contents = doc.resolve(page.dict.get(b"Contents").unwrap());
+        let last = doc.resolve(contents.as_array().unwrap().last().unwrap());
+        let Object::Stream(stream) = &*last else { panic!("OCR content is a stream") };
+        let bytes = stream.decoded().unwrap();
+        let content = std::str::from_utf8(&bytes).unwrap();
+        let mut depth = 0_i32;
+        for token in content.split_ascii_whitespace() {
+            match token {
+                "q" => depth += 1,
+                "Q" => depth -= 1,
+                "Tr" | "Tf" | "Tm" => assert!(depth > 0, "OCR {token} leaks into later page content"),
+                _ => {}
+            }
+            assert!(depth >= 0);
+        }
+        assert_eq!(depth, 0);
+    }
 }

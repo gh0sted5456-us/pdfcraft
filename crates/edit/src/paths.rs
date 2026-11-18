@@ -287,7 +287,7 @@ fn rewrite(
 ) -> Result<(), EditError> {
     let p = pdfcraft_model::pages(doc).into_iter().nth(page).ok_or(EditError::NoSuchPage(page))?;
     let streams = checked_streams(doc, page)?;
-    let pieces = Pieces::join(&streams.iter().map(|(_, bytes)| bytes.as_slice()).collect::<Vec<_>>());
+    let pieces = crate::text::joined(&streams);
     let ops = pieces.parse().ops;
     let paths = scan(doc, page, &ops);
     let mut edits = plan(&pieces, &ops, &paths)?;
@@ -296,7 +296,7 @@ fn rewrite(
         return Err(EditError::Invalid("the path edits overlap".into()));
     }
     let data = pieces.splice(edits);
-    let contents = crate::text::rewritten_contents(doc, &streams, data);
+    let contents = crate::text::rewritten_contents(doc, &streams, data)?;
     doc.update_dict(p.obj, |d| d.set(b"Contents".to_vec(), contents))?;
     Ok(())
 }

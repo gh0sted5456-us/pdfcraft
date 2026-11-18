@@ -70,45 +70,43 @@ fn style_label(u: &TextStyleUse) -> String {
 /// The dialog's contents and its buttons. Returns whether it closes; Create makes the
 /// bookmarks and shows them in the Bookmarks panel.
 pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool {
-    widgets::dialog_heading(ui, tl!("New bookmarks from text styles"));
+    crate::widgets::dialog_heading(ui, tl!("New bookmarks from text styles"));
     ui.add_space(6.0);
     let d = &mut app.text_style_draft;
     let id = d.doc;
     if d.styles.is_empty() {
         ui.label(tl!("This document has no text to make bookmarks from."));
         ui.add_space(12.0);
-        return widgets::dialog_footer(ui, |ui| widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked()).inner;
+        return widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Confirm).clicked();
     }
-    widgets::dialog_scroll(ui, "bookmark-styles-body", |ui| {
-        ui.label(
-            egui::RichText::new(tl!("Every line set in the style chosen for a level becomes a bookmark of that level, under a new first bookmark."))
-                .color(t.text_muted),
-        );
-        ui.add_space(8.0);
-        let none = tl!("None");
-        egui::Grid::new("text_style_levels").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-            for level in 0..LEVELS {
-                // A level takes a style only once the one above it has one.
-                let open = level == 0 || d.levels.get(level - 1).copied().flatten().is_some();
-                let label = ui.label(crate::i18n::fmt(tl!("Level {n}"), &[("n", &(level + 1).to_string())]));
-                ui.add_enabled_ui(open, |ui| {
-                    let Some(slot) = d.levels.get_mut(level) else { return };
-                    let shown = slot.and_then(|i| d.styles.get(i)).map_or_else(|| none.to_string(), style_label);
-                    egui::ComboBox::from_id_salt(("text_style_level", level))
-                        .selected_text(shown)
-                        .width(ui.available_width().min(460.0))
-                        .show_ui(ui, |ui| {
-                            ui.selectable_value(slot, None, none);
-                            for (i, u) in d.styles.iter().enumerate() {
-                                ui.selectable_value(slot, Some(i), style_label(u));
-                            }
-                        })
-                        .response
-                        .labelled_by(label.id);
-                });
-                ui.end_row();
-            }
-        });
+    ui.label(
+        egui::RichText::new(tl!("Every line set in the style chosen for a level becomes a bookmark of that level, under a new first bookmark."))
+            .color(t.text_muted),
+    );
+    ui.add_space(8.0);
+    let none = tl!("None");
+    egui::Grid::new("text_style_levels").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
+        for level in 0..LEVELS {
+            // A level takes a style only once the one above it has one.
+            let open = level == 0 || d.levels.get(level - 1).copied().flatten().is_some();
+            let label = ui.label(crate::i18n::fmt(tl!("Level {n}"), &[("n", &(level + 1).to_string())]));
+            ui.add_enabled_ui(open, |ui| {
+                let Some(slot) = d.levels.get_mut(level) else { return };
+                let shown = slot.and_then(|i| d.styles.get(i)).map_or_else(|| none.to_string(), style_label);
+                craft_ui::ComboBox::from_id_salt(("text_style_level", level))
+                    .selected_text(shown)
+                    .width(460.0)
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(slot, None, none);
+                        for (i, u) in d.styles.iter().enumerate() {
+                            ui.selectable_value(slot, Some(i), style_label(u));
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+            });
+            ui.end_row();
+        }
     });
     // A level left without a style ends the list: the ones below it don't count.
     if let Some(gap) = d.levels.iter().position(Option::is_none) {
@@ -117,7 +115,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) -> bool
     let levels = d.chosen();
     ui.add_space(16.0);
     let mut close = false;
-    widgets::dialog_footer(ui, |ui| {
+    crate::widgets::dialog_footer(ui, |ui| {
         if ui.add_enabled_ui(!levels.is_empty(), |ui| widgets::dialog_button(ui, tl!("Create"), widgets::DialogAction::Confirm)).inner.clicked() {
             close = true;
             // The document the styles came from, even if another tab is active by now.

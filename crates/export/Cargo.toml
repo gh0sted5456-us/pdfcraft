@@ -11,9 +11,13 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+craft-markdown.workspace = true
+craft-mime.workspace = true
+craft-opc.workspace = true
 craft-rtf.workspace = true
+craft-xml.workspace = true
 craft-zip.workspace = true
-# Excel serial dates for date cells (`cells.rs`).
+# Lion PDF: Excel serial dates for date cells (`cells.rs`).
 chrono.workspace = true
 
 [dev-dependencies]

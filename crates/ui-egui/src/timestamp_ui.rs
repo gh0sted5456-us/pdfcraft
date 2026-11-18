@@ -28,7 +28,7 @@ const SERVERS: [(&str, &str); 2] =
 pub(crate) fn server_selector(ui: &mut egui::Ui, server: &mut String) {
     let name = SERVERS.iter().find(|(_, url)| *url == server.trim()).map_or("Custom…", |(name, _)| *name);
     let label = ui.label("Timestamp service");
-    egui::ComboBox::from_id_salt("timestamp-service")
+    craft_ui::ComboBox::from_id_salt("timestamp-service")
         .selected_text(name)
         .width(220.0)
         .show_ui(ui, |ui| {

@@ -14,15 +14,13 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use crate::canvas::PageToolContext;
+use crate::theme::{self, Tokens};
+use crate::{LeftPanel, PdfCraftApp, icons, widgets};
 use egui::{Align2, Color32, CornerRadius, Pos2, Rect, Sense, Shape, Stroke, Vec2, pos2, vec2};
 use pdfcraft_cos::ObjRef;
 use pdfcraft_engine::form_scripts::{CalcOp, Calculate, format_value};
 use pdfcraft_engine::{CalculatedField, CalculationIssue, CalculationOrder, Edit, FormField, FormFieldKind};
-use pdfcraft_render::DocInfo;
-
-use crate::canvas::PageXform;
-use crate::theme::{self, Tokens};
-use crate::{LeftPanel, PdfCraftApp, icons, widgets};
 
 /// Links and steps on the page, which is paper white in either theme.
 const LINK_OK: Color32 = Color32::from_rgb(0x1B, 0x63, 0xE0);
@@ -878,24 +876,23 @@ fn focus_links<'a>(links: &'a [Link], focus: &'a Focus) -> (Vec<&'a Link>, impl 
 /// nothing to do with faded, and the steps of the focus and its linked fields; with nothing in
 /// focus, the steps of the fields whose place is wrong. A form with many calculations stays
 /// readable either way. Returns the field under the pages' `pointer`.
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn paint_page(
-    painter: &egui::Painter,
-    xf: &PageXform,
-    page: usize,
-    info: &DocInfo,
+    cx: PageToolContext<'_>,
     form: &[FormField],
     view: &CalcOrderView,
     generation: u64,
     selected: Option<&str>,
-    pointer: Option<Pos2>,
 ) -> Option<Focus> {
+    let PageToolContext { ui, xf, page, info, ptr, .. } = cx;
+    let painter = ui.painter();
+    let pointer = ptr.pos;
     let listed = view.current(generation)?;
     // Each field's first widget on this page.
     let mut on_page: Vec<(&str, ObjRef, Rect)> = Vec::new();
     for f in form {
         if let Some(w) = f.widgets.iter().find(|w| w.page == Some(page) && !w.hidden) {
-            on_page.push((&f.name, f.obj, crate::forms_ui::widget_rect(xf, info, page, w)));
+            // Lion PDF: a no-rotate widget is shown upright on a rotated page.
+            on_page.push((&f.name, f.obj, crate::forms_ui::widget_screen_rect(xf, info, page, w)));
         }
     }
     if on_page.is_empty() {

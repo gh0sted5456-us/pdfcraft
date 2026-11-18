@@ -24,6 +24,6 @@ permissions:
 jobs:
   freebsd:
     # Pin shared workflows; review suite-wide changes with each fork integration.
-    uses: storytold/craft-common-actions/.github/workflows/freebsd.yml@86bc2ce420c548d7b171874b67814217532a1648
+    uses: storytold/craft-common-actions/.github/workflows/freebsd.yml@59d1ecc4ea15ab59f8d60d38b147d5016c1f1385
     with:
       craft-fonts-ref: b076417b5880bd4154bd22f00695b1d28c6bea83

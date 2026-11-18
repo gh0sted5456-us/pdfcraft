@@ -65,3 +65,44 @@ fn printer_marks_rerun_keeps_trim() {
     assert_eq!(page_box(&doc, b"CropBox"), crop);
     assert_eq!(page_box(&doc, b"TrimBox"), Some(vec![0.0, 0.0, 612.0, 792.0]));
 }
+
+/// A trim box past the media box is clipped to it. Widening the media box must not let it
+/// grow to what was written.
+#[test]
+fn printer_marks_keep_the_trim_box_in_effect() {
+    let mut doc = page_with(&[(b"MediaBox", [0.0, 0.0, 100.0, 100.0]), (b"TrimBox", [-20.0, -20.0, 120.0, 120.0])]);
+    add_printer_marks(&mut doc, &[0], &PrinterMarks::default(), false).unwrap();
+    assert_eq!(page_box(&doc, b"TrimBox"), Some(vec![0.0, 0.0, 100.0, 100.0]));
+}
+
+/// Line weights and room out of range are refused, not clamped, and nothing past the largest
+/// page a PDF can have is written.
+#[test]
+fn printer_marks_refuse_numbers_out_of_range() {
+    let mut doc = page_with(&[(b"MediaBox", [0.0, 0.0, 612.0, 792.0])]);
+    for line_weight in [-1.0, 0.0, 0.05, 5.0, 10_000.0, f64::NAN, f64::INFINITY] {
+        assert!(add_printer_marks(&mut doc, &[0], &PrinterMarks { line_weight, ..PrinterMarks::default() }, false).is_err(), "{line_weight}");
+    }
+    for room in [-1.0, 289.0, 1e9, f64::NAN, f64::INFINITY] {
+        assert!(add_printer_marks(&mut doc, &[0], &PrinterMarks { make_room: Some(room), ..PrinterMarks::default() }, false).is_err(), "{room}");
+    }
+    let mut big = page_with(&[(b"MediaBox", [0.0, 0.0, 14_400.0, 1000.0])]);
+    assert!(add_printer_marks(&mut big, &[0], &PrinterMarks::default(), false).is_err());
+    assert!(add_printer_marks(&mut big, &[0], &PrinterMarks { make_room: None, ..PrinterMarks::default() }, false).is_ok(), "left as it is");
+}
+
+/// Registration colour is the /All Separation, in the page's resources beside what it had.
+#[test]
+fn printer_marks_use_the_all_separation() {
+    let mut doc = page_with(&[(b"MediaBox", [0.0, 0.0, 612.0, 792.0])]);
+    add_printer_marks(&mut doc, &[0], &PrinterMarks::default(), false).unwrap();
+    let page = pdfcraft_model::pages(&doc).swap_remove(0);
+    let res = doc.resolve(page.dict.get(b"Resources").unwrap());
+    let res = res.as_dict().unwrap();
+    assert!(res.get(b"Font").is_some());
+    let spaces = doc.resolve(res.get(b"ColorSpace").unwrap());
+    let cs = doc.resolve(spaces.as_dict().unwrap().get(b"PCReg").unwrap());
+    let cs = cs.as_array().unwrap();
+    assert_eq!(cs[..3], [Object::name("Separation"), Object::name("All"), Object::name("DeviceCMYK")]);
+    assert!(cs[3].as_dict().unwrap().int(b"FunctionType") == Some(2));
+}

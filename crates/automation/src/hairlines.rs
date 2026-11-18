@@ -9,7 +9,8 @@ use crate::{Args, Automation, Result, ToolError};
 impl Automation {
     /// Strokes thinner than `narrower_than` points on the page (after every transformation;
     /// zero-width lines always) are given `width` points; Type 3 glyphs and tiling patterns on
-    /// request. Nothing to fix is not an error: `fixed` is 0 and no edit is made.
+    /// request. Nothing to fix is not an error: `fixed` is 0 and no edit is made. `elsewhere`
+    /// counts the glyphs and patterns changed that something outside `pages` also uses.
     pub(crate) fn fix_hairlines(&mut self, a: &Args) -> Result<Value> {
         let n = self.doc(a)?.info.pages.len();
         let pages = match a.opt_ints("pages")? {
@@ -22,15 +23,18 @@ impl Automation {
             type3: a.opt_bool("type3")?.unwrap_or(false),
             patterns: a.opt_bool("patterns")?.unwrap_or(false),
         };
-        if !(settings.narrower_than >= 0.0 && settings.width > 0.0) {
-            return Err(ToolError::InvalidArgs("narrower_than must be 0 or more and width above 0 (points)".into()));
+        if !settings.in_range() {
+            return Err(ToolError::InvalidArgs(format!(
+                "narrower_than must be 0 or more and width above 0, both at most {} (points)",
+                Hairlines::MAX_POINTS
+            )));
         }
         let id = self.doc(a)?.id;
-        let found = self.session.count_hairlines(id, &pages, &settings).map_err(|e| ToolError::Failed(e.to_string()))?;
+        let found = self.session.count_hairlines(id, &pages, &settings);
         if found.lines == 0 {
-            return Ok(json!({ "fixed": 0, "pages": 0 }));
+            return Ok(json!({ "fixed": 0, "pages": 0, "elsewhere": 0 }));
         }
         let r = self.apply(a, Edit::FixHairlines { pages, settings })?;
-        Ok(json!({ "fixed": found.lines, "pages": found.pages, "undo": r["undo"] }))
+        Ok(json!({ "fixed": found.lines, "pages": found.pages, "elsewhere": found.elsewhere, "undo": r["undo"] }))
     }
 }

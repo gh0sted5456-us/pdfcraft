@@ -58,7 +58,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: E
     if kind == ExportKind::Image {
         ui.horizontal(|ui| {
             let resolution = ui.label(tl!("Resolution"));
-            egui::ComboBox::from_id_salt("export-dpi")
+            craft_ui::ComboBox::from_id_salt("export-dpi")
                 .selected_text(crate::i18n::fmt(tl!("{dpi} pixels/inch"), &[("dpi", &d.dpi.to_string())]))
                 .show_ui(ui, |ui| {
                     for dpi in [72.0, 96.0, 150.0, 300.0, 600.0] {
@@ -74,7 +74,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: E
                 ImageFormat::Jpeg { quality } => quality,
                 _ => 85,
             };
-            egui::ComboBox::from_id_salt("export-format")
+            craft_ui::ComboBox::from_id_salt("export-format")
                 .selected_text(d.format.label())
                 .show_ui(ui, |ui| {
                     for f in [ImageFormat::Png, ImageFormat::Jpeg { quality }, ImageFormat::Tiff] {
@@ -104,7 +104,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens, kind: E
             let label = move |n: u32| {
                 if n == 0 { tl!("No limit").to_string() } else { crate::i18n::trn(crate::i18n::current(), u64::from(n), "{n} pixel", "{n} pixels") }
             };
-            egui::ComboBox::from_id_salt("export-min")
+            craft_ui::ComboBox::from_id_salt("export-min")
                 .selected_text(label(d.min_side))
                 .show_ui(ui, |ui| {
                     for n in [0, 16, 32, 64, 128, 256] {

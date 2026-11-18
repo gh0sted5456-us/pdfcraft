@@ -38,7 +38,14 @@ fn crop_scanner_borders_preserves_pixels_rotation_text_and_undo() {
             id,
             Edit::AddOcrText {
                 page: 0,
-                words: vec![PlacedWord { text: "Kept text".into(), origin: [150.0, 150.0], across: [100.0, 0.0], up: [0.0, 20.0] }],
+                words: vec![PlacedWord {
+                    text: "Kept text".into(),
+                    origin: [150.0, 150.0],
+                    across: [100.0, 0.0],
+                    up: [0.0, 20.0],
+                    confidence: None,
+                    source: "pp-ocr".into(),
+                }],
             },
         )
         .unwrap();
@@ -69,7 +76,7 @@ fn crop_scanner_borders_preserves_pixels_rotation_text_and_undo() {
         s.redo(id).unwrap();
         assert_eq!(after.width, s.get(id).unwrap().info.pages[0].width);
         // Correction-only file processing must save the crop even with zero recognized words.
-        let file = ocr::recognize_file("scan.pdf", before.clone(), None, settings, &ocr::engine().unwrap(), |_, _| true).unwrap();
+        let file = ocr::recognize_file("scan.pdf", before.clone(), None, settings, &ocr::engine().unwrap(), false, |_, _| true).unwrap();
         assert_ne!(file.bytes, before);
         assert_eq!(file.words(), 0);
         let crop_only = s.open("file.pdf", None, file.bytes, None).unwrap();
@@ -104,8 +111,14 @@ fn scan(sentence: &str, rotation: u16, skew: f64) -> (Session, pdfcraft_engine::
 fn unicode_ocr_survives_save_search_and_undo_without_changing_pixels() {
     let (mut s, id) = scan("Invisible text layer", 0, 0.0);
     let before = render(&s, id);
-    let words =
-        vec![PlacedWord { text: "Grüße 日本語 français español 😀".into(), origin: [50.0, 50.0], across: [300.0, 0.0], up: [0.0, 20.0] }];
+    let words = vec![PlacedWord {
+        text: "Grüße 日本語 français español 😀".into(),
+        origin: [50.0, 50.0],
+        across: [300.0, 0.0],
+        up: [0.0, 20.0],
+        confidence: None,
+        source: "pp-ocr".into(),
+    }];
     s.apply(id, Edit::AddOcrText { page: 0, words }).unwrap();
     assert_eq!(before, render(&s, id));
     let found = text(&s, id);
@@ -165,9 +178,10 @@ fn scan_correction_handles_all_quarter_turns_and_stale_results() {
         assert_eq!(s.get(id).unwrap().bytes, before);
         s.redo(id).unwrap();
         let job = s.ocr_job(id, &[], OcrSettings { skip_text_pages: false, ..Default::default() }).unwrap();
+        let guard = job.guard.clone();
         let found = job.run(&ocr::engine().unwrap(), |_, _| true);
         s.apply(id, Edit::RotatePages { pages: vec![0], degrees: 90 }).unwrap();
-        assert!(s.apply_ocr(id, &found).unwrap_err().to_string().contains("changed"));
+        assert!(s.apply_ocr_checked(id, &found, &guard).unwrap_err().contains("changed"));
     }
 }
 
@@ -384,7 +398,14 @@ fn chinese_ocr_text_layer_preserves_scripts_and_punctuation_after_save() {
             id,
             Edit::AddOcrText {
                 page: 0,
-                words: vec![PlacedWord { text: sentence.into(), origin: [20.0, 20.0], across: [150.0, 0.0], up: [0.0, 20.0] }],
+                words: vec![PlacedWord {
+                    text: sentence.into(),
+                    origin: [20.0, 20.0],
+                    across: [150.0, 0.0],
+                    up: [0.0, 20.0],
+                    confidence: None,
+                    source: "pp-ocr".into(),
+                }],
             },
         )
         .unwrap();

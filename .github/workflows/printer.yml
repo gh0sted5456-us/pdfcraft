@@ -16,7 +16,7 @@ jobs:
             sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
           fi
       - name: Install Linux app and CUPS test dependencies
-        uses: storytold/craft-common-actions/actions/install-apt-packages@86bc2ce420c548d7b171874b67814217532a1648
+        uses: storytold/craft-common-actions/actions/install-apt-packages@59d1ecc4ea15ab59f8d60d38b147d5016c1f1385
         with:
           packages: >-
             cups cups-client cups-ppdc poppler-utils libxkbcommon-dev libwayland-dev

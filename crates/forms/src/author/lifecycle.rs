@@ -1,6 +1,9 @@
 use super::look::redraw_field;
 use super::tree::{add_to_page, attach, clash, detach, ensure_form, free_name, name_parts, top_names};
-use super::*;
+use super::{
+    Dict, Document, Field, FieldKind, FormError, MIN_FIELD_SIDE, NewField, ObjRef, Object, PdfString, Widget, appearance, fields, flags, invalid,
+    page_refs, rgb,
+};
 
 fn widget_dict(page: ObjRef, rect: [f64; 4]) -> Dict {
     let mut d = Dict::new();
@@ -170,6 +173,8 @@ pub fn add_field(doc: &mut Document, page: usize, rect: [f64; 4], kind: &NewFiel
                 read_only: false,
                 rotation: 0,
                 caption: None,
+                mouse_up_script: None,
+                mouse_down: false,
                 list: None,
                 round: true,
             };
@@ -259,10 +264,26 @@ pub fn delete_widget(doc: &mut Document, name: &str, widget: usize) -> Result<()
 fn delete_found_field(doc: &mut Document, f: Field) -> Result<(), FormError> {
     let widgets: std::collections::HashSet<ObjRef> = f.widgets.iter().map(|w| w.obj).collect();
     drop_from_pages(doc, &widgets)?;
+    let mut parent = doc.get(f.obj).as_dict().and_then(|d| d.reference(b"Parent"));
     detach(doc, f.obj)?;
     // Out of the calculation order too: a `/CO` entry would keep the field, its value and its
     // widgets reachable for a full save.
-    drop_from_calculation_order(doc, |r| r == f.obj || widgets.contains(&r))
+    drop_from_calculation_order(doc, |r| r == f.obj || widgets.contains(&r))?;
+    // An ancestor left with no kids would become a field of its own, and keep the `/V` and `/DV`
+    // the deleted field inherited from it: it goes too, up the chain.
+    let mut gone = std::collections::HashSet::new();
+    while let Some(p) = parent.filter(|p| gone.len() < 64 && !gone.contains(p)) {
+        let Some(d) = doc.get(p).as_dict().cloned() else { break };
+        let empty = d.get(b"Kids").map(|o| doc.resolve(o)).and_then(|o| o.as_array().map(Vec::is_empty)) == Some(true);
+        if !empty {
+            break;
+        }
+        parent = d.reference(b"Parent");
+        gone.insert(p);
+        drop_from_pages(doc, &std::iter::once(p).collect())?;
+        detach(doc, p)?;
+    }
+    drop_from_calculation_order(doc, |r| gone.contains(&r))
 }
 
 /// Take the annotations `widgets` off every page's `/Annots`, held directly or by reference.

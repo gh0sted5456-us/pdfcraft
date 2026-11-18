@@ -165,6 +165,7 @@ impl Workspace {
     }
 
     /// Whether a panel's body is exposed by its selected tab or open stack entry.
+    #[cfg(test)]
     pub(crate) fn exposed(&self, panel: Panel) -> bool {
         self.layout.panel_state(&panel) == craft_ui::docking::PanelState::Front
     }
@@ -465,14 +466,8 @@ pub fn show(app: &mut crate::PdfCraftApp, ui: &mut egui::Ui) {
             match panel {
                 Panel::Canvas => {
                     ui.painter().rect_filled(ui.max_rect(), 0.0, t.pasteboard);
-                    match app.active {
-                        None if app.combine_showing() => crate::combine_ui::page(app, ui),
-                        None => crate::home::show(app, ui),
-                        Some(index) => match crate::compare_ui::side_by_side(app, index) {
-                            Some((old, new)) => crate::compare_ui::compare_area(app, old, new, ui),
-                            None => crate::canvas::document_area(app, index, ui),
-                        },
-                    }
+                    // The page area: one pane, or two in split view (Home or Combine files without a tab).
+                    crate::panes::page_area(app, ui);
                 }
                 Panel::Tools => crate::panels::left_panel(app, ui),
                 Panel::Inspector => {

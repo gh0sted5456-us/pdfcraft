@@ -252,13 +252,15 @@ pub(crate) fn page_input(ui: &egui::Ui, pcx: &PageCx<'_>, doc: &Document, view: 
     if pcx.xf.rect.contains(pointer) && ui.clip_rect().contains(pointer) {
         let moving = view.group.gesture.as_ref().is_some_and(|g| g.moving);
         let grab = view.group.page == Some(pcx.page) && view.group.bounds(&items).is_some_and(|r| r.expand(6.0).contains(pointer));
-        ui.ctx().set_cursor_icon(if moving {
-            egui::CursorIcon::Grabbing
+        use crate::canvas::page_cursor::Layer;
+        // Claimed, not set: the pages set the cursor once, from the highest claim.
+        if moving {
+            view.cursor.claim(Layer::Drag, egui::CursorIcon::Grabbing);
         } else if grab {
-            egui::CursorIcon::Grab
+            view.cursor.claim(Layer::Placed, egui::CursorIcon::Grab);
         } else {
-            egui::CursorIcon::Crosshair
-        });
+            view.cursor.claim(Layer::ToolArea, egui::CursorIcon::Crosshair);
+        }
     }
     true
 }

@@ -7,8 +7,8 @@ use egui::{Color32, CornerRadius, Pos2, Rect, Stroke};
 use pdfcraft_engine::{Edit, NewAnnotation, REDACT_PATTERNS, REDACTION_CODE_SETS, RedactPattern, RedactionCodeSet, Rgb, Shape, Style, rect_quad};
 use pdfcraft_render::DocInfo;
 
-use crate::canvas::{DocView, PageXform};
-use crate::page_pointer::PagePointer;
+use crate::canvas::{DocView, PageToolContext, PageXform};
+use crate::page_cursor::Layer;
 use crate::theme::Tokens;
 use crate::{PdfCraftApp, widgets};
 
@@ -233,19 +233,10 @@ fn to_user(xf: &PageXform, info: &DocInfo, page: usize, p: Pos2) -> [f64; 2] {
 }
 
 /// Redact tool input on a page. Presses on text are left to text selection (the selection is
-/// marked when it ends, see [`after_text`]); presses elsewhere draw a box. Returns `true` when
-/// the gesture is a box.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn page_input(
-    ui: &egui::Ui,
-    resp: &egui::Response,
-    xf: &PageXform,
-    ptr: &PagePointer,
-    page: usize,
-    info: &DocInfo,
-    over_text: impl Fn(Pos2) -> bool,
-    view: &mut DocView,
-) -> bool {
+/// marked when it ends, see [`after_text`]); presses nobody holds (`free`) elsewhere draw a box.
+/// Returns `true` when the gesture is a box.
+pub(crate) fn page_input(cx: PageToolContext<'_>, tool: crate::QuickTool, over_text: impl Fn(Pos2) -> bool, free: bool, view: &mut DocView) -> bool {
+    let PageToolContext { resp, xf, ptr, page, info, .. } = cx;
     let pointer = ptr.pos;
     if let Some((dp, start)) = view.redact_drag
         && dp == page
@@ -256,33 +247,41 @@ pub(crate) fn page_input(
             let r = Rect::from_two_pos(start, end).intersect(xf.rect);
             if r.width() >= 3.0 && r.height() >= 3.0 {
                 let (a, b) = (to_user(xf, info, page, r.min), to_user(xf, info, page, r.max));
-                view.pending_redaction = Some((page, vec![rect_quad([a[0], a[1], b[0], b[1]])]));
+                view.pending_redaction = Some((tool, vec![(page, vec![rect_quad([a[0], a[1], b[0], b[1]])])], page));
             }
         }
         return true;
     }
-    let Some(p) = pointer.filter(|p| xf.rect.contains(*p)) else { return false };
-    if !over_text(p) {
-        ui.ctx().set_cursor_icon(egui::CursorIcon::Crosshair);
+    // The tool's own press, of the primary button: one nobody holds, which began on this page off
+    // its text. egui may see the drag only once the pointer is past the page's edge.
+    if resp.drag_started_by(egui::PointerButton::Primary)
+        && free
+        && let Some(origin) = ptr.origin.filter(|o| xf.rect.contains(*o) && !over_text(*o))
+    {
+        view.redact_drag = Some((page, origin));
+        return true;
     }
-    if resp.drag_started() {
-        let origin = ptr.origin.unwrap_or(p);
-        if !over_text(origin) {
-            view.redact_drag = Some((page, origin));
-            return true;
-        }
+    if pointer.is_some_and(|p| xf.rect.contains(p) && !over_text(p)) {
+        view.cursor.claim(Layer::ToolArea, egui::CursorIcon::Crosshair);
     }
     false
 }
 
 /// A finished text selection with the Redact tool becomes a mark.
+/// Across pages: a mark on each page it covers, once all are read; refused when one of them could
+/// not be read, rather than leave it unmarked.
 pub(crate) fn after_text(resp: &egui::Response, page: usize, info: &DocInfo, view: &mut DocView) {
-    if !(resp.drag_stopped() || resp.double_clicked()) || view.redact_drag.is_some() {
+    if view.redact_drag.is_some() {
         return;
     }
-    if let Some((p, quads)) = view.selection_quads(info).filter(|(p, _)| *p == page) {
-        view.clear_selection();
-        view.pending_redaction = Some((p, quads));
+    let finished = resp.drag_stopped_by(egui::PointerButton::Primary) || resp.double_clicked();
+    match view.tool_marks(crate::QuickTool::Redact, finished, Some(page), true, info) {
+        crate::canvas::ToolMarks::Marks(marks, head) => {
+            view.clear_selection();
+            view.pending_redaction = Some((crate::QuickTool::Redact, marks, head));
+        }
+        crate::canvas::ToolMarks::Unreadable => view.redaction_refused = true,
+        crate::canvas::ToolMarks::None => {}
     }
 }
 
@@ -368,16 +367,24 @@ pub(crate) fn pages_body(ui: &mut egui::Ui, d: &mut PagesDraft, pages: usize, _t
     crate::widgets::dialog_heading(ui, tl!("Mark Page Range"));
     ui.add_space(8.0);
     widgets::radio_value(ui, &mut d.current, true, tl!("Current page"));
-    ui.horizontal(|ui| {
-        widgets::radio_value(ui, &mut d.current, false, tl!("Pages from"));
-        ui.add_enabled(!d.current, egui::DragValue::new(&mut d.from).range(1..=pages));
-        ui.label(tl!("to"));
-        ui.add_enabled(!d.current, egui::DragValue::new(&mut d.to).range(1..=pages));
-        ui.label(crate::i18n::fmt(tl!("of {name}"), &[("name", &pages.to_string())]));
-    });
-    d.to = d.to.max(d.from);
+    let to_field = ui
+        .horizontal(|ui| {
+            let from_label = widgets::radio_value(ui, &mut d.current, false, tl!("Pages from"));
+            ui.add_enabled(!d.current, egui::DragValue::new(&mut d.from).range(1..=pages)).labelled_by(from_label.id);
+            let to_label = ui.label(tl!("to"));
+            let to_field = ui.add_enabled(!d.current, egui::DragValue::new(&mut d.to).range(1..=pages)).labelled_by(to_label.id);
+            ui.label(crate::i18n::fmt(tl!("of {name}"), &[("name", &pages.to_string())]));
+            to_field
+        })
+        .inner;
+    widgets::keep_range_ordered(d.from, &mut d.to, widgets::typing_into(&to_field));
     ui.add_space(12.0);
-    buttons(ui, "OK", true)
+    let (ok, cancel) = buttons(ui, "OK", true);
+    if ok {
+        // OK while the end is still being typed (a screen reader can press it).
+        widgets::keep_range_ordered(d.from, &mut d.to, false);
+    }
+    (ok, cancel)
 }
 
 /// Find text and redact. Returns (search, cancel, import a word list).
@@ -412,7 +419,7 @@ pub(crate) fn search_body(ui: &mut egui::Ui, d: &mut SearchDraft, t: &Tokens) ->
     ui.add_space(6.0);
     widgets::radio_value(ui, &mut d.mode, SearchMode::Patterns, tl!("Patterns"));
     ui.add_enabled_ui(d.mode == SearchMode::Patterns, |ui| {
-        egui::ComboBox::from_id_salt("redact-pattern").selected_text(tl!(d.pattern.label())).width(240.0).show_ui(ui, |ui| {
+        craft_ui::ComboBox::from_id_salt("redact-pattern").selected_text(tl!(d.pattern.label())).width(240.0).show_ui(ui, |ui| {
             for p in REDACT_PATTERNS {
                 ui.selectable_value(&mut d.pattern, p, tl!(p.label()));
             }
@@ -443,140 +450,138 @@ pub(crate) fn props_body(ui: &mut egui::Ui, d: &mut RedactPrefs, _t: &Tokens) ->
     // Two columns, so three colour grids fit a short window: the redacted result and its
     // overlay text on the left, the mark's own look (Acrobat's third group) on
     // the right.
-    widgets::dialog_scroll(ui, "redaction-properties-body", |ui| {
-        ui.horizontal_top(|ui| {
-            ui.vertical(|ui| {
-                ui.set_width(380.0);
-                egui::Grid::new("redact-props").num_columns(2).spacing([12.0, 10.0]).show(ui, |ui| {
-                    ui.label(tl!("Redacted area fill colour:"));
-                    ui.horizontal(|ui| {
-                        let mut none = d.fill.is_none();
-                        if ui.add(widgets::checkbox(&mut none, tl!("No colour"))).changed() {
-                            d.fill = if none { None } else { Some([0.0, 0.0, 0.0]) };
+    ui.horizontal_top(|ui| {
+        ui.vertical(|ui| {
+            ui.set_width(380.0);
+            egui::Grid::new("redact-props").num_columns(2).spacing([12.0, 10.0]).show(ui, |ui| {
+                ui.label(tl!("Redacted area fill colour:"));
+                ui.horizontal(|ui| {
+                    let mut none = d.fill.is_none();
+                    if ui.add(widgets::checkbox(&mut none, tl!("No colour"))).changed() {
+                        d.fill = if none { None } else { Some([0.0, 0.0, 0.0]) };
+                    }
+                });
+                ui.end_row();
+                ui.label("");
+                if let Some(c) = crate::comments::swatch_grid(ui, d.fill) {
+                    d.fill = Some(c);
+                }
+                ui.end_row();
+                ui.label("");
+                ui.add(widgets::checkbox(&mut d.use_overlay, tl!("Use overlay text")));
+                ui.end_row();
+                let on = d.use_overlay;
+                let l = ui.add_enabled(on, widgets::radio(!d.use_code, tl!("Custom text:")));
+                if l.clicked() {
+                    d.use_code = false;
+                }
+                ui.add_enabled(on && !d.use_code, crate::widgets::line(&mut d.overlay).desired_width(220.0)).labelled_by(l.id);
+                ui.end_row();
+                if ui.add_enabled(on, widgets::radio(d.use_code, tl!("Redaction code:"))).clicked() {
+                    d.use_code = true;
+                }
+                let codes_on = on && d.use_code;
+                ui.add_enabled_ui(codes_on, |ui| {
+                    craft_ui::ComboBox::from_id_salt("redaction-code-set").selected_text(d.code_set.name).show_ui(ui, |ui| {
+                        for set in REDACTION_CODE_SETS {
+                            if ui.selectable_label(d.code_set == set, set.name).clicked() && d.code_set != set {
+                                d.code_set = set;
+                                d.codes.clear();
+                            }
                         }
                     });
-                    ui.end_row();
+                });
+                ui.end_row();
+                for row in d.code_set.codes.chunks(4) {
                     ui.label("");
-                    if let Some(c) = crate::comments::swatch_grid(ui, d.fill) {
-                        d.fill = Some(c);
-                    }
-                    ui.end_row();
-                    ui.label("");
-                    ui.add(widgets::checkbox(&mut d.use_overlay, tl!("Use overlay text")));
-                    ui.end_row();
-                    let on = d.use_overlay;
-                    let l = ui.add_enabled(on, widgets::radio(!d.use_code, tl!("Custom text:")));
-                    if l.clicked() {
-                        d.use_code = false;
-                    }
-                    ui.add_enabled(on && !d.use_code, crate::widgets::line(&mut d.overlay).desired_width(220.0)).labelled_by(l.id);
-                    ui.end_row();
-                    if ui.add_enabled(on, widgets::radio(d.use_code, tl!("Redaction code:"))).clicked() {
-                        d.use_code = true;
-                    }
-                    let codes_on = on && d.use_code;
                     ui.add_enabled_ui(codes_on, |ui| {
-                        egui::ComboBox::from_id_salt("redaction-code-set").selected_text(d.code_set.name).show_ui(ui, |ui| {
-                            for set in REDACTION_CODE_SETS {
-                                if ui.selectable_label(d.code_set == set, set.name).clicked() && d.code_set != set {
-                                    d.code_set = set;
-                                    d.codes.clear();
-                                }
-                            }
-                        });
-                    });
-                    ui.end_row();
-                    for row in d.code_set.codes.chunks(4) {
-                        ui.label("");
-                        ui.add_enabled_ui(codes_on, |ui| {
-                            ui.horizontal(|ui| {
-                                for &code in row {
-                                    let mut picked = d.codes.contains(&code);
-                                    if ui.add_sized([62.0, 18.0], widgets::checkbox(&mut picked, code)).changed() {
-                                        d.codes.retain(|c| *c != code);
-                                        if picked {
-                                            d.codes.push(code);
-                                        }
+                        ui.horizontal(|ui| {
+                            for &code in row {
+                                let mut picked = d.codes.contains(&code);
+                                if ui.add_sized([62.0, 18.0], widgets::checkbox(&mut picked, code)).changed() {
+                                    d.codes.retain(|c| *c != code);
+                                    if picked {
+                                        d.codes.push(code);
                                     }
                                 }
-                            });
-                        });
-                        ui.end_row();
-                    }
-                    let look = &mut d.look;
-                    ui.label(tl!("Font:"));
-                    ui.add_enabled_ui(on, |ui| {
-                        egui::ComboBox::from_id_salt("overlay-font").selected_text(look.font.name()).show_ui(ui, |ui| {
-                            for f in pdfcraft_engine::OverlayFont::ALL {
-                                ui.selectable_value(&mut look.font, f, f.name());
                             }
                         });
                     });
                     ui.end_row();
-                    ui.label(tl!("Font size:"));
-                    ui.add_enabled_ui(on, |ui| {
-                        ui.horizontal(|ui| {
-                            let mut auto = look.size <= 0.0;
-                            if ui.add(widgets::checkbox(&mut auto, tl!("Auto-size text to fit redaction region"))).changed() {
-                                look.size = if auto { 0.0 } else { 10.0 };
-                            }
-                            if !auto {
-                                ui.add(egui::DragValue::new(&mut look.size).range(2.0..=144.0).suffix(" pt"));
-                            }
-                        });
-                    });
-                    ui.end_row();
-                    ui.label(tl!("Font colour:"));
-                    ui.add_enabled_ui(on, |ui| {
-                        if let Some(c) = crate::comments::swatch_grid(ui, Some(look.color)) {
-                            look.color = c;
+                }
+                let look = &mut d.look;
+                ui.label(tl!("Font:"));
+                ui.add_enabled_ui(on, |ui| {
+                    craft_ui::ComboBox::from_id_salt("overlay-font").selected_text(look.font.name()).show_ui(ui, |ui| {
+                        for f in pdfcraft_engine::OverlayFont::ALL {
+                            ui.selectable_value(&mut look.font, f, f.name());
                         }
                     });
-                    ui.end_row();
-                    ui.label("");
-                    ui.add_enabled(on, widgets::checkbox(&mut look.repeat, tl!("Repeat overlay text")));
-                    ui.end_row();
-                    ui.label(tl!("Text alignment:"));
-                    ui.add_enabled_ui(on, |ui| {
-                        ui.horizontal(|ui| {
-                            for (a, label) in [(0u8, tl!("Left")), (1, tl!("Center")), (2, tl!("Right"))] {
-                                widgets::radio_value(ui, &mut look.align, a, label);
-                            }
-                        });
-                    });
-                    ui.end_row();
                 });
+                ui.end_row();
+                ui.label(tl!("Font size:"));
+                ui.add_enabled_ui(on, |ui| {
+                    ui.horizontal(|ui| {
+                        let mut auto = look.size <= 0.0;
+                        if ui.add(widgets::checkbox(&mut auto, tl!("Auto-size text to fit redaction region"))).changed() {
+                            look.size = if auto { 0.0 } else { 10.0 };
+                        }
+                        if !auto {
+                            ui.add(egui::DragValue::new(&mut look.size).range(2.0..=144.0).suffix(" pt"));
+                        }
+                    });
+                });
+                ui.end_row();
+                ui.label(tl!("Font colour:"));
+                ui.add_enabled_ui(on, |ui| {
+                    if let Some(c) = crate::comments::swatch_grid(ui, Some(look.color)) {
+                        look.color = c;
+                    }
+                });
+                ui.end_row();
+                ui.label("");
+                ui.add_enabled(on, widgets::checkbox(&mut look.repeat, tl!("Repeat overlay text")));
+                ui.end_row();
+                ui.label(tl!("Text alignment:"));
+                ui.add_enabled_ui(on, |ui| {
+                    ui.horizontal(|ui| {
+                        for (a, label) in [(0u8, tl!("Left")), (1, tl!("Center")), (2, tl!("Right"))] {
+                            widgets::radio_value(ui, &mut look.align, a, label);
+                        }
+                    });
+                });
+                ui.end_row();
             });
-            // No separator here: in a horizontal layout it would stretch to the window's bottom.
-            ui.add_space(28.0);
-            ui.vertical(|ui| {
-                ui.set_width(340.0);
-                ui.label(egui::RichText::new(tl!("Redaction mark appearance")).strong());
-                ui.add_space(6.0);
-                egui::Grid::new("redact-mark").num_columns(2).spacing([12.0, 10.0]).show(ui, |ui| {
-                    ui.label(tl!("Outline colour:"));
-                    if let Some(c) = crate::comments::swatch_grid(ui, Some(d.outline)) {
-                        d.outline = c;
+        });
+        // No separator here: in a horizontal layout it would stretch to the window's bottom.
+        ui.add_space(28.0);
+        ui.vertical(|ui| {
+            ui.set_width(340.0);
+            ui.label(egui::RichText::new(tl!("Redaction mark appearance")).strong());
+            ui.add_space(6.0);
+            egui::Grid::new("redact-mark").num_columns(2).spacing([12.0, 10.0]).show(ui, |ui| {
+                ui.label(tl!("Outline colour:"));
+                if let Some(c) = crate::comments::swatch_grid(ui, Some(d.outline)) {
+                    d.outline = c;
+                }
+                ui.end_row();
+                ui.label(tl!("Fill colour:"));
+                ui.vertical(|ui| {
+                    if let Some(c) = crate::comments::swatch_grid(ui, Some(d.hover_fill)) {
+                        d.hover_fill = c;
                     }
-                    ui.end_row();
-                    ui.label(tl!("Fill colour:"));
-                    ui.vertical(|ui| {
-                        if let Some(c) = crate::comments::swatch_grid(ui, Some(d.hover_fill)) {
-                            d.hover_fill = c;
-                        }
-                        ui.label(egui::RichText::new(tl!("Shown while the pointer is over a mark.")).weak().size(11.5));
-                    });
-                    ui.end_row();
-                    ui.label(tl!("Opacity:"));
-                    let mut pct = d.opacity * 100.0;
-                    if ui.add(egui::Slider::new(&mut pct, 10.0..=100.0).suffix("%")).changed() {
-                        d.opacity = (pct / 100.0).clamp(0.1, 1.0);
-                    }
-                    ui.end_row();
-                    ui.label("");
-                    ui.add(widgets::checkbox(&mut d.remember, tl!("Make properties default")));
-                    ui.end_row();
+                    ui.label(egui::RichText::new(tl!("Shown while the pointer is over a mark.")).weak().size(11.5));
                 });
+                ui.end_row();
+                ui.label(tl!("Opacity:"));
+                let mut pct = d.opacity * 100.0;
+                if ui.add(egui::Slider::new(&mut pct, 10.0..=100.0).suffix("%")).changed() {
+                    d.opacity = (pct / 100.0).clamp(0.1, 1.0);
+                }
+                ui.end_row();
+                ui.label("");
+                ui.add(widgets::checkbox(&mut d.remember, tl!("Make properties default")));
+                ui.end_row();
             });
         });
     });
@@ -684,4 +689,107 @@ pub(crate) fn sanitize_body(ui: &mut egui::Ui, t: &Tokens) -> (bool, bool) {
     );
     ui.add_space(12.0);
     buttons(ui, "Sanitize", true)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::accesskit::Role;
+    use egui_kittest::kittest::Queryable;
+
+    fn key(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
+        egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }
+    }
+
+    /// #5574: typing "12" into the end of 5 to 5 came out as 5. The end was raised to the start
+    /// after every keystroke, so the half-typed "1" was replaced before the "2" arrived.
+    #[test]
+    fn typing_the_last_page_keeps_what_is_typed() {
+        let mut fonts = false;
+        let mut h = egui_kittest::Harness::new_ui_state(
+            move |ui, d: &mut PagesDraft| {
+                // The app's fonts (the semibold heading) take effect from the next frame.
+                if !fonts {
+                    ui.ctx().set_fonts(crate::theme::font_definitions());
+                    fonts = true;
+                    return;
+                }
+                let t = Tokens::get(ui.ctx());
+                pages_body(ui, d, 20, &t);
+            },
+            PagesDraft { current: false, from: 5, to: 5 },
+        );
+        h.run();
+        for (typed, expected) in [("12", 12), ("3", 5)] {
+            h.get_by_role_and_label(Role::SpinButton, "to").click();
+            h.run();
+            h.event(key(egui::Key::A, egui::Modifiers::COMMAND));
+            for c in typed.chars() {
+                h.event(egui::Event::Text(c.to_string()));
+                h.run_steps(2);
+            }
+            h.event(key(egui::Key::Enter, egui::Modifiers::NONE));
+            h.run_steps(2);
+            assert_eq!(*h.state(), PagesDraft { current: false, from: 5, to: expected }, "typed {typed:?}");
+        }
+    }
+
+    /// The dialog with its OK result kept: (draft, OK pressed).
+    fn dialog() -> egui_kittest::Harness<'static, (PagesDraft, bool)> {
+        let mut fonts = false;
+        let mut h = egui_kittest::Harness::new_ui_state(
+            move |ui, (d, ok): &mut (PagesDraft, bool)| {
+                if !fonts {
+                    ui.ctx().set_fonts(crate::theme::font_definitions());
+                    fonts = true;
+                    return;
+                }
+                let t = Tokens::get(ui.ctx());
+                *ok |= pages_body(ui, d, 20, &t).0;
+            },
+            (PagesDraft { current: false, from: 5, to: 5 }, false),
+        );
+        h.run();
+        h
+    }
+
+    fn type_last_page(h: &mut egui_kittest::Harness<'static, (PagesDraft, bool)>, typed: &str) {
+        h.get_by_role_and_label(Role::SpinButton, "to").click();
+        h.run();
+        h.event(key(egui::Key::A, egui::Modifiers::COMMAND));
+        for c in typed.chars() {
+            h.event(egui::Event::Text(c.to_string()));
+            h.run_steps(2);
+        }
+    }
+
+    /// OK pressed while the end is still being typed (a screen reader's click leaves the field
+    /// focused) orders the range, so a reversed one never reaches the edit.
+    #[test]
+    fn ok_while_the_last_page_is_typed_orders_the_range() {
+        let mut h = dialog();
+        type_last_page(&mut h, "3");
+        assert_eq!(h.state().0.to, 3, "still typing");
+        h.get_by_label("OK").click_accesskit();
+        h.run_steps(2);
+        assert_eq!(*h.state(), (PagesDraft { current: false, from: 5, to: 5 }, true));
+    }
+
+    /// Switching to another window halfway through "12" leaves the typed "1" alone: the field
+    /// still has the keyboard when the window comes back.
+    #[test]
+    fn switching_windows_mid_number_keeps_what_is_typed() {
+        let mut h = dialog();
+        type_last_page(&mut h, "1");
+        h.input_mut().focused = false;
+        h.run_steps(2);
+        assert_eq!(h.state().0.to, 1, "the typed 1 stays while the window is in the background");
+        h.input_mut().focused = true;
+        h.run_steps(2);
+        h.event(egui::Event::Text("2".into()));
+        h.run_steps(2);
+        h.event(key(egui::Key::Enter, egui::Modifiers::NONE));
+        h.run_steps(2);
+        assert_eq!(h.state().0.to, 12);
+    }
 }

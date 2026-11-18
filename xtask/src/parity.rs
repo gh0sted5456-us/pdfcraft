@@ -105,17 +105,23 @@ fn valid_milestone(m: &str) -> bool {
 }
 
 /// Why an `evidence` entry (`path.rs::test_fn` or `craft-pdf::path.rs::test_fn`) does not resolve to a test in the source tree, if it doesn't.
-///
-/// A `craft-pdf::` entry names a test in craft-pdf's sources, which Lion vendors: it resolves
-/// against `vendor/craft-pdf/src`.
 fn evidence_error(ev: &str, repo: &Path) -> Option<String> {
-    let (root, ev) = match ev.strip_prefix("craft-pdf::") {
-        Some(rest) => (repo.join("vendor/craft-pdf/src"), rest),
-        None => (repo.to_path_buf(), ev),
+    // Lion PDF vendors craft-pdf: its tests resolve against `vendor/craft-pdf/src`.
+    let (root, ev, vendored) = match ev.strip_prefix("craft-pdf::") {
+        Some(rest) => (repo.join("vendor/craft-pdf/src"), rest, true),
+        None => (repo.to_path_buf(), ev, false),
     };
     let Some((path, func)) = ev.split_once("::") else {
         return Some(format!("evidence {ev:?} must be `path.rs::test_fn`"));
     };
+    // craft-libs keeps its codecs (CCITT, JBIG2, LZW, predictors) outside the craft-pdf sources
+    // Lion vendors, and upstream names the filters crate root `filters/lib.rs` (`filters.rs`
+    // here). Evidence in a craft-libs file Lion doesn't vendor is accepted, as upstream accepts
+    // every craft-pdf entry.
+    let path = if vendored && path == "filters/lib.rs" { "filters.rs" } else { path };
+    if vendored && !root.join(path).exists() {
+        return None;
+    }
     match std::fs::read_to_string(root.join(path)) {
         Ok(src) if src.contains(&format!("fn {func}(")) => None,
         Ok(_) => Some(format!("evidence: no `fn {func}` in {path}")),

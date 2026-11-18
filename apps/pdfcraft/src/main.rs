@@ -1,6 +1,8 @@
 //! PdfCraft desktop app.
 //!
 //! Usage: `pdfcraft [options] [files…]` (`-h` / `--help` prints a short version of this, [`USAGE`]).
+//! `--two-paged` opens each command-line PDF in noncontinuous two-page view, without changing defaults.
+//! An explicit `--layout` takes precedence for the active document, regardless of argument order.
 //! `--create-images [images…]` stages the images in one PDF and asks for the page DPI.
 //!
 //! View options (applied after the files open; also the seed of the UI control channel):
@@ -8,8 +10,10 @@
 //!  --theme light|dark|system  --language auto|<code>  --mode all|read|edit|convert|sign  --tool <catalogue id>  --left open|closed
 //!  --organize on  --fields on  --dialog properties|shortcuts|about  --palette <query>  --home on
 //!  --cover on|off  --default-layout single|continuous|two-up|two-page  --default-continuous on|off  --default-zoom fit-width|fit-page|<percent>  --always-default-view on|off
-//!  --page-gaps on|off  --default-page-gaps on|off
+//!  --page-gaps on|off  --default-page-gaps on|off  --recent-files 0..50
 //!  --combine-view grid|list  --combine-zoom 60..200`
+//! `--combine files…` adds the files to the Combine files tab (File Explorer's "Combine files in
+//! PdfCraft", #585), of the PdfCraft already running when there is one.
 //!
 //! `--new-window` opens a window of its own. Without it, on Windows, a launch that only names files
 //! hands them to the PdfCraft already running, where they open as tabs (`single_instance`).
@@ -38,6 +42,7 @@ mod motion;
 mod reopen;
 mod settings;
 mod single_instance;
+mod startup;
 mod text_scale;
 #[cfg(test)]
 #[path = "windows_manifest.rs"]
@@ -65,6 +70,7 @@ Options:
   --new-window                open a window of its own instead of passing the files to a running PdfCraft
   --refresh-thumbnails        refresh Windows thumbnail caches and exit (no-op elsewhere)
   --create-images [images…]   put the images in one PDF and ask for the page DPI
+  --combine files…            add the files to the Combine files tab, of a running PdfCraft if there is one
   --control <file>            enable the UI control channel (pdfcraft-cli ui --control <file> …)
   --page N, --zoom 150, --layout continuous, --theme dark, …
                               view settings applied once the files are open
@@ -194,8 +200,19 @@ fn rejoin_split_paths(args: Vec<String>, exists: impl Fn(&str) -> bool) -> Vec<S
 }
 
 fn main() -> eframe::Result {
+    // Before anything uses aws-lc: an `OPENSSL_ia32cap` naming a CPU feature this processor lacks
+    // would stop it, so PdfCraft runs again without it (#2916, `crypto_env`).
+    if let Some(code) = pdfcraft_platform::crypto_env::run_without_cpu_override() {
+        std::process::exit(code);
+    }
+    // aws-lc detects the CPU's features here, where it used to before `main` (`init_crypto`).
+    pdfcraft_engine::sign::init_crypto();
     // First, so the panic hook and every start-up warning are recorded (`logging`).
     let logger = logging::install();
+    if let Some(value) = pdfcraft_platform::crypto_env::dropped() {
+        let name = pdfcraft_platform::crypto_env::IA32CAP;
+        log::warn!("{name} was set to {value}; PdfCraft started again without it (aws-lc stops on a CPU feature the processor lacks)");
+    }
     // Last-resort guard (AGENTS.md §4): commands, edits, opens and saves catch panics and report
     // them; this hook logs every panic, caught or not, with a backtrace when RUST_BACKTRACE is set.
     std::panic::set_hook(Box::new(|info| {
@@ -213,42 +230,22 @@ fn main() -> eframe::Result {
             let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("pdfcraft: {report}\n"));
         }
     }));
-    let mut files = Vec::new();
-    let mut options: Vec<(String, String)> = Vec::new();
-    let mut control_file: Option<String> = None;
-    let mut create_images = false;
-    let mut two_paged = false;
-    let mut new_window = false;
-    let mut resume_update = None;
-    let mut args = std::env::args_os().skip(1).map(text_arg);
-    while let Some(a) = args.next() {
-        let Some(a) = a else { continue };
-        match a.as_str() {
-            "--version" => return print_and_exit(&format!("pdfcraft {}", pdfcraft_engine::build_info::version())),
-            // Before any window or log file, so a scripted call returns (#4076).
-            "-h" | "--help" => return print_and_exit(USAGE),
-            "--control" => control_file = args.next().flatten(),
-            "--create-images" => create_images = true,
-            "--two-paged" => two_paged = true,
-            flag if flag.starts_with("--two-paged=") => log::warn!("{flag}: use --two-paged without a value"),
-            "--new-window" => new_window = true,
-            "--resume-update" => {
-                resume_update = args.next().flatten();
-                new_window = true;
-            }
-            "--refresh-thumbnails" => {
-                #[cfg(windows)]
-                pdfcraft_thumbnails::windows::refresh_shell_cache();
-                return Ok(());
-            }
-            flag if flag.starts_with("--") => {
-                let value = args.next().flatten().unwrap_or_default();
-                options.push((flag.trim_start_matches("--").to_string(), value));
-            }
-            _ => files.push(path_from_arg(a)),
-        }
+    // Lion PDF: an argument that is not UTF-8 is skipped with a warning rather than a panic.
+    let mut startup = startup::Arguments::parse_skipping(std::env::args_os().skip(1).map(text_arg));
+    if startup.version {
+        return print_and_exit(&format!("pdfcraft {}", pdfcraft_engine::build_info::version()));
     }
-    let files = rejoin_split_paths(files, |p| std::path::Path::new(p).is_file());
+    if startup.help {
+        return print_and_exit(USAGE);
+    }
+    if startup.refresh_thumbnails {
+        #[cfg(windows)]
+        pdfcraft_thumbnails::windows::refresh_shell_cache();
+        return Ok(());
+    }
+    startup.files = rejoin_split_paths(startup.files, |p| std::path::Path::new(p).is_file());
+    let may_hand_off = startup.may_hand_off();
+    let startup::Arguments { files, options, control_file, create_images, combine, two_paged, resume_update, .. } = startup;
     let integrated = cfg!(target_os = "macos");
     // GNOME on Wayland leaves the window frame to the app (src/decorations.rs).
     let window_controls = if cfg!(any(target_os = "macos", target_os = "windows")) { None } else { decorations::app_drawn() };
@@ -269,18 +266,17 @@ fn main() -> eframe::Result {
     // Explorer double-click, a file manager or `xdg-open`) hands them to the PdfCraft already
     // running and exits (#282, #317, #1726). Any option means the caller wants this launch's own
     // window.
-    let may_hand_off = !new_window && !files.is_empty() && options.is_empty() && control_file.is_none() && !create_images && !two_paged;
     // Absolute for this instance too: links relative to a document resolve against its folder,
     // never the working directory.
     let files = single_instance::absolute(&files);
-    let instance = match single_instance::claim(&files, may_hand_off) {
+    let instance = match single_instance::claim(&files, may_hand_off, combine) {
         single_instance::Claim::HandedOff => return Ok(()),
         single_instance::Claim::Primary(server) => Some(server),
         single_instance::Claim::Alone => None,
     };
     let saved_graphics = settings_dir().map(|dir| settings::graphics(&dir.join("app.ron"))).unwrap_or_default();
     let choice = renderer_choice(std::env::var("PDFCRAFT_RENDERER").ok().as_deref(), saved_graphics.renderer);
-    let launch = Launch { files, options, control_file, create_images, two_paged, integrated, window_controls, resume_update };
+    let launch = Launch { files, options, control_file, create_images, combine, integrated, window_controls, two_paged, resume_update };
     // Finder, Open With and the Dock deliver files as Apple events, not arguments; catch the one
     // that launched us as well as later ones. Lives until the event loop returns.
     #[cfg(target_os = "macos")]
@@ -339,7 +335,7 @@ fn native_options(integrated: bool, app_frame: bool, renderer: eframe::Renderer)
         .with_title(pdfcraft_ui_egui::APP_NAME)
         .with_transparent(true)
         .with_inner_size([1440.0, 920.0])
-        .with_min_inner_size([820.0, 520.0])
+        .with_min_inner_size(pdfcraft_ui_egui::MIN_WINDOW_SIZE)
         .with_drag_and_drop(true)
         // Wayland app id: matches packaging/linux/ai.storyteller.pdfcraft.desktop.
         .with_app_id(APP_ID);
@@ -391,10 +387,12 @@ struct Launch {
     options: Vec<(String, String)>,
     control_file: Option<String>,
     create_images: bool,
-    two_paged: bool,
+    /// `--combine`: the files go to the Combine files tab.
+    combine: bool,
     integrated: bool,
     /// The window buttons the app draws, when the desktop leaves the frame to it.
     window_controls: Option<pdfcraft_ui_egui::window_controls::Layout>,
+    two_paged: bool,
 }
 
 /// Whether the window is a native Wayland one (not X11 or XWayland).
@@ -458,7 +456,7 @@ fn app_creator<'a>(
     graphics_runtime: std::sync::Arc<pdfcraft_ui_egui::graphics::GraphicsRuntime>,
     #[cfg(target_os = "macos")] apple_events: &'a apple_events::AppleEvents,
 ) -> eframe::AppCreator<'a> {
-    let Launch { files, options, control_file, create_images, two_paged, integrated, window_controls, resume_update } = launch;
+    let Launch { files, options, control_file, create_images, combine, integrated, window_controls, two_paged, resume_update } = launch;
     Box::new(move |cc| {
         started.set(true);
         let mut app = PdfCraftApp::new();
@@ -489,6 +487,7 @@ fn app_creator<'a>(
         app.update_download = Some(std::sync::Arc::new(update_download::download));
         app.update_install = Some(std::sync::Arc::new(update_download::install));
         app.printer_source = Some(pdfcraft_ui_egui::system_printers());
+        app.two_sided_source = Some(pdfcraft_ui_egui::system_two_sided());
         app.os_key_store_ids = cfg!(any(target_os = "macos", target_os = "windows"));
         #[cfg(target_os = "macos")]
         {
@@ -511,6 +510,8 @@ fn app_creator<'a>(
         if let Some(dir) = pdfcraft_ui_egui::RecoveryStore::default_dir() {
             app.enable_recovery(pdfcraft_ui_egui::RecoveryStore::new(dir));
         }
+        // The OCR Verify screen stores its per-language dictionary beside recovery data.
+        app.ocr_verify.dictionary_dir = pdfcraft_ui_egui::default_dictionary_dir();
         if let Some(state) = &cc.wgpu_render_state {
             let adapter = state.adapter.get_info();
             let max_texture_dimension_2d = state.device.limits().max_texture_dimension_2d;
@@ -531,30 +532,27 @@ fn app_creator<'a>(
                 &[("folder", &w.folder.display().to_string()), ("error", &w.error)],
             );
         }
+        let defer_layout = two_paged && !files.is_empty() && !create_images;
         if let Some(path) = resume_update
             && let Err(error) = update_download::resume(&mut app, std::path::Path::new(&path))
         {
             app.notify(error);
         }
-        let use_launch_layout = two_paged && !create_images && !files.is_empty();
         if create_images {
             if let Err(e) = app.begin_image_import_paths(&files) {
                 app.notify(e);
             }
+        } else if combine {
+            app.reopen_last_files(&[]);
+            app.combine_paths(&files);
         } else {
             // With the preference on, last session's files come back first; files named on
             // the command line open after them, in front (#442).
             app.reopen_last_files(&files);
-            for f in files {
-                if two_paged {
-                    app.open_path_with_display(&f, pdfcraft_ui_egui::canvas::PageLayout::TwoUp, false);
-                } else {
-                    app.open_path(&f);
-                }
-            }
+            startup::open_files(&mut app, &files, two_paged);
         }
         for (k, v) in options {
-            let result = if use_launch_layout && k == "layout" { app.set_launch_layout(&v) } else { app.set_option(&k, &v) };
+            let result = if defer_layout && k == "layout" { app.set_launch_layout(&v) } else { app.set_option(&k, &v) };
             if let Err(e) = result {
                 log::warn!("--{k} {v}: {e}");
             }
@@ -596,7 +594,9 @@ fn open_control_channel(file: &str, endpoint: std::io::Result<pdfcraft_ui_egui::
             Ok(())
         }
         Err(e) => {
-            let message = format!("--control {file}: {e}. Use a control file in a folder only you can write, such as ~/.pdfcraft-control.json");
+            // cmd.exe doesn't expand `~` (#3922).
+            let example = if cfg!(windows) { r"%USERPROFILE%\.pdfcraft-control.json" } else { "~/.pdfcraft-control.json" };
+            let message = format!("--control {file}: {e}. Use a control file in a folder only you can write, such as {example}");
             log::error!("{message}");
             Err(message)
         }
@@ -605,15 +605,25 @@ fn open_control_channel(file: &str, endpoint: std::io::Result<pdfcraft_ui_egui::
 
 /// Write the control endpoint so that only the current user can read the token.
 ///
-/// The JSON goes to a new file next to `path`, created fresh (owner-only on Unix), which then
-/// replaces `path`. Opening `path` itself would follow a link planted there and truncate whatever
-/// it points at; a rename replaces the link and leaves its target alone. A reader polling for the
-/// file also never sees it half-written.
+/// The JSON goes to a new file, created fresh and owner-only, which then replaces `path`. On Unix
+/// the file sits next to `path` with mode 0600. On Windows it sits in a new folder next to `path`
+/// whose access list, of this user and SYSTEM only, it inherits when it is created, so no other
+/// account can open it at any time (#3922; review on #3956). Opening `path` itself would follow a
+/// link planted there and truncate whatever it points at; a rename replaces the link and leaves
+/// its target alone. A reader polling for the file also never sees it half-written.
 fn write_control_file(path: &str, port: u16, token: &str) -> std::io::Result<()> {
-    use std::io::{ErrorKind, Write};
+    use std::io::ErrorKind;
     let json = serde_json::json!({ "port": port, "token": token, "pid": std::process::id() }).to_string();
     let path = std::path::Path::new(path);
     let name = path.file_name().ok_or_else(|| std::io::Error::new(ErrorKind::InvalidInput, "not a file name"))?;
+    // Windows: the user's SID, read once for the private folder and for the file in it, since each
+    // lookup starts `whoami` (review on #3956).
+    #[cfg(windows)]
+    let me = pdfcraft_platform::owner_only::current_user_sid()?;
+    #[cfg(windows)]
+    let restrict = |file: &std::path::Path| pdfcraft_platform::owner_only::restrict_to_owner(file, &me);
+    #[cfg(not(windows))]
+    let restrict = |_: &std::path::Path| Ok::<(), std::io::Error>(());
     // Unpredictable suffixes, so the name can't be planted in advance. `RandomState` is keyed from
     // the operating system's random source.
     let random = std::hash::RandomState::new();
@@ -622,33 +632,77 @@ fn write_control_file(path: &str, port: u16, token: &str) -> std::io::Result<()>
         staged.push(name);
         staged.push(format!(".{:016x}.tmp", std::hash::BuildHasher::hash_one(&random, i)));
         let staged = path.with_file_name(staged);
-        let mut opts = std::fs::OpenOptions::new();
-        opts.write(true).create_new(true);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::OpenOptionsExt;
-            opts.mode(0o600);
-        }
-        let file = match opts.open(&staged) {
-            Ok(f) => f,
-            Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
-            // Windows refuses `create_new` on a folder with "access denied"; the name is taken all
-            // the same. A folder we can't write to, with nothing at the name, still fails here.
-            Err(e) if e.kind() == ErrorKind::PermissionDenied && staged.symlink_metadata().is_ok() => continue,
-            Err(e) => return Err(e),
+        // Windows: a file created next to `path` would inherit that folder's access list, which may
+        // let other users read it, and restricting it afterwards leaves a window in which one of
+        // them opens a handle; Windows checks access only when a handle is opened, so a later
+        // change of the list doesn't revoke it. The file is created in a private folder instead,
+        // and that folder is removed once the file has left it.
+        #[cfg(windows)]
+        let (staging, staged) = {
+            match pdfcraft_platform::owner_only::create_private_dir(&staged, &me) {
+                Ok(()) => {}
+                Err(e) if e.kind() == ErrorKind::AlreadyExists => continue,
+                // As for a file below: something at the name we may not open still takes it.
+                Err(e) if e.kind() == ErrorKind::PermissionDenied && staged.symlink_metadata().is_ok() => continue,
+                Err(e) => return Err(e),
+            }
+            let file = staged.join(name);
+            (staged, file)
         };
-        // The block closes the file before it is renamed.
-        let written = {
-            let mut file = file;
-            file.write_all(json.as_bytes())
-        };
-        let done = written.and_then(|()| std::fs::rename(&staged, path));
-        if done.is_err() {
-            let _ = std::fs::remove_file(&staged);
+        let done = stage_control_file(&staged, path, &json, &restrict);
+        #[cfg(windows)]
+        let _ = std::fs::remove_dir(&staging);
+        match done {
+            Some(done) => return done,
+            None => continue,
         }
-        return done;
     }
     Err(std::io::Error::new(ErrorKind::AlreadyExists, "no free name for the control file's temporary copy"))
+}
+
+/// Create `staged` fresh and owner-only, `restrict` it, write `json` to it and rename it to `path`.
+/// `None` when something already has the name, so the caller tries another. On any other failure
+/// the new file is removed and nothing is left at `path`'s side.
+fn stage_control_file(
+    staged: &std::path::Path,
+    path: &std::path::Path,
+    json: &str,
+    restrict: &dyn Fn(&std::path::Path) -> std::io::Result<()>,
+) -> Option<std::io::Result<()>> {
+    use std::io::{ErrorKind, Write};
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let file = match opts.open(staged) {
+        Ok(f) => f,
+        Err(e) if e.kind() == ErrorKind::AlreadyExists => return None,
+        // Windows refuses `create_new` on a folder with "access denied"; the name is taken all
+        // the same. A folder we can't write to, with nothing at the name, still fails here.
+        Err(e) if e.kind() == ErrorKind::PermissionDenied && staged.symlink_metadata().is_ok() => return None,
+        Err(e) => return Some(Err(e)),
+    };
+    // Windows: the file inherited the private folder's list. It also gets a list of its own, so it
+    // stays private wherever the rename puts it, and that is checked before the token is written;
+    // nothing is written if that fails (#3922). Unix has mode 0600 above, and `restrict` does nothing.
+    if let Err(e) = restrict(staged) {
+        drop(file);
+        let _ = std::fs::remove_file(staged);
+        return Some(Err(e));
+    }
+    // The block closes the file before it is renamed.
+    let written = {
+        let mut file = file;
+        file.write_all(json.as_bytes())
+    };
+    let done = written.and_then(|()| std::fs::rename(staged, path));
+    if done.is_err() {
+        let _ = std::fs::remove_file(staged);
+    }
+    Some(done)
 }
 
 /// How wgpu finds a GPU. Each choice yields to its wgpu environment variable.

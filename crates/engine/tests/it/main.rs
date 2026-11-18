@@ -10,6 +10,7 @@ mod certificate_display;
 mod certificate_scoped_refresh;
 mod certificate_working_file;
 mod clear_signature;
+mod dingbat_check_box;
 mod document_fonts;
 mod form_rotation;
 mod marked_content_isolation;
@@ -17,5 +18,5 @@ mod ocr_edit;
 mod office_export_images;
 mod private_image_resize;
 mod private_text_glyphs;
-
 mod scan_ocr;
+mod xfa_repeat;

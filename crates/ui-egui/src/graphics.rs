@@ -65,7 +65,7 @@ impl crate::PdfCraftApp {
 pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut crate::PdfCraftApp) {
     ui.label(tl!("Graphics backend"));
     ui.add_enabled_ui(!cfg!(target_arch = "wasm32"), |ui| {
-        egui::ComboBox::from_id_salt("graphics-renderer")
+        craft_ui::ComboBox::from_id_salt("graphics-renderer")
             .selected_text(tl!(app.graphics.renderer.label()))
             .width(ui.available_width().min(230.0))
             .show_ui(ui, |ui| {
@@ -77,7 +77,7 @@ pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut crate::PdfCraftApp) {
         ui.add_space(14.0);
         ui.label(tl!("Frame rate limit"));
         let selected = if app.graphics.fps_limit == 0 { tl!("Match display").to_owned() } else { format!("{} FPS", app.graphics.fps_limit) };
-        egui::ComboBox::from_id_salt("graphics-fps-limit").selected_text(selected).width(ui.available_width().min(230.0)).show_ui(ui, |ui| {
+        craft_ui::ComboBox::from_id_salt("graphics-fps-limit").selected_text(selected).width(ui.available_width().min(230.0)).show_ui(ui, |ui| {
             for fps in FPS_LIMITS {
                 let label = if fps == 0 { tl!("Match display").to_owned() } else { format!("{fps} FPS") };
                 if ui.selectable_label(app.graphics.fps_limit == fps, label).clicked()

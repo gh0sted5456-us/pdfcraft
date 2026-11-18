@@ -74,13 +74,13 @@ fn an_up_to_date_or_failed_check_says_so() {
     let mut h = harness(Ok(concat!("v", env!("CARGO_PKG_VERSION"))));
     h.state_mut().execute("help.check_updates");
     settle(&mut h);
-    h.get_by_label_contains("is up to date");
+    h.get_by_label_contains("is up to date"); // Lion PDF's updater wording
     assert!(h.query_by_label("Download").is_none());
 
     let mut h = harness(Err("couldn't reach GitHub"));
     h.state_mut().execute("help.check_updates");
     settle(&mut h);
-    h.get_by_label_contains("Couldn't check for updates: couldn't reach GitHub");
+    h.get_by_label_contains("Couldn't check for updates: couldn't reach GitHub"); // Lion PDF's wording
 }
 
 #[test]

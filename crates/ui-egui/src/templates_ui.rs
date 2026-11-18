@@ -45,7 +45,9 @@ pub struct TemplateExport {
     doc: pdfcraft_engine::DocId,
     info: TemplateInfo,
 }
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) enum Action {
+    #[default]
     None,
     Create,
     Import,
@@ -218,7 +220,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> Action {
         if draft.imported.is_some() {
             categories.push("Imported");
         }
-        egui::ComboBox::from_id_salt("template-category")
+        craft_ui::ComboBox::from_id_salt("template-category")
             .selected_text(&draft.category)
             .width(160.0)
             .show_ui(ui, |ui| {
@@ -311,7 +313,7 @@ pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> Action {
         ui.add_enabled_ui(draft.selected != "imported" && draft.selected != "blank", |ui| {
             ui.label("Paper");
             let old = draft.paper.clone();
-            egui::ComboBox::from_id_salt("starter-paper")
+            craft_ui::ComboBox::from_id_salt("starter-paper")
                 .selected_text(if draft.selected == "blank" {
                     "Settings default"
                 } else if draft.selected == "imported" {

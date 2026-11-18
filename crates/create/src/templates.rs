@@ -395,6 +395,7 @@ pub fn create(id: &str, paper: &str) -> Result<Document, CreateError> {
     Ok(doc)
 }
 
+#[allow(clippy::cognitive_complexity)]
 fn draw(c: &mut Canvas, t: &Starter, page: usize, paper: &str) -> Result<(), CreateError> {
     let (w, h) = (c.w, c.h);
     match t.id {

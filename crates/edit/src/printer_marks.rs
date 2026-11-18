@@ -2,8 +2,12 @@
 //! bleed marks, registration targets, colour bars and page information drawn outside the trim
 //! box, as a page mark like a header, so they can be removed or replaced. The page is widened
 //! when asked and the marks would otherwise fall outside it; the trim box stays where it is.
+//!
+//! Lines, targets and the information line are in registration colour, the `/All` Separation
+//! (ISO 32000-2, 8.6.6.4), so they print on every plate, spot plates too; viewers show its
+//! four-ink alternate. The colour bars are process inks and stay DeviceCMYK.
 
-use pdfcraft_cos::{Document, Object};
+use pdfcraft_cos::{Dict, Document, Object};
 use pdfcraft_fonts::{literal, win_ansi};
 
 use crate::marks::{MarkKind, n};
@@ -53,9 +57,30 @@ const TARGET_OFFSET: f64 = 16.0;
 const TARGET_RADIUS: f64 = 4.0;
 const BAR: f64 = 10.0;
 const INFO_SIZE: f64 = 7.0;
+/// The colour space resource holding registration colour.
+const REGISTRATION: &str = "PCReg";
+/// The largest page side PDF viewers take (Annex C of ISO 32000-1 lists it as Acrobat's limit).
+const MAX_PAGE_SIDE: f64 = 14_400.0;
+
+/// `[/Separation /All /DeviceCMYK <tint>]`: full tint is all four process inks.
+fn registration() -> Object {
+    let reals = |v: &[f64]| Object::Array(v.iter().map(|x| Object::Real(*x)).collect());
+    let mut tint = Dict::new();
+    tint.set(b"FunctionType".to_vec(), Object::Int(2));
+    tint.set(b"Domain".to_vec(), reals(&[0.0, 1.0]));
+    tint.set(b"C0".to_vec(), reals(&[0.0; 4]));
+    tint.set(b"C1".to_vec(), reals(&[1.0; 4]));
+    tint.set(b"N".to_vec(), Object::Int(1));
+    Object::Array(vec![Object::name("Separation"), Object::name("All"), Object::name("DeviceCMYK"), Object::Dict(tint)])
+}
 const MAX_COORDINATE: f64 = 1e9;
 
 impl PrinterMarks {
+    /// The line weights a run accepts, in points.
+    pub const WEIGHTS: std::ops::RangeInclusive<f64> = 0.1..=4.0;
+    /// The most a run widens a page by on each side at the caller's asking, in points.
+    pub const MAX_ROOM: f64 = 288.0;
+
     fn any(&self) -> bool {
         self.trim || self.bleed || self.registration || self.color_bars || self.page_info
     }
@@ -86,9 +111,9 @@ impl PrinterMarks {
     /// The marks' content for a page whose trim box is `trim` and bleed box `bleed` (user
     /// space measured in physical points), `page` of `count` (1-based).
     pub fn content(&self, trim: [f64; 4], bleed: [f64; 4], page: usize, count: usize) -> String {
-        let w = self.line_weight.clamp(0.1, 4.0);
-        // Registration colour: every ink.
-        let mut c = format!("1 1 1 1 K 1 1 1 1 k {} w 0 J\n", n(w));
+        let w = self.line_weight.clamp(*Self::WEIGHTS.start(), *Self::WEIGHTS.end());
+        // Registration colour: every plate.
+        let mut c = format!("/{REGISTRATION} CS 1 SCN /{REGISTRATION} cs 1 scn {} w 0 J\n", n(w));
         let [x0, y0, x1, y1] = trim;
         let line = |c: &mut String, ax: f64, ay: f64, bx: f64, by: f64| {
             c.push_str(&format!("{} {} m {} {} l S\n", n(ax), n(ay), n(bx), n(by)));
@@ -172,7 +197,7 @@ impl PrinterMarks {
             for (i, (cy, m, yl, k)) in swatches.iter().enumerate() {
                 c.push_str(&format!("{} {} {} {} k {} {} {} {} re f\n", n(*cy), n(*m), n(*yl), n(*k), n(x + i as f64 * BAR), n(y), n(BAR), n(BAR)));
             }
-            c.push_str("1 1 1 1 k\n");
+            c.push_str(&format!("/{REGISTRATION} cs 1 scn\n"));
         }
         if self.page_info {
             let mut info = String::new();
@@ -228,8 +253,12 @@ pub fn add_printer_marks(doc: &mut Document, pages: &[usize], marks: &PrinterMar
     if !marks.any() {
         return Err(EditError::Invalid("choose at least one kind of mark".into()));
     }
-    if !marks.line_weight.is_finite() || marks.line_weight <= 0.0 {
-        return Err(EditError::Invalid("the line weight must be a positive number of points".into()));
+    if !PrinterMarks::WEIGHTS.contains(&marks.line_weight) {
+        let (low, high) = (PrinterMarks::WEIGHTS.start(), PrinterMarks::WEIGHTS.end());
+        return Err(EditError::Invalid(format!("the line weight must be from {low} to {high} points")));
+    }
+    if marks.make_room.is_some_and(|room| !(0.0..=PrinterMarks::MAX_ROOM).contains(&room)) {
+        return Err(EditError::Invalid(format!("the room to make must be from 0 to {} points", PrinterMarks::MAX_ROOM)));
     }
     if marks.make_room.is_some_and(|room| !room.is_finite() || !(0.0..=MAX_COORDINATE).contains(&room)) {
         return Err(EditError::Invalid("room must be a finite, non-negative number of points, at most 1e9".into()));
@@ -250,7 +279,7 @@ pub fn add_printer_marks(doc: &mut Document, pages: &[usize], marks: &PrinterMar
     let count = all.len();
     let mut widened = Vec::new();
     for &i in pages {
-        let ([media, crop, bleed, trim, art], given) = pdfcraft_organize_boxes(doc, i)?;
+        let ([media, crop, bleed, trim, art], _given) = pdfcraft_organize_boxes(doc, i)?;
         let unit = all.get(i).ok_or(EditError::NoSuchPage(i))?.user_unit(doc);
         let trim_points = trim.map(|v| v * unit);
         let bleed_points = bleed.map(|v| v * unit);
@@ -273,6 +302,9 @@ pub fn add_printer_marks(doc: &mut Document, pages: &[usize], marks: &PrinterMar
                     media[3].max(trim[3] + room(side[3])),
                 ])
             };
+            if new_media.is_some_and(|m| m[2] - m[0] > MAX_PAGE_SIDE || m[3] - m[1] > MAX_PAGE_SIDE) {
+                return Err(EditError::Invalid(format!("page {} would be wider than the {MAX_PAGE_SIDE} points a PDF page can be", i + 1)));
+            }
             // Without a wider media box, only the crop box grows, to the marks and no further than the media box.
             let new_crop = match new_media {
                 Some(m) => m,
@@ -290,25 +322,35 @@ pub fn add_printer_marks(doc: &mut Document, pages: &[usize], marks: &PrinterMar
                     d.set(b"MediaBox".to_vec(), rect(m));
                 }
                 // The crop box shows the marks too. The trim, bleed and art boxes default to the
-                // crop box, so any of them not given is written out as it was, or it would move
-                // with the crop box and a second run would widen the page again.
+                // crop box and are clipped to the media box, so each is written out as it was in
+                // effect, or it would move with the wider boxes and a second run would widen the
+                // page again.
                 d.set(b"CropBox".to_vec(), rect(new_crop));
-                for (key, value, has) in [(&b"BleedBox"[..], bleed, given[0]), (&b"TrimBox"[..], trim, given[1]), (&b"ArtBox"[..], art, given[2])] {
-                    if !has {
-                        d.set(key.to_vec(), rect(value));
-                    }
+                for (key, value) in [(&b"BleedBox"[..], bleed), (&b"TrimBox"[..], trim), (&b"ArtBox"[..], art)] {
+                    d.set(key.to_vec(), rect(value));
                 }
             })?;
             widened.push(i);
         }
         let page = page_list(doc).get(i).cloned().ok_or(EditError::NoSuchPage(i))?;
         let mut content = marks.content(trim_points, bleed_points, i + 1, count);
+        // Lion PDF: never take over a font the page already draws with under /PCHelv.
+        let mut faces: Vec<(Vec<u8>, &str)> = Vec::new();
         if marks.page_info {
             let name = free_font_name(doc, &page_fonts(doc, &page), "PCHelv", "Helvetica");
             content = content.replace("/PCHelv ", &format!("/{name} "));
-            add_page_resources(doc, &page, None, &[(name.into_bytes(), "Helvetica")])?;
+            faces.push((name.into_bytes(), "Helvetica"));
         }
+        // Lion PDF: marks keep their physical size on pages with a UserUnit.
         let body = format!("{}{}{}", begin(MarkKind::PrinterMarks, "PrinterMarks", [1.0 / unit, 0.0, 0.0, 1.0 / unit, 0.0, 0.0]), content, END);
+        add_page_resources(doc, &page, None, &faces)?;
+        let page = page_list(doc).get(i).cloned().ok_or(EditError::NoSuchPage(i))?;
+        // add_page_resources gave the page resources of its own.
+        let mut res = page.dict.get(b"Resources").map(|r| doc.resolve(r)).and_then(|r| r.as_dict().cloned()).unwrap_or_default();
+        let mut spaces = res.get(b"ColorSpace").map(|c| doc.resolve(c)).and_then(|c| c.as_dict().cloned()).unwrap_or_default();
+        spaces.set(REGISTRATION.as_bytes().to_vec(), registration());
+        res.set(b"ColorSpace".to_vec(), Object::Dict(spaces));
+        doc.update_dict(page.obj, |d| d.set(b"Resources".to_vec(), Object::Dict(res)))?;
         let page = page_list(doc).get(i).cloned().ok_or(EditError::NoSuchPage(i))?;
         place(doc, &page, MarkKind::PrinterMarks, body.into_bytes(), false)?;
     }

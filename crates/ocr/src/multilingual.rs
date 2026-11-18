@@ -52,7 +52,7 @@ fn error(e: impl std::fmt::Display) -> OcrError {
 impl Multilingual {
     pub fn load(dir: &std::path::Path) -> Result<Self, OcrError> {
         let load = |name: &str| rten::Model::load_file(dir.join(name)).map_err(|e| OcrError::Load(name.into(), e.to_string()));
-        let dictionary_path = dir.join(crate::DICTIONARY);
+        let dictionary_path = dir.join(crate::lion::DICTIONARY);
         if std::fs::metadata(&dictionary_path).map_err(error)?.len() > 1_000_000 {
             return Err(error("recognition dictionary is too large"));
         }
@@ -61,7 +61,7 @@ impl Multilingual {
         alphabet.extend(dictionary.lines().map(str::to_owned));
         alphabet.push(" ".into());
         let latin_alphabet = alphabet.iter().map(|entry| latin_entry(entry)).collect();
-        Ok(Self { recognition: load(crate::MULTILINGUAL_MODEL)?, orientation: load(crate::ORIENTATION_MODEL)?, alphabet, latin_alphabet })
+        Ok(Self { recognition: load(crate::lion::MULTILINGUAL_MODEL)?, orientation: load(crate::lion::ORIENTATION_MODEL)?, alphabet, latin_alphabet })
     }
 
     /// Clockwise correction. Low-confidence and nearly blank/solid pages stay put.
@@ -141,10 +141,11 @@ impl Multilingual {
         let scale = width as f32 / rw as f32 * w as f32 / steps.max(1) as f32;
         let flush = |words: &mut Vec<Word>, text: &mut String, start: usize, end: usize, confidence: f32, count: usize| {
             if !text.is_empty() && confidence / count.max(1) as f32 >= 0.5 {
-                words.push(Word {
-                    text: std::mem::take(text),
-                    rect: [x as f32 + start as f32 * scale, top, (x as f32 + (end + 1) as f32 * scale).min(image.width() as f32), bottom],
-                });
+                words.push(Word::new(
+                    std::mem::take(text),
+                    [x as f32 + start as f32 * scale, top, (x as f32 + (end + 1) as f32 * scale).min(image.width() as f32), bottom],
+                    crate::lion::ID,
+                ));
             } else {
                 text.clear();
             }

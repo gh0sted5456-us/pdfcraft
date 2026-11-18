@@ -37,34 +37,3 @@ pub(crate) fn deskew(doc: &mut Document, page: usize, degrees: f64) -> Result<()
     doc.update_dict(p.obj, |d| d.set(b"Contents".to_vec(), Object::Array(streams))).map_err(|e| EditError::Invalid(e.to_string()))?;
     Ok(())
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ocr::{PlacedWord, add_text};
-
-    #[test]
-    fn unicode_ocr_layer_restores_graphics_state() {
-        let session = crate::Session::new();
-        let bytes = session.create_from_text("OCR state", "Original text").unwrap();
-        let mut doc = Document::open(bytes).unwrap();
-        add_text(&mut doc, 0, &[PlacedWord { text: "Été 中文".into(), origin: [10.0, 20.0], across: [90.0, 0.0], up: [0.0, 12.0] }]).unwrap();
-        let page = pdfcraft_model::pages(&doc).remove(0);
-        let contents = doc.resolve(page.dict.get(b"Contents").unwrap());
-        let last = doc.resolve(contents.as_array().unwrap().last().unwrap());
-        let Object::Stream(stream) = &*last else { panic!("OCR content is a stream") };
-        let bytes = stream.decoded().unwrap();
-        let content = std::str::from_utf8(&bytes).unwrap();
-        let mut depth = 0_i32;
-        for token in content.split_ascii_whitespace() {
-            match token {
-                "q" => depth += 1,
-                "Q" => depth -= 1,
-                "Tr" | "Tf" | "Tm" => assert!(depth > 0, "OCR {token} leaks into later page content"),
-                _ => {}
-            }
-            assert!(depth >= 0);
-        }
-        assert_eq!(depth, 0);
-    }
-}

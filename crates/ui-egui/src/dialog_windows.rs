@@ -172,7 +172,7 @@ pub(crate) fn title(dialog: Dialog) -> String {
         Optimize => "Optimize PDF",
         DuplicateField => "Duplicate field",
         AccessibilityOptions => "Accessibility options",
-        RecognizeText => "Recognize text",
+        RecognizeText => "Recognize Text",
         CorrectOcrText => "Correct recognized text",
         RecognizeScan { .. } => "Recognize scanned text",
         JsConsole => "JavaScript console",
@@ -185,6 +185,11 @@ pub(crate) fn title(dialog: Dialog) -> String {
         CreateStamp => "Create stamp",
         AltText => "Alternate text",
         AuditSpace => "Space audit",
+        ConvertColours => "Convert colours",
+        AttachmentDescription => "Attachment description",
+        LockSignatures => "Lock signatures",
+        EnhanceScan => "Enhance scanned document",
+        PinTool => "Pin tool",
     }
     .into()
 }
@@ -215,11 +220,19 @@ impl Response {
 pub(crate) fn heading(ui: &mut egui::Ui, title: &str) -> Option<egui::Response> {
     let drawing = registry_id(ui.ctx()).with("drawing");
     let key = ui.ctx().data(|d| d.get_temp::<String>(drawing))?;
-    registry(ui.ctx(), |r| {
-        if let Some(e) = r.entries.iter_mut().find(|e| e.key == key) {
-            e.title = title.chars().take(160).collect();
+    let title: String = title.chars().take(160).collect();
+    let changed = registry(ui.ctx(), |r| match r.entries.iter_mut().find(|e| e.key == key) {
+        Some(e) if e.title != title => {
+            e.title = title;
+            true
         }
+        _ => false,
     });
+    // The title bar was drawn before the content named it: draw the frame again, so the window
+    // (and its accessible title) never shows the previous dialog's title for a frame.
+    if changed {
+        ui.ctx().request_discard("dialog title");
+    }
     Some(ui.allocate_response(Vec2::ZERO, egui::Sense::hover()))
 }
 pub(crate) fn chrome(ui: &mut egui::Ui, rect: Rect, key: &str) {
@@ -289,6 +302,21 @@ pub(crate) fn chrome(ui: &mut egui::Ui, rect: Rect, key: &str) {
     title_response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, true, format!("Title: {}", entry.title)));
 }
 pub(crate) fn show<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut egui::Ui) -> R) -> Response {
+    render(ctx, id, true, content)
+}
+/// [`show`], growing from its contents' own height when `remeasure` is set rather than from the
+/// height it had last frame: one dialog id that shows different contents would otherwise keep
+/// the height of the previous ones (#5118). A size the user gave the window stays.
+pub(crate) fn show_sized<R>(ctx: &egui::Context, id: &str, remeasure: bool, content: impl FnOnce(&mut egui::Ui) -> R) -> Response {
+    if remeasure && !resized(ctx, id) {
+        let stored = Id::unique(effective(ctx, id));
+        if let Some(mut state) = egui::AreaState::load(ctx, stored) {
+            state.size = state.size.map(|s| vec2(s.x, 0.0));
+            ctx.memory_mut(|m| m.areas_mut().set_state(egui::Modal::default_area(stored).layer(), state));
+            // The card is centred on the height it ends with: draw once more at that height.
+            ctx.request_repaint();
+        }
+    }
     render(ctx, id, true, content)
 }
 pub(crate) fn window<R>(ctx: &egui::Context, id: &str, content: impl FnOnce(&mut egui::Ui) -> R) -> Response {
@@ -449,7 +477,7 @@ fn swap_drafts(app: &mut PdfCraftApp, holder: &mut PdfCraftApp, dialog: Dialog) 
         SaveTemplate => swap!(template_export),
         WordCount => swap!(word_count_draft),
         CreateImages => swap!(image_import),
-        Properties(_) => swap!(props_draft, view_draft, custom_draft),
+        Properties(_) => swap!(props_draft, view_draft, custom_draft, props_session),
         Split => swap!(split_draft),
         NumberPages => swap!(number_draft),
         Protect => swap!(protect_draft),

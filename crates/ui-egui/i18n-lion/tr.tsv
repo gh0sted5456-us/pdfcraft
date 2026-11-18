@@ -1,0 +1,14 @@
+# Lion PDF overlay for tr: rows Lion PDF adds or changes on top of storytold/craft-i18n's
+# pdfcraft.tsv and common.tsv (craft-i18n.rev). Same columns and rules as craft-i18n's catalogs;
+# build.rs puts these rows first and drops craft-i18n rows with the same context and source.
+# Clean room: written from the plain meaning of the English text, as craft-i18n's rows are.
+
+	{app} {v} is available.	{app} {v} kullanılabilir.
+	{app} {c} is up to date.	{app} {c} güncel.
+	Exit	Çıkış
+@plural	{n} formula reads a field the form doesn't have|{n} formulas read fields the form doesn't have	{n} formül formda olmayan alanları okuyor
+@plural	{field} reads {fields}, which the form doesn't have.|{field} reads {fields}, which the form doesn't have.	{field}, formda olmayan {fields} alanını okuyor.
+@plural	{n} more formula reads a missing field.|{n} more formulas read missing fields.	{n} formül daha eksik alanları okuyor.
+@plural	{fields} builds some field names as it runs, so those reads aren't checked.|{fields} build some field names as they run, so those reads aren't checked.	{fields}, bazı alan adlarını çalışırken oluşturuyor; bu okumalar denetlenmiyor.
+@plural	{fields} is missing|{fields} are missing	{fields} eksik
+	Correct scans…	Taramaları düzelt…

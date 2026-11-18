@@ -5,7 +5,9 @@
 //! `<key>.pdf` plus `<key>.json` (name, original path, time). Saving, discarding or closing a
 //! document removes its entry. At startup the app offers snapshots even when their metadata is
 //! missing or damaged; those recover without an original path, so saving asks for a destination.
-//! A sidecar's original path is only a suggestion: the first Save after recovery asks where.
+//! A recovered document's original path is only a suggestion: the folder is the user's, but
+//! anyone who can write it can name any file in a sidecar, so the first Save after recovering
+//! asks where, starting at that path, and later saves write where the user chose (#3923).
 //!
 //! Encrypted documents are stored encrypted (the working file is), so recovery never writes
 //! plaintext of a protected document to disk. The web build has no recovery store yet.
@@ -33,7 +35,8 @@ pub const AUTOSAVE_SECS: f64 = 60.0;
 pub struct RecoveryMeta {
     pub key: String,
     pub name: String,
-    /// Where the document was saved before; the first Save after recovery offers this path.
+    /// Where the document was saved before. After recovery the first Save offers it in the
+    /// Save As dialog rather than writing it unasked (#3923).
     pub path: Option<String>,
     /// Seconds since the Unix epoch when the snapshot was taken.
     pub saved_at: u64,
@@ -185,7 +188,27 @@ impl RecoveryStore {
     pub fn dir(&self) -> &Path {
         &self.dir
     }
+}
 
+/// The OCR Verify screen's per-language user dictionary folder, next to the recovery store:
+/// the portable data folder's `Dictionary` in portable mode ([`crate::portable`]), otherwise
+/// `…/PdfCraft/Dictionary` in the platform's per-user data folder. `None` where files are not
+/// kept (the web build).
+pub fn default_dictionary_dir() -> Option<PathBuf> {
+    if let Some(dir) = crate::portable::data_dir() {
+        return Some(dir.join("Dictionary"));
+    }
+    let env = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
+    if cfg!(target_os = "macos") {
+        env("HOME").map(|h| h.join("Library/Application Support/PdfCraft/Dictionary"))
+    } else if cfg!(windows) {
+        env("LOCALAPPDATA").map(|d| d.join("PdfCraft").join("Dictionary"))
+    } else {
+        env("XDG_DATA_HOME").or_else(|| env("HOME").map(|h| h.join(".local/share"))).map(|d| d.join("pdfcraft/dictionary"))
+    }
+}
+
+impl RecoveryStore {
     /// Write (or replace) an entry. The PDF is written before its metadata, both atomically, so
     /// a listed entry always has complete bytes.
     pub fn write(&self, meta: &RecoveryMeta, bytes: &[u8]) -> std::io::Result<()> {
@@ -210,7 +233,7 @@ impl RecoveryStore {
             if path.extension().and_then(std::ffi::OsStr::to_str) != Some("pdf") || !entry.file_type().is_ok_and(|t| t.is_file()) {
                 continue;
             }
-            let Some(key) = path.file_stem().and_then(|s| s.to_str()) else { continue };
+            let Some(key) = path.file_stem().and_then(std::ffi::OsStr::to_str) else { continue };
             let meta = read_meta(&path.with_extension("json"))
                 .and_then(|m| if m.key == key { Ok(m) } else { Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "snapshot key mismatch")) });
             out.push(meta.unwrap_or_else(|e| {
@@ -253,8 +276,25 @@ impl RecoveryStore {
         }
     }
 
+    ///
+    /// Only a regular file is read, and no more than it held when it was opened: anyone who can
+    /// write the recovery folder can put a FIFO there, which would hold the read forever, or a
+    /// link to a device such as `/dev/zero`, which never ends (#3923). Snapshots have no size
+    /// limit of their own, as autosave writes whatever the document holds.
     pub fn read(&self, key: &str) -> std::io::Result<Vec<u8>> {
-        std::fs::read(self.dir.join(format!("{key}.pdf")))
+        use std::io::Read;
+        let path = self.dir.join(format!("{key}.pdf"));
+        let meta = std::fs::metadata(&path)?;
+        if !meta.is_file() {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "the recovery snapshot is not a regular file"));
+        }
+        let len = meta.len();
+        let mut bytes = Vec::new();
+        File::open(&path)?.take(len.saturating_add(1)).read_to_end(&mut bytes)?;
+        if bytes.len() as u64 > len {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidData, "the recovery snapshot grew while it was read"));
+        }
+        Ok(bytes)
     }
 
     /// Remove every entry (clean quit, or "Discard all"), and metadata left without a snapshot.
@@ -276,9 +316,12 @@ impl RecoveryStore {
     }
 }
 
+/// The most a sidecar may hold. One PdfCraft writes is a name, a path and a few fields, well under
+/// this; anything longer is not one of ours (#3923).
 const MAX_META_BYTES: u64 = 64 * 1024;
 
-/// Refuse oversized metadata instead of reading an unbounded planted sidecar (#3923).
+/// A sidecar's metadata, read through [`MAX_META_BYTES`] so a planted file can't make the start-up
+/// listing read gigabytes. A longer file is refused, and its snapshot recovers without metadata.
 fn read_meta(path: &Path) -> std::io::Result<RecoveryMeta> {
     use std::io::Read;
     let mut bytes = Vec::new();
@@ -308,6 +351,8 @@ impl PdfCraftApp {
     pub fn autosave_now(&mut self) {
         let Some(store) = self.recovery.clone() else { return };
         for snap in self.session.autosave_snapshots() {
+            // Lion PDF: a claim counter keeps two documents opened in the same second (and a
+            // reused id) from sharing a snapshot.
             let key = self
                 .recovery_keys
                 .entry(snap.doc)
@@ -326,6 +371,8 @@ impl PdfCraftApp {
 
     /// Drop a document's recovery entry (it was saved, discarded or closed).
     pub(crate) fn forget_recovery(&mut self, doc: pdfcraft_engine::DocId) {
+        // Saved (to a destination the user chose), closed or reloaded from its file: the path is
+        // no longer only what the sidecar said.
         self.recovered_paths.remove(&doc);
         if let (Some(store), Some(key)) = (&self.recovery, self.recovery_keys.remove(&doc)) {
             store.remove(&key);
@@ -520,6 +567,31 @@ mod idle_tests {
         out.viewport_output[&egui::ViewportId::ROOT].repaint_delay
     }
 
+    /// #3923 (review on #4327): a snapshot that is not a regular file is refused before it is
+    /// opened. A FIFO in the recovery folder would otherwise hold the read, and the recovery with
+    /// it, until something wrote to it.
+    #[cfg(unix)]
+    #[test]
+    fn a_snapshot_that_is_not_a_regular_file_is_refused_at_once() {
+        let dir = TestDir::new();
+        let store = RecoveryStore::new(dir.path());
+        let fifo = dir.path().join("planted.pdf");
+        match std::process::Command::new("mkfifo").arg(&fifo).status() {
+            Ok(s) if s.success() => {}
+            _ => return, // No mkfifo here: nothing to plant.
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let reader = store.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(reader.read("planted").map(|b| b.len()));
+        });
+        let read = rx.recv_timeout(Duration::from_secs(5)).expect("the read returned instead of waiting on the FIFO");
+        assert_eq!(read.map_err(|e| e.kind()), Err(std::io::ErrorKind::InvalidInput));
+        // A directory under the name is refused the same way.
+        std::fs::create_dir(dir.path().join("folder.pdf")).unwrap();
+        assert_eq!(store.read("folder").map_err(|e| e.kind()), Err(std::io::ErrorKind::InvalidInput));
+    }
+
     /// Check that an idle dirty document schedules a bounded write and autosaves without input, then stops
     /// waking the window.
     #[test]
@@ -625,6 +697,7 @@ mod idle_tests {
         }
     }
 }
+
 #[cfg(test)]
 mod sidecar_tests {
     use super::idle_tests::TestDir;
@@ -662,9 +735,7 @@ mod sidecar_tests {
         assert!(!app.save_active(SaveTarget::InPlace), "Save asks instead of writing the sidecar's path");
         app.process_picked();
         assert_eq!(std::fs::read(&named).unwrap(), b"someone else's file", "the named file is untouched");
-        let saved = std::fs::read(&chosen).unwrap();
-        assert!(saved.starts_with(b"%PDF"), "the document went where the user chose");
-        assert_eq!(saved.windows(5).filter(|part| *part == b"%%EOF").count(), 1, "the first unsigned recovery save is a clean copy");
+        assert!(std::fs::read(&chosen).unwrap().starts_with(b"%PDF"), "the document went where the user chose");
 
         // The chosen file is the document's file now: the next Save writes it without asking.
         app.pick_override = None;
@@ -690,7 +761,7 @@ mod sidecar_tests {
         store.write(&meta, b"%PDF-1.7\n").unwrap();
         let listed = store.list();
         assert_eq!(listed.len(), 1);
-        assert!(listed[0].name == "planted.pdf" && listed[0].path.is_none(), "oversized metadata is discarded");
+        assert_eq!((listed[0].name.as_str(), listed[0].path.as_deref()), ("planted.pdf", None));
         // A sidecar of ordinary size is still read.
         store.write(&RecoveryMeta { name: "work.pdf".into(), ..meta.clone() }, b"%PDF-1.7\n").unwrap();
         assert_eq!(store.list()[0].path, meta.path);

@@ -4,31 +4,37 @@ mod action_failures;
 
 mod assistant;
 
+mod attachment_key;
 mod automation;
 
 mod automation_roots;
-
+mod backdrop;
 mod batch;
-
+mod batch_failures;
+mod batch_secrets;
 mod button_caption;
-
 mod clear_signature;
-
+mod document_actions;
+mod find_text;
 mod form_bulk;
 
 mod hostile_args;
-
+mod link_javascript;
+mod list_selection;
+mod model_3d;
+mod model_render;
+mod office;
 mod optimize_content_boundaries;
-
-mod templates;
-
-mod timestamp;
-
+mod page_actions;
+mod portfolio_info;
 mod production;
-
-mod attachment_key;
 mod protect_certificate_command;
 mod protect_certificate_schema;
-
 mod redact_after_stray_q_form;
 mod redact_text_after_q;
+mod render_warnings;
+mod templates;
+mod text_copy;
+mod timesheet_compat;
+mod timestamp;
+mod unreadable_objects;

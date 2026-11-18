@@ -9,8 +9,10 @@ pub struct Paper {
 }
 
 impl Default for Paper {
+    /// The system region's paper (A4 or US Letter, #5644), until one is chosen.
     fn default() -> Self {
-        Self { width: 612.0, height: 792.0 }
+        let (width, height) = crate::paper::Paper::system().points();
+        Self { width, height }
     }
 }
 
@@ -41,7 +43,7 @@ impl Paper {
 pub(crate) fn controls(ui: &mut egui::Ui, paper: &mut Paper, unit: &mut Unit) {
     ui.horizontal_wrapped(|ui| {
         ui.label("Paper size");
-        egui::ComboBox::from_id_salt("physical-paper")
+        craft_ui::ComboBox::from_id_salt("physical-paper")
             .selected_text(tl!(paper.label()))
             .show_ui(ui, |ui| {
                 for name in Paper::names() {
@@ -54,7 +56,7 @@ pub(crate) fn controls(ui: &mut egui::Ui, paper: &mut Paper, unit: &mut Unit) {
             })
             .response
             .accessible_name(tl!("Paper size"));
-        egui::ComboBox::from_id_salt("physical-units")
+        craft_ui::ComboBox::from_id_salt("physical-units")
             .selected_text(unit.label())
             .show_ui(ui, |ui| {
                 for value in Unit::ALL {
@@ -104,7 +106,7 @@ pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     ui.horizontal_wrapped(|ui| {
         ui.label("Default print paper");
         let label = pdfcraft_engine::print::PAPERS.get(app.print_draft.paper).map_or("US Letter", |p| p.0);
-        egui::ComboBox::from_id_salt("default-print-paper")
+        craft_ui::ComboBox::from_id_salt("default-print-paper")
             .selected_text(tl!(label))
             .show_ui(ui, |ui| {
                 for (i, (name, _)) in pdfcraft_engine::print::PAPERS.iter().enumerate() {

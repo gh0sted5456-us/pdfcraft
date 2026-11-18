@@ -241,7 +241,7 @@ fn language(ui: &mut egui::Ui, app: &mut PdfCraftApp, _t: &Tokens) {
         let shown = |language: crate::i18n::Lang| language.picker_name(|text| crate::js_ui::picker_text_is_drawable(ui, text));
         let selected = crate::i18n::Lang::from_code(&app.language).map_or(tl!("Auto"), shown);
         let before = app.language.clone();
-        egui::ComboBox::from_id_salt("interface-language")
+        craft_ui::ComboBox::from_id_salt("interface-language")
             .selected_text(selected)
             .show_ui(ui, |ui| {
                 if ui.selectable_value(&mut app.language, crate::i18n::AUTO.to_string(), tl!("Auto")).clicked() {
@@ -275,7 +275,7 @@ fn appearance(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
         let auto_percent = ui_scale::percent(ui_scale::drawn(None, app.system_text_scale, native));
         let auto = crate::i18n::fmt(tl!("Auto ({percent}%)"), &[("percent", &auto_percent.to_string())]);
         let selected = app.ui_scale.map_or_else(|| auto.clone(), |f| format!("{}%", ui_scale::percent(f)));
-        egui::ComboBox::from_id_salt("interface-size")
+        craft_ui::ComboBox::from_id_salt("interface-size")
             .selected_text(selected)
             .show_ui(ui, |ui| {
                 if ui.selectable_value(&mut app.ui_scale, None, auto).clicked() {
@@ -353,6 +353,8 @@ fn documents(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
             .color(t.text_muted),
     );
     widgets::section_title(ui, tl!("Page display"));
+    // Upstream: a change applies to the open document(s) at once (`apply_view_pref_changes`).
+    let (before, always_before) = (app.view_defaults, app.always_default_view);
     let defaults = &mut app.view_defaults;
     ui.horizontal_wrapped(|ui| {
         ui.label(tl!("Default page display"));
@@ -382,7 +384,7 @@ fn documents(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
     );
     ui.horizontal_wrapped(|ui| {
         let label = ui.label(tl!("Window resize behavior"));
-        egui::ComboBox::from_id_salt("resize-zoom")
+        craft_ui::ComboBox::from_id_salt("resize-zoom")
             .selected_text(tl!(defaults.resize_zoom.label()))
             .show_ui(ui, |ui| {
                 for policy in crate::canvas::ResizeZoom::ALL {
@@ -398,6 +400,25 @@ fn documents(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
             .color(t.text_muted),
     );
     ui.add(widgets::checkbox(&mut app.always_default_view, tl!("Always use my default zoom and page layout")));
+    {
+        let after = app.view_defaults;
+        let changes = ViewPrefChanges {
+            always_reset: app.always_default_view != always_before,
+            layout: after.layout != before.layout,
+            continuous: after.continuous != before.continuous,
+            gaps: after.show_page_gaps != before.show_page_gaps,
+            fit: after.fit != before.fit,
+            zoom: after.zoom != before.zoom && after.fit == crate::canvas::Fit::None,
+        };
+        let any = changes.always_reset || changes.layout || changes.continuous || changes.gaps || changes.fit || changes.zoom;
+        if app.always_default_view && any {
+            for view in &mut app.views {
+                apply_view_pref_changes(view, &after, changes);
+            }
+        } else if any && let Some(i) = app.active {
+            apply_view_pref_changes(&mut app.views[i], &after, ViewPrefChanges { always_reset: false, ..changes });
+        }
+    }
     ui.horizontal_wrapped(|ui| {
         ui.label(tl!("Units"));
         for u in crate::units::Unit::ALL {
@@ -409,6 +430,16 @@ fn documents(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
     // The web build has no file paths to reopen.
     #[cfg(not(target_arch = "wasm32"))]
     ui.add(widgets::checkbox(&mut app.reopen_last_session, tl!("Reopen the files that were open when PdfCraft last closed")));
+    #[cfg(not(target_arch = "wasm32"))]
+    ui.add(widgets::checkbox(&mut app.restore_last_view, tl!("Restore the last view (page, zoom and page display) when a document is opened again")));
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        ui.horizontal(|ui| {
+            let label = ui.label(tl!("Recent files to keep"));
+            ui.add(egui::DragValue::new(&mut app.recent_limit).range(0..=crate::RECENT_FILES_MAX)).labelled_by(label.id);
+        });
+        ui.label(egui::RichText::new(tl!("Lowering this forgets the oldest files. At 0 there is no list.")).small().color(t.text_muted));
+    }
     // The web build has no files on disk to watch.
     #[cfg(not(target_arch = "wasm32"))]
     ui.add(widgets::checkbox(&mut app.reload_changed_files, tl!("Reload documents when their files change on disk")));
@@ -421,6 +452,10 @@ fn documents(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
             widgets::radio_value(ui, &mut app.scroll_speed, speed, tl_ctx!("scroll speed", speed.label()));
         }
     });
+    ui.add(widgets::checkbox(&mut app.invert_middle_drag, tl!("Invert middle-button drag")))
+        .on_hover_text(tl!("Panning or auto-scrolling with the middle (wheel) button moves the page the other way."));
+    ui.add(widgets::checkbox(&mut app.text_links, tl!("Open web and email addresses written in the page text")))
+        .on_hover_text(tl!("Only web (http, https) and email addresses open, and PdfCraft asks first, as for other links."));
 }
 
 fn reading(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
@@ -430,7 +465,7 @@ fn reading(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
     ui.horizontal_wrapped(|ui| {
         ui.label(tl!("Replace document colours"));
         let mode = app.reading_colors.mode_name();
-        egui::ComboBox::from_id_salt("reading-colors")
+        craft_ui::ComboBox::from_id_salt("reading-colors")
             .selected_text(tl!(reading_mode_label(mode)))
             .show_ui(ui, |ui| {
                 for (m, label) in [
@@ -499,6 +534,9 @@ fn identity(ui: &mut egui::Ui, app: &mut PdfCraftApp, _t: &Tokens) {
 
 fn signing(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
     ui.add(widgets::checkbox(&mut app.flatten_fill_sign_on_save, tl!("Flatten Fill & Sign when saving")));
+    ui.add_enabled_ui(!app.flatten_fill_sign_on_save, |ui| {
+        ui.add(widgets::checkbox(&mut app.ask_to_lock_signatures, tl!("Otherwise, ask on the first save after a signature is placed")));
+    });
     ui.label(
         egui::RichText::new(tl!("Text, marks and signatures become part of the page. Other comments stay editable.")).small().color(t.text_muted),
     );
@@ -532,7 +570,7 @@ fn date_format(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
         let label = ui.label(tl!("Fill & Sign dates"));
         let current = app.session.date_format().to_string();
         let selected = if DATE_FORMATS.contains(&current.as_str()) { sample(app, &current) } else { tl!("Custom").to_string() };
-        egui::ComboBox::from_id_salt("date-format")
+        craft_ui::ComboBox::from_id_salt("date-format")
             .selected_text(selected)
             .width(240.0)
             .show_ui(ui, |ui| {
@@ -586,7 +624,7 @@ fn date_format(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &Tokens) {
         let selected = DATE_LANGUAGES.iter().find(|l| current.as_deref() == Some(l.code)).map_or(follow.clone(), |l| {
             crate::js_ui::date_language_picker_name(l, |text| crate::js_ui::picker_text_is_drawable(ui, text)).to_string()
         });
-        egui::ComboBox::from_id_salt("date-language")
+        craft_ui::ComboBox::from_id_salt("date-language")
             .selected_text(selected)
             .width(240.0)
             .show_ui(ui, |ui| {
@@ -673,4 +711,59 @@ fn assistant(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     let label = ui.label("Model ID");
     ui.add(widgets::line(&mut app.assistant.settings.model).char_limit(160).desired_width(260.0)).labelled_by(label.id);
     widgets::dialog_button(ui, "Manage AI connections", widgets::DialogAction::Back).clicked()
+}
+
+#[derive(Clone, Copy, Default)]
+struct ViewPrefChanges {
+    always_reset: bool,
+    layout: bool,
+    continuous: bool,
+    gaps: bool,
+    fit: bool,
+    zoom: bool,
+}
+
+fn apply_view_pref_changes(view: &mut crate::DocView, defaults: &crate::canvas::ViewDefaults, changes: ViewPrefChanges) {
+    if changes.always_reset || changes.gaps {
+        view.set_page_gaps(defaults.show_page_gaps);
+    }
+    if let Some(saved) = view.saved_display_mut() {
+        if changes.always_reset || changes.layout {
+            saved.layout = defaults.layout;
+        }
+        if changes.always_reset || changes.continuous {
+            saved.continuous = defaults.continuous;
+        }
+        if changes.always_reset || changes.fit {
+            saved.fit = defaults.fit;
+            if defaults.fit == crate::canvas::Fit::None {
+                saved.zoom = defaults.zoom;
+            }
+        }
+        if changes.zoom {
+            saved.fit = crate::canvas::Fit::None;
+            saved.zoom = defaults.zoom;
+        }
+    } else {
+        if changes.always_reset || (changes.layout && changes.continuous) {
+            view.set_display(defaults.layout, defaults.continuous);
+        } else {
+            if changes.layout {
+                view.set_layout(defaults.layout);
+            }
+            if changes.continuous {
+                view.set_continuous(defaults.continuous);
+            }
+        }
+        if changes.always_reset || changes.fit {
+            match defaults.fit {
+                crate::canvas::Fit::None => view.set_zoom(defaults.zoom),
+                fit if view.fit != fit => view.set_fit(fit),
+                _ => {}
+            }
+        }
+        if changes.zoom {
+            view.set_zoom(defaults.zoom);
+        }
+    }
 }
