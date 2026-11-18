@@ -143,6 +143,9 @@ fn line_width_of(doc: &Document, gstates: Option<&Dict>, name: &[u8]) -> Option<
 /// `forms` collects the Form XObjects it draws, with the CTM and width each is drawn under,
 /// for the caller to rewrite in turn; a `Do` listed in `renames` draws the name given there.
 /// Returns the new bytes when anything changed, and the count.
+// Rust 1.95's clippy (the release toolchain) asks to fold these `if`s into match guards,
+// which would send the unmatched case on to the later arms.
+#[allow(clippy::collapsible_match)]
 fn rewrite(
     data: &[u8],
     state: &mut State,

@@ -36,7 +36,7 @@ pub(crate) fn discard_inactive_password_drafts(app: &mut PdfCraftApp) {
     }
     // Lion PDF: choosing the pages a signature protects steps out to Organize Pages with the
     // draft (and its password) kept, and comes back to the dialog.
-    if app.dialog != Some(Dialog::Sign) && !app.sign_draft.as_ref().is_some_and(|d| d.choosing_pages.is_some()) {
+    if app.dialog != Some(Dialog::Sign) && app.sign_draft.as_ref().is_none_or(|d| d.choosing_pages.is_none()) {
         app.sign_draft = None;
     }
 }

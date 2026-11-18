@@ -177,6 +177,9 @@ impl ImageState {
         if x.is_finite() && y.is_finite() { Some(Point::new(x, y)) } else { None }
     }
 
+    // Rust 1.95's clippy (the release toolchain) asks to fold these `if`s into match guards,
+    // which would send the unmatched case on to the later arms.
+    #[allow(clippy::collapsible_match)]
     fn apply(&mut self, op: &Op) -> Result<(), EditError> {
         if matches!(op.op.as_slice(), b"cm" | b"m" | b"l" | b"c" | b"v" | b"y" | b"re")
             && op.operands.iter().any(|v| v.as_f64().is_some_and(|v| !v.is_finite() || v.abs() > 1e12))
