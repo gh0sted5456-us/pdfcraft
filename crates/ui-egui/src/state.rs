@@ -109,6 +109,8 @@ pub enum Dialog {
     Properties(PropsTab),
     About,
     Shortcuts,
+    /// Lion PDF: Help ▸ Connect AI assistants… (MCP settings to copy).
+    ConnectAi,
     Split,
     /// Pages ▸ Number pages… (page labels).
     NumberPages,

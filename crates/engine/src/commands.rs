@@ -473,6 +473,8 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("prepress.convert_colors", "Convert colours…", None, None, Modification, "palette"),
     c("prepress.hairlines", "Fix hairlines…", None, None, Modification, "minus"),
     c("help.shortcuts", "Keyboard shortcuts", HELP, None, Nothing, "circle-help"),
+    // Lion PDF: the settings that let an AI assistant use Lion PDF through its MCP server.
+    c("help.connect_ai", "Connect AI assistants…", HELP, None, Nothing, "sparkles"),
     c("help.discord", "Join the ArtCraft Discord", HELP, None, Nothing, "messages-square"),
     c("help.app_page", "PdfCraft web page", HELP, None, Nothing, "globe"),
     c("help.github", "PdfCraft on GitHub", HELP, None, Nothing, "code-xml"),

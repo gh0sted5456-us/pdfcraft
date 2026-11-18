@@ -132,6 +132,7 @@ pub(crate) fn title(dialog: Dialog) -> String {
         ExportTo => "Export to",
         About => "About Lion PDF",
         Shortcuts => "Keyboard shortcuts",
+        ConnectAi => "Connect AI assistants",
         Sign => "Digital signature",
         RemoveSignature => "Remove signature",
         Timestamp => "Timestamp",
@@ -544,7 +545,14 @@ fn park(app: &mut PdfCraftApp, ctx: &egui::Context, slot: Slot) -> bool {
     }
     let doc = if matches!(
         slot.dialog,
-        Dialog::Assistant | Dialog::Preferences | Dialog::About | Dialog::Shortcuts | Dialog::Templates | Dialog::NewPaper | Dialog::CreateImages
+        Dialog::Assistant
+            | Dialog::Preferences
+            | Dialog::About
+            | Dialog::Shortcuts
+            | Dialog::ConnectAi
+            | Dialog::Templates
+            | Dialog::NewPaper
+            | Dialog::CreateImages
     ) {
         None
     } else {

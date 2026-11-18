@@ -10666,3 +10666,15 @@ commands = []
 tools = []
 evidence = ["crates/ui-egui/src/graphics.rs::settings_round_trip_and_invalid_input_preserves_the_choice", "crates/ui-egui/src/graphics.rs::native_cap_waits_for_the_frame_boundary_without_losing_input", "crates/ui-egui/src/graphics.rs::viewport_clocks_are_independent_and_closed_windows_are_retired", "apps/pdfcraft/src/tests.rs::saved_renderer_is_used_unless_a_valid_environment_override_is_present", "apps/pdfcraft/src/tests.rs::native_composition_window_has_no_redirection_surface_after_maximize_and_restore"]
 notes = "Preferences > Graphics selects Automatic/native GPU/OpenGL, with restart required for backend changes. Match display and 30/60/90/120/144/165/240 FPS limits apply immediately to native viewports without dropping input. ui.set graphics-renderer and fps-limit expose the same preferences. Windows defaults to native GPU rendering with initialization-only OpenGL fallback; DirectComposition creates windows without a redirection bitmap for transparent Glass (reviewed egui #8749 backport). Windows style creation/restore and live frame pacing passed; user confirmed Windows desktop transparency, maximize/restore and smooth pointer interaction; installer and non-Windows runtime qualification remain open; web pacing stays browser-managed."
+
+[[feature]]
+id = "personal.ai-assistant-mcp-connect"
+title = "Connect AI assistants to Lion PDF (MCP settings and PDF-building skill)"
+area = "J"
+tier = "P2"
+milestone = "M10"
+status = "shipped"
+commands = ["help.connect_ai"]
+tools = ["doc_create", "page_add_text", "render_preview", "doc_save"]
+evidence = ["crates/engine/src/ai_connect.rs::json_names_the_program_and_confines_it_to_the_folder", "crates/engine/src/ai_connect.rs::claude_code_quotes_paths_for_each_shell", "apps/pdfcraft-cli/tests/it/mcp_setup.rs::printed_settings_start_a_confined_server_that_builds_a_pdf", "crates/ui-egui/tests/it/ai_connect.rs::connect_ai_shows_settings_for_the_chosen_folder_and_copies_them"]
+notes = "Help > Connect AI assistants... and `pdfcraft-cli mcp-setup` show Claude Desktop, Claude Code and generic mcpServers settings for the installed pdfcraft-cli, confined to one chosen folder for reads and writes. Lion PDF never starts the server or edits another app's settings. The server identifies as Lion PDF and its instructions describe building a PDF; docs/skills/lion-pdf/SKILL.md is an agent skill for the same workflow."

@@ -5978,6 +5978,7 @@ dependencies = [
  "pdfcraft-testkit",
  "pdfcraft-xfa",
  "pdfcraft-xfdf",
+ "serde_json",
  "spellbook",
  "spellkit",
  "thiserror 2.0.21",
