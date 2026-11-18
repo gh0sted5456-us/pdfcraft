@@ -1687,7 +1687,7 @@ fn mcp_session_over_stdio() {
     assert_eq!(replies.len(), 4, "the notification gets no reply");
 
     assert_eq!(replies[0]["result"]["protocolVersion"], "2025-03-26");
-    assert_eq!(replies[0]["result"]["serverInfo"]["name"], "pdfcraft");
+    assert_eq!(replies[0]["result"]["serverInfo"]["name"], "lion-pdf");
     assert_eq!(replies[1]["result"]["tools"].as_array().unwrap().len(), tools().len());
     assert_eq!(replies[2]["result"]["structuredContent"]["pages"], 3);
     assert_eq!(replies[2]["result"]["isError"], false);
