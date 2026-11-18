@@ -73,7 +73,7 @@ impl PdfCraftApp {
                 None
             };
             let Some(gap) = gap else { return };
-            if !self.session.get(drag.source).is_some_and(|doc| doc.edit_generation() == drag.generation) {
+            if self.session.get(drag.source).is_none_or(|doc| doc.edit_generation() != drag.generation) {
                 self.notify("The source document changed during the drag. Select the pages again.");
                 return;
             }

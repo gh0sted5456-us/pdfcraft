@@ -108,6 +108,9 @@ fn extgstate_width(doc: &Document, resources: &Dict, name: &[u8]) -> Option<f64>
 }
 
 /// Every path painted in the page's operators, in drawing order.
+// Rust 1.95's clippy (the release toolchain) asks to fold these `if`s into match guards,
+// which would send the unmatched case on to the later arms.
+#[allow(clippy::collapsible_match)]
 pub(crate) fn scan(doc: &Document, page: usize, ops: &[Op]) -> Vec<ScannedPath> {
     let resources = pdfcraft_model::pages(doc)
         .into_iter()

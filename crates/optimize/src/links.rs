@@ -162,6 +162,9 @@ pub(crate) fn remove_invalid(doc: &mut Document, pages: &[ObjRef]) -> Result<(us
 }
 
 /// Every named destination some reachable object refers to (links, bookmarks, actions, open action).
+// Rust 1.95's clippy (the release toolchain) asks to fold these `if`s into match guards,
+// which would send the unmatched case on to the later arms.
+#[allow(clippy::collapsible_match)]
 fn referenced_names(doc: &Document) -> HashSet<Vec<u8>> {
     let mut out = HashSet::new();
     let mut seen = HashSet::new();

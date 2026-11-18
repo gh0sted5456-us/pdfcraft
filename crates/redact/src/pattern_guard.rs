@@ -367,6 +367,9 @@ const MAX_TREE_NODES: usize = 1_000_000;
 /// too -- that has `/Resources` of its own and is not one of the document's pages: those are
 /// walked with their effective resources. Cycles are cut by the seen-set. Holders are bounded by
 /// `MAX_OBJECTS`, pages are not.
+// Rust 1.95's clippy (the release toolchain) asks to fold this `if` into a match guard,
+// which would send the unmatched case on to the later arms.
+#[allow(clippy::collapsible_match)]
 fn tree_holders(doc: &Document) -> Result<Vec<Object>, PatternProblem> {
     let Some(top) = doc.root().and_then(|root| doc.get(root).as_dict().and_then(|d| d.reference(b"Pages"))) else { return Ok(Vec::new()) };
     let pages: HashSet<ObjRef> = pdfcraft_model::pages(doc).iter().map(|p| p.obj).collect();
