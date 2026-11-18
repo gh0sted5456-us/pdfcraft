@@ -643,6 +643,17 @@ fn dialog_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, dialog: Dialog, req: &m
                 return false;
             }
         }
+        Dialog::ConnectAi => {
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                req.close = crate::ai_connect_ui::body(ui, app, &t);
+            }
+            #[cfg(target_arch = "wasm32")]
+            {
+                req.close = true;
+            }
+            return false;
+        }
         Dialog::About => {
             if !dialog_about(ui, req) {
                 return false;

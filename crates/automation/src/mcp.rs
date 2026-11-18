@@ -30,9 +30,13 @@ const INTERNAL_ERROR: i64 = -32603;
 /// Longest JSON-RPC request line [`McpServer::serve`] buffers into memory (16 MiB).
 pub const MAX_LINE_BYTES: usize = 16 * 1024 * 1024;
 
-const INSTRUCTIONS: &str = "PdfCraft edits PDFs. Open a file with doc_open to get a document id, then inspect \
+const INSTRUCTIONS: &str = "Lion PDF creates and edits PDFs. Open a file with doc_open to get a document id, then inspect \
 (doc_info, text_extract, text_find, page_render) or edit it (page_*, doc_set_info). Edits are undoable \
-(edit_undo) and stay in memory until doc_save. Page numbers are 1-based. Open documents are also \
+(edit_undo) and stay in memory until doc_save. Page numbers are 1-based; rectangles are [left, top, right, \
+bottom] points from the displayed page's top-left (Letter is 612 x 792, A4 595 x 842). To build a new PDF: \
+doc_create (from blank, starter with template_list ids, images or text), then page_add_text (give width or \
+rect, or long lines wrap at a default width), page_add_image, form_add_field, bookmark_add, link_add and \
+doc_set_info; check each page with render_preview, then doc_save with a path. Open documents are also \
 resources: pdfcraft://doc/{doc}/info, /text, /page/{page}/text and /page/{page}/image. \
 command_list discovers command ids and tool schemas; command_run executes one, command_batch runs several. \
 doc_inspect returns open document state; render_preview returns a bounded PNG.";
@@ -153,7 +157,8 @@ impl McpServer {
                 Ok(json!({
                     "protocolVersion": version,
                     "capabilities": { "tools": { "listChanged": false }, "resources": { "listChanged": false, "subscribe": false } },
-                    "serverInfo": { "name": "pdfcraft", "title": "PdfCraft", "version": env!("CARGO_PKG_VERSION"), "websiteUrl": pdfcraft_engine::links::APP_PAGE },
+                    // Lion PDF: its own name, so an AI client lists the server as Lion PDF.
+                    "serverInfo": { "name": pdfcraft_engine::ai_connect::SERVER_NAME, "title": "Lion PDF", "version": env!("CARGO_PKG_VERSION"), "websiteUrl": pdfcraft_engine::ai_connect::PROJECT_PAGE },
                     "instructions": if self.compact { format!("{INSTRUCTIONS}{COMPACT_INSTRUCTIONS}") } else { INSTRUCTIONS.to_string() },
                 }))
             }
@@ -653,7 +658,7 @@ mod tests {
         assert_eq!(replies[0]["error"]["code"], -32700);
         assert_eq!(replies[1]["error"]["code"], -32600);
         assert_eq!(replies[2]["id"], 1);
-        assert_eq!(replies[2]["result"]["serverInfo"]["name"], "pdfcraft");
+        assert_eq!(replies[2]["result"]["serverInfo"]["name"], "lion-pdf");
     }
 
     #[test]

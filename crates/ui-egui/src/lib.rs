@@ -81,6 +81,8 @@ pub use recovery::{AUTOSAVE_SECS, RecoveryMeta, RecoveryStore, default_dictionar
 use theme::{ThemeKind, ThemePreference};
 pub use workflows::ocr_verify::{OcrVerify, Phase};
 
+#[cfg(not(target_arch = "wasm32"))]
+mod ai_connect_ui;
 mod app;
 mod frame_guard;
 mod hooks;
@@ -534,6 +536,8 @@ pub struct PdfCraftApp {
     /// The folder scan behind File ▸ Open next / previous PDF in folder, while it runs.
     #[cfg(not(target_arch = "wasm32"))]
     pub(crate) folder_step: Option<folder_step::FolderStep>,
+    /// Lion PDF: the folder Help ▸ Connect AI assistants… lets an assistant use, once chosen.
+    pub ai_connect_folder: Option<std::path::PathBuf>,
     #[cfg(all(test, not(target_arch = "wasm32")))]
     open_prepare_gate: Option<std::sync::Arc<open_worker::PrepareGate>>,
     /// Folders pinned to Home, and what they held when last listed.

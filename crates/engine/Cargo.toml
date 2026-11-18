@@ -65,6 +65,8 @@ pdfcraft-filters = { workspace = true }
 # Exercise dictionary decoding on Windows too, without requiring a Linux toolchain.
 spellbook = "=0.4.2"
 encoding_rs = "0.8"
+# Parse the AI connection settings back in its tests (`ai_connect`).
+serde_json = { workspace = true }
 [target.'cfg(any(windows, target_os = "macos"))'.dependencies]
 # Safe native spelling APIs; dictionaries stay in the operating system.
 spellkit = "=0.4.0"

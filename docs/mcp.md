@@ -8,6 +8,22 @@ Supply `--root` at most once, followed by a nonempty directory path. Missing ope
 repeated roots and another long option in place of the directory are refused before any
 script is read or server is started. Prefix a directory name beginning with `--` with `./`.
 
+## Lion PDF: connect an AI assistant
+
+Lion PDF installs `pdfcraft-cli` beside the app, so there is nothing to build. In the app, choose
+**Help ▸ Connect AI assistants…**, pick the folder the assistant may use and copy the settings for
+your client: the `mcpServers` block for Claude Desktop (Settings ▸ Developer ▸ Edit Config), Cursor
+and other clients, or the `claude mcp add` command for Claude Code. From a terminal,
+`pdfcraft-cli mcp-setup --folder DIR` prints the same settings (`--client claude-desktop`,
+`claude-code` or `json` for one of them). Lion PDF never starts the server or edits another app's
+settings; the client starts `pdfcraft-cli mcp` itself, confined to that folder with
+`--automation-read-root` and `--automation-write-root`.
+
+The server introduces itself as Lion PDF (`lion-pdf`) and its instructions tell the assistant how
+to build a PDF. [`docs/skills/lion-pdf/SKILL.md`](skills/lion-pdf/SKILL.md) is a fuller agent
+skill for the same work: add it to Claude (Settings ▸ Capabilities ▸ Skills) or copy it into
+`~/.claude/skills/lion-pdf/` for Claude Code.
+
 ## Install and register
 
 From the repository root, with Rust 1.95+ and a native linker installed

@@ -296,6 +296,8 @@ fn check_certified_edit(edit: &Edit, permission: Option<u8>) -> Result<(), EditE
     }
 }
 
+pub mod ai_connect;
+
 pub mod assistant;
 
 pub mod clear_signature;

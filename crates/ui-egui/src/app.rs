@@ -200,6 +200,7 @@ impl PdfCraftApp {
             launch_display_target: None,
             #[cfg(not(target_arch = "wasm32"))]
             folder_step: None,
+            ai_connect_folder: None,
             #[cfg(all(test, not(target_arch = "wasm32")))]
             open_prepare_gate: None,
             pinned: Default::default(),

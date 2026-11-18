@@ -320,6 +320,8 @@ Every engine feature is reachable without the GUI, through one table of JSON-Sch
   { "mcpServers": { "pdfcraft": { "command": "pdfcraft-cli", "args": ["mcp", "--root", "/path/to/your/pdfs"] } } }
   ```
 
+  In Lion PDF, **Help ▸ Connect AI assistants…** (or `pdfcraft-cli mcp-setup`) writes these settings for you, with the installed program's path and the one folder you let the assistant use, for Claude Desktop, Claude Code, Cursor and other clients. [`docs/skills/lion-pdf/SKILL.md`](docs/skills/lion-pdf/SKILL.md) is an agent skill for building PDFs through it. See [docs/mcp.md](docs/mcp.md#lion-pdf-connect-an-ai-assistant).
+
   `--compact` shrinks the tool list the agent has to read: `tools/list` returns about ten core tools plus `tool_search` and `tool_call`, which find and run every other tool, so the list costs far fewer tokens. Every tool still works.
 
   `--root` confines every file the agent can read or write to one directory. Builds that should not include the server at all can use `cargo build -p pdfcraft-cli --no-default-features`.

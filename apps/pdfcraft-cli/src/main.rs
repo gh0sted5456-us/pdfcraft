@@ -20,6 +20,8 @@
 #[cfg(feature = "mcp")]
 mod automation_args;
 mod batch;
+#[cfg(feature = "mcp")]
+mod mcp_setup;
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -43,6 +45,10 @@ pdfcraft-cli mcp    [--root DIR] [--compact] [--network] [--automation-read-root
                                                            write (save, export, extract, split, reports…) to DIR, links followed;
                                                            a root left out grants none of its access. --root, when also given,
                                                            applies as well
+pdfcraft-cli mcp-setup [--folder DIR] [--client all|claude-desktop|claude-code|json]
+                                                           print the settings that connect an AI assistant (Claude Desktop,
+                                                           Claude Code, Cursor…) to this MCP server, confined to DIR (default:
+                                                           the current folder); registers and starts nothing
 "
     };
 }
@@ -147,8 +153,10 @@ fn main() -> ExitCode {
         Some("ui") => ui(&args[1..]),
         #[cfg(feature = "mcp")]
         Some("mcp") => mcp(&args[1..]),
+        #[cfg(feature = "mcp")]
+        Some("mcp-setup") => mcp_setup::mcp_setup(&args[1..]),
         #[cfg(not(feature = "mcp"))]
-        Some("mcp") => Err("mcp: this build leaves out the MCP server (built without the `mcp` feature)".into()),
+        Some("mcp" | "mcp-setup") => Err("mcp: this build leaves out the MCP server (built without the `mcp` feature)".into()),
         Some("--version") => version(),
         Some(other) => Err(format!("unknown command '{other}'; see pdfcraft-cli --help").into()),
     };
