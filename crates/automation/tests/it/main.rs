@@ -26,6 +26,7 @@ mod model_render;
 mod office;
 mod optimize_content_boundaries;
 mod page_actions;
+mod page_templates;
 mod portfolio_info;
 mod production;
 mod protect_certificate_command;

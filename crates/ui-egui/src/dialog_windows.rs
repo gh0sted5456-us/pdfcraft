@@ -191,6 +191,7 @@ pub(crate) fn title(dialog: Dialog) -> String {
         LockSignatures => "Lock signatures",
         EnhanceScan => "Enhance scanned document",
         PinTool => "Pin tool",
+        RenameFile => "Rename file",
     }
     .into()
 }
@@ -524,6 +525,7 @@ fn swap_drafts(app: &mut PdfCraftApp, holder: &mut PdfCraftApp, dialog: Dialog) 
         AuditSpace => swap!(space_audit, space_audit_of),
         CertificateViewer => swap!(cert_viewer),
         RemoveSignature => swap!(remove_sig),
+        RenameFile => swap!(rename_draft),
         OverwriteChanged => {
             #[cfg(not(target_arch = "wasm32"))]
             {

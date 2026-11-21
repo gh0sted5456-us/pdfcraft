@@ -809,6 +809,7 @@ pub(crate) fn editor(ctx: &egui::Context, keys: PageKeys, view: &mut DocView, in
                     .hint_text(tl!("Type text"))
                     .id(input)
                     .show(ui);
+                crate::edit_text_ui::narrow_double_click(ui, input, &t.text, &output);
                 // Lion PDF: misspelled words are underlined, with suggestions on right-click.
                 crate::spelling_ui::annotate(ui, &mut output, &mut t.text, None);
                 let resp = output.response;

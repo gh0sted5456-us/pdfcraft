@@ -20,6 +20,7 @@ pub(super) mod preferences;
 pub(super) mod printer_marks_ui;
 mod prompts;
 pub(super) mod protect;
+pub(super) mod rename_ui;
 pub(super) mod standards_ui;
 pub(super) mod word_count_ui;
 
@@ -68,6 +69,7 @@ struct Pending {
     import_words: bool,
     print_go: bool,
     revert_now: bool,
+    rename_now: bool,
     overwrite_now: bool,
     overwrite_elsewhere: bool,
     lock_answer: Option<bool>,
@@ -422,6 +424,12 @@ fn dialog_body(ui: &mut egui::Ui, app: &mut PdfCraftApp, dialog: Dialog, req: &m
             if !dialog_summarize_comments(ui, app, req) {
                 return false;
             }
+        }
+        Dialog::RenameFile => {
+            let (shut, go) = crate::rename_ui::body(app, ui);
+            req.close |= shut;
+            req.rename_now = go;
+            return false;
         }
         Dialog::LockSignatures => {
             if !dialog_lock_signatures(ui, app, req) {
@@ -2315,7 +2323,8 @@ fn finish_edits(app: &mut PdfCraftApp, dialog: Dialog, req: &mut Pending) {
         && let Some((i, id)) = app.active_ids()
     {
         let count = app.session.get(id).map(|d| d.info.pages.len()).unwrap_or(0);
-        let edit = app.boxes_draft.edit(app.views[i].current, count);
+        let units = app.session.get(id).map(|d| d.page_user_units()).unwrap_or_default();
+        let edit = app.boxes_draft.edit(app.views[i].current, count, &units);
         app.apply_edit(edit);
         app.boxes_draft.seeded = None;
     }
@@ -2379,6 +2388,12 @@ fn finish_close(app: &mut PdfCraftApp, dialog: Dialog, modal_closed: bool, req: 
     }
     if req.alt_now {
         app.save_alt_text();
+    }
+    // After the dialog has gone: Save and Rename may ask about a file changed on disk.
+    if req.rename_now {
+        app.rename_with_draft();
+    } else if app.dialog.is_none() {
+        app.rename_draft = None;
     }
     if req.stamp_now {
         app.save_custom_stamp();

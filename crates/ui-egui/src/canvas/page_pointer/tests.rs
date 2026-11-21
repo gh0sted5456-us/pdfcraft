@@ -243,7 +243,7 @@ const RAW_READS: [&str; 21] = [
 
 /// Functions in the page modules that are not page input and read egui's pointer state
 /// themselves: (file, function, why).
-const NOT_PAGE_INPUT: [(&str, &str, &str); 14] = [
+const NOT_PAGE_INPUT: [(&str, &str, &str); 15] = [
     ("tools/object_ui.rs", "line_panel", "a colour picker in the tool panel commits its colour on release"),
     ("canvas/area.rs", "zoom_anchor", "a pinch zooms the whole view, and is read before the pages' widget exists"),
     ("canvas/area.rs", "drawing_edge_pointer", "scrolls the view at its edges, read before the pages' widget exists"),
@@ -257,6 +257,11 @@ const NOT_PAGE_INPUT: [(&str, &str, &str); 14] = [
     ("tools/forms_ui.rs", "scroll_bar", "the scroll bar of a drop-down's open list, in its Area over the page"),
     ("tools/content_ui.rs", "editor", "the added-text editor is an Area of its own over the page"),
     ("tools/edit_text_ui.rs", "overlay", "the paragraph editor is an Area of its own over the page"),
+    (
+        "tools/edit_text_ui.rs",
+        "narrow_double_click",
+        "the paragraph editor's text box is in that Area, and the press is the one its own response saw",
+    ),
     ("tools/fill_sign/scan.rs", "scan_tab", "the signature dialog's Scan tab"),
 ];
 
