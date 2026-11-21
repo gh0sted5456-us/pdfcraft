@@ -1,4 +1,4 @@
-# Vendored from storytold/craft-libs crates/pdf at 8e03cd016d42032b867fef6bad86bc69bf2c1920
+# Vendored from storytold/craft-libs crates/pdf at 9eb02be84f21898e247daeb2af5827c9fe85a3a0
 # (the pin upstream PdfCraft uses), with Lion PDF patches marked `Lion patch:` in the source
 # (see vendor/README.md). Workspace-inherited fields are written out.
 [package]
@@ -29,6 +29,10 @@ cos = ["crypt", "filters", "dep:chrono", "dep:js-sys", "dep:wasm-bindgen"]
 # tokenizer ends them.
 content = ["cos", "dep:hayro-syntax"]
 crypt = ["dep:aes", "dep:md-5", "dep:sha1", "dep:sha2", "dep:stringprep", "dep:zeroize", "dep:thiserror"]
+# `testing`: a builder of small synthetic PDF files, for the tests of crates that read them.
+test-support = ["cos"]
+# Standard-14 font metrics and ISO 32000-2 Annex D single-byte encodings.
+fonts = []
 
 [dependencies]
 hayro-syntax = { version = "=0.7.2", default-features = false, features = ["std"], optional = true }

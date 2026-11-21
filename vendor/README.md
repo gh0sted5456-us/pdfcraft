@@ -43,6 +43,13 @@ licence files unchanged. Every patch is marked `PdfCraft patch:` in the source, 
 PdfCraft test, and should be proposed upstream. Remove the vendored copy once upstream releases
 the fix. Vendoring copyleft code is never allowed (plan/adr/0001).
 
+The TrueType name lookup patch probes Unicode `(0, *)` and Windows `(3, 10)` cmap records,
+recognizes post-name aliases, and retains known descriptor flags when unknown bits are present.
+`crates/render/tests/truetype_cmap.rs` covers these synthetic cases and verifies that Symbolic
+Encoding/Differences and ToUnicode do not override the existing glyph-selection policy.
+ToUnicode still controls extraction. The CFF fallback is unchanged. No original affected PDF
+from #2159 or #2426 is available, so those reported files remain unverified.
+
 A PdfCraft patch in `hayro-syntax::Page::base_dimensions` expresses the existing one-point floor as a raw reciprocal of `/UserUnit`, rounded upward only when f32 multiplication would fall below one point. Five `pdfcraft-render` regressions with prefix `raster::tests::raw_crop_` cover the observed dimensions, origins and rotations, units 41/47, bounded vector rasters and the nearly-zero fallback, which is US Letter since patch 44. Accepted page-unit policy and licences are unchanged.
 
 In `hayro-interpret`, Type 3 glyph bounding boxes are transformed to device space before intersecting clip and shading bounds; `raster::tests::shaded_type3_glyph_draws_at_multiple_positions` covers translated glyphs (#3178).
@@ -56,7 +63,7 @@ Other resource categories retain their existing parent-chain lookup.
 ## craft-pdf (storytold/craft-libs)
 
 `vendor/craft-pdf` is `crates/pdf` of storytold/craft-libs at
-`8e03cd016d42032b867fef6bad86bc69bf2c1920`, upstream PdfCraft's pin (its root `craft-pdf`
+`9eb02be84f21898e247daeb2af5827c9fe85a3a0`, upstream PdfCraft's pin (its root `craft-pdf`
 dependency; upstream #7261 cut `pdfcraft-cos`, `pdfcraft-crypt` and `pdfcraft-filters` over to it). Those three crates are now
 re-exports of it, and the root `[patch."https://github.com/storytold/craft-libs"]` entry points
 every craft-libs consumer at this copy. Only `src/`, the README and the licence files are kept;
@@ -81,6 +88,16 @@ Covered by `crates/cos/tests/it/encryption.rs`, `crates/crypt/src/tests.rs`,
 `crates/crypt/tests/it/qpdf_literals.rs` and the engine, automation and UI certificate tests.
 To move the pin: copy `crates/pdf/src` from the new craft-libs commit, re-apply the patches
 (search `Lion patch:`), and run those tests.
+
+## hayro-interpret (storytold/craft-libs)
+
+Upstream PdfCraft takes hayro-interpret from storytold/craft-libs (`vendor/hayro-interpret` at
+`9eb02be84f21898e247daeb2af5827c9fe85a3a0`, the root `[patch.crates-io]` pin). Lion PDF keeps
+that copy here with one Lion patch to PdfCraft patch (59), `no_rotate_applies` in
+`src/interpret/mod.rs`: form fields (widgets) turn with the NoRotate flag as sticky notes do, and
+only links stay in `/Rect`. Lion PDF's NoRotate form previews take the fields' click, selection
+and resize geometry from the drawn bounds. To move the pin: copy the new commit's
+`vendor/hayro-interpret`, re-apply the one-line change, and run the NoRotate form tests.
 
 | Crate | Version | Licence | Patches | Test |
 |---|---|---|---|---|

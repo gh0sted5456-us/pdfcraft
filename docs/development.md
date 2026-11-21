@@ -246,3 +246,25 @@ to the browser.
 The opt-in control channel accepts ui.set graphics-renderer auto|wgpu|gl,
 ui.set fps-limit display|0|30|60|90|120|144|165|240 and
 ui.set preferences-category graphics; ui.state reports the graphics preferences.
+
+## Fonts and attribution
+
+- `CRAFT_FONTS_DIR=<craft-fonts checkout> cargo build` makes `crates/fonts/build.rs` embed the
+  craft-fonts faces as `pdfcraft_fonts::CRAFT_FONTS`. Without it PdfCraft builds, tests and runs, but
+  has no Japanese face: Japanese UI text shows replacement boxes and writing Japanese into a PDF
+  returns an error. Release builds set it (`.github/workflows/release.yml`), and `ATTRIBUTION.toml`
+  lists it as a `[[build_input]]`. Code that uses `CRAFT_FONTS` works when it is empty.
+- The desktop app reads one font already installed on the machine at run time, as the last interface
+  fallback (`crates/ui-egui/src/system_fonts.rs`). The page viewer can draw a CID font of an Adobe CJK
+  collection that a PDF does not embed with an installed face, on screen only
+  (`crates/render/src/system_font.rs`; `RenderConfig::system_fonts` is off by default and set by
+  `RenderConfig::on_screen`). Neither font is embedded, shipped, committed or copied, and nothing drawn
+  with them is saved or printed. `PDFCRAFT_SYSTEM_FONTS=0` turns both off; `cargo xtask screenshots`
+  sets it.
+- `cargo xtask assets` fails when an asset file has no `ATTRIBUTION.toml` entry, an entry's hash is
+  missing or wrong, a licence is not on the allowlist or its file is missing, or an image, icon or font
+  names Adobe as author, except a font under OFL-1.1 alone. The Adobe non-visual data allowed is the
+  closed list in `xtask/src/assets.rs` (`adobe_data = true`). `cargo xtask demo-pdf` fails if the PDF
+  embeds a font that is not an `ATTRIBUTION.toml` entry.
+- The ArtCraft name, wordmark and logos in `docs/brand/` are trademarks of the ArtCraft Team, not open
+  source (terms in `docs/brand/LICENSE-brand.txt`); they stay in PdfCraft, unmodified.

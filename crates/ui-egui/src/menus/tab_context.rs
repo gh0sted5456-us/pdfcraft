@@ -9,6 +9,7 @@ pub(crate) enum Action {
     Detach(DocId),
     Reopen,
     Reveal(DocId),
+    Rename(DocId),
     /// Split right (or down) with a tab, by its view key.
     Split {
         tab: u64,
@@ -91,6 +92,7 @@ impl crate::PdfCraftApp {
                 #[cfg(target_arch = "wasm32")]
                 let _ = id;
             }
+            Action::Rename(id) => self.start_rename(id),
         }
     }
 }
