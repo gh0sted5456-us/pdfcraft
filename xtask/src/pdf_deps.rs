@@ -15,6 +15,9 @@ const PACKAGES: &[(&str, &str)] = &[
     ("hayro-jbig2", "0.3.0"),
     ("hayro-cmap", "0.1.0"),
 ];
+/// Lion PDF: packages it builds from a copy of that same craft-libs commit with Lion patches
+/// (vendor/README.md), not from git.
+const LION_VENDORED: &[&str] = &["craft-pdf", "hayro-interpret"];
 
 pub fn run(root: &Path) -> Result<(), String> {
     let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
@@ -43,7 +46,17 @@ fn validate(root: &Path, metadata: &Value) -> Result<(), String> {
     let source = format!("git+https://github.com/storytold/craft-libs?rev={SHARED_REV}#{SHARED_REV}");
     for &(name, version) in PACKAGES {
         let package = one_package(name)?;
-        if package.get("version").and_then(Value::as_str) != Some(version) || package.get("source").and_then(Value::as_str) != Some(source.as_str()) {
+        let wrong_version = package.get("version").and_then(Value::as_str) != Some(version);
+        if LION_VENDORED.contains(&name) {
+            let manifest = root.join("vendor").join(name).join("Cargo.toml");
+            let vendored = package.get("source") == Some(&Value::Null)
+                && package.get("manifest_path").and_then(Value::as_str).map(Path::new) == Some(manifest.as_path());
+            if wrong_version || !vendored {
+                return Err(format!("{name}: expected {version} from Lion PDF's copy in vendor/{name} (of {SHARED_REV}); got {package}"));
+            }
+            continue;
+        }
+        if wrong_version || package.get("source").and_then(Value::as_str) != Some(source.as_str()) {
             return Err(format!("{name}: expected {version} from {source}; got {package}"));
         }
     }
