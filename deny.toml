@@ -46,7 +46,7 @@ allow-git = [
 ]
 
 [advisories]
-yanked = "warn"
+yanked = "deny"
 ignore = [
     # crypto-bigint 0.5.5 reaches us only through openidconnect 4's public-key JWT
     # verification. The public client has no client secret or private signing key
