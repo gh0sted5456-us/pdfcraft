@@ -931,10 +931,10 @@ impl PdfCraftApp {
                 view.pending_pick = None;
             }
         }
-        panes::frame(self);
         // Forms' scripts read Highlight fields as `app.runtimeHighlight`.
         let highlight = self.active.and_then(|i| self.views.get(i)).map_or(self.view_defaults.highlight_fields, |v| v.highlight_fields);
         self.session.set_field_highlight(highlight);
+        panes::frame(self);
         self.sync_titles(&ctx);
         // The accessible window takes the same name, so a screen reader (AT-SPI on Linux, UIA on
         // Windows) can tell it apart (#4614). egui builds the root node afresh every pass.
