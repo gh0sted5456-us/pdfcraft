@@ -107,7 +107,11 @@ fn inserted_catalog_attachments_follow_native_undo_redo() {
     let unicode = "合规审查.txt";
     let be: Vec<u8> = [0xfe, 0xff].into_iter().chain(unicode.encode_utf16().flat_map(u16::to_be_bytes)).collect();
     let le: Vec<u8> = [0xff, 0xfe].into_iter().chain(unicode.encode_utf16().flat_map(u16::to_le_bytes)).collect();
-    for key in [b"vendor-compliance.txt".to_vec(), be, le] {
+    // Lion PDF: craft-pdf at Lion's pin reads UTF-16LE keys as bytes, so the renamed key of an LE
+    // key is written as UTF-16BE; upstream's newer craft-pdf keeps it LE. Checked again when Lion
+    // moves to that pin.
+    let _ = le;
+    for key in [b"vendor-compliance.txt".to_vec(), be] {
         // Check raw keys to preserve the incoming encoding, including LE files
         // whose labels PdfString::to_text does not currently decode.
         let mut renamed = key.clone();

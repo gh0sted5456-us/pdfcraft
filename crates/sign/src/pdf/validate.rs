@@ -130,6 +130,9 @@ fn earliest_signed_dict(context: &SignatureValidation<'_>, v: &Dict) -> (Documen
                 && !whole_file(context.bytes, end)
                 && let Some(old) = context.cache.revision(context.doc, context.bytes, end)
                 && let Some(old_v) = find_sig_in_revision(&old, context.field, context.stamp_ref)
+                // Lion PDF: a field cleared and signed again holds a new signature; an earlier
+                // revision's value is this signature only when it has the same /Contents.
+                && dict_contents(&old, &old_v) == dict_contents(context.doc, v)
             {
                 return (old, old_v);
             }

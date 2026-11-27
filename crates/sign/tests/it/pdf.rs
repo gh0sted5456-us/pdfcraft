@@ -3751,10 +3751,10 @@ fn certify_level_one_forbids_adding_signature_fields_or_counter_signing() {
     let tsa = TestTsa { id: tsa_id(), time: Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 } };
     let trust = TrustStore { certs: vec![id.certificate.clone(), tsa.id.certificate.clone()], ..TrustStore::default() };
     let certified_p1 = pdfcraft_sign::sign(&open(&fixture()), &id, &SignOptions { certify: Some(1), ..opts() }).unwrap();
-    let counter_p1 = pdfcraft_sign::sign(&open(&certified_p1), &id, &SignOptions { field: Some("Approval".into()), ..opts() }).unwrap();
-    let first_p1 = signatures(&open(&counter_p1), &counter_p1, &trust).into_iter().find(|s| s.field == "Signature1").unwrap();
-    assert_eq!(first_p1.status, Status::Invalid, "{:?}", first_p1.modification);
-    assert_eq!(first_p1.modification, Modification::Disallowed(vec![kind::SIGNATURE]));
+    // Lion PDF refuses to counter-sign a P = 1 certification at all (`sign` checks it first), so
+    // the counter-signature upstream validates here is never made.
+    let counter_p1 = pdfcraft_sign::sign(&open(&certified_p1), &id, &SignOptions { field: Some("Approval".into()), ..opts() });
+    assert!(matches!(counter_p1, Err(SignError::Pdf(ref m)) if m.contains("permits no further signatures")), "{counter_p1:?}");
 
     // Adding an RFC 3161 document timestamp to a P = 1 certified document is permitted for
     // long-term validation and keeps the certifying signature valid.
