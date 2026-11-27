@@ -317,8 +317,10 @@ impl Session {
         // XFA notes survive the document being re-read after edits.
         let xfa_warnings: Vec<String> = if info.xfa.is_some() { info.warnings.clone() } else { Vec::new() };
         let as_opened = as_read.filter(|o| !Arc::ptr_eq(&o.bytes, &bytes));
-        let mut document =
-            Self::build_document(context, DocumentOpenData { name, path, bytes, info, structure: cos, render_password, password, xfa, certificate, as_opened });
+        let mut document = Self::build_document(
+            context,
+            DocumentOpenData { name, path, bytes, info, structure: cos, render_password, password, xfa, certificate, as_opened },
+        );
         // A script that ran away on open turns the form's scripts off for this document.
         document.xfa_template = if ran_away { None } else { xfa_template };
         document.js_output.append(script_output);

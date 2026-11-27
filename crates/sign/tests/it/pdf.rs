@@ -1427,7 +1427,7 @@ fn xfa_page_swap(doc: &mut Document) {
 #[test]
 fn a_later_field_with_the_same_name_does_not_inherit_the_signature() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()] };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
     let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &SignOptions { field: Some("Approval".into()), ..opts() }).unwrap();
     let edited = edit_after(&signed, |doc| {
         let root = doc.root().unwrap();
@@ -1470,7 +1470,7 @@ fn a_later_field_with_the_same_name_does_not_inherit_the_signature() {
 #[test]
 fn toggling_needs_rendering_is_a_structure_change() {
     let id = pkcs12::open(&data("rsa-aes.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()] };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
     let check = |bytes: &[u8]| signatures(&open(bytes), bytes, &trust).into_iter().find(|s| s.signed).unwrap();
     let certified = pdfcraft_sign::sign(&open(&fixture()), &id, &SignOptions { certify: Some(1), ..opts() }).unwrap();
     assert_eq!(check(&certified).status, Status::Valid);
@@ -3692,7 +3692,7 @@ fn signed_catalog_and_page_tree_keep_their_role_when_relabelled_or_dropped() {
 #[test]
 fn signed_signature_objects_and_byte_ranges_are_read_from_the_signed_revision() {
     let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
-    let trust = TrustStore { certs: vec![id.certificate.clone()] };
+    let trust = TrustStore { certs: vec![id.certificate.clone()], ..TrustStore::default() };
     let signed = pdfcraft_sign::sign(&open(&fixture()), &id, &SignOptions { certify: Some(1), ..opts() }).unwrap();
     let sig_ref = open(&signed)
         .object_numbers()
@@ -3749,7 +3749,7 @@ fn signed_signature_objects_and_byte_ranges_are_read_from_the_signed_revision() 
 fn certify_level_one_forbids_adding_signature_fields_or_counter_signing() {
     let id = pkcs12::open(&data("ec-p256.p12"), "test").unwrap();
     let tsa = TestTsa { id: tsa_id(), time: Time { year: 2026, month: 10, day: 6, hour: 12, minute: 0, second: 0 } };
-    let trust = TrustStore { certs: vec![id.certificate.clone(), tsa.id.certificate.clone()] };
+    let trust = TrustStore { certs: vec![id.certificate.clone(), tsa.id.certificate.clone()], ..TrustStore::default() };
     let certified_p1 = pdfcraft_sign::sign(&open(&fixture()), &id, &SignOptions { certify: Some(1), ..opts() }).unwrap();
     let counter_p1 = pdfcraft_sign::sign(&open(&certified_p1), &id, &SignOptions { field: Some("Approval".into()), ..opts() }).unwrap();
     let first_p1 = signatures(&open(&counter_p1), &counter_p1, &trust).into_iter().find(|s| s.field == "Signature1").unwrap();

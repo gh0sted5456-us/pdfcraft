@@ -782,7 +782,7 @@ fn reachable_form_holders(doc: &Document, holders: &[(ObjRef, Vec<ObjRef>)]) -> 
                     continue;
                 };
                 if ap.len() > MAX_HOLDERS {
-                    return Err(CosError::Syntax { offset: 0, detail: "redaction exceeded its annotation appearance inspection limit".into() });
+                    return Err(RedactError::Refused("redaction exceeded its annotation appearance inspection limit".into()));
                 }
                 // Only the entries a reader draws (normal, rollover, down): an /AP entry none draws
                 // keeps nothing (`a_type3_glyph_only_an_undrawn_appearance_entry_shows_is_unlinked`).
@@ -790,7 +790,7 @@ fn reachable_form_holders(doc: &Document, holders: &[(ObjRef, Vec<ObjRef>)]) -> 
                     ap.iter().filter(|(key, _)| matches!(key.as_slice(), b"N" | b"R" | b"D")).map(|(_, value)| (value.clone(), 0usize)).collect();
                 while let Some((value, depth)) = pending.pop() {
                     if depth > MAX_DEPTH || appearances_visited >= MAX_HOLDERS || pending.len() >= MAX_HOLDERS {
-                        return Err(CosError::Syntax { offset: 0, detail: "redaction exceeded its annotation appearance inspection limit".into() });
+                        return Err(RedactError::Refused("redaction exceeded its annotation appearance inspection limit".into()));
                     }
                     appearances_visited += 1;
                     if let Some(reference) = value.as_ref()
@@ -801,18 +801,14 @@ fn reachable_form_holders(doc: &Document, holders: &[(ObjRef, Vec<ObjRef>)]) -> 
                     match &*doc.resolve(&value) {
                         Object::Dict(states) => {
                             if states.len() > MAX_HOLDERS.saturating_sub(pending.len()) {
-                                return Err(CosError::Syntax {
-                                    offset: 0,
-                                    detail: "redaction exceeded its annotation appearance inspection limit".into(),
-                                });
+                                return Err(RedactError::Refused("redaction exceeded its annotation appearance inspection limit".into()));
                             }
                             pending.extend(states.iter().map(|(_, child)| (child.clone(), depth + 1)));
                         }
                         Object::Stream(form) => {
-                            let reference = value.as_ref().ok_or_else(|| CosError::Syntax {
-                                offset: 0,
-                                detail: "redaction cannot inspect a direct annotation appearance stream".into(),
-                            })?;
+                            let reference = value
+                                .as_ref()
+                                .ok_or_else(|| RedactError::Refused("redaction cannot inspect a direct annotation appearance stream".into()))?;
                             let resources =
                                 form.dict.get(b"Resources").and_then(|r| doc.resolve(r).as_dict().cloned()).unwrap_or_else(|| inherited.clone());
                             form_holders.push((reference, resources.clone()));

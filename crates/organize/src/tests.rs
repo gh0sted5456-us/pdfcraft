@@ -5070,6 +5070,9 @@ fn extracting_and_deleting_pages_keep_shared_annotation_appearance_images() {
         delete_pages(&mut src, &[1]).unwrap();
         let saved = full_roundtrip(&src);
         assert!(xobject_names(&saved, 0).iter().any(|n| n.as_slice() == b"ImB"));
+    }
+}
+
 /// #7687: a watermark source must clip and size the same visible area as the page.
 #[test]
 fn page_form_clips_crop_to_media_before_rotation() {

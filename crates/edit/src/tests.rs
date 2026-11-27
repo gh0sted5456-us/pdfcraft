@@ -17315,6 +17315,8 @@ fn replacing_grouped_artwork_keeps_its_frame_transform_clip_and_other_placements
     assert_eq!(images::page_images(&doc, 1).unwrap(), sibling);
     assert_eq!(*doc.get(artwork), *original);
     assert_eq!(text::text_lines(&doc, 0).unwrap()[0].text, "Caption");
+}
+
 /// The deleted image's payload survived a full save: the census could not prove it unused.
 fn payload_after_delete(doc: &mut Document, private: &[u8]) -> bool {
     images::change_image(doc, 0, 0, &images::ImageChange::Delete).unwrap();

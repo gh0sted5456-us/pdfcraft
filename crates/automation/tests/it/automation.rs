@@ -15887,6 +15887,9 @@ fn no_rotate_widget_rectangles_follow_the_drawing_through_tools() {
         ok(&mut a, "doc_save", json!({"doc":id,"path":"saved.pdf"}));
         let reopened = ok(&mut a, "doc_open", json!({"path":"saved.pdf"}))["doc"].as_u64().unwrap();
         assert_eq!(read(&mut a, reopened), json!(moved));
+    }
+}
+
 /// #7687: an oversized source CropBox must not expose hidden artwork or change fit.
 #[test]
 fn pdf_watermark_uses_visible_source_crop_through_tools() {
