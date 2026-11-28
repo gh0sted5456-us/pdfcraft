@@ -1,0 +1,75 @@
+{
+  "schema": "craft-design-theme",
+  "schema_version": 1,
+  "id": "lion.pdf",
+  "name": "Lion PDF",
+  "version": 1,
+  "variants": "both",
+  "contrast_intent": "standard",
+  "seeds": {
+    "accent": "#1b63e0",
+    "neutral": "#5e5e66",
+    "status": {
+      "bad": "#d93838",
+      "good": "#2e9e5b",
+      "info": "#1b63e0",
+      "warn": "#e0a100"
+    }
+  },
+  "shape": {
+    "edge": "flat",
+    "radius": {
+      "button": 6.0,
+      "control": 6.0,
+      "panel": 8.0,
+      "surface": 8.0,
+      "window": 8.0
+    },
+    "wells": "round"
+  },
+  "light": {
+    "accent.border": "#1b63e080",
+    "accent.soft": "#e3ecfd",
+    "accent.solid": "#1b63e0",
+    "line.border": "#dadade",
+    "line.control_edge": "#dadade",
+    "line.divider": "#e8e8eb",
+    "state.hover": "#f0f0f3",
+    "state.pressed": "#e4e4e9",
+    "state.selected": "#e6eefd",
+    "state.selected_hover": "{accent.soft}",
+    "surface.background": "#e9e9eb",
+    "surface.canvas": "#f1f1f3",
+    "surface.chrome": "#ffffff",
+    "surface.panel": "#ffffff",
+    "surface.raised": "#ffffff",
+    "surface.shadow": "#00000022",
+    "surface.sunken": "#ffffff",
+    "text.faint": "#6b6b73",
+    "text.muted": "#5e5e66",
+    "text.normal": "#222226",
+    "text.on_accent": "#ffffff"
+  },
+  "dark": {
+    "accent.border": "#8cb6fa8c",
+    "accent.soft": "#243657",
+    "accent.solid": "#4b8bf5",
+    "line.border": "#3c3c43",
+    "line.control_edge": "#3c3c43",
+    "line.divider": "#333339",
+    "state.hover": "#34343a",
+    "state.pressed": "#3e3e45",
+    "state.selected": "#233a63",
+    "state.selected_hover": "{accent.soft}",
+    "surface.background": "#1b1b1e",
+    "surface.canvas": "#19191c",
+    "surface.chrome": "#26262a",
+    "surface.panel": "#26262a",
+    "surface.raised": "#2e2e33",
+    "surface.shadow": "#00000078",
+    "surface.sunken": "#1e1e22",
+    "text.faint": "#97979e",
+    "text.muted": "#aeaeb6",
+    "text.normal": "#ececef"
+  }
+}

@@ -70,6 +70,13 @@ impl PdfCraftApp {
     /// [`Self::root_env`] carries it.
     pub fn set_theme_preference(&mut self, preference: ModeChoice) {
         self.theme_preference = preference;
+        // Lion PDF: choosing a mode leaves Glass.
+        self.glass = false;
+    }
+
+    /// Lion PDF: turns Glass on, the dark Lion theme over a see-through window.
+    pub fn set_glass(&mut self) {
+        self.glass = true;
     }
 
     /// Sets Preferences ▸ Animation effects; the next frame's [`Self::root_env`] carries it and
@@ -254,7 +261,8 @@ impl PdfCraftApp {
         let hotbar = settings::Hotbar { tools: Some(self.hotbar.tools.clone()) };
         // Kept only while the preference is on.
         let session = settings::Session { last_session: self.reopen_last_session.then(|| json_text(&self.session_to_save())).flatten() };
-        PdfCraftSettings { layout, print, behavior, view, comment, signature, dock, recent, hotbar, session }
+        let lion = settings::Lion { glass: Some(self.glass), glass_settings: Some(self.glass_settings) };
+        PdfCraftSettings { layout, print, behavior, view, comment, signature, dock, recent, hotbar, session, lion }
     }
 
     /// Hands the app the settings store it saves the preferences to from now on (the launch opens it).
@@ -275,6 +283,17 @@ impl PdfCraftApp {
         self.apply_comment(&s.comment);
         self.apply_signature(&s.signature);
         self.apply_session(&s.session);
+        self.apply_lion(&s.lion);
+    }
+
+    /// Lion PDF's own preferences.
+    fn apply_lion(&mut self, s: &settings::Lion) {
+        if let Some(glass) = s.glass {
+            self.glass = glass;
+        }
+        if let Some(glass) = s.glass_settings {
+            self.glass_settings = glass.normalized();
+        }
     }
 
     fn apply_hotbar(&mut self, s: &settings::Hotbar) {

@@ -64,6 +64,11 @@ pub use print_ui::{
 pub use redact_ui::{HiddenDraft, RedactPrefs, SearchDraft as RedactSearchDraft, SearchMode as RedactSearchMode};
 pub mod i18n;
 pub mod viewer_prefs;
+/// Lion PDF's look: the Lion theme and Glass.
+pub mod lion_theme;
+
+/// The personal fork's display name; storage and update identities remain compatible.
+pub const APP_NAME: &str = "Lion PDF";
 // PLAN: the lead adds `mod notices; mod icons; mod brand; mod colour_picker; pub mod fonts;` here, and `pub mod settings;` in app.rs, at combine (L-212).
 
 use pdfcraft_engine::{DocId, Session};
@@ -319,6 +324,10 @@ pub struct PdfCraftApp {
     pub(crate) hotbar: hotbar::Hotbar,
     /// Preferences ▸ Appearance: light, dark, or as the system says.
     pub theme_preference: craft::theme::ModeChoice,
+    /// Lion PDF: Glass, the dark Lion theme over a see-through window.
+    pub glass: bool,
+    /// Lion PDF: Glass's tint and opacities.
+    pub glass_settings: lion_theme::GlassSettings,
     /// The suite the Appearance page reads its themes from: an in-memory one, as PdfCraft keeps
     /// its own appearance in its settings rather than in the suite's shared selection.
     pub(crate) suite: craft::theme_store::SuiteClient,

@@ -358,7 +358,9 @@ fn retry_with_gl(choice: RendererChoice, app_started: bool) -> bool {
 /// The window and renderer settings for one run.
 fn native_options(integrated: bool, renderer: eframe::Renderer) -> eframe::NativeOptions {
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title("PdfCraft")
+        .with_title(pdfcraft_ui_egui::APP_NAME)
+        // Lion PDF: Glass draws through the window; otherwise the clear colour is opaque.
+        .with_transparent(true)
         .with_inner_size([1440.0, 920.0])
         .with_min_inner_size(pdfcraft_ui_egui::MIN_WINDOW_SIZE)
         .with_drag_and_drop(true)
@@ -394,6 +396,15 @@ fn native_options(integrated: bool, renderer: eframe::Renderer) -> eframe::Nativ
     native.system_font_fallback = false;
     if renderer == eframe::Renderer::Wgpu {
         configure_gpu(&mut native);
+        // Lion PDF: a DirectComposition visual shows through a transparent window only without the
+        // window's redirection surface, which suits Direct3D 12 alone; the style is creation-only.
+        #[cfg(windows)]
+        if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &native.wgpu_options.wgpu_setup {
+            native.viewport.no_redirection_bitmap = Some(
+                !setup.instance_descriptor.backends.intersects(eframe::wgpu::Backends::GL)
+                    && setup.instance_descriptor.backend_options.dx12.presentation_system == eframe::wgpu::Dx12SwapchainKind::DxgiFromVisual,
+            );
+        }
     }
     native
 }
@@ -672,7 +683,9 @@ fn configure_gpu(native: &mut eframe::NativeOptions) {
         }
     }
     if cfg!(target_os = "windows") && std::env::var_os("WGPU_BACKEND").is_none() {
-        setup.instance_descriptor.backends = eframe::wgpu::Backends::DX12 | eframe::wgpu::Backends::GL;
+        // Lion PDF: Direct3D 12 alone, so Glass can draw through the window; when it can't start,
+        // the app starts again on OpenGL (`retry_with_gl`).
+        setup.instance_descriptor.backends = eframe::wgpu::Backends::DX12;
     }
     if cfg!(target_os = "windows") {
         setup.instance_descriptor.backend_options.dx12.presentation_system = dx12_presentation(eframe::wgpu::Dx12SwapchainKind::from_env());

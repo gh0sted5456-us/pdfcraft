@@ -190,20 +190,23 @@ hayro-jbig2 = { git = "https://github.com/storytold/craft-libs", rev = "0a6e42b8
 hayro-cmap = { git = "https://github.com/storytold/craft-libs", rev = "0a6e42b80bfd586aee6ee1144aa98cf1ea37a844" }
 hayro-postscript = { git = "https://github.com/storytold/craft-libs", rev = "0a6e42b80bfd586aee6ee1144aa98cf1ea37a844" }
 linesweeper = { git = "https://github.com/storytold/craft-libs", rev = "0a6e42b80bfd586aee6ee1144aa98cf1ea37a844" }
-ecolor = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-emath = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-epaint = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-epaint_default_fonts = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-egui = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-egui-winit = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-egui-wgpu = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-egui_glow = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-egui_extras = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-egui_kittest = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-egui_system_font_provider = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-eframe = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-egui_demo_lib = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
-egui_inspection = { git = "https://github.com/storytold/egui.git", rev = "f5025284445ea19c35f746d96fc0b75468b3f560" }
+# Lion PDF: egui at upstream's storytold pin (f5025284) plus one Lion commit,
+# ViewportBuilder::with_no_redirection_bitmap, which Glass windows use on Windows
+# (branch lion/glass-no-redirection of gh0sted5456-us/egui).
+ecolor = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+emath = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+epaint = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+epaint_default_fonts = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+egui = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+egui-winit = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+egui-wgpu = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+egui_glow = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+egui_extras = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+egui_kittest = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+egui_system_font_provider = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+eframe = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+egui_demo_lib = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
+egui_inspection = { git = "https://github.com/gh0sted5456-us/egui.git", rev = "395bd41600ed28281018c99af179a7d00aa01554" }
 winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457d84ee4975110bfda6797c44dc" }
 lopdf = { path = "vendor/lopdf" }
 vello_common = { path = "vendor/vello_common" }

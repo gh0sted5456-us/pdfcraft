@@ -50,7 +50,7 @@ static CATALOG_MAC: OnceLock<Option<AppCatalog>> = OnceLock::new();
 fn kind_of(id: &str) -> CommandKind {
     match id {
         "view.layout.single" | "view.layout.two_up" => CommandKind::Radio { group: Some("layout".into()) },
-        "view.theme.system" | "view.theme.light" | "view.theme.dark" => CommandKind::Radio { group: Some("theme".into()) },
+        "view.theme.system" | "view.theme.light" | "view.theme.dark" | "view.theme.glass" => CommandKind::Radio { group: Some("theme".into()) },
         PANEL => CommandKind::Radio { group: Some("panel".into()) },
         "view.continuous" | "view.page_gaps" | "view.layout.cover" | "view.full_screen" | "view.read_mode" | "view.side_panel"
         | "view.tools_pane" | "view.split" => CommandKind::Toggle,
@@ -240,9 +240,10 @@ fn checked(app: &PdfCraftApp, command: &CommandRef) -> Option<bool> {
         "view.side_panel" => app.right().is_some(),
         "view.tools_pane" => app.left_open(),
         "view.split" => app.panes.split.is_some(),
-        "view.theme.system" => app.theme_preference == ModeChoice::System,
-        "view.theme.light" => app.theme_preference == ModeChoice::Light,
-        "view.theme.dark" => app.theme_preference == ModeChoice::Dark,
+        "view.theme.system" => !app.glass && app.theme_preference == ModeChoice::System,
+        "view.theme.light" => !app.glass && app.theme_preference == ModeChoice::Light,
+        "view.theme.dark" => !app.glass && app.theme_preference == ModeChoice::Dark,
+        "view.theme.glass" => app.glass,
         PANEL => menus::panel(command).is_some_and(|p| app.right() == Some(p)),
         _ => return None,
     })

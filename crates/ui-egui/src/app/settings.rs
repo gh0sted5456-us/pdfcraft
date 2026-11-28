@@ -220,6 +220,21 @@ impl Session {
     pub const KEY: &'static str = "session";
 }
 
+/// Lion PDF's own preferences.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Lion {
+    /// Glass: the dark Lion theme over a see-through window.
+    pub glass: Option<bool>,
+    /// Glass's tint and opacities.
+    pub glass_settings: Option<crate::lion_theme::GlassSettings>,
+}
+
+impl Lion {
+    /// The table's name in `config.toml`.
+    pub const KEY: &'static str = "lion";
+}
+
 /// Everything PdfCraft keeps for the user.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -234,6 +249,7 @@ pub struct PdfCraftSettings {
     pub recent: Recent,
     pub hotbar: Hotbar,
     pub session: Session,
+    pub lion: Lion,
 }
 
 impl Settings for PdfCraftSettings {
@@ -379,6 +395,8 @@ pub fn theme_from_name(name: &str) -> Option<ModeChoice> {
     match name {
         "Light" | "light" => Some(ModeChoice::Light),
         "Dark" | "dark" => Some(ModeChoice::Dark),
+        // Lion PDF: Glass is the dark theme over a tint, kept in `[lion]`.
+        "Glass" | "glass" => Some(ModeChoice::Dark),
         "System" | "system" => Some(ModeChoice::System),
         _ => None,
     }
@@ -672,7 +690,13 @@ pub fn import_json(text: &str) -> (PdfCraftSettings, Vec<SectionError>) {
 
     let session = Session { last_session: root.get("last_session").and_then(session_text) };
 
-    (PdfCraftSettings { layout, print, behavior, view, comment, signature, dock, recent, hotbar, session }, errors)
+    // Lion PDF kept Glass as a fourth theme choice, its tint and opacities beside it.
+    let lion = Lion {
+        glass: root.get("theme").and_then(Value::as_str).map(|theme| theme == "Glass"),
+        glass_settings: root.get("glass").and_then(|v| serde_json::from_value::<crate::lion_theme::GlassSettings>(v.clone()).ok()).map(|g| g.normalized()),
+    };
+
+    (PdfCraftSettings { layout, print, behavior, view, comment, signature, dock, recent, hotbar, session, lion }, errors)
 }
 
 /// A saved session as the JSON text of the current [`craft::platform::session::Session`]. The last

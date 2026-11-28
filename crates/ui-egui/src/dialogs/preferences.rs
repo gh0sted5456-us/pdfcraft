@@ -72,6 +72,9 @@ struct PrefsDraft {
     recent_limit: usize,
     system_title_bar: bool,
     show_page_edge_shadows: bool,
+    /// Lion PDF: Glass and its tint and opacities.
+    glass: bool,
+    glass_settings: crate::lion_theme::GlassSettings,
     reading_colors: pdfcraft_render::ReadingColors,
     default_mode: Mode,
     view_defaults: ViewDefaults,
@@ -108,6 +111,8 @@ impl PrefsDraft {
             recent_limit: app.recent_limit,
             system_title_bar: app.title_bar_choice == TitleBarPref::System,
             show_page_edge_shadows: app.show_page_edge_shadows,
+            glass: app.glass,
+            glass_settings: app.glass_settings,
             reading_colors: app.reading_colors,
             default_mode: app.default_mode,
             view_defaults: app.view_defaults,
@@ -149,6 +154,8 @@ impl PrefsDraft {
             recent_limit: crate::RECENT_FILES_DEFAULT,
             system_title_bar: false,
             show_page_edge_shadows: true,
+            glass: false,
+            glass_settings: crate::lion_theme::GlassSettings::default(),
             reading_colors: Default::default(),
             default_mode: Mode::AllTools,
             view_defaults: ViewDefaults::default(),
@@ -433,6 +440,11 @@ impl PreferencesModel for Prefs<'_> {
             ("general.recent", PrefValue::Int(v)) => d.recent_limit = usize::try_from(v).unwrap_or(0).min(crate::RECENT_FILES_MAX),
             ("general.title_bar", PrefValue::Bool(v)) => d.system_title_bar = v,
             ("appearance.edge_shadows", PrefValue::Bool(v)) => d.show_page_edge_shadows = v,
+            ("appearance.glass", PrefValue::Bool(v)) => d.glass = v,
+            ("appearance.glass.tint", PrefValue::Color(c)) => d.glass_settings.tint = [c.0[0], c.0[1], c.0[2]],
+            ("appearance.glass.opacity", PrefValue::Int(v)) => d.glass_settings.opacity = percent(v),
+            ("appearance.glass.popup_opacity", PrefValue::Int(v)) => d.glass_settings.popup_opacity = percent(v),
+            ("appearance.glass.tool_opacity", PrefValue::Int(v)) => d.glass_settings.tool_opacity = percent(v),
             ("appearance.highlight_fields", PrefValue::Bool(v)) => d.highlight_fields = v,
             ("appearance.reading.mode", PrefValue::Choice(id)) => {
                 if id == "custom" {
@@ -557,6 +569,8 @@ impl PreferencesModel for Prefs<'_> {
             "appearance" => {
                 *self.selection = SelectionChange::default();
                 d.show_page_edge_shadows = fresh.show_page_edge_shadows;
+                d.glass = fresh.glass;
+                d.glass_settings = fresh.glass_settings;
                 d.reading_colors = fresh.reading_colors;
                 d.highlight_fields = fresh.highlight_fields;
             }
@@ -637,6 +651,8 @@ impl PreferencesDraft for Prefs<'_> {
             self.app.set_title_bar_choice(self.ctx, title_bar);
         }
         self.app.show_page_edge_shadows = d.show_page_edge_shadows;
+        self.app.glass = d.glass;
+        self.app.glass_settings = d.glass_settings.normalized();
         self.app.set_reading_colors(d.reading_colors);
         self.app.default_mode = d.default_mode;
         self.app.view_defaults = d.view_defaults;
@@ -755,8 +771,21 @@ impl Prefs<'_> {
             RowSpec::new("appearance.edge_shadows", tl!("Show Page Edge Shadows"), RowKind::Bool(d.show_page_edge_shadows)),
             RowSpec::new("appearance.highlight_fields", tl!("Highlight fields"), RowKind::Bool(d.highlight_fields)),
         ];
+        // Lion PDF: Glass, the dark Lion theme over a see-through window in a tint of the user's choosing.
+        let g = d.glass_settings;
+        let glass = vec![
+            RowSpec::new("appearance.glass", tl!("Glass"), RowKind::Bool(d.glass))
+                .help(tl!("The dark theme over a see-through window. PDF pages stay opaque.")),
+            RowSpec::new("appearance.glass.tint", tl!("Colour"), RowKind::Color(rgb(g.tint))).enabled(d.glass),
+            RowSpec::new("appearance.glass.opacity", tl!("Application opacity (%)"), RowKind::int(i64::from(g.opacity), 35..=100)).enabled(d.glass),
+            RowSpec::new("appearance.glass.popup_opacity", tl!("Popup opacity (%)"), RowKind::int(i64::from(g.popup_opacity), 35..=100))
+                .enabled(d.glass),
+            RowSpec::new("appearance.glass.tool_opacity", tl!("Tool panes opacity (%)"), RowKind::int(i64::from(g.tool_opacity), 0..=100))
+                .enabled(d.glass),
+        ];
         PageSpec::custom("appearance", tl_ctx!("theme", "Appearance"))
             .group(GroupSpec::new(None, display))
+            .group(GroupSpec::new(Some(tl!("Glass")), glass))
             .group(GroupSpec::new(Some(tl!("Reading colours")), reading))
             .footnote(tl!("Colours are remapped while rendering; the document itself never changes."))
     }
@@ -896,4 +925,9 @@ fn apply_view_pref_changes(view: &mut crate::DocView, defaults: &ViewDefaults, c
             shown.zoom = defaults.zoom;
         }
     }
+}
+
+/// A percentage from an integer field, held to 0–100.
+fn percent(v: i64) -> u8 {
+    u8::try_from(v.clamp(0, 100)).unwrap_or(100)
 }

@@ -317,6 +317,8 @@ impl PdfCraftApp {
             hotbar: Default::default(),
             // A fresh install follows the desktop's appearance (#1248); saved settings override.
             theme_preference: craft::theme::ModeChoice::System,
+            glass: false,
+            glass_settings: Default::default(),
             suite: craft::theme_store::SuiteClient::memory(),
             reading_colors: Default::default(),
             show_page_edge_shadows: true,
@@ -556,14 +558,15 @@ impl PdfCraftApp {
         let direction = if lang.rtl() { craft_i18n::Direction::Rtl } else { craft_i18n::Direction::Ltr };
         let system = craft::ui::runtime::env::system_text_scale(ctx).unwrap_or(1.0);
         let native = ctx.native_pixels_per_point().unwrap_or(1.0);
-        let mut root = RootEnv::new()
-            .mode(self.theme_preference)
+        // Lion PDF: Glass is the dark Lion theme over the window's tint.
+        let mode = if self.glass { craft::theme::ModeChoice::Dark } else { self.theme_preference };
+        let root = RootEnv::new()
+            .mode(mode)
             .density(craft::theme::Size::Comfortable)
             .direction(direction)
             .scale(Scale::new(crate::ui_scale::zoom(self.ui_scale, system, native)));
-        if let Ok(theme) = craft::theme::ThemeId::parse("craft.graphite") {
-            root.set_theme(theme);
-        }
+        // Lion PDF's look: the Lion theme, or Glass.
+        let mut root = root.library_theme(if self.glass { crate::lion_theme::glass(self.glass_settings) } else { crate::lion_theme::lion() });
         root.sizes = Arc::clone(sizes);
         // Every parameter dialog lays out as a document dialog: inline captions, shaded groups, buttons across the foot.
         root.values.set(craft::ui::patterns::form_dialogs::DialogLayout(craft::ui::patterns::form_dialogs::ParamLayout::Document));
@@ -692,6 +695,12 @@ impl PdfCraftApp {
 }
 
 impl eframe::App for PdfCraftApp {
+    /// Lion PDF: under Glass the window's tint is painted once here, under every clear surface; the
+    /// window is transparent, so elsewhere the frame paints its own surfaces over this.
+    fn clear_color(&self, visuals: &egui::Visuals) -> [f32; 4] {
+        if self.glass { self.glass_settings.surface().to_normalized_gamma_f32() } else { visuals.panel_fill.to_normalized_gamma_f32() }
+    }
+
     /// The runtime's fired commands and this frame's root values, before egui reads the input.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
         self.prepare_raw_input(ctx, raw);
