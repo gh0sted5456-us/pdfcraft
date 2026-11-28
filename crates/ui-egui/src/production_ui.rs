@@ -1,5 +1,9 @@
 //! Print Production: read-only preflight, source-colour inspection and a page-box map.
-use crate::{Dialog, PdfCraftApp, widgets};
+use craft::ui::contract::Bind;
+use craft::ui::patterns::form_dialogs::{FormButtons, FormDialog};
+use craft::ui::sections::{DialogRole, FooterButton};
+
+use crate::PdfCraftApp;
 use pdfcraft_engine::{DocId, outputcheck::OutputInspection, printcheck::PrintReadiness};
 
 #[derive(Default)]
@@ -13,124 +17,181 @@ pub(crate) struct Draft {
     boxes: Vec<[[f64; 4]; 5]>,
 }
 
+/// What the dialog's controls choose.
+#[derive(Clone, Copy, Default, PartialEq)]
+pub(crate) struct View {
+    output_tab: bool,
+    /// 1-based.
+    page: usize,
+}
+
+/// The footer buttons after Close.
+const COPY: usize = 2;
+const REFRESH: usize = 3;
+const BOXES: usize = 4;
+
 impl PdfCraftApp {
+    /// Lion PDF ▸ Print Production ▸ Preflight, or ▸ Output preview with `output`.
     pub(crate) fn open_production(&mut self, output: bool) {
         let Some((index, id)) = self.active_ids() else { return };
-        let page = self.views[index].current;
-        self.production = Draft { output_tab: output, page, ..Default::default() };
+        let page = self.views[index].current();
+        self.production = Some(Draft { output_tab: output, page, ..Default::default() });
         self.refresh_production(id);
-        self.dialog = Some(Dialog::PrintProduction);
     }
 
     fn refresh_production(&mut self, id: DocId) {
         let Some(doc) = self.session.get(id) else { return };
-        let page = self.production.page.min(doc.info.pages.len().saturating_sub(1));
+        let Some(production) = self.production.as_mut() else { return };
+        let page = production.page.min(doc.info.pages.len().saturating_sub(1));
         let report = doc.output_inspection(page);
-        self.production.id = Some(id);
-        self.production.generation = doc.edit_generation();
-        self.production.page = page;
-        self.production.readiness = Some(doc.print_readiness());
-        self.production.boxes = doc.page_boxes();
+        production.id = Some(id);
+        production.generation = doc.edit_generation();
+        production.page = page;
+        production.readiness = Some(doc.print_readiness());
+        production.boxes = doc.page_boxes();
         match report {
-            Ok(report) => self.production.output = Some(report),
+            Ok(report) => production.output = Some(report),
             Err(error) => {
-                self.production.output = None;
+                production.output = None;
                 self.notify_error(error);
             }
         }
     }
+
+    /// One pass of the open Print Production dialog.
+    pub(crate) fn production_pass(&mut self, ui: &mut egui::Ui) {
+        let Some((index, id)) = self.active_ids() else {
+            self.production = None;
+            return;
+        };
+        if self.production.as_ref().is_some_and(|p| p.id != Some(id)) {
+            self.refresh_production(id);
+        }
+        let pages = self.session.get(id).map_or(1, |d| d.info.pages.len()).max(1);
+        let changed = self.session.get(id).map(|d| d.edit_generation());
+        let Some(production) = self.production.as_ref() else { return };
+        let stale = changed.is_some_and(|g| g != production.generation);
+        let mut view = View { output_tab: production.output_tab, page: production.page + 1 };
+        let mut show_page = None;
+        let mut open = true;
+        let out = FormDialog::new(tl!("Print Production"), Bind::bound(&mut view))
+            .opened(Bind::bound(&mut open))
+            .buttons(FormButtons::Close)
+            .extra_buttons([
+                FooterButton::new(tl!("Copy report"), DialogRole::Other),
+                FooterButton::new(tl!("Refresh checks"), DialogRole::Other),
+                FooterButton::new(tl!("Adjust page boxes and bleed…"), DialogRole::Other),
+            ])
+            .show(ui, |ui, _, v| {
+                body(ui, production, v, pages, stale, &mut show_page);
+                true
+            });
+        let text = self.production.as_ref().and_then(|p| if p.output_tab { p.output.as_ref().map(OutputInspection::text) } else { p.readiness.as_ref().map(PrintReadiness::text) });
+        if out.closed.is_some() {
+            self.production = None;
+            return;
+        }
+        let page = view.page.clamp(1, pages) - 1;
+        let refresh = out.picked == Some(REFRESH) || self.production.as_ref().is_some_and(|p| p.page != page);
+        if let Some(p) = self.production.as_mut() {
+            p.output_tab = view.output_tab;
+            p.page = page;
+        }
+        if refresh {
+            self.refresh_production(id);
+        }
+        match out.picked {
+            Some(COPY) => {
+                if let Some(text) = text {
+                    ui.ctx().copy_text(text);
+                    self.notify_tr("Copied");
+                }
+            }
+            Some(BOXES) => self.run_command(ui.ctx(), "page.boxes"),
+            _ => {}
+        }
+        if let Some(page) = show_page {
+            self.views[index].go_to_page(page);
+            self.production = None;
+        }
+    }
 }
 
-pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
-    let Some((index, id)) = app.active_ids() else { return true };
-    if app.production.id != Some(id) {
-        app.refresh_production(id);
-    }
-    crate::widgets::dialog_heading(ui, "Print Production");
+/// The dialog's body: the tab, the page, and the chosen report.
+fn body(ui: &mut egui::Ui, production: &Draft, v: &mut View, pages: usize, stale: bool, show_page: &mut Option<usize>) {
     ui.horizontal(|ui| {
-        ui.selectable_value(&mut app.production.output_tab, false, "Preflight");
-        ui.selectable_value(&mut app.production.output_tab, true, "Output inspection");
+        ui.selectable_value(&mut v.output_tab, false, tl!("Preflight"));
+        ui.selectable_value(&mut v.output_tab, true, tl!("Output inspection"));
     });
     ui.separator();
-    let mut page = app.production.page + 1;
-    let pages = app.session.get(id).map_or(1, |d| d.info.pages.len()).max(1);
-    let mut refresh = false;
     ui.horizontal_wrapped(|ui| {
-        let label = ui.label("Page");
-        refresh |= ui.add(egui::DragValue::new(&mut page).range(1..=pages)).labelled_by(label.id).changed();
-        ui.label(format!("of {pages}"));
-        refresh |= widgets::dialog_button(ui, "Refresh checks", widgets::DialogAction::Back).clicked();
+        let label = ui.label(tl!("Page"));
+        ui.add(egui::DragValue::new(&mut v.page).range(1..=pages)).labelled_by(label.id);
+        ui.label(crate::i18n::fmt(tl!("of {n}"), &[("n", &pages.to_string())]));
     });
-    if refresh {
-        app.production.page = page.saturating_sub(1);
-        app.refresh_production(id);
+    if stale {
+        ui.label(tl!("The document changed: refresh the checks to inspect the latest edits."));
     }
-    if app.session.get(id).is_some_and(|d| d.edit_generation() != app.production.generation) {
-        ui.label("Document changed — refresh checks to inspect the latest edits.");
-    }
-    let mut show_page = None;
-    let mut page_boxes = false;
-    let height = (ui.available_height() - 64.0).clamp(16.0, 380.0);
-    egui::ScrollArea::vertical().id_salt("production-content").scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible).max_height(height).min_scrolled_height(height).auto_shrink([false, false]).show(ui, |ui| {
+    let height = (ui.ctx().content_rect().height() - 260.0).clamp(120.0, 380.0);
+    egui::ScrollArea::vertical().id_salt("production-content").max_height(height).min_scrolled_height(height).auto_shrink([false, false]).show(ui, |ui| {
         ui.set_width(ui.available_width());
-        if app.production.output_tab {
-            ui.label("Source inventory of this page and its declared resources.");
-            if let Some(report) = &app.production.output {
-                ui.label(format!("Colour spaces: {}", report.spaces.iter().cloned().collect::<Vec<_>>().join(", ")));
-                ui.label(format!("Spot colour names: {}", if report.spots.is_empty() { "none declared".into() } else { report.spots.iter().cloned().collect::<Vec<_>>().join(", ") }));
-                ui.label(format!("Overprint in resources: {}", if report.overprint_declared { "declared" } else { "not declared" }));
-                ui.label(format!("Largest explicit CMYK source sum: {}", report.max_source_cmyk_percent.map(|n| format!("{n:.1}%")).unwrap_or_else(|| "not measured".into())));
-                if !report.complete { ui.colored_label(egui::Color32::from_rgb(190, 130, 50), "Inspection is incomplete; see limitations below."); }
-                for warning in &report.warnings { ui.label(warning); }
+        if production.output_tab {
+            ui.label(tl!("Source inventory of this page and its declared resources."));
+            if let Some(report) = &production.output {
+                let none = tl!("none declared").to_string();
+                ui.label(format!("{}: {}", tl!("Colour spaces"), report.spaces.iter().cloned().collect::<Vec<_>>().join(", ")));
+                ui.label(format!("{}: {}", tl!("Spot colour names"), if report.spots.is_empty() { none } else { report.spots.iter().cloned().collect::<Vec<_>>().join(", ") }));
+                ui.label(format!("{}: {}", tl!("Overprint in resources"), if report.overprint_declared { tl!("declared") } else { tl!("not declared") }));
+                ui.label(format!(
+                    "{}: {}",
+                    tl!("Largest explicit CMYK source sum"),
+                    report.max_source_cmyk_percent.map(|n| format!("{n:.1}%")).unwrap_or_else(|| tl!("not measured").to_string())
+                ));
+                if !report.complete {
+                    ui.colored_label(ui.visuals().warn_fg_color, tl!("Inspection is incomplete; see limitations below."));
+                }
+                for warning in &report.warnings {
+                    ui.label(warning);
+                }
             }
-            ui.label("Source sums are not composited total ink coverage. ICC soft proofs, plate separations and transparency flattening are not simulated.");
+            ui.add(egui::Label::new(egui::RichText::new(tl!("Source sums are not composited total ink coverage. ICC soft proofs, plate separations and transparency flattening are not simulated.")).small().weak()).wrap());
             ui.separator();
-            ui.label("Page box map (PDF coordinates)");
-            if let Some(boxes) = app.production.boxes.get(app.production.page) { box_map(ui, boxes); }
-            page_boxes = widgets::dialog_button(ui, "Adjust page boxes and bleed…", widgets::DialogAction::Back).clicked();
-        } else if let Some(report) = &app.production.readiness {
-            ui.label(format!("{} pages · {} image placements · {} findings", report.pages.len(), report.images.len(), report.findings.len()));
-            ui.label("Checks include effective image resolution, trim/bleed margins, output intents and font embedding. This is not a PDF/X certification.");
+            ui.label(tl!("Page box map (PDF coordinates)"));
+            if let Some(boxes) = production.boxes.get(production.page) {
+                box_map(ui, boxes);
+            }
+        } else if let Some(report) = &production.readiness {
+            ui.label(crate::i18n::fmt(
+                tl!("{pages} pages · {images} image placements · {findings} findings"),
+                &[("pages", &report.pages.len().to_string()), ("images", &report.images.len().to_string()), ("findings", &report.findings.len().to_string())],
+            ));
+            ui.add(egui::Label::new(egui::RichText::new(tl!("Checks include effective image resolution, trim and bleed margins, output intents and font embedding. This is not a PDF/X certification.")).small().weak()).wrap());
             for finding in &report.findings {
                 let label = format!("[{}] {}", finding.severity, finding.message);
                 if let Some(page) = finding.page {
-                    if ui.link(label).clicked() { show_page = Some(page.saturating_sub(1) as usize); }
-                } else { ui.label(label); }
+                    if ui.link(label).clicked() {
+                        *show_page = Some(page.saturating_sub(1) as usize);
+                    }
+                } else {
+                    ui.label(label);
+                }
             }
-            ui.collapsing("Page sizes and bleed", |ui| {
-                for p in &report.pages { ui.label(format!("Page {}: {:.1} × {:.1} mm; bleed L/B/R/T: {:.1?} mm", p.page, p.media_mm[0], p.media_mm[1], p.bleed_margin_mm)); }
+            ui.collapsing(tl!("Page sizes and bleed"), |ui| {
+                for p in &report.pages {
+                    ui.label(format!("{} {}: {:.1} × {:.1} mm; bleed L/B/R/T: {:.1?} mm", tl!("Page"), p.page, p.media_mm[0], p.media_mm[1], p.bleed_margin_mm));
+                }
             });
-            ui.collapsing("Images", |ui| { for image in &report.images { ui.label(format!("Page {} · {} · {:.0} ppi", image.page, image.name, image.ppi)); } });
-            ui.collapsing("Fonts and output intents", |ui| {
-                ui.label(format!("Fonts not embedded: {}", report.fonts_not_embedded.join(", ")));
-                ui.label(format!("Output intents: {}", report.output_intents.join(", ")));
+            ui.collapsing(tl!("Images"), |ui| {
+                for image in &report.images {
+                    ui.label(format!("{} {} · {} · {:.0} ppi", tl!("Page"), image.page, image.name, image.ppi));
+                }
             });
-            page_boxes = widgets::dialog_button(ui, "Adjust page boxes and bleed…", widgets::DialogAction::Back).clicked();
+            ui.collapsing(tl!("Fonts and output intents"), |ui| {
+                ui.label(format!("{}: {}", tl!("Fonts not embedded"), report.fonts_not_embedded.join(", ")));
+                ui.label(format!("{}: {}", tl!("Output intents"), report.output_intents.join(", ")));
+            });
         }
     });
-    ui.separator();
-    let text = if app.production.output_tab {
-        app.production.output.as_ref().map(OutputInspection::text)
-    } else {
-        app.production.readiness.as_ref().map(PrintReadiness::text)
-    };
-    let mut close = false;
-    widgets::dialog_footer(ui, |ui| {
-        close = widgets::dialog_button(ui, "Close", widgets::DialogAction::Cancel).clicked();
-        if widgets::dialog_button(ui, "Copy report", widgets::DialogAction::Back).clicked()
-            && let Some(text) = text
-        {
-            ui.ctx().copy_text(text);
-        }
-    });
-    if let Some(page) = show_page {
-        app.views[index].go_to_page(page);
-        close = true;
-    }
-    if page_boxes {
-        app.run_command("page.boxes");
-    }
-    close
 }
 
 fn box_map(ui: &mut egui::Ui, boxes: &[[f64; 4]; 5]) {

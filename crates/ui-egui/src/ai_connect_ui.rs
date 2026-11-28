@@ -9,7 +9,12 @@ use std::path::PathBuf;
 
 use pdfcraft_engine::ai_connect::{Connection, Shell};
 
-use crate::{PdfCraftApp, theme, widgets};
+use craft::host::PickRequest;
+use craft::ui::contract::Bind;
+use craft::ui::patterns::form_dialogs::{FormButtons, FormDialog};
+use craft::ui::sections::{DialogRole, FooterButton};
+
+use crate::PdfCraftApp;
 
 /// The folder offered before the person chooses one: Documents when there is one, else home.
 fn default_folder() -> Option<PathBuf> {
@@ -31,67 +36,94 @@ impl PdfCraftApp {
     }
 }
 
-/// One block of settings to copy, with its own Copy button.
-fn copy_block(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &theme::Tokens, id: &str, text: &str) {
+/// One block of settings to copy, with its own Copy button. Returns whether Copy was pressed.
+fn copy_block(ui: &mut egui::Ui, id: &str, text: &str) -> bool {
     let mut shown = text;
-    ui.add(egui::TextEdit::multiline(&mut shown).id_salt(id).code_editor().desired_rows(1).desired_width(f32::INFINITY).background_color(t.field));
+    ui.add(egui::TextEdit::multiline(&mut shown).id_salt(id).code_editor().desired_rows(1).desired_width(f32::INFINITY));
     if ui.button(tl!("Copy")).clicked() {
         ui.ctx().copy_text(text.to_owned());
-        app.notify_tr("Copied");
+        return true;
     }
+    false
 }
 
-/// The dialog's content. Returns whether it should close.
-pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp, t: &theme::Tokens) -> bool {
-    widgets::dialog_heading(ui, tl!("Connect AI assistants"));
-    ui.set_width(640.0_f32.min((ui.ctx().content_rect().width() - 104.0).max(1.0)));
-    let mut choose = false;
-    widgets::dialog_scroll(ui, "ai-connect-body", |ui| {
-        ui.label(tl!(
-            "An AI assistant such as Claude can create, fill in, edit and save PDFs with Lion PDF. Add the settings below to your AI app: it then runs Lion PDF's command-line tool itself. Lion PDF starts nothing and changes no other app's settings."
-        ));
-        ui.add_space(10.0);
-        let Some(connection) = app.ai_connection() else {
-            ui.label(tl!("Connecting AI assistants needs the desktop app."));
-            return;
-        };
-        ui.horizontal_wrapped(|ui| {
-            let label = ui.label(tl!("Folder the assistant can use:"));
-            ui.label(egui::RichText::new(connection.folder.display().to_string()).monospace()).labelled_by(label.id);
-            choose = ui.button(tl!("Choose…")).clicked();
-        });
-        ui.label(egui::RichText::new(tl!("The assistant can open and save files in this folder only.")).color(t.text_muted));
-        if !connection.cli.is_file() {
-            ui.add_space(6.0);
-            ui.colored_label(
-                ui.visuals().error_fg_color,
-                tl!("pdfcraft-cli isn't next to Lion PDF. Install Lion PDF with its installer, or change \"command\" to where pdfcraft-cli is."),
-            );
-        }
-        ui.add_space(12.0);
-        widgets::section_title(ui, tl!("Claude Desktop"));
-        let config =
-            pdfcraft_engine::ai_connect::claude_desktop_config().map_or_else(|| "claude_desktop_config.json".to_owned(), |p| p.display().to_string());
-        ui.label(crate::i18n::fmt(
-            tl!("In Claude, choose Settings > Developer > Edit Config, add this to {file}, then restart Claude:"),
-            &[("file", &config)],
-        ));
-        copy_block(ui, app, t, "ai-connect-json", &connection.json());
-        ui.add_space(12.0);
-        widgets::section_title(ui, tl!("Claude Code"));
-        ui.label(tl!("Run this once in a terminal:"));
-        copy_block(ui, app, t, "ai-connect-claude-code", &connection.claude_code(Shell::native()));
-        ui.add_space(12.0);
-        widgets::section_title(ui, tl!("Other AI apps"));
-        ui.label(tl!("Cursor, VS Code and other MCP clients take the same \"mcpServers\" settings as Claude Desktop."));
-    });
-    if choose {
-        app.ask_one(crate::pickers::Ask::Folder(rfd::AsyncFileDialog::new()), None, |app, dir| app.ai_connect_folder = Some(dir));
+/// The footer button after Done.
+const CHOOSE: usize = 2;
+
+impl PdfCraftApp {
+    /// Help ▸ Connect AI assistants…
+    pub(crate) fn open_ai_connect(&mut self) {
+        self.ai_connect_open = true;
     }
-    ui.add_space(12.0);
-    let mut close = false;
-    widgets::dialog_footer(ui, |ui| {
-        close = widgets::dialog_button(ui, tl!("Done"), widgets::DialogAction::Confirm).clicked();
-    });
-    close
+
+    /// One pass of the open Connect AI assistants dialog.
+    pub(crate) fn ai_connect_pass(&mut self, ui: &mut egui::Ui) {
+        if !self.ai_connect_open {
+            return;
+        }
+        let connection = self.ai_connection();
+        let mut open = true;
+        let mut copied = false;
+        let mut unit = ();
+        let mut dialog = FormDialog::new(tl!("Connect AI assistants"), Bind::bound(&mut unit))
+            .opened(Bind::bound(&mut open))
+            .buttons(FormButtons::Close);
+        if connection.is_some() {
+            dialog = dialog.extra_buttons([FooterButton::new(tl!("Choose folder…"), DialogRole::Other)]);
+        }
+        let out = dialog.show(ui, |ui, _, _| {
+            ui.set_max_width(640.0);
+            ui.add(egui::Label::new(tl!(
+                "An AI assistant such as Claude can create, fill in, edit and save PDFs with Lion PDF. Add the settings below to your AI app: it then runs Lion PDF's command-line tool itself. Lion PDF starts nothing and changes no other app's settings."
+            )).wrap());
+            ui.add_space(10.0);
+            let Some(connection) = &connection else {
+                ui.label(tl!("Connecting AI assistants needs the desktop app."));
+                return true;
+            };
+            ui.horizontal_wrapped(|ui| {
+                let label = ui.label(tl!("Folder the assistant can use:"));
+                ui.label(egui::RichText::new(connection.folder.display().to_string()).monospace()).labelled_by(label.id);
+            });
+            ui.label(egui::RichText::new(tl!("The assistant can open and save files in this folder only.")).weak());
+            if !connection.cli.is_file() {
+                ui.add_space(6.0);
+                ui.colored_label(
+                    ui.visuals().error_fg_color,
+                    tl!("pdfcraft-cli isn't next to Lion PDF. Install Lion PDF with its installer, or change \"command\" to where pdfcraft-cli is."),
+                );
+            }
+            ui.add_space(12.0);
+            ui.label(egui::RichText::new(tl!("Claude Desktop")).strong());
+            let config = pdfcraft_engine::ai_connect::claude_desktop_config()
+                .map_or_else(|| "claude_desktop_config.json".to_owned(), |p| p.display().to_string());
+            ui.add(egui::Label::new(crate::i18n::fmt(
+                tl!("In Claude, choose Settings > Developer > Edit Config, add this to {file}, then restart Claude:"),
+                &[("file", &config)],
+            )).wrap());
+            copied |= copy_block(ui, "ai-connect-json", &connection.json());
+            ui.add_space(12.0);
+            ui.label(egui::RichText::new(tl!("Claude Code")).strong());
+            ui.label(tl!("Run this once in a terminal:"));
+            copied |= copy_block(ui, "ai-connect-claude-code", &connection.claude_code(Shell::native()));
+            ui.add_space(12.0);
+            ui.label(egui::RichText::new(tl!("Other AI apps")).strong());
+            ui.add(egui::Label::new(tl!("Cursor, VS Code and other MCP clients take the same \"mcpServers\" settings as Claude Desktop.")).wrap());
+            true
+        });
+        if copied {
+            self.notify_tr("Copied");
+        }
+        if out.closed.is_some() {
+            self.ai_connect_open = false;
+            return;
+        }
+        if out.picked == Some(CHOOSE) {
+            self.pick_file(PickRequest::folder("ai.connect_folder").title(tl!("Folder the assistant can use")), None, |app, _, picked| {
+                if let Some(dir) = picked.first_path() {
+                    app.ai_connect_folder = Some(dir);
+                }
+            });
+        }
+    }
 }

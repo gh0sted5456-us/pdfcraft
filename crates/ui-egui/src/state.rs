@@ -238,6 +238,9 @@ pub struct PasswordPrompt {
     pub(crate) after_open: Option<pdfcraft_render::RemoteDestination>,
     /// A launch-time display override, applied only after this PDF is unlocked.
     pub(crate) display_override: Option<(craft::pages::PageDisplay, bool)>,
+    /// Lion PDF: the document is encrypted for certificate holders; the prompt asks for a digital
+    /// ID file and its password instead of the document's password.
+    pub(crate) digital_id: Option<crate::certificate_ui::DigitalIdAnswer>,
 }
 
 #[cfg(not(target_arch = "wasm32"))]

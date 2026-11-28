@@ -143,7 +143,7 @@ impl PdfCraftApp {
         let mark = if dirty { " •" } else { "" };
         let titled = |name: Option<String>| {
             name.or_else(|| self.combine_showing().then(|| tl!("Combine files").to_owned()))
-                .map_or_else(|| "PdfCraft".to_owned(), |name| format!("{name}{mark} — PdfCraft"))
+                .map_or_else(|| crate::APP_NAME.to_owned(), |name| format!("{name}{mark} — {}", crate::APP_NAME))
         };
         let title = titled(front.and_then(|i| crate::canvas::tab_label(self, i)));
         // The web page's title is what an embedding host reads to tell which file opened, so it
@@ -322,6 +322,14 @@ impl PdfCraftApp {
             #[cfg(not(target_arch = "wasm32"))]
             folder_step: None,
             template_gallery: None,
+            timestamp_server: String::new(),
+            timestamp_run: None,
+            remove_sig: None,
+            certificate_draft: None,
+            ai_connect_open: false,
+            document_actions: None,
+            production: None,
+            ai_connect_folder: None,
             suite: craft::theme_store::SuiteClient::memory(),
             reading_colors: Default::default(),
             show_page_edge_shadows: true,

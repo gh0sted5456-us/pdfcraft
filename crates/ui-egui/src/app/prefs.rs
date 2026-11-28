@@ -261,7 +261,11 @@ impl PdfCraftApp {
         let hotbar = settings::Hotbar { tools: Some(self.hotbar.tools.clone()) };
         // Kept only while the preference is on.
         let session = settings::Session { last_session: self.reopen_last_session.then(|| json_text(&self.session_to_save())).flatten() };
-        let lion = settings::Lion { glass: Some(self.glass), glass_settings: Some(self.glass_settings) };
+        let lion = settings::Lion {
+            glass: Some(self.glass),
+            glass_settings: Some(self.glass_settings),
+            timestamp_server: (!self.timestamp_server.is_empty()).then(|| self.timestamp_server.clone()),
+        };
         PdfCraftSettings { layout, print, behavior, view, comment, signature, dock, recent, hotbar, session, lion }
     }
 
@@ -293,6 +297,9 @@ impl PdfCraftApp {
         }
         if let Some(glass) = s.glass_settings {
             self.glass_settings = glass.normalized();
+        }
+        if let Some(server) = &s.timestamp_server {
+            self.timestamp_server.clone_from(server);
         }
     }
 

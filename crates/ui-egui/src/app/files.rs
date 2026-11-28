@@ -307,6 +307,23 @@ impl PdfCraftApp {
                         then: pending.then,
                         after_open: pending.after_open,
                         display_override: pending.display_override,
+                        digital_id: None,
+                    });
+                }
+                // Lion PDF: encrypted for certificate holders, none of whose digital IDs the session holds.
+                Err(pdfcraft_render::OpenError::NeedsCertificate) => {
+                    self.password_prompt = Some(PasswordPrompt {
+                        name: pending.name,
+                        path: pending.path,
+                        bytes,
+                        stamp: pending.stamp,
+                        error: self.certificate_error(),
+                        activate: pending.activate,
+                        recovered: pending.recovered,
+                        then: pending.then,
+                        after_open: pending.after_open,
+                        display_override: pending.display_override,
+                        digital_id: Some(Default::default()),
                     });
                 }
                 Err(error) => self.notify_fmt("Couldn't open {name}: {e}", &[("name", &pending.name), ("e", &error.to_string())]),
@@ -347,6 +364,27 @@ impl PdfCraftApp {
                     then: None,
                     after_open: None,
                     display_override: None,
+                    digital_id: None,
+                });
+                return Ok(());
+            }
+            // Lion PDF: encrypted for certificate holders, none of whose digital IDs the session holds.
+            Err(OpenError::NeedsCertificate) => {
+                #[cfg(not(target_arch = "wasm32"))]
+                let stamp = path.as_deref().and_then(|path| FileStamp::at(std::path::Path::new(path)));
+                self.password_prompt = Some(PasswordPrompt {
+                    name: name.to_string(),
+                    path,
+                    bytes,
+                    #[cfg(not(target_arch = "wasm32"))]
+                    stamp,
+                    error: self.certificate_error(),
+                    activate,
+                    recovered: None,
+                    then: None,
+                    after_open: None,
+                    display_override: None,
+                    digital_id: Some(Default::default()),
                 });
                 return Ok(());
             }
@@ -683,6 +721,10 @@ impl PdfCraftApp {
     /// prompt on the pass the dialog closes. Called by the window body every pass while either is
     /// set.
     pub(crate) fn password_pass(&mut self, ui: &mut egui::Ui) {
+        // Lion PDF: a document encrypted for certificate holders asks for a digital ID instead.
+        if self.certificate_open_pass(ui) {
+            return;
+        }
         let (purpose, error, unlock) = if let Some(prompt) = &self.password_prompt {
             (PasswordPurpose::open(prompt.name.clone()), prompt.error.clone(), false)
         } else if let Some(prompt) = &self.unlock_prompt {
@@ -707,6 +749,17 @@ impl PdfCraftApp {
         } else {
             self.submit_password(ui.ctx(), password);
         }
+    }
+
+    /// Lion PDF: why the waiting document didn't open with the digital IDs tried, if any were.
+    fn certificate_error(&self) -> Option<String> {
+        (!self.session.identities().is_empty())
+            .then(|| tl!("None of your digital IDs opens this document. Choose the one it was encrypted for.").to_string())
+    }
+
+    /// Lion PDF: open the waiting document again, now that the session holds another identity.
+    pub(crate) fn retry_open(&mut self, ctx: &egui::Context) {
+        self.submit_password(ctx, Some(String::new()));
     }
 
     /// Answer the password prompt (`None` cancels).

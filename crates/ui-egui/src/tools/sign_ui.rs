@@ -15,6 +15,8 @@ use crate::canvas::{DocView, Snapshot, SnapshotKind};
 
 pub(crate) mod cert_viewer;
 pub(crate) mod dialog;
+/// Lion PDF: Remove signature.
+pub(crate) mod remove;
 mod panel;
 pub(crate) mod tool;
 

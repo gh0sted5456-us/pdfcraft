@@ -14,12 +14,16 @@
 #[cfg(not(target_arch = "wasm32"))]
 pub const UPDATE_APP: craft::update::app::App = craft::update::app::App {
     icon_png: Some(include_bytes!("../../../assets/app-icon/hicolor/128x128/apps/ai.storyteller.pdfcraft.png")),
-    accent: Some([0xb7, 0x02, 0x28]),
+    // Lion PDF: updates come from the personal fork's releases only, in Lion PDF's own name and blue.
+    name: APP_NAME,
+    repo: "gh0sted5456-us/pdfcraft",
+    developer: "gh0sted5456-us",
+    accent: Some([0x1b, 0x63, 0xe0]),
     ..craft::update::suite::PDFCRAFT
 };
 
 /// PdfCraft as the framework's services know it (the host, About, recovery).
-pub const APP_INFO: craft::host::AppInfo = craft::host::AppInfo { id: "pdfcraft", name: "PdfCraft", version: env!("CARGO_PKG_VERSION") };
+pub const APP_INFO: craft::host::AppInfo = craft::host::AppInfo { id: "pdfcraft", name: APP_NAME, version: env!("CARGO_PKG_VERSION") };
 
 /// Translate an English UI string into the current language (see [`i18n`]).
 macro_rules! tl {
@@ -70,6 +74,14 @@ pub mod lion_theme;
 mod folder_step;
 /// Lion PDF: Create ▸ Custom page.
 mod lion_create;
+/// Lion PDF: Sign ▸ Timestamp.
+mod timestamp_ui;
+/// Lion PDF: Protect ▸ Encrypt with certificate, and opening such documents.
+pub(crate) mod certificate_ui;
+/// Lion PDF: Help ▸ Connect AI assistants.
+mod ai_connect_ui;
+/// Lion PDF: Print Production (preflight and output inspection).
+mod production_ui;
 /// Lion PDF: Create a PDF (the template gallery) and Save as template.
 mod templates_ui;
 
@@ -339,6 +351,21 @@ pub struct PdfCraftApp {
     pub(crate) folder_step: Option<folder_step::FolderStep>,
     /// Lion PDF: the open template gallery (File ▸ Create a PDF).
     pub(crate) template_gallery: Option<templates_ui::TemplateGallery>,
+    /// Lion PDF: the RFC 3161 server Sign ▸ Timestamp asks.
+    pub timestamp_server: String,
+    /// Lion PDF: a timestamp request on its way.
+    pub(crate) timestamp_run: Option<timestamp_ui::TimestampRun>,
+    /// Lion PDF: the open Remove signature dialog.
+    pub(crate) remove_sig: Option<sign_ui::remove::RemoveSigDraft>,
+    /// Lion PDF: the open Encrypt with Certificate dialog.
+    pub(crate) certificate_draft: Option<certificate_ui::CertificateDraft>,
+    /// Lion PDF: Connect AI assistants is open, and the folder it offers the assistant.
+    pub(crate) ai_connect_open: bool,
+    /// Lion PDF: the open Document actions dialog.
+    pub(crate) document_actions: Option<js_ui::DocumentActionsDraft>,
+    /// Lion PDF: the open Print Production dialog.
+    pub(crate) production: Option<production_ui::Draft>,
+    pub(crate) ai_connect_folder: Option<std::path::PathBuf>,
     /// The suite the Appearance page reads its themes from: an in-memory one, as PdfCraft keeps
     /// its own appearance in its settings rather than in the suite's shared selection.
     pub(crate) suite: craft::theme_store::SuiteClient,

@@ -453,3 +453,80 @@ impl PdfCraftApp {
         }
     }
 }
+
+/// Lion PDF ▸ Tools ▸ Document actions: the scripts a document runs as it opens, before it saves
+/// and before it prints.
+#[derive(Clone, Default, PartialEq)]
+pub(crate) struct DocumentActionsDraft {
+    doc: Option<DocId>,
+    event: String,
+    script: String,
+}
+
+impl PdfCraftApp {
+    /// Opens Document actions on the active document's Open script.
+    pub(crate) fn open_document_actions(&mut self) {
+        let Some((_, id)) = self.active_ids() else { return };
+        let event = pdfcraft_engine::js::DOCUMENT_EVENTS[0].to_string();
+        let script = self.document_action(id, &event);
+        self.document_actions = Some(DocumentActionsDraft { doc: Some(id), event, script });
+    }
+
+    fn document_action(&self, id: DocId, event: &str) -> String {
+        self.session.get(id).and_then(|d| d.document_actions().into_iter().find(|(e, _)| e == event)).map(|(_, s)| s).unwrap_or_default()
+    }
+
+    /// One pass of the open Document actions dialog: Save sets the shown event's script (an
+    /// empty one removes it), as an edit that Undo takes back.
+    pub(crate) fn document_actions_pass(&mut self, ui: &mut egui::Ui) {
+        use craft::ui::contract::Bind;
+        use craft::ui::patterns::form_dialogs::FormDialog;
+        let Some(mut draft) = self.document_actions.clone() else { return };
+        let Some(id) = draft.doc.filter(|id| self.session.get(*id).is_some()) else {
+            self.document_actions = None;
+            return;
+        };
+        let before = draft.event.clone();
+        let mut open = true;
+        let out = FormDialog::new(tl!("Document actions"), Bind::bound(&mut draft)).opened(Bind::bound(&mut open)).ok_label(tl!("Save")).show(ui, |ui, _, d| {
+            ui.add(egui::Label::new(tl!("Scripts share this PDF's isolated JavaScript state. File and network access are unavailable.")).wrap());
+            ui.horizontal(|ui| {
+                let label = ui.label(tl!("Event"));
+                egui::ComboBox::from_id_salt("document-action-event")
+                    .selected_text(d.event.clone())
+                    .show_ui(ui, |ui| {
+                        for event in pdfcraft_engine::js::DOCUMENT_EVENTS {
+                            ui.selectable_value(&mut d.event, event.into(), event);
+                        }
+                    })
+                    .response
+                    .labelled_by(label.id);
+            });
+            let label = ui.label(tl!("JavaScript code"));
+            ui.add(egui::TextEdit::multiline(&mut d.script).code_editor().desired_rows(10).desired_width(f32::INFINITY)).labelled_by(label.id);
+            ui.add(
+                egui::Label::new(
+                    egui::RichText::new(tl!("Open runs as the document opens, WillSave before it is saved and WillPrint before it is laid out for printing."))
+                        .small()
+                        .weak(),
+                )
+                .wrap(),
+            );
+            true
+        });
+        if draft.event != before {
+            draft.script = self.document_action(id, &draft.event);
+        }
+        if out.closed.is_some() && out.accepted.is_none() {
+            self.document_actions = None;
+            return;
+        }
+        if out.accepted.is_some() {
+            self.document_actions = None;
+            let script = (!draft.script.trim().is_empty()).then(|| draft.script.clone());
+            self.apply_edit(ui.ctx(), pdfcraft_engine::Edit::SetDocumentAction { event: draft.event, script });
+            return;
+        }
+        self.document_actions = Some(draft);
+    }
+}

@@ -435,12 +435,19 @@ impl PdfCraftApp {
             "file.word_count" => self.open_word_count(),
             "protect.properties" => self.open_properties(ctx, PropsTab::Security),
             // A restricted document's security changes once its permissions password is entered.
-            "protect.password" | "protect.remove" if self.active_ids().and_then(|(_, id)| self.session.get(id)).is_some_and(|d| d.can_unlock()) => {
-                let then = if id == "protect.password" { "protect.password" } else { "protect.remove" };
+            "protect.password" | "protect.certificate" | "protect.remove"
+                if self.active_ids().and_then(|(_, id)| self.session.get(id)).is_some_and(|d| d.can_unlock()) =>
+            {
+                let then = match id {
+                    "protect.password" => "protect.password",
+                    "protect.certificate" => "protect.certificate",
+                    _ => "protect.remove",
+                };
                 self.request_unlock(Some(then));
             }
             "protect.unlock" => self.request_unlock(None),
             "protect.password" => self.open_protect(),
+            "protect.certificate" => self.open_certificate_encryption(),
             "prepress.convert_colors" => self.open_convert_colours(ctx),
             "prepress.hairlines" => self.open_fix_hairlines(ctx),
             "protect.remove" => {
@@ -785,6 +792,11 @@ impl PdfCraftApp {
             "create.new" => self.begin_template_gallery(),
             "create.save_template" => self.begin_template_export(ctx),
             "create.custom" => crate::lion_create::open_custom_page(self, ctx),
+            "sign.timestamp" => self.open_timestamp(ctx),
+            "sign.remove" => self.start_remove_signature(None),
+            "help.connect_ai" => self.open_ai_connect(),
+            "tools.document_actions" => self.open_document_actions(),
+            "preflight.run" | "prepress.output_preview" => self.open_production(id == "prepress.output_preview"),
             "file.open_next_in_folder" => self.open_pdf_beside(ctx, true),
             "file.open_previous_in_folder" => self.open_pdf_beside(ctx, false),
             "ai.confidential" | "ai.confidential_clear" | "ai.confidential_pages" | "ai.confidential_pages_clear" => {
