@@ -6752,6 +6752,7 @@ dependencies = [
  "log",
  "pdfcraft-engine",
  "pdfcraft-platform",
+ "pdfcraft-thumbnails",
  "pdfcraft-ui-egui",
  "pollster 1.0.1",
  "raw-window-handle",
