@@ -35,9 +35,29 @@ pub fn block(text: &mut dyn egui::TextBuffer) -> egui::TextEdit<'_> {
     egui::TextEdit::multiline(text)
 }
 
-/// A check box.
-pub fn checkbox<'a>(checked: &'a mut bool, atoms: impl egui::IntoAtoms<'a>) -> impl egui::Widget + 'a {
-    egui::Checkbox::new(checked, atoms)
+/// A check box (the framework's); whether it changed `checked` this pass.
+pub fn check(ui: &mut egui::Ui, checked: &mut bool, label: &str) -> bool {
+    use craft::ui::contract::{Props as _, Show as _};
+    craft::ui::choice::Checkbox::new(craft::ui::contract::Bind::bound(checked)).label(label.to_string()).show(ui).value().is_some()
+}
+
+/// A drop-down list (the framework's) named `label` over `options`; whether it changed `value`.
+pub fn select<T: Clone + PartialEq + Send + Sync + 'static>(ui: &mut egui::Ui, label: &str, value: &mut T, options: Vec<(T, String)>) -> bool {
+    use craft::ui::contract::Show as _;
+    let entries: Vec<craft::ui::contract::Entry<T>> = options.into_iter().map(|(v, l)| craft::ui::contract::Entry::new(v, l)).collect();
+    let before = value.clone();
+    craft::ui::pickers::Select::new(label.to_string(), craft::ui::contract::Bind::bound(value), &entries).show(ui);
+    *value != before
+}
+
+/// Radio buttons (the framework's) named `label` over `options`.
+pub fn radios<T: Clone + PartialEq + Send + Sync + 'static>(ui: &mut egui::Ui, label: &str, value: &mut T, options: Vec<(T, String)>) {
+    use craft::ui::contract::{Props as _, Show as _, ShowContainer as _};
+    craft::ui::choice::RadioGroup::new(label.to_string(), craft::ui::contract::Bind::bound(value)).show(ui, |ui, _| {
+        for (v, l) in &options {
+            craft::ui::choice::Radio::new(v.clone()).label(l.clone()).show(ui);
+        }
+    });
 }
 
 /// A footer button styled for what it does.

@@ -294,25 +294,13 @@ fn connections(ui: &mut egui::Ui, d: &mut Draft) {
             Provider::ChatGpt => {
                 ui.label("Eligible users can authorize their own ChatGPT plan. API billing is a separate choice; PdfCraft never switches to it automatically.");
                 if !d.profiles.is_empty() {
-                    let selected = d
+                    let before = d.settings.account.clone();
+                    let options = d
                         .profiles
                         .iter()
-                        .find(|p| p.client_id == d.settings.account)
-                        .map_or("Choose an account", |p| if p.email.is_empty() { p.subject.as_str() } else { p.email.as_str() });
-                    let before = d.settings.account.clone();
-                    egui::ComboBox::from_id_salt("assistant-account")
-                        .selected_text(selected)
-                        .show_ui(ui, |ui| {
-                            for p in &d.profiles {
-                                ui.selectable_value(
-                                    &mut d.settings.account,
-                                    p.client_id.clone(),
-                                    if p.email.is_empty() { p.subject.as_str() } else { p.email.as_str() },
-                                );
-                            }
-                        })
-                        .response
-                        .accessible_name("AI account");
+                        .map(|p| (p.client_id.clone(), if p.email.is_empty() { p.subject.clone() } else { p.email.clone() }))
+                        .collect();
+                    crate::widgets::select(ui, "ChatGPT account", &mut d.settings.account, options);
                     if before != d.settings.account {
                         d.models.clear();
                         d.settings.model.clear();
@@ -443,16 +431,8 @@ fn connections(ui: &mut egui::Ui, d: &mut Draft) {
                 d.connect(&ctx, move |_, _| Ok(Update::Models(platform::models(p, &account)?)));
             }
             if !d.models.is_empty() {
-                egui::ComboBox::from_id_salt("assistant-model")
-                    .selected_text("Choose a model")
-                    .width(ui.available_width())
-                    .show_ui(ui, |ui| {
-                        for model in &d.models {
-                            ui.selectable_value(&mut d.settings.model, model.id.clone(), &model.label);
-                        }
-                    })
-                    .response
-                    .accessible_name("AI model");
+                let options = d.models.iter().map(|m| (m.id.clone(), m.label.clone())).collect();
+                crate::widgets::select(ui, "AI model", &mut d.settings.model, options);
             }
         }
     }
@@ -467,15 +447,11 @@ fn microsoft_connection(ui: &mut egui::Ui, d: &mut Draft, ctx: &egui::Context) {
     ui.add(widgets::line(&mut d.settings.microsoft.client_id).char_limit(36).desired_width(ui.available_width())).labelled_by(label.id);
     let label = ui.label("Directory (tenant) ID");
     ui.add(widgets::line(&mut d.settings.microsoft.tenant_id).char_limit(36).desired_width(ui.available_width())).labelled_by(label.id);
-    egui::ComboBox::from_id_salt("copilot-cloud")
-        .selected_text(d.settings.microsoft.cloud.label())
-        .show_ui(ui, |ui| {
-            for cloud in [platform::CopilotCloud::Global, platform::CopilotCloud::Government, platform::CopilotCloud::Defense] {
-                ui.selectable_value(&mut d.settings.microsoft.cloud, cloud, cloud.label());
-            }
-        })
-        .response
-        .accessible_name("Microsoft cloud");
+    let clouds = [platform::CopilotCloud::Global, platform::CopilotCloud::Government, platform::CopilotCloud::Defense]
+        .into_iter()
+        .map(|c| (c, c.label().to_string()))
+        .collect();
+    crate::widgets::select(ui, "Microsoft cloud", &mut d.settings.microsoft.cloud, clouds);
     ui.horizontal_wrapped(|ui| {
         if widgets::dialog_button(ui, "Continue with Microsoft 365", widgets::DialogAction::Confirm).clicked() {
             let config = d.settings.microsoft.clone();
@@ -560,23 +536,18 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     let mut external = None;
     ui.horizontal_wrapped(|ui| {
         ui.add_enabled_ui(d.job.is_none(), |ui| {
-            egui::ComboBox::from_id_salt("assistant-provider")
-                .selected_text(provider_name(d.settings.provider))
-                .width(220.0)
-                .show_ui(ui, |ui| {
-                    for p in [
-                        Provider::ChatGpt,
-                        Provider::ClaudeSubscription,
-                        Provider::CopilotPersonal,
-                        Provider::CopilotWork,
-                        Provider::OpenAi,
-                        Provider::Anthropic,
-                    ] {
-                        ui.selectable_value(&mut d.settings.provider, p, provider_name(p));
-                    }
-                })
-                .response
-                .accessible_name("AI connection");
+            let providers = [
+                Provider::ChatGpt,
+                Provider::ClaudeSubscription,
+                Provider::CopilotPersonal,
+                Provider::CopilotWork,
+                Provider::OpenAi,
+                Provider::Anthropic,
+            ]
+            .into_iter()
+            .map(|p| (p, provider_name(p).to_string()))
+            .collect();
+            widgets::select(ui, "AI connection", &mut d.settings.provider, providers);
         });
         ui.label(
             egui::RichText::new(if browser_mode(d) {
@@ -619,7 +590,7 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
             ui.heading("Your AI connections");
             ui.label("Choose your own subscription or API key. PdfCraft never includes a developer account or switches billing automatically.");
             ui.add_space(12.0);
-            ui.add(widgets::checkbox(&mut d.settings.enabled,"Allow Assistant connections"));
+            widgets::check(ui, &mut d.settings.enabled, "Allow Assistant connections");
             ui.small("Signing in or checking a connection enables it. PDF sharing has its own separate control.");
             ui.add_space(12.0);
             egui::Frame::new().fill(t.panel).stroke(egui::Stroke::new(0.5,t.border)).corner_radius(8.0).inner_margin(18.0).show(ui,|ui|{
@@ -766,23 +737,11 @@ fn context_pane(
         ui.label("No PDF is open");
     }
     ui.add_space(10.0);
-    ui.add(widgets::checkbox(&mut d.context_enabled, "Share PDF context"));
+    widgets::check(ui, &mut d.context_enabled, "Share PDF context");
     ui.small("Off until you enable it. Review the text before sending or copying.");
     ui.add_space(10.0);
-    egui::ComboBox::from_id_salt("assistant-scope")
-        .selected_text(match d.scope {
-            1 => "All pages",
-            2 => "Selected pages",
-            _ => "Current page",
-        })
-        .width(ui.available_width())
-        .show_ui(ui, |ui| {
-            for (value, label) in [(0, "Current page"), (1, "All pages"), (2, "Selected pages")] {
-                ui.selectable_value(&mut d.scope, value, label);
-            }
-        })
-        .response
-        .accessible_name("Document pages");
+    let scopes = vec![(0u8, "Current page".to_string()), (1, "All pages".to_string()), (2, "Selected pages".to_string())];
+    crate::widgets::select(ui, "Pages to share", &mut d.scope, scopes);
     if d.context_enabled {
         if let Err(error) = allowed {
             ui.label(egui::RichText::new(error).small().color(t.text_muted));
@@ -819,7 +778,7 @@ fn context_pane(
         match doc.confidentiality() {
             Ok(policy) => {
                 let mut confidential = policy.document;
-                if ui.add(widgets::checkbox(&mut confidential, "Confidential document")).changed() {
+                if widgets::check(ui, &mut confidential, "Confidential document") {
                     edit = Some(pdfcraft_engine::Edit::SetAiConfidential { pages: None, confidential });
                 }
                 ui.small(format!("{} page(s) individually marked", policy.pages.len()));
@@ -897,5 +856,3 @@ fn chat_prompt(d: &Draft) -> Result<String, String> {
     }
     Ok(prompt)
 }
-
-

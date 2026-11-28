@@ -121,7 +121,8 @@ const FILE: &[&str] = &[
     "print.dialog",
     QUIT,
 ];
-const CREATE: &[&str] = &["create.new", "create.custom", "create.file", "create.multiple", "create.multiple_separate", "create.images", "create.clipboard"];
+const CREATE: &[&str] =
+    &["create.new", "create.custom", "create.file", "create.multiple", "create.multiple_separate", "create.images", "create.clipboard"];
 const EXPORT: &[&str] = &[
     "export.choose",
     "export.docx",
@@ -232,8 +233,19 @@ const SIGN: &[&str] = &[
     "sign.panel",
 ];
 const WINDOW: &[&str] = &["view.next_tab", "view.previous_tab"];
-const HELP: &[&str] =
-    &["help.shortcuts", "help.connect_ai", SEP, "help.app_page", "help.github", "help.website", "help.discord", SEP, "help.check_updates", SEP, "help.about"];
+const HELP: &[&str] = &[
+    "help.shortcuts",
+    "help.connect_ai",
+    SEP,
+    "help.app_page",
+    "help.github",
+    "help.website",
+    "help.discord",
+    SEP,
+    "help.check_updates",
+    SEP,
+    "help.about",
+];
 
 /// Where the menu bar lists command `id`: the English titles of its menu and submenu, top menu first,
 /// as [`MenuBar`] builds them. The shortcuts window groups its rows by them. `None` for a command

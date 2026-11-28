@@ -125,15 +125,6 @@ fn id_files(app: &PdfCraftApp) -> Vec<(String, String)> {
         .collect()
 }
 
-/// What a digital ID path is called in a list: its name if known, else the file's name.
-fn id_label(files: &[(String, String)], path: &str) -> String {
-    files
-        .iter()
-        .find(|(p, _)| p == path)
-        .map(|(_, n)| n.clone())
-        .unwrap_or_else(|| std::path::Path::new(path).file_name().map_or_else(|| path.to_string(), |n| n.to_string_lossy().into_owned()))
-}
-
 impl PdfCraftApp {
     /// Add one of the person's digital ID files as a recipient with every permission; its
     /// identity also joins the session, so the saved document opens here.
@@ -218,7 +209,8 @@ impl PdfCraftApp {
         }
         self.certificate_draft = Some(draft);
         if out.picked == Some(ADD_FILE) {
-            let request = PickRequest::open("protect.certificate").title(tl!("Add certificate file")).filter(tl!("Certificate"), &["cer", "crt", "pem", "der"]);
+            let request =
+                PickRequest::open("protect.certificate").title(tl!("Add certificate file")).filter(tl!("Certificate"), &["cer", "crt", "pem", "der"]);
             self.pick_file(request, None, |app, _, picked| {
                 let Some(path) = picked.first_path() else { return };
                 // The answer belongs to the dialog that asked: none open now, nothing to fill.
@@ -262,20 +254,13 @@ impl PdfCraftApp {
             .show(ui, |ui, _, a| {
                 ui.add(egui::Label::new(&message).wrap());
                 ui.add_space(8.0);
-                ui.horizontal(|ui| {
-                    let label = ui.label(tl!("Digital ID"));
-                    let shown = if a.path.is_empty() { tl!("Choose a digital ID file").to_string() } else { id_label(&files, &a.path) };
-                    egui::ComboBox::from_id_salt("certificate-password-id")
-                        .width(300.0)
-                        .selected_text(shown)
-                        .show_ui(ui, |ui| {
-                            for (p, n) in &files {
-                                ui.selectable_value(&mut a.path, p.clone(), n);
-                            }
-                        })
-                        .response
-                        .labelled_by(label.id);
-                });
+                let mut options: Vec<(String, String)> = files.iter().map(|(p, n)| (p.clone(), n.clone())).collect();
+                // A file chosen with Browse… joins the list, named by its file name.
+                if !a.path.is_empty() && !options.iter().any(|(p, _)| *p == a.path) {
+                    let name = std::path::Path::new(&a.path).file_name().map_or_else(|| a.path.clone(), |n| n.to_string_lossy().into_owned());
+                    options.push((a.path.clone(), name));
+                }
+                crate::widgets::select(ui, tl!("Digital ID"), &mut a.path, options);
                 ui.horizontal(|ui| {
                     let label = ui.label(tl!("Password"));
                     ui.add(egui::TextEdit::singleline(&mut a.password).password(true).desired_width(f32::INFINITY)).labelled_by(label.id);
@@ -357,7 +342,7 @@ fn body(ui: &mut egui::Ui, d: &mut CertificateDraft, files: &[(String, String)])
                 }
                 ui.horizontal_wrapped(|ui| {
                     ui.label(egui::RichText::new(crate::i18n::fmt(tl!("Expires {date}"), &[("date", &r.expires)])).color(weak).small());
-                    ui.checkbox(&mut r.everything, tl!("All permissions"));
+                    crate::widgets::check(ui, &mut r.everything, tl!("All permissions"));
                     if ui.button(tl!("Remove")).clicked() {
                         remove = Some(i);
                     }
@@ -376,17 +361,8 @@ fn body(ui: &mut egui::Ui, d: &mut CertificateDraft, files: &[(String, String)])
             d.own_id = files[0].0.clone();
         }
         ui.horizontal_wrapped(|ui| {
-            let label = ui.label(tl!("Add your digital ID"));
-            egui::ComboBox::from_id_salt("cert-own-id")
-                .width(240.0)
-                .selected_text(id_label(files, &d.own_id))
-                .show_ui(ui, |ui| {
-                    for (p, n) in files {
-                        ui.selectable_value(&mut d.own_id, p.clone(), n);
-                    }
-                })
-                .response
-                .labelled_by(label.id);
+            let options = files.iter().map(|(p, n)| (p.clone(), n.clone())).collect();
+            crate::widgets::select(ui, tl!("Add your digital ID"), &mut d.own_id, options);
             let r = ui.add(egui::TextEdit::singleline(&mut d.own_password).password(true).hint_text(tl!("Password")).desired_width(160.0));
             if ui.button(tl!("Add")).clicked() || (r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
                 add_own = true;
@@ -397,57 +373,35 @@ fn body(ui: &mut egui::Ui, d: &mut CertificateDraft, files: &[(String, String)])
     ui.separator();
     ui.add_space(6.0);
     {
+        use crate::widgets::{check, radios, select};
         use pdfcraft_engine::Algorithm as A;
         let p = &mut d.protection;
-        egui::Grid::new("cert-permissions").num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-            let combo = |ui: &mut egui::Ui, id: &str, label: &str, cur: &str, add: &mut dyn FnMut(&mut egui::Ui)| {
-                let name = ui.label(label);
-                egui::ComboBox::from_id_salt(id).width(300.0).selected_text(cur).show_ui(ui, |ui| add(ui)).response.labelled_by(name.id);
-                ui.end_row();
-            };
-            let algos = [(A::Aes256, tl!("Acrobat X and later (256-bit AES)")), (A::Aes128, tl!("Acrobat 7.0 and later (128-bit AES)"))];
-            if !algos.iter().any(|(a, _)| *a == p.algorithm) {
-                p.algorithm = Algorithm::Aes256;
-            }
-            let cur = algos.iter().find(|(a, _)| *a == p.algorithm).map_or(algos[0].1, |(_, l)| *l);
-            combo(ui, "cert-algo", tl!("Compatibility"), cur, &mut |ui| {
-                for (a, l) in algos {
-                    ui.selectable_value(&mut p.algorithm, a, l);
-                }
-            });
-            ui.label(tl!("Encrypt"));
-            ui.vertical(|ui| {
-                ui.radio_value(&mut p.encrypt_metadata, true, tl!("All document contents"));
-                ui.radio_value(&mut p.encrypt_metadata, false, tl!("All document contents except metadata"));
-            });
-            ui.end_row();
-            let printing = [(Printing::None, tl!("None")), (Printing::Low, tl!("Low Resolution (150 dpi)")), (Printing::High, tl!("High Resolution"))];
-            let cur = printing.iter().find(|(o, _)| *o == p.printing).map_or(tl!("High Resolution"), |(_, l)| *l);
-            combo(ui, "cert-print", tl!("Printing allowed"), cur, &mut |ui| {
-                for (o, l) in printing {
-                    ui.selectable_value(&mut p.printing, o, l);
-                }
-            });
-            let changes = [
-                (Changes::None, tl!("None")),
-                (Changes::Pages, tl!("Inserting, deleting, and rotating pages")),
-                (Changes::FillSign, tl!("Filling in form fields and signing existing signature fields")),
-                (Changes::CommentFillSign, tl!("Commenting, filling in form fields, and signing existing signature fields")),
-                (Changes::AnyExceptExtract, tl!("Any except extracting pages")),
-            ];
-            let cur = changes.iter().find(|(o, _)| *o == p.changes).map_or(tl!("None"), |(_, l)| *l);
-            combo(ui, "cert-changes", tl!("Changes allowed"), cur, &mut |ui| {
-                for (o, l) in changes {
-                    ui.selectable_value(&mut p.changes, o, l);
-                }
-            });
-            ui.label("");
-            ui.vertical(|ui| {
-                ui.checkbox(&mut p.copy, tl!("Enable copying of text, images, and other content"));
-                ui.checkbox(&mut p.accessibility, tl!("Enable text access for screen reader devices for the visually impaired"));
-            });
-            ui.end_row();
-        });
+        if !matches!(p.algorithm, A::Aes256 | A::Aes128) {
+            p.algorithm = Algorithm::Aes256;
+        }
+        let algos = vec![
+            (A::Aes256, tl!("Acrobat X and later (256-bit AES)").to_string()),
+            (A::Aes128, tl!("Acrobat 7.0 and later (128-bit AES)").to_string()),
+        ];
+        select(ui, tl!("Compatibility"), &mut p.algorithm, algos);
+        let encrypt = vec![(true, tl!("All document contents").to_string()), (false, tl!("All document contents except metadata").to_string())];
+        radios(ui, tl!("Encrypt"), &mut p.encrypt_metadata, encrypt);
+        let printing = vec![
+            (Printing::None, tl!("None").to_string()),
+            (Printing::Low, tl!("Low Resolution (150 dpi)").to_string()),
+            (Printing::High, tl!("High Resolution").to_string()),
+        ];
+        select(ui, tl!("Printing allowed"), &mut p.printing, printing);
+        let changes = vec![
+            (Changes::None, tl!("None").to_string()),
+            (Changes::Pages, tl!("Inserting, deleting, and rotating pages").to_string()),
+            (Changes::FillSign, tl!("Filling in form fields and signing existing signature fields").to_string()),
+            (Changes::CommentFillSign, tl!("Commenting, filling in form fields, and signing existing signature fields").to_string()),
+            (Changes::AnyExceptExtract, tl!("Any except extracting pages").to_string()),
+        ];
+        select(ui, tl!("Changes allowed"), &mut p.changes, changes);
+        check(ui, &mut p.copy, tl!("Enable copying of text, images, and other content"));
+        check(ui, &mut p.accessibility, tl!("Enable text access for screen reader devices for the visually impaired"));
     }
     ui.add_space(8.0);
     if let Some(e) = &d.error {
@@ -463,7 +417,9 @@ fn body(ui: &mut egui::Ui, d: &mut CertificateDraft, files: &[(String, String)])
             .wrap(),
         );
     }
-    ui.label(egui::RichText::new(tl!("The restrictions apply to recipients without “All permissions”. They apply when you save.")).color(weak).small());
+    ui.label(
+        egui::RichText::new(tl!("The restrictions apply to recipients without “All permissions”. They apply when you save.")).color(weak).small(),
+    );
     add_own
 }
 

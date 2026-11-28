@@ -269,7 +269,8 @@ impl PdfCraftApp {
     /// Switches between light and dark from the mode the interface shows now.
     fn toggle_theme(&mut self, ctx: &egui::Context) {
         // Lion PDF: out of Glass, the switch goes to the light theme.
-        let next = if !self.glass && self.root_env(ctx).resolved(ctx).mode == craft::theme::Mode::Light { ModeChoice::Dark } else { ModeChoice::Light };
+        let next =
+            if !self.glass && self.root_env(ctx).resolved(ctx).mode == craft::theme::Mode::Light { ModeChoice::Dark } else { ModeChoice::Light };
         self.set_theme_preference(next);
     }
 

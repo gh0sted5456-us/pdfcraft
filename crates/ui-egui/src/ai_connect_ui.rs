@@ -70,9 +70,8 @@ impl PdfCraftApp {
         let mut open = true;
         let mut copied = false;
         let mut unit = ();
-        let mut dialog = FormDialog::new(tl!("Connect AI assistants"), Bind::bound(&mut unit))
-            .opened(Bind::bound(&mut open))
-            .buttons(FormButtons::Close);
+        let mut dialog =
+            FormDialog::new(tl!("Connect AI assistants"), Bind::bound(&mut unit)).opened(Bind::bound(&mut open)).buttons(FormButtons::Close);
         if connection.is_some() {
             dialog = dialog.extra_buttons([FooterButton::new(tl!("Choose folder…"), DialogRole::Other)]);
         }

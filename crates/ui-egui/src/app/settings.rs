@@ -698,7 +698,10 @@ pub fn import_json(text: &str) -> (PdfCraftSettings, Vec<SectionError>) {
     // Lion PDF kept Glass as a fourth theme choice, its tint and opacities beside it.
     let lion = Lion {
         glass: root.get("theme").and_then(Value::as_str).map(|theme| theme == "Glass"),
-        glass_settings: root.get("glass").and_then(|v| serde_json::from_value::<crate::lion_theme::GlassSettings>(v.clone()).ok()).map(|g| g.normalized()),
+        glass_settings: root
+            .get("glass")
+            .and_then(|v| serde_json::from_value::<crate::lion_theme::GlassSettings>(v.clone()).ok())
+            .map(|g| g.normalized()),
         timestamp_server: root.get("timestamp_server").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_string),
         assistant: root.get("assistant").filter(|v| v.is_object()).map(Value::to_string),
     };

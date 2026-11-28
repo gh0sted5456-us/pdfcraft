@@ -10,8 +10,8 @@ use craft::ui::buttons::Button;
 use craft::ui::contract::{Bind, Show as _, clicked};
 use craft::ui::display::Text;
 use craft::ui::patterns::form_dialogs::{DialogFields, FieldValue, HostedParamDialog, Param, ParamDialog, ParamKind};
-use craft::ui::value_drag::SliderScale;
 use craft::ui::runtime::env::Label;
+use craft::ui::value_drag::SliderScale;
 use pdfcraft_engine::DocId;
 use pdfcraft_engine::ocr::{EngineChoice, LANGUAGES, MergeStrategy, OcrGuard, OcrPage, OcrSettings, OutputMode};
 
@@ -505,10 +505,8 @@ fn recognize_dialog(fields: &mut DialogFields, count: usize, current: usize) -> 
     // Lion PDF: the dialog's correction mode (Scan & OCR ▸ Correct scans).
     let recognizing = fields.bool("recognize").unwrap_or(true);
     let (title, ok) = if recognizing { (tl!("Recognize Text"), tl!("Recognize text")) } else { (tl!("Scan correction"), tl!("Correct scans")) };
-    let mut dialog = ParamDialog::new("ocr.recognize", title, params)
-        .ok_label(Label::from(ok))
-        .ok_enabled(reason.is_none())
-        .values(Bind::bound(fields));
+    let mut dialog =
+        ParamDialog::new("ocr.recognize", title, params).ok_label(Label::from(ok)).ok_enabled(reason.is_none()).values(Bind::bound(fields));
     if let Some(note) = download_notice.or_else(|| reason.clone()) {
         dialog = dialog.footer_note(Label::from(note));
     }

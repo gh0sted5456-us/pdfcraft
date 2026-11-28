@@ -86,7 +86,10 @@ impl PdfCraftApp {
                 body(ui, production, v, pages, stale, &mut show_page);
                 true
             });
-        let text = self.production.as_ref().and_then(|p| if p.output_tab { p.output.as_ref().map(OutputInspection::text) } else { p.readiness.as_ref().map(PrintReadiness::text) });
+        let text = self
+            .production
+            .as_ref()
+            .and_then(|p| if p.output_tab { p.output.as_ref().map(OutputInspection::text) } else { p.readiness.as_ref().map(PrintReadiness::text) });
         if out.closed.is_some() {
             self.production = None;
             return;

@@ -488,32 +488,27 @@ impl PdfCraftApp {
         };
         let before = draft.event.clone();
         let mut open = true;
-        let out = FormDialog::new(tl!("Document actions"), Bind::bound(&mut draft)).opened(Bind::bound(&mut open)).ok_label(tl!("Save")).show(ui, |ui, _, d| {
-            ui.add(egui::Label::new(tl!("Scripts share this PDF's isolated JavaScript state. File and network access are unavailable.")).wrap());
-            ui.horizontal(|ui| {
-                let label = ui.label(tl!("Event"));
-                egui::ComboBox::from_id_salt("document-action-event")
-                    .selected_text(d.event.clone())
-                    .show_ui(ui, |ui| {
-                        for event in pdfcraft_engine::js::DOCUMENT_EVENTS {
-                            ui.selectable_value(&mut d.event, event.into(), event);
-                        }
-                    })
-                    .response
-                    .labelled_by(label.id);
-            });
-            let label = ui.label(tl!("JavaScript code"));
-            ui.add(egui::TextEdit::multiline(&mut d.script).code_editor().desired_rows(10).desired_width(f32::INFINITY)).labelled_by(label.id);
-            ui.add(
-                egui::Label::new(
-                    egui::RichText::new(tl!("Open runs as the document opens, WillSave before it is saved and WillPrint before it is laid out for printing."))
+        let out = FormDialog::new(tl!("Document actions"), Bind::bound(&mut draft)).opened(Bind::bound(&mut open)).ok_label(tl!("Save")).show(
+            ui,
+            |ui, _, d| {
+                ui.add(egui::Label::new(tl!("Scripts share this PDF's isolated JavaScript state. File and network access are unavailable.")).wrap());
+                let events = pdfcraft_engine::js::DOCUMENT_EVENTS.iter().map(|e| (e.to_string(), e.to_string())).collect();
+                crate::widgets::select(ui, tl!("Event"), &mut d.event, events);
+                let label = ui.label(tl!("JavaScript code"));
+                ui.add(egui::TextEdit::multiline(&mut d.script).code_editor().desired_rows(10).desired_width(f32::INFINITY)).labelled_by(label.id);
+                ui.add(
+                    egui::Label::new(
+                        egui::RichText::new(tl!(
+                            "Open runs as the document opens, WillSave before it is saved and WillPrint before it is laid out for printing."
+                        ))
                         .small()
                         .weak(),
-                )
-                .wrap(),
-            );
-            true
-        });
+                    )
+                    .wrap(),
+                );
+                true
+            },
+        );
         if draft.event != before {
             draft.script = self.document_action(id, &draft.event);
         }

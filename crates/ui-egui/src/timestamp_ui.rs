@@ -17,8 +17,10 @@ use crate::PdfCraftApp;
 
 const KEY: &str = "sign.timestamp";
 /// The services offered by name; anything else is typed.
-const SERVERS: [(&str, &str); 2] =
-    [("Sectigo (default)", pdfcraft_platform::timestamp::DEFAULT_SERVER), ("FreeTSA (its certificate must be trusted separately)", "https://freetsa.org/tsr")];
+const SERVERS: [(&str, &str); 2] = [
+    ("Sectigo (default)", pdfcraft_platform::timestamp::DEFAULT_SERVER),
+    ("FreeTSA (its certificate must be trusted separately)", "https://freetsa.org/tsr"),
+];
 const CUSTOM: &str = "custom";
 
 /// A timestamp request on its way.

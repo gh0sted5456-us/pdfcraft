@@ -5,18 +5,18 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, mpsc};
 
+use craft::behavior::{DisplayOrder, IconId, ItemSource, Selection, SelectionChange, SizeHint};
 use craft::host::{PickRequest, Picked, WriteIntent};
 use craft::ui::contract::Bind;
-use craft::ui::dialog::{DialogResult, dialog_id};
-use craft::ui::patterns::form_dialogs::{DialogFields, FormDialog, HostedParamDialog, Param, ParamDialog, ParamKind};
-use craft::ui::sections::{DialogRole, FooterButton};
-use craft::behavior::{DisplayOrder, IconId, ItemSource, Selection, SelectionChange, SizeHint};
 use craft::ui::contract::{CollectionEvent, Entry, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft::ui::dialog::{DialogResult, dialog_id};
 use craft::ui::display::Text;
 use craft::ui::form::Field;
 use craft::ui::layout_components::Row;
 use craft::ui::list::ThumbAspect;
+use craft::ui::patterns::form_dialogs::{DialogFields, FormDialog, HostedParamDialog, Param, ParamDialog, ParamKind};
 use craft::ui::pickers::Select;
+use craft::ui::sections::{DialogRole, FooterButton};
 use craft::ui::text::TextField;
 use craft::ui::tile_grid::{GridZoom, Tile, TileGrid};
 use egui::Rect;
@@ -448,8 +448,10 @@ impl PdfCraftApp {
             return;
         };
         let mut session = pdfcraft_engine::Session::new();
-        let exported =
-            session.open_new("Template.pdf", bytes).map_err(|e| e.to_string()).and_then(|id| session.export_template(id, &info).map_err(|e| e.to_string()));
+        let exported = session
+            .open_new("Template.pdf", bytes)
+            .map_err(|e| e.to_string())
+            .and_then(|id| session.export_template(id, &info).map_err(|e| e.to_string()));
         match exported {
             Ok(bytes) => self.write_template(bytes, &info.title),
             Err(error) => self.notify_fmt("Couldn't save the template: {e}", &[("e", &error)]),

@@ -122,12 +122,7 @@ impl PdfCraftApp {
         };
         let Some(FolderStep { path, forward, .. }) = self.folder_step.take() else { return };
         // A slow scan must not reopen a folder after the user moved to another document.
-        if !self
-            .active_ids()
-            .and_then(|(_, id)| self.session.get(id))
-            .and_then(|d| d.path.as_deref())
-            .is_some_and(|p| crate::same_file(p, &path))
-        {
+        if !self.active_ids().and_then(|(_, id)| self.session.get(id)).and_then(|d| d.path.as_deref()).is_some_and(|p| crate::same_file(p, &path)) {
             return;
         }
         match done {

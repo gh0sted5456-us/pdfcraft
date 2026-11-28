@@ -573,11 +573,11 @@ impl PdfCraftApp {
         let native = ctx.native_pixels_per_point().unwrap_or(1.0);
         // Lion PDF: Glass is the dark Lion theme over the window's tint.
         let mode = if self.glass { craft::theme::ModeChoice::Dark } else { self.theme_preference };
-        let root = RootEnv::new()
-            .mode(mode)
-            .density(craft::theme::Size::Comfortable)
-            .direction(direction)
-            .scale(Scale::new(crate::ui_scale::zoom(self.ui_scale, system, native)));
+        let root = RootEnv::new().mode(mode).density(craft::theme::Size::Comfortable).direction(direction).scale(Scale::new(crate::ui_scale::zoom(
+            self.ui_scale,
+            system,
+            native,
+        )));
         // Lion PDF's look: the Lion theme, or Glass.
         let mut root = root.library_theme(if self.glass { crate::lion_theme::glass(self.glass_settings) } else { crate::lion_theme::lion() });
         root.sizes = Arc::clone(sizes);

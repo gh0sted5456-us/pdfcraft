@@ -104,7 +104,8 @@ impl PdfCraftApp {
         let Some(mut draft) = self.remove_sig.clone() else { return };
         let ids: Vec<DigitalIdEntry> = self.digital_ids.clone();
         let mut open = true;
-        let ready = draft.chosen().is_some_and(|r| !needs_identity(r) || draft.identity.is_some_and(|i| ids.get(i).is_some_and(|e| e.unusable.is_none())));
+        let ready =
+            draft.chosen().is_some_and(|r| !needs_identity(r) || draft.identity.is_some_and(|i| ids.get(i).is_some_and(|e| e.unusable.is_none())));
         let out = FormDialog::new(tl!("Remove signature"), Bind::bound(&mut draft))
             .opened(Bind::bound(&mut open))
             .ok_label(tl!("Remove and save as…"))
@@ -134,7 +135,8 @@ impl PdfCraftApp {
         let folder = doc.path.clone();
         let id = draft.doc;
         let identity = draft.identity.and_then(|i| self.digital_ids.get(i)).map(|e| e.path.clone());
-        let mut request = PickRequest::save("sign.unsigned").file_name(crate::i18n::fmt(tl!("{name}_unsigned.pdf"), &[("name", &stem)])).filter("PDF", &["pdf"]);
+        let mut request =
+            PickRequest::save("sign.unsigned").file_name(crate::i18n::fmt(tl!("{name}_unsigned.pdf"), &[("name", &stem)])).filter("PDF", &["pdf"]);
         if let Some(parent) = folder.as_deref().and_then(|p| std::path::Path::new(p).parent()) {
             request = request.default_directory(parent);
         }
@@ -222,7 +224,9 @@ impl PdfCraftApp {
         let file = dest.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| dest.display().to_string());
         let field = chosen.field.as_deref().unwrap_or("");
         let what = match (&chosen.target, keep_field) {
-            (Target::Annotation { page, .. }, _) => crate::i18n::fmt(tl!("Removed the visual signature on page {p}"), &[("p", &(page + 1).to_string())]),
+            (Target::Annotation { page, .. }, _) => {
+                crate::i18n::fmt(tl!("Removed the visual signature on page {p}"), &[("p", &(page + 1).to_string())])
+            }
             (_, true) => crate::i18n::fmt(tl!("Removed the signature {field} and kept its empty field"), &[("field", field)]),
             (_, false) => crate::i18n::fmt(tl!("Removed the signature {field} with its field"), &[("field", field)]),
         };
@@ -288,26 +292,26 @@ fn body(ui: &mut egui::Ui, d: &mut RemoveSigDraft, ids: &[DigitalIdEntry]) {
     }
     ui.label(tl!("Choose the signature to remove:"));
     ui.add_space(4.0);
+    let items = d.items.clone();
     egui::ScrollArea::vertical().id_salt("remove-signatures").max_height(220.0).show(ui, |ui| {
-        for (i, r) in d.items.iter().enumerate() {
-            let mut head = kind_label(r);
-            match (r.signer.as_deref(), &r.kind) {
-                (Some(signer), _) => head.push_str(&format!(" — {signer}")),
-                (None, Kind::Visual { .. }) => {}
-                (None, _) => head.push_str(&format!(" — {}", tl!("unknown signer"))),
+        use craft::ui::contract::{Props as _, Show as _, ShowContainer as _};
+        craft::ui::choice::RadioGroup::new(tl!("Signatures"), Bind::bound(&mut d.selected)).show(ui, |ui, _| {
+            for (i, r) in items.iter().enumerate() {
+                let mut head = kind_label(r);
+                match (r.signer.as_deref(), &r.kind) {
+                    (Some(signer), _) => head.push_str(&format!(" — {signer}")),
+                    (None, Kind::Visual { .. }) => {}
+                    (None, _) => head.push_str(&format!(" — {}", tl!("unknown signer"))),
+                }
+                craft::ui::choice::Radio::new(Some(i)).label(head).enabled(r.blocked.is_none()).show(ui);
+                ui.indent(("remove-sig-row", i), |ui| {
+                    ui.add(egui::Label::new(egui::RichText::new(details(r)).small().weak()).wrap());
+                    if let Some(b) = &r.blocked {
+                        ui.add(egui::Label::new(egui::RichText::new(worded(b.wording())).small()).wrap());
+                    }
+                });
             }
-            ui.add_enabled_ui(r.blocked.is_none(), |ui| {
-                if ui.radio(d.selected == Some(i), egui::RichText::new(head).strong()).clicked() {
-                    d.selected = Some(i);
-                }
-            });
-            ui.indent(("remove-sig-row", i), |ui| {
-                ui.add(egui::Label::new(egui::RichText::new(details(r)).small().weak()).wrap());
-                if let Some(b) = &r.blocked {
-                    ui.add(egui::Label::new(egui::RichText::new(worded(b.wording())).small()).wrap());
-                }
-            });
-        }
+        });
     });
     let Some(chosen) = d.chosen().cloned() else { return };
     if !chosen.effects.is_empty() {
@@ -318,7 +322,7 @@ fn body(ui: &mut egui::Ui, d: &mut RemoveSigDraft, ids: &[DigitalIdEntry]) {
     }
     if matches!(chosen.target, Target::Field(_)) {
         ui.add_space(6.0);
-        ui.checkbox(&mut d.keep_field, tl!("Keep the empty signature field, ready to sign again"));
+        crate::widgets::check(ui, &mut d.keep_field, tl!("Keep the empty signature field, ready to sign again"));
     }
     if needs_identity(&chosen) {
         ui.add_space(8.0);
@@ -328,19 +332,8 @@ fn body(ui: &mut egui::Ui, d: &mut RemoveSigDraft, ids: &[DigitalIdEntry]) {
             ui.label(egui::RichText::new(tl!("No digital ID is set up. Add it in Sign with a Digital ID first.")).weak());
             return;
         }
-        ui.horizontal(|ui| {
-            let label = ui.label(tl!("Digital ID"));
-            let shown = d.identity.and_then(|i| ids.get(i)).map_or_else(String::new, |e| e.name.clone());
-            egui::ComboBox::from_id_salt("remove-sig-identity")
-                .selected_text(shown)
-                .show_ui(ui, |ui| {
-                    for (i, e) in &usable {
-                        ui.selectable_value(&mut d.identity, Some(*i), format!("{} — {}", e.name, e.issuer));
-                    }
-                })
-                .response
-                .labelled_by(label.id);
-        });
+        let options = usable.iter().map(|(i, e)| (Some(*i), format!("{} — {}", e.name, e.issuer))).collect();
+        crate::widgets::select(ui, tl!("Digital ID"), &mut d.identity, options);
         let file = d.identity.and_then(|i| ids.get(i)).is_some_and(|e| !e.path.starts_with("windows:") && !e.path.starts_with("keychain:"));
         if file {
             ui.horizontal(|ui| {

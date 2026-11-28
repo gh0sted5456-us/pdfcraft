@@ -217,9 +217,11 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         })
         .section(StartPlace::AfterSections, |ui, _| {
             let _ = Text::new(tl!("Privacy").to_uppercase()).role(TypeRole::Label).show(ui);
-            let _ =
-                Text::new(tl!("PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.").replace("PdfCraft", crate::APP_NAME))
-                    .show(ui);
+            let _ = Text::new(
+                tl!("PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.")
+                    .replace("PdfCraft", crate::APP_NAME),
+            )
+            .show(ui);
         });
     #[cfg(not(target_arch = "wasm32"))]
     {

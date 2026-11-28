@@ -73,14 +73,12 @@ pub(crate) fn open_custom_page(app: &mut PdfCraftApp, ctx: &egui::Context) {
             Param::new(
                 "orientation",
                 tl!("Orientation"),
-                ParamKind::radio(
-                    vec![("portrait".into(), Label::from(tl!("Portrait"))), ("landscape".into(), Label::from(tl!("Landscape")))],
-                    None,
-                ),
+                ParamKind::radio(vec![("portrait".into(), Label::from(tl!("Portrait"))), ("landscape".into(), Label::from(tl!("Landscape")))], None),
             ),
             Param::new("pages", tl!("Pages"), ParamKind::int(Some(1), Some(MAX_PAGES), 1)),
         ];
-        let mut dialog = ParamDialog::new(KEY, tl!("Custom page"), rows).values(Bind::bound(fields)).ok_label(tl!("Create").into()).ok_enabled(usable);
+        let mut dialog =
+            ParamDialog::new(KEY, tl!("Custom page"), rows).values(Bind::bound(fields)).ok_label(tl!("Create").into()).ok_enabled(usable);
         if !usable {
             dialog = dialog.ok_reason(Label::from(tl!("Each side must be between 3 and 14,400 points (200 inches).")));
         }

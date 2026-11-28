@@ -66,29 +66,29 @@ pub use print_ui::{
     TwoSidedSource, Which as PrintWhich, system_printers, system_two_sided,
 };
 pub use redact_ui::{HiddenDraft, RedactPrefs, SearchDraft as RedactSearchDraft, SearchMode as RedactSearchMode};
-pub mod i18n;
-pub mod viewer_prefs;
-/// Lion PDF's look: the Lion theme and Glass.
-pub mod lion_theme;
-/// Lion PDF: File ▸ Open next / previous PDF in folder.
-mod folder_step;
-/// Lion PDF: Create ▸ Custom page.
-mod lion_create;
-/// Lion PDF: Sign ▸ Timestamp.
-mod timestamp_ui;
-/// Lion PDF: Protect ▸ Encrypt with certificate, and opening such documents.
-pub(crate) mod certificate_ui;
 /// Lion PDF: Help ▸ Connect AI assistants.
 mod ai_connect_ui;
-/// Lion PDF: Print Production (preflight and output inspection).
-mod production_ui;
-/// Lion PDF: the egui helpers and colours its own dialogs draw with.
-mod theme;
-mod widgets;
 /// Lion PDF: the AI assistant.
 mod assistant_ui;
+/// Lion PDF: Protect ▸ Encrypt with certificate, and opening such documents.
+pub(crate) mod certificate_ui;
+/// Lion PDF: File ▸ Open next / previous PDF in folder.
+mod folder_step;
+pub mod i18n;
+/// Lion PDF: Create ▸ Custom page.
+mod lion_create;
+/// Lion PDF's look: the Lion theme and Glass.
+pub mod lion_theme;
+/// Lion PDF: Print Production (preflight and output inspection).
+mod production_ui;
 /// Lion PDF: Create a PDF (the template gallery) and Save as template.
 mod templates_ui;
+/// Lion PDF: the egui helpers and colours its own dialogs draw with.
+mod theme;
+/// Lion PDF: Sign ▸ Timestamp.
+mod timestamp_ui;
+pub mod viewer_prefs;
+mod widgets;
 
 /// The personal fork's display name; storage and update identities remain compatible.
 pub const APP_NAME: &str = "Lion PDF";
