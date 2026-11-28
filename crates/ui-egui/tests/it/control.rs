@@ -990,7 +990,8 @@ fn german_preferences_and_search_keep_command_ids() {
     let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": "Deutsch" }));
     let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");
     click_center(&mut h, &c, combo);
-    ok(&mut h, &c, "ui.click", json!({ "label": "English" }));
+    // Lion PDF names the source language English (US) beside English (UK).
+    ok(&mut h, &c, "ui.click", json!({ "label": "English (US)" }));
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["language"], "en");
     let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": "English" }));
     let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");
@@ -1087,7 +1088,7 @@ fn preferences_menu_and_shortcut_allow_switching_interface_languages() {
     h.run_steps(2);
     h.get_by(menu_row(preferences)).click();
     h.run_steps(2);
-    for (current, next, code) in [("日本語", "English", "en"), ("English", "Українська", "uk"), ("Українська", "日本語", "ja")]
+    for (current, next, code) in [("日本語", "English (US)", "en"), ("English", "Українська", "uk"), ("Українська", "日本語", "ja")]
     {
         let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": current }));
         let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");

@@ -797,6 +797,8 @@ impl PdfCraftApp {
             "help.connect_ai" => self.open_ai_connect(),
             "ai.setup" | "ai.summary" | "ai.ask" | "ai.suggest" | "ai.translate" => crate::assistant_ui::open(self, id),
             "tools.document_actions" => self.open_document_actions(),
+            // Lion PDF: Optimize ▸ Audit space usage, in Document Properties.
+            "optimize.audit" => self.open_properties(ctx, PropsTab::SpaceAudit),
             "preflight.run" | "prepress.output_preview" => self.open_production(id == "prepress.output_preview"),
             "file.open_next_in_folder" => self.open_pdf_beside(ctx, true),
             "file.open_previous_in_folder" => self.open_pdf_beside(ctx, false),

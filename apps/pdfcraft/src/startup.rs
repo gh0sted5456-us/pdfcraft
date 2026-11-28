@@ -17,6 +17,8 @@ pub(super) struct Arguments {
     pub combine: bool,
     pub new_window: bool,
     pub two_paged: bool,
+    /// Lion PDF: `--refresh-thumbnails` (the installer's): refresh Explorer's thumbnails and exit.
+    pub refresh_thumbnails: bool,
     pub version: bool,
     pub help: bool,
 }
@@ -49,6 +51,10 @@ impl Arguments {
                 // files tab, of the running PdfCraft when there is one.
                 "--combine" => parsed.combine = true,
                 "--new-window" => parsed.new_window = true,
+                "--refresh-thumbnails" => {
+                    parsed.refresh_thumbnails = true;
+                    break;
+                }
                 "--two-paged" => parsed.two_paged = true,
                 flag if flag.starts_with("--two-paged=") => {
                     // It has no value: do not consume the following filename on malformed use.

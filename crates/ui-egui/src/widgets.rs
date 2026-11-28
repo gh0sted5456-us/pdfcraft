@@ -11,8 +11,6 @@ const FIELD_MIN_HEIGHT: f32 = 28.0;
 pub enum DialogAction {
     /// The dialog's main action: filled in the accent.
     Confirm,
-    /// Closes without acting.
-    Cancel,
     /// A secondary action.
     Back,
     /// An action that loses work: filled in the error colour.
@@ -47,7 +45,7 @@ pub(crate) fn dialog_button(ui: &mut egui::Ui, label: &str, action: DialogAction
     let (fill, ink) = match action {
         DialogAction::Confirm => (Some(ui.visuals().hyperlink_color), Some(egui::Color32::WHITE)),
         DialogAction::Destructive => (Some(ui.visuals().error_fg_color), Some(egui::Color32::WHITE)),
-        DialogAction::Cancel | DialogAction::Back => (None, None),
+        DialogAction::Back => (None, None),
     };
     let text = match ink {
         Some(ink) => RichText::new(label).color(ink),
@@ -63,39 +61,4 @@ pub(crate) fn dialog_button(ui: &mut egui::Ui, label: &str, action: DialogAction
 /// A button with an icon's name before its label; `primary` fills it in the accent.
 pub fn icon_pill(ui: &mut egui::Ui, _icon: &str, label: &str, primary: bool) -> Response {
     dialog_button(ui, label, if primary { DialogAction::Confirm } else { DialogAction::Back })
-}
-
-/// A heading inside a dialog's body.
-pub(crate) fn dialog_heading(ui: &mut egui::Ui, title: impl Into<String>) -> Response {
-    ui.label(RichText::new(title.into()).strong().size(16.0))
-}
-
-/// A section title inside a dialog's body.
-pub fn section_title(ui: &mut egui::Ui, text: &str) {
-    ui.label(RichText::new(text).strong());
-}
-
-/// The buttons at the foot of a body, right-aligned.
-pub(crate) fn dialog_footer<R>(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), content)
-}
-
-/// A body part that scrolls when it is taller than the room.
-pub(crate) fn dialog_scroll<R>(ui: &mut egui::Ui, id: &str, content: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    egui::ScrollArea::vertical().id_salt(id).max_height((ui.ctx().content_rect().height() - 240.0).max(160.0)).show(ui, content).inner
-}
-
-/// A radio button.
-pub fn radio<'a>(selected: bool, atoms: impl egui::IntoAtoms<'a>) -> impl egui::Widget + 'a {
-    egui::RadioButton::new(selected, atoms)
-}
-
-/// A radio button that sets `current` to `alternative`.
-pub fn radio_value<'a, V: PartialEq>(ui: &mut egui::Ui, current: &mut V, alternative: V, atoms: impl egui::IntoAtoms<'a>) -> Response {
-    let mut response = ui.add(radio(*current == alternative, atoms));
-    if response.clicked() && *current != alternative {
-        *current = alternative;
-        response.mark_changed();
-    }
-    response
 }

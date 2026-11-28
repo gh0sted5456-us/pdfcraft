@@ -183,19 +183,6 @@ pub(crate) fn open(app: &mut PdfCraftApp, command: &str) {
     };
     app.assistant_open = true;
 }
-pub(crate) fn suspend(d: &mut Draft) {
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        if d.job.take().is_some() {
-            if d.question.is_empty() {
-                d.question = std::mem::take(&mut d.pending_question);
-            }
-            d.status = "Request canceled locally while changing windows. A request already sent may still be processed.".into();
-        }
-    }
-    #[cfg(target_arch = "wasm32")]
-    let _ = d;
-}
 
 pub(crate) fn poll(app: &mut PdfCraftApp, ctx: &egui::Context) {
     #[cfg(not(target_arch = "wasm32"))]

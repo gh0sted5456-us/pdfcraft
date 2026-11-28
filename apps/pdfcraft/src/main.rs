@@ -67,6 +67,7 @@ Opens the files in the PdfCraft desktop app.
 
 Options:
   --two-paged                 open command-line PDFs in noncontinuous two-page view
+  --refresh-thumbnails        refresh Windows thumbnail caches and exit (no-op elsewhere)
   --new-window                open a window of its own instead of passing the files to a running PdfCraft
   --create-images [images…]   put the images in one PDF and ask for the page DPI
   --combine files…            add the files to the Combine files tab, of a running PdfCraft if there is one
@@ -199,6 +200,12 @@ fn main() -> eframe::Result {
     }
     if startup.help {
         return print_and_exit(USAGE);
+    }
+    // Lion PDF: the installer asks Explorer to draw PDF thumbnails again, then the app exits.
+    if startup.refresh_thumbnails {
+        #[cfg(windows)]
+        pdfcraft_thumbnails::windows::refresh_shell_cache();
+        return Ok(());
     }
     startup.files = rejoin_split_paths(startup.files, |p| std::path::Path::new(p).is_file());
     let may_hand_off = startup.may_hand_off();
