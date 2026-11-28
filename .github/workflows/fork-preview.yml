@@ -1,0 +1,68 @@
+name: Fork installer preview
+
+# Builds the Windows MSI from an adoption branch for hands-on testing. Nothing is published: the
+# installer is a workflow artifact, and releases still come only from fork-release.yml on main.
+on:
+  push:
+    branches: ['adopt/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fork-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    if: github.repository == 'gh0sted5456-us/pdfcraft'
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_INCREMENTAL: '0'
+      CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      CRAFT_FONTS_DIR: ${{ github.workspace }}/../craft-fonts
+      CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_RUSTFLAGS: '-C target-feature=+crt-static'
+      PDFCRAFT_REQUIRE_WINRES: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check out craft-i18n
+        uses: storytold/craft-common-actions/actions/checkout-craft-i18n@59d1ecc4ea15ab59f8d60d38b147d5016c1f1385
+      - name: Install build tools and pinned font input
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          rustup toolchain install 1.95.0 --profile minimal
+          if ($LASTEXITCODE -ne 0) { throw 'Rust installation failed' }
+          rustup override set 1.95.0
+          dotnet tool install --global wix --version 5.0.2
+          if ($LASTEXITCODE -ne 0) { throw 'WiX installation failed' }
+          git clone https://github.com/storytold/craft-fonts.git $env:CRAFT_FONTS_DIR
+          if ($LASTEXITCODE -ne 0) { throw 'Font input clone failed' }
+          git -C $env:CRAFT_FONTS_DIR checkout b076417b5880bd4154bd22f00695b1d28c6bea83
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned font input checkout failed' }
+          cargo fetch --locked
+          if ($LASTEXITCODE -ne 0) { throw 'Pinned dependency fetch failed' }
+      - name: Release script tests and version
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ./packaging/windows/test-fork-publish.ps1
+          ./packaging/windows/test-fork-version.ps1
+          ./packaging/windows/fork-version.ps1
+      - name: Package the MSI
+        shell: pwsh
+        run: |
+          ./packaging/windows/package.ps1 -Arch x64
+          if ($LASTEXITCODE -ne 0) { throw 'Desktop packaging failed' }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lion-pdf-${{ env.FORK_VERSION }}-preview-msi
+          path: dist/release/pdfcraft-${{ env.FORK_VERSION }}-windows-x64.msi
+          if-no-files-found: error
+          retention-days: 14
