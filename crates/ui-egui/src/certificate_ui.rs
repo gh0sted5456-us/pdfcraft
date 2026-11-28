@@ -180,9 +180,6 @@ const ADD_FILE: usize = 2;
 impl PdfCraftApp {
     /// Protect ▸ Encrypt with certificate: open the dialog, with no recipients yet.
     pub(crate) fn open_certificate_encryption(&mut self) {
-        if self.active_ids().is_none() {
-            return;
-        }
         self.certificate_draft = Some(CertificateDraft::default());
     }
 

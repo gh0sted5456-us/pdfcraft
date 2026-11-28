@@ -156,17 +156,18 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         // Open is in the title bar, as in production.
         .offers_open(false)
         .pinned_title(tl!("Folders").to_string())
-        .drop_hint(tl!("Files you open in PdfCraft appear here").to_string())
+        .drop_hint(tl!("Files you open in PdfCraft appear here").replace("PdfCraft", crate::APP_NAME))
         .section(StartPlace::BeforeRecent, |ui, _| {
-            let _ = Text::new(tl!("Welcome to PdfCraft").to_string()).role(TypeRole::Display).show(ui);
+            let _ = Text::new(tl!("Welcome to PdfCraft").replace("PdfCraft", crate::APP_NAME)).role(TypeRole::Display).show(ui);
             let _ = Text::new(tl!("An open-source PDF workbench — local, private, and scriptable.").to_string()).show(ui);
             if community_card {
-                Stack::new().label(tl!("Join the ArtCraft community")).fill_width().surface(SurfaceKind::Raised).pad(Pad::Regular).show(
+                // Lion PDF: the upstream project's community, named as such and kept plain.
+                Stack::new().label(tl!("Upstream PdfCraft community")).fill_width().surface(SurfaceKind::Raised).pad(Pad::Regular).show(
                     ui,
                     |ui, _| {
                         Row::new().show(ui, |ui, _| {
                             brand::mark(ui, PictureSize::Thumb(ThumbSize::Medium));
-                            let _ = Text::new(tl!("Join the ArtCraft community").to_string()).role(TypeRole::Heading).show(ui);
+                            let _ = Text::new(tl!("Upstream PdfCraft community").to_string()).role(TypeRole::Heading).show(ui);
                             if clicked(&IconButton::new(IconId::new("close")).id_salt("community-close").label(tl!("Close")).show(ui)) {
                                 asked.borrow_mut().push(Asked::CloseCommunityCard);
                             }
@@ -174,8 +175,9 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
                         let _ = Text::new(tl!("Get help, share feedback and follow development on Discord.").to_string()).show(ui);
                         Row::new().wrap(true).show(ui, |ui, _| {
                             for (i, link) in pdfcraft_engine::links::LINKS.iter().enumerate() {
-                                let label = if i == 0 { tl!("Join our Discord") } else { tl!(link.label) };
-                                let variant = if i == 0 { craft::theme::Variant::PRIMARY } else { craft::theme::Variant::SECONDARY };
+                                let label = tl!(link.label);
+                                let variant = craft::theme::Variant::SECONDARY;
+                                let _ = i;
                                 if clicked(&Button::new(label.to_string()).variant(variant).icon(IconId::new(link.icon)).show(ui)) {
                                     asked.borrow_mut().push(Asked::Link(link.command));
                                 }
@@ -216,7 +218,7 @@ pub fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         .section(StartPlace::AfterSections, |ui, _| {
             let _ = Text::new(tl!("Privacy").to_uppercase()).role(TypeRole::Label).show(ui);
             let _ =
-                Text::new(tl!("PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.").to_string())
+                Text::new(tl!("PdfCraft works offline. No telemetry, no account, and no cloud processing unless you add a provider.").replace("PdfCraft", crate::APP_NAME))
                     .show(ui);
         });
     #[cfg(not(target_arch = "wasm32"))]

@@ -3,7 +3,7 @@
 //! over a see-through window in a tint the user chooses.
 //!
 //! Glass keeps the Lion theme's dark colours for text, lines and the accent, and clears the
-//! surfaces: the window's clear colour paints the tint once (`clear_color`), so nested panels
+//! window's surfaces (panels, dialogs and menus keep a backing): the window's clear colour paints the tint once (`clear_color`), so nested panels
 //! don't stack their opacity. Hover, pressed and selected states are lighter shades of the tint;
 //! menus, popups and dialogs sit on a more opaque shade so they stay legible over pages and the
 //! desktop.
@@ -104,10 +104,12 @@ impl GlassSettings {
         let popup = Rgba([backdrop[0], backdrop[1], backdrop[2], Self::alpha(s.popup_opacity)]);
         let clear = Rgba([0, 0, 0, 0]);
         let pins = &mut def.pins.dark.colors;
-        for token in [ColorToken::SurfaceBackground, ColorToken::SurfaceCanvas, ColorToken::SurfaceChrome, ColorToken::SurfacePanel, ColorToken::SurfaceSunken]
-        {
+        for token in [ColorToken::SurfaceBackground, ColorToken::SurfaceCanvas, ColorToken::SurfaceChrome, ColorToken::SurfaceSunken] {
             pins.insert(token, clear);
         }
+        // The framework draws dialogs, menus and popups on the panel colour, so panels take the
+        // popups' backing: a dialog over a page stays legible.
+        pins.insert(ColorToken::SurfacePanel, popup);
         pins.insert(ColorToken::SurfaceRaised, popup);
         pins.insert(ColorToken::StateHover, raised(40));
         pins.insert(ColorToken::StatePressed, raised(75));
@@ -122,6 +124,57 @@ impl GlassSettings {
     pub fn tool_shade(self) -> egui::Color32 {
         egui::Color32::from_black_alpha(Self::alpha(self.normalized().tool_opacity))
     }
+}
+
+/// egui's own visuals in the Lion theme's colours, for the egui widgets Lion PDF's dialogs draw
+/// beside the framework's components (combo boxes, text edits, sliders): dark for the dark mode
+/// and Glass, with Glass's clear surfaces and tinted states.
+pub fn egui_visuals(dark: bool, glass: Option<GlassSettings>) -> egui::Visuals {
+    let def = match glass {
+        Some(settings) => self::glass(settings),
+        None => lion(),
+    };
+    let pins = if dark || glass.is_some() { &def.pins.dark } else { &def.pins.light };
+    let base = if dark || glass.is_some() { egui::Visuals::dark() } else { egui::Visuals::light() };
+    let color = |token: ColorToken, fallback: egui::Color32| {
+        pins.get(token).map_or(fallback, |c| egui::Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3]))
+    };
+    let mut v = base;
+    let text = color(ColorToken::TextNormal, v.text_color());
+    let border = color(ColorToken::LineBorder, v.widgets.noninteractive.bg_stroke.color);
+    let hover = color(ColorToken::StateHover, v.widgets.hovered.bg_fill);
+    let pressed = color(ColorToken::StatePressed, v.widgets.active.bg_fill);
+    let selected = color(ColorToken::StateSelected, v.selection.bg_fill);
+    let accent = color(ColorToken::AccentSolid, v.hyperlink_color);
+    let panel = color(ColorToken::SurfacePanel, v.panel_fill);
+    let raised = color(ColorToken::SurfaceRaised, v.window_fill);
+    let sunken = color(ColorToken::SurfaceSunken, v.extreme_bg_color);
+    v.override_text_color = Some(text);
+    v.weak_text_color = Some(color(ColorToken::TextMuted, v.weak_text_color()));
+    v.hyperlink_color = accent;
+    v.panel_fill = panel;
+    v.window_fill = raised;
+    v.extreme_bg_color = sunken;
+    v.faint_bg_color = hover;
+    v.code_bg_color = sunken;
+    v.window_stroke = egui::Stroke::new(1.0, border);
+    v.selection.bg_fill = selected;
+    v.selection.stroke = egui::Stroke::new(1.0, accent);
+    for (w, fill) in [
+        (&mut v.widgets.noninteractive, panel),
+        (&mut v.widgets.inactive, sunken),
+        (&mut v.widgets.hovered, hover),
+        (&mut v.widgets.active, pressed),
+        (&mut v.widgets.open, pressed),
+    ] {
+        w.bg_fill = fill;
+        w.weak_bg_fill = fill;
+        w.bg_stroke = egui::Stroke::new(1.0, border);
+        w.fg_stroke = egui::Stroke::new(1.0, text);
+        w.corner_radius = egui::CornerRadius::same(6);
+    }
+    v.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, accent);
+    v
 }
 
 #[cfg(test)]
@@ -140,7 +193,8 @@ mod tests {
     fn glass_clears_the_surfaces_and_keeps_the_text() {
         let glass = GlassSettings::default().theme();
         assert_eq!(glass.id.as_str(), "lion.glass");
-        assert_eq!(glass.pins.dark.get(ColorToken::SurfacePanel).map(|c| c.0[3]), Some(0));
+        assert_eq!(glass.pins.dark.get(ColorToken::SurfaceChrome).map(|c| c.0[3]), Some(0));
+        assert!(glass.pins.dark.get(ColorToken::SurfacePanel).is_some_and(|c| c.0[3] > 200), "dialogs stay legible");
         assert_eq!(glass.pins.dark.get(ColorToken::TextNormal), lion().pins.dark.get(ColorToken::TextNormal));
         assert!(glass.pins.dark.get(ColorToken::SurfaceRaised).is_some_and(|c| c.0[3] > 200));
     }

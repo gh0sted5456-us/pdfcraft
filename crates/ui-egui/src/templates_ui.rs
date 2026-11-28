@@ -10,7 +10,16 @@ use craft::ui::contract::Bind;
 use craft::ui::dialog::{DialogResult, dialog_id};
 use craft::ui::patterns::form_dialogs::{DialogFields, FormDialog, HostedParamDialog, Param, ParamDialog, ParamKind};
 use craft::ui::sections::{DialogRole, FooterButton};
-use egui::{Rect, Sense, Stroke, vec2};
+use craft::behavior::{DisplayOrder, IconId, ItemSource, Selection, SelectionChange, SizeHint};
+use craft::ui::contract::{CollectionEvent, Entry, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft::ui::display::Text;
+use craft::ui::form::Field;
+use craft::ui::layout_components::Row;
+use craft::ui::list::ThumbAspect;
+use craft::ui::pickers::Select;
+use craft::ui::text::TextField;
+use craft::ui::tile_grid::{GridZoom, Tile, TileGrid};
+use egui::Rect;
 use pdfcraft_engine::templates::{self, STARTERS, TemplateInfo};
 
 use crate::PdfCraftApp;
@@ -241,6 +250,7 @@ pub(crate) fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         .opened(Bind::bound(&mut open))
         .ok_label(tl!("Create"))
         .ok_enabled(ready)
+        .shaped(|d| d.resizable(true))
         .extra_buttons([
             FooterButton::new(tl!("Import template…"), DialogRole::Other),
             FooterButton::new(tl!("Export template…"), DialogRole::Other).enabled(ready),
@@ -270,160 +280,120 @@ pub(crate) fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     }
 }
 
-/// The gallery's body: category and search, the tiles, the paper and the selection's line.
-fn body(ui: &mut egui::Ui, gallery: &TemplateGallery, c: &mut Choice) {
-    let visuals = ui.visuals().clone();
-    ui.horizontal(|ui| {
-        let mut categories = vec![ALL];
-        for item in STARTERS {
-            if !categories.contains(&item.category) {
-                categories.push(item.category);
-            }
-        }
-        if gallery.imported.is_some() {
-            categories.push(IMPORTED);
-        }
-        let label = ui.label(tl!("Category"));
-        egui::ComboBox::from_id_salt("template-category")
-            .selected_text(tl!(&c.category))
-            .width(160.0)
-            .show_ui(ui, |ui| {
-                for category in categories {
-                    ui.selectable_value(&mut c.category, category.into(), tl!(category));
-                }
-            })
-            .response
-            .labelled_by(label.id);
-        ui.add(egui::TextEdit::singleline(&mut c.search).hint_text(tl!("Search templates")).desired_width(ui.available_width().max(60.0)));
-    });
-    ui.add_space(6.0);
-    let height = (ui.ctx().content_rect().height() - 300.0).clamp(120.0, 520.0);
-    let compact = ui.ctx().content_rect().height() < 650.0;
-    let query = c.search.to_lowercase();
-    let mut shown = 0usize;
-    let mut chosen = None;
-    egui::ScrollArea::vertical().id_salt("template-grid").max_height(height).min_scrolled_height(height).auto_shrink([false, false]).show(ui, |ui| {
-        let gap = 10.0;
-        let columns = ((ui.available_width() + gap) / if compact { 150.0 } else { 180.0 }).floor().clamp(1.0, 6.0) as usize;
-        let tile = vec2(((ui.available_width() - gap * (columns - 1) as f32) / columns as f32).max(1.0), if compact { 104.0 } else { 170.0 });
-        egui::Grid::new("template-tiles").num_columns(columns).spacing([gap, gap]).show(ui, |ui| {
-            let mut tile_for = |ui: &mut egui::Ui, id: &str, title: &str, category: &str| {
-                let key = format!("{}:{}", c.paper, id);
-                let thumbnail = gallery.thumbnails.get(&key).and_then(Option::as_ref);
-                if card(ui, &visuals, title, category, c.selected == id, thumbnail, tile).clicked() {
-                    chosen = Some(id.to_string());
-                }
-                shown += 1;
-                if shown.is_multiple_of(columns) {
-                    ui.end_row();
-                }
-            };
-            for item in STARTERS {
-                if c.category != ALL && c.category != item.category {
-                    continue;
-                }
-                if !format!("{} {} {}", item.title, item.category, item.description).to_lowercase().contains(&query) {
-                    continue;
-                }
-                tile_for(ui, item.id, tl!(item.title), tl!(item.category));
-            }
-            if let Some((info, _)) = &gallery.imported
-                && (c.category == ALL || c.category == IMPORTED)
-                && info.title.to_lowercase().contains(&query)
-            {
-                tile_for(ui, "imported", &info.title, tl!(IMPORTED));
-            }
-        });
-        if shown == 0 {
-            ui.label(tl!("No matching templates."));
-        }
-    });
-    if let Some(id) = chosen {
-        c.selected = id;
+/// The tiles the gallery lists, keyed by template id, in the order shown.
+struct Listed(Vec<(String, String, String)>);
+
+impl DisplayOrder<String> for Listed {
+    fn len(&self) -> usize {
+        self.0.len()
     }
-    ui.add_space(6.0);
-    match (&gallery.ready, &gallery.error) {
-        (Some(p), _) => {
-            let pages = crate::i18n::trn(crate::i18n::current(), p.pages as u64, "{n} page", "{n} pages");
-            ui.add(egui::Label::new(format!("{} · {} · {:.0} × {:.0} pt", p.info.title, pages, p.size.0, p.size.1)).truncate())
-                .on_hover_text(&p.info.description);
-        }
-        (None, Some(error)) => {
-            ui.add(egui::Label::new(error).truncate()).on_hover_text(error);
-        }
-        (None, None) => {
-            ui.label(tl!("Preparing the selected template…"));
-        }
+
+    fn key(&self, at: usize) -> String {
+        self.0.get(at).map(|t| t.0.clone()).unwrap_or_default()
     }
-    ui.horizontal(|ui| {
-        let starter = c.selected != "imported" && c.selected != "blank";
-        ui.add_enabled_ui(starter, |ui| {
-            let label = ui.label(tl!("Paper"));
-            egui::ComboBox::from_id_salt("starter-paper")
-                .selected_text(if !starter {
-                    tl!("Original size")
-                } else if c.paper == "a4" {
-                    "A4"
-                } else {
-                    tl!("US Letter")
-                })
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut c.paper, "letter".into(), tl!("US Letter"));
-                    ui.selectable_value(&mut c.paper, "a4".into(), "A4");
-                })
-                .response
-                .labelled_by(label.id);
-        });
-        ui.label(egui::RichText::new(crate::i18n::trn(crate::i18n::current(), shown as u64, "{n} template", "{n} templates")).small().weak());
-    });
+
+    fn index_of(&self, key: &String) -> Option<usize> {
+        self.0.iter().position(|t| &t.0 == key)
+    }
 }
 
-/// One tile: the first page's preview, the title and the category.
-fn card(
-    ui: &mut egui::Ui,
-    visuals: &egui::Visuals,
-    title: &str,
-    category: &str,
-    selected: bool,
-    thumbnail: Option<&egui::TextureHandle>,
-    size: egui::Vec2,
-) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(size, Sense::click());
-    response.widget_info(|| egui::WidgetInfo::selected(egui::Role::Button, true, selected, title));
-    let fill = if selected {
-        visuals.selection.bg_fill
-    } else if response.hovered() {
-        visuals.widgets.hovered.weak_bg_fill
-    } else {
-        visuals.extreme_bg_color
-    };
-    let radius = visuals.widgets.inactive.corner_radius;
-    ui.painter().rect_filled(rect, radius, fill);
-    let stroke = if selected { visuals.selection.stroke } else { Stroke::new(0.5, visuals.widgets.noninteractive.bg_stroke.color) };
-    ui.painter().rect_stroke(rect, radius, stroke, egui::StrokeKind::Inside);
-    if ui.is_rect_visible(rect) {
-        let area = Rect::from_min_max(rect.min + vec2(8.0, 8.0), rect.max - vec2(8.0, 42.0));
-        if let Some(texture) = thumbnail {
-            let image = texture.size_vec2();
-            let scale = (area.width() / image.x).min(area.height() / image.y);
-            let paper = Rect::from_center_size(area.center(), image * scale);
-            ui.painter().image(texture.id(), paper, Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
-        } else {
-            ui.painter().rect_stroke(
-                Rect::from_center_size(area.center(), vec2(area.height() * 0.7, area.height())),
-                2.0,
-                Stroke::new(1.0, visuals.weak_text_color()),
-                egui::StrokeKind::Inside,
-            );
-        }
-        let text = visuals.text_color();
-        let body = egui::TextStyle::Body.resolve(ui.style());
-        let small = egui::TextStyle::Small.resolve(ui.style());
-        let painter = ui.painter_at(rect.shrink(6.0));
-        painter.text(egui::pos2(rect.center().x, rect.bottom() - 27.0), egui::Align2::CENTER_CENTER, title, body, text);
-        painter.text(egui::pos2(rect.center().x, rect.bottom() - 11.0), egui::Align2::CENTER_CENTER, category, small, visuals.weak_text_color());
+impl ItemSource<String> for Listed {
+    fn size_hint(&self, _at: usize) -> SizeHint {
+        SizeHint::Aspect(0.8)
     }
-    response.on_hover_cursor(egui::CursorIcon::PointingHand).on_hover_text(format!("{title} · {category}"))
+}
+
+/// The gallery's body: category and search, the tiles, the paper and the selection's line.
+fn body(ui: &mut egui::Ui, gallery: &TemplateGallery, c: &mut Choice) {
+    // Room for several tiles a row: the dialog sizes to its body.
+    ui.set_min_width(860.0_f32.min(ui.ctx().content_rect().width() - 160.0).max(320.0));
+    let mut categories: Vec<&str> = vec![ALL];
+    for item in STARTERS {
+        if !categories.contains(&item.category) {
+            categories.push(item.category);
+        }
+    }
+    if gallery.imported.is_some() {
+        categories.push(IMPORTED);
+    }
+    let entries: Vec<Entry<String>> = categories.iter().map(|c| Entry::new(c.to_string(), tl!(c))).collect();
+    Row::new().show(ui, |ui, _| {
+        Select::new(tl!("Category"), Bind::bound(&mut c.category), &entries).show(ui);
+        TextField::new(tl!("Search templates"), Bind::bound(&mut c.search)).placeholder(tl!("Search templates")).show(ui);
+    });
+    let query = c.search.to_lowercase();
+    let mut listed = Vec::new();
+    for item in STARTERS {
+        if (c.category == ALL || c.category == item.category)
+            && format!("{} {} {}", item.title, item.category, item.description).to_lowercase().contains(&query)
+        {
+            listed.push((item.id.to_string(), tl!(item.title).to_string(), tl!(item.category).to_string()));
+        }
+    }
+    if let Some((info, _)) = &gallery.imported
+        && (c.category == ALL || c.category == IMPORTED)
+        && info.title.to_lowercase().contains(&query)
+    {
+        listed.push(("imported".to_string(), info.title.clone(), tl!(IMPORTED).to_string()));
+    }
+    let shown = listed.len();
+    let source = Listed(listed);
+    let height = (ui.ctx().content_rect().height() - 320.0).clamp(140.0, 520.0);
+    let mut selection = Selection::single(c.selected.clone());
+    // The grid scrolls itself, two rows of tiles at a time (three on a tall window).
+    let rows = if height > 400.0 { 3 } else { 2 };
+    {
+        let out = TileGrid::<String>::new(tl!("Templates").to_string())
+            .select(SelectMode::Single)
+            .selection(Bind::bound(&mut selection))
+            .max_rows(rows)
+            .card()
+            .zoom(GridZoom::Fixed(1.0))
+            .show_items(ui, &source, &mut |key, _| {
+                let (title, category) = source.0.iter().find(|t| &t.0 == key).map(|t| (t.1.clone(), t.2.clone())).unwrap_or_default();
+                let texture = gallery.thumbnails.get(&format!("{}:{}", c.paper, key)).and_then(Option::as_ref).map(|t| (t.id(), t.size_vec2()));
+                let tile = Tile::new(title).detail(category);
+                match texture {
+                    Some((id, size)) => tile.thumb(ThumbAspect::new(3, 4), move |cx, rect| {
+                        let scale = (rect.width() / size.x).min(rect.height() / size.y);
+                        let paper = Rect::from_center_size(rect.center(), size * scale);
+                        cx.with_draw(|draw| draw.texture(paper, id, Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0))));
+                    }),
+                    None => tile.icon(IconId::new("file_text")),
+                }
+            });
+        if shown == 0 {
+            Text::new(tl!("No matching templates.").to_string()).show(ui);
+        }
+        for event in out.response.events {
+            match event {
+                CollectionEvent::Selection(SelectionChange::Set(keys)) => {
+                    if let Some(key) = keys.last() {
+                        c.selected.clone_from(key);
+                    }
+                }
+                CollectionEvent::Selection(SelectionChange::Toggle(key)) | CollectionEvent::Activate(key) => c.selected = key,
+                _ => {}
+            }
+        }
+    }
+    let line = match (&gallery.ready, &gallery.error) {
+        (Some(p), _) => {
+            let pages = crate::i18n::trn(crate::i18n::current(), p.pages as u64, "{n} page", "{n} pages");
+            format!("{} · {} · {:.0} × {:.0} pt", p.info.title, pages, p.size.0, p.size.1)
+        }
+        (None, Some(error)) => error.clone(),
+        (None, None) => tl!("Preparing the selected template…").to_string(),
+    };
+    Text::new(line).show(ui);
+    let starter = c.selected != "imported" && c.selected != "blank";
+    if starter {
+        let papers = [Entry::new("letter".to_string(), tl!("US Letter")), Entry::new("a4".to_string(), "A4")];
+        Field::new(tl!("Paper")).show(ui, |ui, _| {
+            Select::new(tl!("Paper"), Bind::bound(&mut c.paper), &papers).show(ui);
+        });
+    }
+    Text::new(crate::i18n::trn(crate::i18n::current(), shown as u64, "{n} template", "{n} templates")).show(ui);
 }
 
 /// The file name a template titled `title` is saved under.

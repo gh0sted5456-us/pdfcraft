@@ -10,6 +10,14 @@ impl PdfCraftApp {
     /// a second pass of the same frame runs on what this call set and fires nothing twice.
     pub(super) fn prepare_raw_input(&mut self, ctx: &egui::Context, _raw: &mut egui::RawInput) {
         self.set_title_bar_choice(ctx, self.title_bar_choice);
+        // Lion PDF: egui's own widgets in Lion PDF's dialogs take the theme's colours.
+        let dark = self.glass || self.root_env(ctx).resolved(ctx).mode == craft::theme::Mode::Dark;
+        let visuals = crate::lion_theme::egui_visuals(dark, self.glass.then_some(self.glass_settings));
+        let theme = if dark { egui::Theme::Dark } else { egui::Theme::Light };
+        if ctx.theme() != theme || ctx.style_of(theme).visuals != visuals {
+            ctx.set_visuals_of(theme, visuals);
+            ctx.set_theme(theme);
+        }
         self.control_before_input(ctx);
         embed::before_input(ctx, |output| {
             for fired in &output.fired {

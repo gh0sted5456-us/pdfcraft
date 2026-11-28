@@ -91,6 +91,8 @@ fn window_body(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
 fn title_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let ctx = ui.ctx().clone();
     let (theme_icon, theme_label) = match app.theme_preference {
+        // Lion PDF: Glass is a theme of its own.
+        _ if app.glass => ("sparkles", tl!("Glass")),
         ModeChoice::System => ("monitor", tl!("Use system setting")),
         ModeChoice::Light => ("sun", tl!("Light gray")),
         ModeChoice::Dark => ("moon", tl!("Dark gray")),
@@ -99,7 +101,8 @@ fn title_bar(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let theme_label = format!("{}: {theme_label}", tl!("Display theme"));
     let out = TitleBar::new()
         .trailing(|ui, _| {
-            Button::command("help.discord").label("Discord").icon(IconId::new("messages-square")).tooltip(tl!("Join the ArtCraft Discord")).show(ui);
+            // Lion PDF: the upstream community, kept small.
+            IconButton::command(IconId::new("messages-square"), "help.discord").label(tl!("Upstream PdfCraft community on Discord")).show(ui);
             IconButton::command(IconId::new("circle-help"), "help.shortcuts").show(ui);
             let theme_button = IconButton::command(IconId::new(theme_icon), ThemeChoice::NextMode.command()).label(theme_label.clone()).show(ui);
             let opener = theme_button.response().clone();
