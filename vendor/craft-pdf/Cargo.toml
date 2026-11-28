@@ -1,4 +1,4 @@
-# Vendored from storytold/craft-libs crates/pdf at 9eb02be84f21898e247daeb2af5827c9fe85a3a0
+# Vendored from storytold/craft-libs crates/pdf at 0a6e42b80bfd586aee6ee1144aa98cf1ea37a844
 # (the pin upstream PdfCraft uses), with Lion PDF patches marked `Lion patch:` in the source
 # (see vendor/README.md). Workspace-inherited fields are written out.
 [package]
@@ -41,9 +41,10 @@ hayro = { version = "=0.7.1", default-features = false, optional = true }
 bytemuck = { version = "1", optional = true }
 krilla = { version = "=0.8.2", default-features = false, features = ["raster-images"], optional = true }
 thiserror = { version = "2", optional = true }
+serde = { version = "1", features = ["derive"] }
 flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"], optional = true }
 roxmltree = { version = "0.21", optional = true }
-craft-stream-codecs = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "e2dc681a3", optional = true }
+craft-stream-codecs = { git = "https://github.com/storytold/craft-libs", version = "0.1.0", rev = "0a6e42b80bfd586aee6ee1144aa98cf1ea37a844", optional = true }
 aes = { version = "0.9", optional = true }
 md-5 = { version = "0.11", optional = true }
 sha2 = { version = "0.11", optional = true }

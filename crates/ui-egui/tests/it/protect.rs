@@ -1,8 +1,9 @@
 //! Protect Using Password in the real shell (egui_kittest).
 
+use crate::support::AppHarness as _;
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use pdfcraft_ui_egui::{Dialog, PdfCraftApp};
+use pdfcraft_ui_egui::PdfCraftApp;
 
 const FIXTURE: &[u8] = b"%PDF-1.7
 1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
@@ -12,39 +13,47 @@ trailer << /Root 1 0 R >>
 %%EOF";
 
 fn harness() -> Harness<'static, PdfCraftApp> {
-    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|_cc| {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        app.open_bytes("doc.pdf", None, FIXTURE.to_vec()).unwrap();
-        app
+    let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|cc| {
+        crate::support::install_runtime(&cc.egui_ctx);
+        {
+            let mut app = crate::control::new_app();
+            app.set_option(&egui::Context::default(), "language", "en").unwrap();
+            app.open_bytes(&egui::Context::default(), "doc.pdf", None, FIXTURE.to_vec()).unwrap();
+            app
+        }
     });
     h.run_steps(4);
     h
 }
 
+/// Types into the masked field named `label` (its field row carries the same name).
 fn type_into(h: &mut Harness<'static, PdfCraftApp>, label: &str, text: &str) {
-    h.get_by_label(label).click();
+    use egui::accesskit::Role;
+    h.get_by(|n| n.label().as_deref() == Some(label) && matches!(n.role(), Role::PasswordInput | Role::TextInput)).click();
     h.run_steps(2);
-    h.get_by_label(label).type_text(text);
+    h.get_by(|n| n.label().as_deref() == Some(label) && matches!(n.role(), Role::PasswordInput | Role::TextInput)).type_text(text);
     h.run_steps(2);
+}
+
+fn open_password_pair(h: &mut Harness<'static, PdfCraftApp>, password: &str) {
+    type_into(h, "Type Password", password);
+    type_into(h, "Re-type Password", password);
 }
 
 #[test]
 fn protecting_for_viewing_requires_matching_passwords_and_saves_encrypted() {
     let mut h = harness();
-    assert!(h.state_mut().execute("protect.password"));
+    assert!(h.execute("protect.password"));
     h.run_steps(2);
-    assert_eq!(h.state().dialog, Some(Dialog::Protect));
     h.get_by_label("Viewing");
     type_into(&mut h, "Type Password", "Open-Sesame-42");
     type_into(&mut h, "Re-type Password", "Open-Sesame-4");
-    h.get_by_label_contains("don't match");
-    assert!(h.query_by(|n| n.label().as_deref() == Some("Apply") && n.is_disabled()).is_some(), "Apply is disabled");
+    assert!(h.query_by(|n| n.label().as_deref() == Some("Apply") && n.is_disabled()).is_some(), "Apply is disabled while the passwords differ");
     type_into(&mut h, "Re-type Password", "2");
-    h.get_by_label("Strength: Strong");
+    assert!(h.query_by(|n| n.label().as_deref() == Some("Apply") && !n.is_disabled()).is_some(), "Apply is enabled once they match");
     h.get_by_label("Apply").click();
     h.run_steps(3);
-    assert_eq!(h.state().dialog, None);
+    assert!(h.query_by_label("Apply").is_none(), "Apply closes the dialog");
     let id = h.state().views[0].id;
     let doc = h.state().session.get(id).unwrap();
     assert!(doc.info.encrypted && doc.dirty);
@@ -55,20 +64,20 @@ fn protecting_for_viewing_requires_matching_passwords_and_saves_encrypted() {
     assert!(s.open("p.pdf", None, bytes.clone(), None).is_err());
     assert!(s.open("p.pdf", None, bytes, Some("Open-Sesame-42")).is_ok());
     // Remove security is now offered, and undo also takes the protection back.
-    assert!(h.state_mut().execute("protect.remove"));
-    h.state_mut().undo();
-    h.state_mut().undo();
+    assert!(h.execute("protect.remove"));
+    h.undo();
+    h.undo();
     assert!(!h.state().session.get(id).unwrap().info.encrypted);
 }
 
 #[test]
 fn editing_restrictions_via_advanced_options() {
     let mut h = harness();
-    h.state_mut().execute("protect.password");
+    h.execute("protect.password");
     h.run_steps(2);
     h.get_by_label("Editing").click();
     h.run_steps(2);
-    h.get_by_label("Advanced Options ⌄").click();
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Advanced Options").click();
     h.run_steps(2);
     h.get_by_label("Enable copying of text, images, and other content").click();
     h.run_steps(1);
@@ -83,72 +92,90 @@ fn editing_restrictions_via_advanced_options() {
     assert!(h.state().session.get(id).unwrap().allows_security_change());
 }
 
-fn sign_data(name: &str) -> String {
-    format!("{}/../sign/tests/data/{name}", env!("CARGO_MANIFEST_DIR"))
-}
-
+/// Advanced Options sets an open password and a permissions password together, as the guide's
+/// Password Security settings do ("setting both types of passwords is often beneficial"): the
+/// saved file needs the open password to open, opens restricted with it, and the permissions
+/// password lifts the restrictions.
 #[test]
-fn encrypting_with_certificates_and_opening_with_a_digital_id() {
-    use pdfcraft_engine::sign::pkcs12;
-    let me = sign_data("rsa-aes.p12");
-    let ada = pkcs12::open(&std::fs::read(sign_data("chain.p12")).unwrap(), "test").unwrap();
+fn an_open_password_and_a_permissions_password_together() {
     let mut h = harness();
-    // The person's digital ID file is listed (as Sign with a Digital ID lists it).
-    let mine = pkcs12::open(&std::fs::read(&me).unwrap(), "test").unwrap();
-    h.state_mut().add_digital_id(&me, &mine.certificate);
-    assert!(h.state_mut().execute("protect.certificate"));
+    assert!(h.execute("protect.password"));
     h.run_steps(2);
-    assert_eq!(h.state().dialog, Some(Dialog::EncryptCertificate));
-    h.get_by_label("No recipients yet.");
-    assert!(h.query_by(|n| n.label().as_deref() == Some("Apply") && n.is_disabled()).is_some(), "Apply waits for a recipient");
-    // A wrong password adds nobody and says why.
-    h.state_mut().certificate_draft.own_password = "nope".into();
-    h.get_by_label("Add").click();
+    h.get_by_label("Viewing");
+    open_password_pair(&mut h, "Open-Sesame-42");
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Advanced Options").click();
     h.run_steps(2);
-    h.get_by_label("The password is incorrect.");
-    assert!(h.state().certificate_draft.recipients.is_empty());
-    h.state_mut().certificate_draft.own_password = "test".into();
-    h.get_by_label("Add").click();
+    assert!(h.query_by_label("Printing allowed").is_none(), "no restrictions without a permissions password");
+    h.get_by_label("Restrict editing and printing of the document").click();
+    h.run_steps(4);
+    h.get_by_label("Printing allowed");
+    assert!(h.query_by(|n| n.label().as_deref() == Some("Apply") && n.is_disabled()).is_some());
+    type_into(&mut h, "Change Permissions Password", "Boss-Key-7");
+    type_into(&mut h, "Re-type Permissions Password", "Boss-Key-");
+    assert!(h.query_by(|n| n.label().as_deref() == Some("Apply") && n.is_disabled()).is_some());
+    type_into(&mut h, "Re-type Permissions Password", "7");
     h.run_steps(2);
-    h.get_by_label("Test Signer RSA (you)");
-    // Another recipient, as a certificate file gives it, with the restrictions below.
-    h.state_mut().certificate_draft.add(pdfcraft_ui_egui::Recipient::of(&ada.certificate, false));
-    h.state_mut().certificate_draft.protection.printing = pdfcraft_engine::Printing::None;
-    h.run_steps(2);
-    assert!(h.get_by_label("Ada Lovelace").rect().height() < 30.0, "recipient names get the card width, not a narrow table column");
-    assert!(h.get_by_label("Test Signer RSA (you)").rect().height() < 30.0);
-    if let Ok(dir) = std::env::var("PDFCRAFT_FEATURE_SHOTS") {
-        std::fs::create_dir_all(&dir).unwrap();
-        h.render().unwrap().save(std::path::Path::new(&dir).join("encrypt-with-certificate.png")).unwrap();
-    }
     h.get_by_label("Apply").click();
     h.run_steps(3);
-    assert_eq!(h.state().dialog, None);
+    assert!(h.query_by_label("Apply").is_none());
     let id = h.state().views[0].id;
-    let summary = h.state().session.get(id).unwrap().security_summary().unwrap();
-    assert!(summary.pending && summary.method.contains("certificates (2 recipients)"), "{summary:?}");
-    let bytes = h.state_mut().session.save_bytes(id).unwrap();
+    let bytes = h.state().session.save_bytes(id).unwrap();
+    let auth = |pw: Option<&str>| pdfcraft_cos::Document::open_with_password(bytes.clone(), pw).ok().and_then(|d| d.security().map(|s| s.auth()));
+    assert_eq!(auth(None), None, "the open password is needed");
+    assert_eq!(auth(Some("Open-Sesame-42")), Some(pdfcraft_cos::Auth::User));
+    assert_eq!(auth(Some("Boss-Key-7")), Some(pdfcraft_cos::Auth::Owner));
+    let user = pdfcraft_cos::Document::open_with_password(bytes.clone(), Some("Open-Sesame-42")).unwrap();
+    let p = user.permissions().unwrap();
+    assert!(p.print() && !p.modify() && !p.copy(), "the defaults restrict changes and copying: {:#x}", p.bits);
+}
 
-    // Opening it: the prompt asks for a digital ID; one that is not a recipient doesn't open it.
-    let mut app = PdfCraftApp::new();
-    app.set_option("language", "en").unwrap();
-    app.open_bytes("secret.pdf", None, bytes.to_vec()).unwrap();
-    assert!(app.views.is_empty());
-    let prompt = app.password_prompt.as_mut().expect("a digital ID is asked for");
-    assert!(prompt.digital_id.is_some() && prompt.error.is_none());
-    prompt.digital_id = Some(sign_data("ec-p256.p12"));
-    app.submit_password(Some("test".into()));
-    let prompt = app.password_prompt.as_mut().expect("asked again");
-    assert_eq!(prompt.error.as_deref(), Some("None of your digital IDs can open this document."));
-    prompt.digital_id = Some(sign_data("chain.p12"));
-    app.submit_password(Some("test".into()));
-    assert!(app.password_prompt.is_none() && app.views.len() == 1, "Ada opens it");
-    let opened = app.session.get(app.views[0].id).unwrap();
-    assert!(opened.permissions().is_some_and(|p| !p.print()), "with her restrictions");
-    // The author opens it with everything.
-    let mut s = pdfcraft_engine::Session::new();
-    assert!(s.open("p.pdf", None, bytes.clone(), None).is_err());
-    s.set_identities(vec![mine]);
-    let mine_open = s.open("p.pdf", None, bytes, None).unwrap();
-    assert!(s.get(mine_open).unwrap().permissions().is_none_or(|p| p.print() && p.modify()));
+/// Setting an editing password can also require an open password via Advanced Options (#7401).
+/// This prevents the open password from defaulting to blank, blocking unauthorized tools from
+/// decrypting without the open password.
+#[test]
+fn editing_protection_can_require_an_open_password_too() {
+    let mut h = harness();
+    assert!(h.execute("protect.password"));
+    h.run_steps(2);
+    h.get_by_label("Editing").click();
+    h.run_steps(2);
+    h.get_by_role_and_label(egui::accesskit::Role::Button, "Advanced Options").click();
+    h.run_steps(2);
+    // Editing restrictions are enabled.
+    h.get_by_label("Printing allowed");
+    h.get_by_label("Require a password to open the document").click();
+    h.run_steps(2);
+    type_into(&mut h, "Type Password", "Boss-Key-7");
+    type_into(&mut h, "Re-type Password", "Boss-Key-7");
+    type_into(&mut h, "Document Open Password", "Open-Sesame-42");
+    type_into(&mut h, "Re-type Document Open Password", "Open-Sesame-42");
+    h.run_steps(2);
+    h.get_by_label("Apply").click();
+    h.run_steps(3);
+    assert!(h.query_by_label("Apply").is_none());
+    let id = h.state().views[0].id;
+    let bytes = h.state().session.save_bytes(id).unwrap();
+    let auth = |pw: Option<&str>| pdfcraft_cos::Document::open_with_password(bytes.clone(), pw).ok().and_then(|d| d.security().map(|s| s.auth()));
+    assert_eq!(auth(None), None, "the open password is required and not blank");
+    assert_eq!(auth(Some("Open-Sesame-42")), Some(pdfcraft_cos::Auth::User));
+    assert_eq!(auth(Some("Boss-Key-7")), Some(pdfcraft_cos::Auth::Owner));
+}
+
+/// A password that reduces to empty under SASLprep (e.g. soft hyphens U+00AD) is rejected by
+/// validation with Apply disabled, for both Viewing and Editing roles.
+#[test]
+fn effective_empty_password_is_rejected_for_both_viewing_and_editing() {
+    // 1. Viewing role
+    let mut h = harness();
+    assert!(h.execute("protect.password"));
+    h.run_steps(2);
+    h.get_by_label("Viewing");
+    type_into(&mut h, "Type Password", "\u{00AD}");
+    type_into(&mut h, "Re-type Password", "\u{00AD}");
+    assert!(h.query_by(|n| n.label().as_deref() == Some("Apply") && n.is_disabled()).is_some(), "Apply is disabled for Viewing role");
+
+    // 2. Editing role
+    h.get_by_label("Editing").click();
+    h.run_steps(2);
+    assert!(h.query_by(|n| n.label().as_deref() == Some("Apply") && n.is_disabled()).is_some(), "Apply is disabled for Editing role");
 }

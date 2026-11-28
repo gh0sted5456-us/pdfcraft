@@ -2,10 +2,10 @@
 use super::check_refresh_panic;
 // Lion PDF: certificate security.
 use super::{
-    Arc, DocId, Document, Edit, EditCtx, EditError, Label, MAX_UNDO, ObjectKind, OnceLock, RenderPool, Scope, Session, XFA_REMOVED_PREFIX,
-    XFA_SCRIPTS_OFF, carry_verdict_marks, check_permission, comment_list, display_bytes, display_config, editor_signatures, guard, info_fields,
-    inspect, js, keys_after, note_warnings, render_threads, run_edit, scan_colours, scope_of, shown_under_redactions, sync_xfa_state,
-    undrawn_notices, uses_scripts, xfa, xfa_sync_datasets,
+    Arc, DocId, Document, Edit, EditCtx, EditError, Label, MAX_UNDO, ObjectKind, OnceLock, RenderPool, SaveOptions, Scope, Session,
+    XFA_REMOVED_PREFIX, XFA_SCRIPTS_OFF, carry_verdict_marks, check_permission, comment_list, display_bytes, display_config, editor_signatures,
+    guard, info_fields, inspect, js, keys_after, note_warnings, render_threads, run_edit, scan_colours, scope_of, shown_under_redactions,
+    sync_xfa_state, undrawn_notices, uses_scripts, write_incremental, xfa, xfa_sync_datasets,
 };
 use crate::{EditNotice, MarkKind, print_preview_layers};
 use crate::{certificate_secured, check_certified_edit, plain_copy, working_file};

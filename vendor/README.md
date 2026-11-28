@@ -63,7 +63,7 @@ Other resource categories retain their existing parent-chain lookup.
 ## craft-pdf (storytold/craft-libs)
 
 `vendor/craft-pdf` is `crates/pdf` of storytold/craft-libs at
-`9eb02be84f21898e247daeb2af5827c9fe85a3a0`, upstream PdfCraft's pin (its root `craft-pdf`
+`0a6e42b80bfd586aee6ee1144aa98cf1ea37a844`, upstream PdfCraft's pin (its root `craft-pdf`
 dependency; upstream #7261 cut `pdfcraft-cos`, `pdfcraft-crypt` and `pdfcraft-filters` over to it). Those three crates are now
 re-exports of it, and the root `[patch."https://github.com/storytold/craft-libs"]` entry points
 every craft-libs consumer at this copy. Only `src/`, the README and the licence files are kept;
@@ -92,7 +92,7 @@ To move the pin: copy `crates/pdf/src` from the new craft-libs commit, re-apply 
 ## hayro-interpret (storytold/craft-libs)
 
 Upstream PdfCraft takes hayro-interpret from storytold/craft-libs (`vendor/hayro-interpret` at
-`9eb02be84f21898e247daeb2af5827c9fe85a3a0`, the root `[patch.crates-io]` pin). Lion PDF keeps
+`0a6e42b80bfd586aee6ee1144aa98cf1ea37a844`, the root `[patch.crates-io]` pin). Lion PDF keeps
 that copy here with one Lion patch to PdfCraft patch (59), `no_rotate_applies` in
 `src/interpret/mod.rs`: form fields (widgets) turn with the NoRotate flag as sticky notes do, and
 only links stay in `/Rect`. Lion PDF's NoRotate form previews take the fields' click, selection
