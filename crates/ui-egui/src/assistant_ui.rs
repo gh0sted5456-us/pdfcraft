@@ -1,5 +1,7 @@
 //! Assistant setup and reviewed text requests. Suggestions never mutate a document.
-use crate::{PdfCraftApp, widgets};
+use crate::PdfCraftApp;
+#[cfg(not(target_arch = "wasm32"))]
+use crate::widgets;
 use pdfcraft_engine::assistant::Task;
 #[cfg(not(target_arch = "wasm32"))]
 use pdfcraft_engine::{DocId, assistant};
@@ -267,6 +269,7 @@ pub(crate) fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         });
     if close || out.closed.is_some() {
         app.assistant_open = false;
+        #[cfg(not(target_arch = "wasm32"))]
         app.assistant.cancel();
     }
 }

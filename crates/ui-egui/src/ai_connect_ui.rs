@@ -99,8 +99,11 @@ impl PdfCraftApp {
             }
             ui.add_space(12.0);
             ui.label(egui::RichText::new(tl!("Claude Desktop")).strong());
+            #[cfg(not(target_arch = "wasm32"))]
             let config = pdfcraft_engine::ai_connect::claude_desktop_config()
                 .map_or_else(|| "claude_desktop_config.json".to_owned(), |p| p.display().to_string());
+            #[cfg(target_arch = "wasm32")]
+            let config = "claude_desktop_config.json".to_owned();
             ui.add(egui::Label::new(crate::i18n::fmt(
                 tl!("In Claude, choose Settings > Developer > Edit Config, add this to {file}, then restart Claude:"),
                 &[("file", &config)],
