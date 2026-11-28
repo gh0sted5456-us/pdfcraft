@@ -55,7 +55,7 @@ try {
     if ($endpoint -eq 'repos/gh0sted5456-us/pdfcraft/releases?per_page=100') {
       if (($args -join ' ') -notmatch '--paginate --slurp') { throw 'All draft release pages must be read' }
       if ($state.scenario -eq 'list-failed') { $global:LASTEXITCODE = 1; return }
-      $draft = @{ id = 123; tag_name = 'fork-v1.0.0'; draft = $true; target_commitish = $state.head }
+      $draft = @{ id = 123; tag_name = 'pdfcraft-v1.0.0'; draft = $true; target_commitish = $state.head }
       if ($state.scenario -eq 'wrong-head') { $draft.target_commitish = 'b' * 40 }
       if ($state.scenario -eq 'bad-id') { $draft.id = 'not/an/id' }
       $draftEntries = @($draft)
@@ -73,7 +73,7 @@ try {
     if ($state.scenario -eq 'bad-size') { $bytes++ }
     if ($state.scenario -eq 'not-uploaded') { $uploaded = 'new' }
     if ($state.scenario -eq 'metadata-changed') { $target = 'b' * 40 }
-    return (@{ id = 123; tag_name = 'fork-v1.0.0'; draft = $true; target_commitish = $target; assets = @(@{ name = 'pdfcraft-1.0.0-with-printer-x64.exe'; digest = "sha256:$digest"; size = $bytes; state = $uploaded }) } | ConvertTo-Json -Depth 6)
+    return (@{ id = 123; tag_name = 'pdfcraft-v1.0.0'; draft = $true; target_commitish = $target; assets = @(@{ name = 'pdfcraft-1.0.0-with-printer-x64.exe'; digest = "sha256:$digest"; size = $bytes; state = $uploaded }) } | ConvertTo-Json -Depth 6)
   }
   foreach ($case in @(
       @('good', ''), @('stale-before', 'newer main'), @('stale-after', 'advanced'),

@@ -12,7 +12,8 @@ foreach ($Latest in @($Tags)) {
   if (-not $Latest -or $Latest -eq 'null') { continue }
   # Versioned OCR inputs are build dependencies, not installable application releases.
   if ($Latest -cmatch '^build-inputs-v[1-9][0-9]*$') { continue }
-  if ($Latest -notmatch '^(?:fork-)?v([0-9]+)\.([0-9]+)\.([0-9]+)$') { throw 'A fork release has a nonnumeric version tag' }
+  # Releases were tagged fork-vX.Y.Z until 1.0.14, and pdfcraft-vX.Y.Z (the tag the in-app updater reads) since.
+  if ($Latest -notmatch '^(?:fork-|pdfcraft-)?v([0-9]+)\.([0-9]+)\.([0-9]+)$') { throw 'A fork release has a nonnumeric version tag' }
   if ([int]$Matches[1] -gt $Major -or ([int]$Matches[1] -eq $Major -and [int]$Matches[2] -gt $Minor)) { throw 'Source version is older than the latest release series' }
   if ([int]$Matches[1] -eq $Major -and [int]$Matches[2] -eq $Minor) { $Patch=[Math]::Max($Patch,([int]$Matches[3]+1)) }
 }

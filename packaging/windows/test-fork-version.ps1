@@ -20,6 +20,8 @@ try {
   @{source='1.0.0';latest='fork-v1.0.0';expected='1.0.1'},
   @{source='1.0.0';latest=@('fork-v1.0.2','fork-v1.0.1');expected='1.0.3'},
   @{source='1.0.3';latest='fork-v1.0.0';expected='1.0.3'},
+  @{source='1.0.2';latest=@('fork-v1.0.14','fork-v1.0.13');expected='1.0.15'},
+  @{source='1.0.2';latest=@('pdfcraft-v1.0.15','fork-v1.0.14');expected='1.0.16'},
   @{source='1.0.65535';latest='null';expected='1.0.65535'},
   @{source='255.255.65535';latest='null';expected='255.255.65535'})) {
   $global:PdfCraftVersionTestTag=$Case.latest
@@ -34,6 +36,8 @@ try {
   @{source='0.13.0';latest='v0.14.5'},
   @{source='1.0.0';latest='fork-v2.0.0'},
   @{source='1.0.0';latest='fork-v1.1.0'},
+  @{source='1.0.0';latest='pdfcraft-v1.1.0'},
+  @{source='1.0.0';latest='other-v1.0.5'},
   @{source='1.0.65535';latest='fork-v1.0.65535'},
   @{source='256.0.0';latest='null'},
   @{source='1.256.0';latest='null'},

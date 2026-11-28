@@ -101,14 +101,14 @@ jobs:
           $setup = "dist/pdfcraft-$env:FORK_VERSION-with-printer-x64.exe"
           $sha = (Get-FileHash -LiteralPath $setup -Algorithm SHA256).Hash.ToLowerInvariant()
           "$sha  $([IO.Path]::GetFileName($setup))" | Set-Content dist/SHA256SUMS.txt -Encoding utf8
-          gh release create "fork-v$env:FORK_VERSION" --repo $env:GITHUB_REPOSITORY --target $head --title "Lion PDF $env:FORK_VERSION" --generate-notes --draft $setup dist/SHA256SUMS.txt "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64.msi" "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64-portable.zip"
+          gh release create "pdfcraft-v$env:FORK_VERSION" --repo $env:GITHUB_REPOSITORY --target $head --title "Lion PDF $env:FORK_VERSION" --generate-notes --draft $setup dist/SHA256SUMS.txt "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64.msi" "dist/release/pdfcraft-$env:FORK_VERSION-windows-x64-portable.zip"
           if ($LASTEXITCODE -ne 0) { throw 'Draft asset upload failed' }
           # Unpublished drafts can have no tag ref yet: resolve their numeric release ID.
           $pages = gh api "repos/$env:GITHUB_REPOSITORY/releases?per_page=100" --paginate --slurp
           if ($LASTEXITCODE -ne 0) { throw 'Could not read draft releases' }
           $drafts = @(foreach ($page in ($pages | ConvertFrom-Json)) {
             foreach ($entry in $page) {
-              if ($entry.tag_name -ceq "fork-v$env:FORK_VERSION" -and $entry.draft -eq $true -and $entry.target_commitish -ceq $head) { $entry }
+              if ($entry.tag_name -ceq "pdfcraft-v$env:FORK_VERSION" -and $entry.draft -eq $true -and $entry.target_commitish -ceq $head) { $entry }
             }
           })
           if ($drafts.Count -ne 1) { throw 'Expected exactly one matching draft release' }
@@ -117,7 +117,7 @@ jobs:
           $assets = gh api "repos/$env:GITHUB_REPOSITORY/releases/$releaseId"
           if ($LASTEXITCODE -ne 0) { throw 'Could not inspect uploaded assets' }
           $release = $assets | ConvertFrom-Json
-          if ($release.id -ne $releaseId -or $release.tag_name -cne "fork-v$env:FORK_VERSION" -or $release.draft -ne $true -or $release.target_commitish -cne $head) { throw 'The draft changed during verification' }
+          if ($release.id -ne $releaseId -or $release.tag_name -cne "pdfcraft-v$env:FORK_VERSION" -or $release.draft -ne $true -or $release.target_commitish -cne $head) { throw 'The draft changed during verification' }
           $asset = @($release.assets | Where-Object name -CEQ ([IO.Path]::GetFileName($setup)))
           if ($asset.Count -ne 1 -or $asset[0].digest -cne "sha256:$sha" -or $asset[0].state -cne 'uploaded' -or $asset[0].size -ne (Get-Item -LiteralPath $setup).Length) { throw 'Uploaded installer does not match the local build' }
           $main = (git ls-remote origin refs/heads/main).Split()[0]
