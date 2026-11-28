@@ -974,6 +974,8 @@ mod tests {
 
     fn signature(certify: Option<u8>, status: SignatureStatus) -> SignatureInfo {
         SignatureInfo {
+            protection: None,
+            integrity_valid: false,
             field: "Signature".into(),
             signed: true,
             page: None,

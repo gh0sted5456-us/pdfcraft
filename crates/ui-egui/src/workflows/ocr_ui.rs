@@ -1287,7 +1287,7 @@ mod tests {
             confidence,
             source: "ocrs".into(),
         };
-        OcrPage { page: 0, words: vec![word], already_on_page: 0, skipped: None, notes }
+        OcrPage { page: 0, words: vec![word], already_on_page: 0, skipped: None, notes, correction: Default::default(), crop: None }
     }
 
     /// A run on the active document, as the start of one leaves it.

@@ -795,6 +795,7 @@ impl PdfCraftApp {
             "sign.timestamp" => self.open_timestamp(ctx),
             "sign.remove" => self.start_remove_signature(None),
             "help.connect_ai" => self.open_ai_connect(),
+            "ai.setup" | "ai.summary" | "ai.ask" | "ai.suggest" | "ai.translate" => crate::assistant_ui::open(self, id),
             "tools.document_actions" => self.open_document_actions(),
             "preflight.run" | "prepress.output_preview" => self.open_production(id == "prepress.output_preview"),
             "file.open_next_in_folder" => self.open_pdf_beside(ctx, true),

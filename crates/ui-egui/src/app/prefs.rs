@@ -265,6 +265,7 @@ impl PdfCraftApp {
             glass: Some(self.glass),
             glass_settings: Some(self.glass_settings),
             timestamp_server: (!self.timestamp_server.is_empty()).then(|| self.timestamp_server.clone()),
+            assistant: serde_json::to_string(&self.assistant.settings).ok(),
         };
         PdfCraftSettings { layout, print, behavior, view, comment, signature, dock, recent, hotbar, session, lion }
     }
@@ -300,6 +301,9 @@ impl PdfCraftApp {
         }
         if let Some(server) = &s.timestamp_server {
             self.timestamp_server.clone_from(server);
+        }
+        if let Some(settings) = s.assistant.as_deref().and_then(|text| serde_json::from_str(text).ok()) {
+            self.assistant.settings = settings;
         }
     }
 

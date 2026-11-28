@@ -230,6 +230,9 @@ pub struct Lion {
     pub glass_settings: Option<crate::lion_theme::GlassSettings>,
     /// The RFC 3161 server Sign ▸ Timestamp asks.
     pub timestamp_server: Option<String>,
+    /// The AI assistant's settings (provider, account name, model), as JSON text. Never a key or
+    /// a token: those stay in the system's credential store.
+    pub assistant: Option<String>,
 }
 
 impl Lion {
@@ -697,6 +700,7 @@ pub fn import_json(text: &str) -> (PdfCraftSettings, Vec<SectionError>) {
         glass: root.get("theme").and_then(Value::as_str).map(|theme| theme == "Glass"),
         glass_settings: root.get("glass").and_then(|v| serde_json::from_value::<crate::lion_theme::GlassSettings>(v.clone()).ok()).map(|g| g.normalized()),
         timestamp_server: root.get("timestamp_server").and_then(Value::as_str).filter(|s| !s.is_empty()).map(str::to_string),
+        assistant: root.get("assistant").filter(|v| v.is_object()).map(Value::to_string),
     };
 
     (PdfCraftSettings { layout, print, behavior, view, comment, signature, dock, recent, hotbar, session, lion }, errors)

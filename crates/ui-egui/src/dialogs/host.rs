@@ -51,6 +51,7 @@ fn windows(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     app.ai_connect_pass(ui);
     app.document_actions_pass(ui);
     app.production_pass(ui);
+    crate::assistant_ui::show(app, ui);
 
     crate::sign_ui::cert_viewer::show(app, ui);
 }

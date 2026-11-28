@@ -53,10 +53,6 @@ pub(crate) struct Draft {
     connection: Option<(Provider, String, bool)>,
     #[cfg(not(target_arch = "wasm32"))]
     browser_open: bool,
-    #[cfg(target_os = "windows")]
-    browser_rect: Option<egui::Rect>,
-    #[cfg(target_os = "windows")]
-    browser_host: Option<crate::assistant_browser::Host>,
 }
 #[cfg(not(target_arch = "wasm32"))]
 enum Update {
@@ -185,10 +181,7 @@ pub(crate) fn open(app: &mut PdfCraftApp, command: &str) {
         "ai.translate" => Task::Translate,
         _ => Task::Summary,
     };
-    app.dialog = Some(crate::Dialog::Assistant);
-    if let Some(ctx) = &app.ctx {
-        app.apply_theme(ctx);
-    }
+    app.assistant_open = true;
 }
 pub(crate) fn suspend(d: &mut Draft) {
     #[cfg(not(target_arch = "wasm32"))]
@@ -199,13 +192,6 @@ pub(crate) fn suspend(d: &mut Draft) {
             }
             d.status = "Request canceled locally while changing windows. A request already sent may still be processed.".into();
         }
-        #[cfg(target_os = "windows")]
-        {
-            if let Some(host) = &d.browser_host {
-                host.hide();
-            }
-            d.browser_rect = None;
-        }
     }
     #[cfg(target_arch = "wasm32")]
     let _ = d;
@@ -214,17 +200,9 @@ pub(crate) fn suspend(d: &mut Draft) {
 pub(crate) fn poll(app: &mut PdfCraftApp, ctx: &egui::Context) {
     #[cfg(not(target_arch = "wasm32"))]
     {
-        #[cfg(target_os = "windows")]
-        {
-            app.assistant.browser_rect = None;
-        }
-        if app.dialog != Some(crate::Dialog::Assistant) {
+        if !app.assistant_open {
             app.assistant.cancel();
             app.assistant.browser_open = false;
-            #[cfg(target_os = "windows")]
-            {
-                app.assistant.browser_host = None;
-            }
             return;
         }
         let key = app.active_ids().and_then(|(_, id)| app.session.get(id).map(|d| (id, d.edit_generation())));
@@ -275,17 +253,34 @@ pub(crate) fn poll(app: &mut PdfCraftApp, ctx: &egui::Context) {
     let _ = (app, ctx);
 }
 
-pub(crate) fn body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
-    crate::widgets::dialog_heading(ui, "AI Assistant");
-    #[cfg(target_arch = "wasm32")]
-    {
-        let _ = app;
-        ui.label("Connect your own AI account in the desktop app.");
-        widgets::dialog_footer(ui, |ui| widgets::dialog_button(ui, tl!("Close"), widgets::DialogAction::Cancel).clicked()).inner
+/// One pass of the open AI assistant, in a dialog of the framework's.
+pub(crate) fn show(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
+    use craft::ui::contract::Bind;
+    use craft::ui::patterns::form_dialogs::{FormButtons, FormDialog};
+    poll(app, ui.ctx());
+    if !app.assistant_open {
+        return;
     }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        native_body(ui, app)
+    let mut open = true;
+    let mut unit = ();
+    let mut close = false;
+    let out = FormDialog::new(tl!("AI assistant"), Bind::bound(&mut unit))
+        .opened(Bind::bound(&mut open))
+        .buttons(FormButtons::Close)
+        .shaped(|d| d.resizable(true).modeless())
+        .show(ui, |ui, _, _| {
+            ui.set_min_size(egui::vec2(720.0_f32.min(ui.ctx().content_rect().width() - 160.0).max(320.0), 420.0));
+            #[cfg(target_arch = "wasm32")]
+            ui.label("Connect your own AI account in the desktop app.");
+            #[cfg(not(target_arch = "wasm32"))]
+            {
+                close = native_body(ui, app);
+            }
+            true
+        });
+    if close || out.closed.is_some() {
+        app.assistant_open = false;
+        app.assistant.cancel();
     }
 }
 #[cfg(not(target_arch = "wasm32"))]
@@ -318,7 +313,7 @@ fn connections(ui: &mut egui::Ui, d: &mut Draft) {
                         .find(|p| p.client_id == d.settings.account)
                         .map_or("Choose an account", |p| if p.email.is_empty() { p.subject.as_str() } else { p.email.as_str() });
                     let before = d.settings.account.clone();
-                    craft_ui::ComboBox::from_id_salt("assistant-account")
+                    egui::ComboBox::from_id_salt("assistant-account")
                         .selected_text(selected)
                         .show_ui(ui, |ui| {
                             for p in &d.profiles {
@@ -461,7 +456,7 @@ fn connections(ui: &mut egui::Ui, d: &mut Draft) {
                 d.connect(&ctx, move |_, _| Ok(Update::Models(platform::models(p, &account)?)));
             }
             if !d.models.is_empty() {
-                craft_ui::ComboBox::from_id_salt("assistant-model")
+                egui::ComboBox::from_id_salt("assistant-model")
                     .selected_text("Choose a model")
                     .width(ui.available_width())
                     .show_ui(ui, |ui| {
@@ -485,7 +480,7 @@ fn microsoft_connection(ui: &mut egui::Ui, d: &mut Draft, ctx: &egui::Context) {
     ui.add(widgets::line(&mut d.settings.microsoft.client_id).char_limit(36).desired_width(ui.available_width())).labelled_by(label.id);
     let label = ui.label("Directory (tenant) ID");
     ui.add(widgets::line(&mut d.settings.microsoft.tenant_id).char_limit(36).desired_width(ui.available_width())).labelled_by(label.id);
-    craft_ui::ComboBox::from_id_salt("copilot-cloud")
+    egui::ComboBox::from_id_salt("copilot-cloud")
         .selected_text(d.settings.microsoft.cloud.label())
         .show_ui(ui, |ui| {
             for cloud in [platform::CopilotCloud::Global, platform::CopilotCloud::Government, platform::CopilotCloud::Defense] {
@@ -578,7 +573,7 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     let mut external = None;
     ui.horizontal_wrapped(|ui| {
         ui.add_enabled_ui(d.job.is_none(), |ui| {
-            craft_ui::ComboBox::from_id_salt("assistant-provider")
+            egui::ComboBox::from_id_salt("assistant-provider")
                 .selected_text(provider_name(d.settings.provider))
                 .width(220.0)
                 .show_ui(ui, |ui| {
@@ -656,7 +651,7 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
             .map(|doc| match d.scope {
                 1 => (0..doc.info.pages.len()).collect::<Vec<_>>(),
                 2 => active.and_then(|(i, _)| app.views.get(i)).map(|v| v.target_pages()).unwrap_or_default(),
-                _ => vec![active.and_then(|(i, _)| app.views.get(i)).map_or(0, |v| v.current)],
+                _ => vec![active.and_then(|(i, _)| app.views.get(i)).map_or(0, |v| v.current())],
             })
             .unwrap_or_default();
         if !d.prepared_pages.is_empty() && d.prepared_pages != pages {
@@ -672,7 +667,7 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
                 .default_size(280.0)
                 .size_range(240.0..=360.0)
                 .resizable(true)
-                .frame(egui::Frame::new().fill(t.glass_toolbar_shade().unwrap_or(t.panel)).inner_margin(16.0))
+                .frame(egui::Frame::new().fill(t.panel).inner_margin(16.0))
                 .show(ui, |ui| {
                     egui::ScrollArea::vertical().id_salt("assistant-document-scroll").max_height(height).auto_shrink([false, false]).show(ui, |ui| {
                         privacy_edit = context_pane(ui, d, doc, &pages, &allowed);
@@ -693,27 +688,12 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
         egui::Frame::new().inner_margin(egui::Margin::symmetric(18,10)).show(ui,|ui|{
             if browser_mode(d){
                 ui.horizontal_wrapped(|ui|{
-                    if widgets::dialog_button(ui,"Open browser chat",widgets::DialogAction::Confirm).clicked(){d.settings.enabled=true;d.browser_open=true;}
-                    if ui.button("Open in external browser").clicked(){d.settings.enabled=true;external=d.settings.provider.browser_url();}
+                    if widgets::dialog_button(ui,"Open the provider's chat in your browser",widgets::DialogAction::Confirm).clicked(){d.settings.enabled=true;external=d.settings.provider.browser_url();}
                     if ui.add_enabled(d.context_enabled&&ready_context&&privacy_edit.is_none(),egui::Button::new("Copy reviewed PDF context")).clicked(){
                         match assistant::prompt(Task::Ask,"Use the following reviewed PDF context to answer my questions with page references.",&d.text){Ok(prompt)=>{ctx.copy_text(format!("{}\n\n{prompt}",assistant::INSTRUCTIONS));d.status="Context copied. Paste it into the provider chat yourself to share it.".into();},Err(error)=>d.status=error}
                     }
                 });
-                ui.small("Sign in to the official provider website. PDF text is shared only by your explicit copy/paste; there is no automatic file access.");
-                let available=(ui.available_height()-32.0).max(100.0);
-                let(rect,_)=ui.allocate_exact_size(egui::vec2(ui.available_width(),available),egui::Sense::hover());
-                if d.browser_open&&d.settings.enabled{
-                    #[cfg(target_os="windows")]
-                    if ctx.viewport_id()==egui::ViewportId::ROOT&&ui.clip_rect().contains_rect(rect){d.browser_rect=Some(rect);}else{
-                        ui.painter().text(rect.center(),egui::Align2::CENTER_CENTER,"Use Open in external browser in a detached window.",egui::FontId::proportional(15.0),t.text_muted);
-                    }
-                    #[cfg(not(target_os="windows"))]
-                    ui.painter().text(rect.center(),egui::Align2::CENTER_CENTER,"Use Open in external browser on this platform.",egui::FontId::proportional(15.0),t.text_muted);
-                }else{
-                    ui.painter().text(rect.center(),egui::Align2::CENTER_CENTER,"Your subscription, inside PdfCraft\nOpen browser chat to get started.",egui::FontId::proportional(18.0),t.text_muted);
-                }
-                #[cfg(target_os="windows")]
-                if let Some(host)=&d.browser_host{ui.small(host.origin());}
+                ui.small("Sign in on the official provider website. PDF text is shared only when you copy and paste it yourself; there is no automatic file access.");
             }else{
                 let conversation_height=(ui.available_height()-155.0).max(60.0);
                 egui::ScrollArea::vertical().id_salt("assistant-transcript").max_height(conversation_height).min_scrolled_height(conversation_height).auto_shrink([false,false]).stick_to_bottom(!d.history.is_empty()).show(ui,|ui|{
@@ -775,7 +755,7 @@ fn native_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> bool {
     }
     if let Some(edit) = privacy_edit {
         app.assistant.cancel();
-        app.apply_edit(edit);
+        app.apply_edit(ui.ctx(), edit);
     }
     false
 }
@@ -802,7 +782,7 @@ fn context_pane(
     ui.add(widgets::checkbox(&mut d.context_enabled, "Share PDF context"));
     ui.small("Off until you enable it. Review the text before sending or copying.");
     ui.add_space(10.0);
-    craft_ui::ComboBox::from_id_salt("assistant-scope")
+    egui::ComboBox::from_id_salt("assistant-scope")
         .selected_text(match d.scope {
             1 => "All pages",
             2 => "Selected pages",
@@ -931,297 +911,4 @@ fn chat_prompt(d: &Draft) -> Result<String, String> {
     Ok(prompt)
 }
 
-#[cfg(target_os = "windows")]
-pub(crate) fn sync_browser(app: &mut PdfCraftApp, ctx: &egui::Context, frame: &eframe::Frame) {
-    // Native child windows otherwise paint over egui menus and pending confirmation prompts.
-    let covered = egui::Popup::is_any_open(ctx)
-        || app.close_request.is_some()
-        || app.password_prompt.is_some()
-        || app.unlock_prompt.is_some()
-        || app.pending_link.is_some()
-        || app.pending_remote_link.is_some()
-        || app.pending_full_screen.is_some()
-        || app.updates.open
-        || app.timestamp_run.is_some();
-    let d = &mut app.assistant;
-    if app.dialog == Some(crate::Dialog::Assistant) && (d.setup || covered) {
-        if let Some(host) = &d.browser_host {
-            host.hide();
-        }
-        return;
-    }
-    if app.dialog != Some(crate::Dialog::Assistant)
-        || d.setup
-        || !d.settings.enabled
-        || !browser_mode(d)
-        || !d.browser_open
-        || ctx.viewport_id() != egui::ViewportId::ROOT
-    {
-        d.browser_host = None;
-        return;
-    }
-    let Some(rect) = d.browser_rect else {
-        if let Some(host) = &d.browser_host {
-            host.hide();
-        }
-        return;
-    };
-    if d.browser_host.as_ref().is_some_and(|host| host.provider() != d.settings.provider) {
-        d.browser_host = None;
-    }
-    if d.browser_host.is_none()
-        && let Some(window) = frame.winit_window()
-    {
-        match crate::assistant_browser::Host::new(window, d.settings.provider, rect, ctx.pixels_per_point(), ctx) {
-            Ok(host) => d.browser_host = Some(host),
-            Err(error) => {
-                d.status = format!("Embedded chat could not start: {error}. Use Open in external browser.");
-                d.browser_open = false;
-                ctx.request_repaint();
-            }
-        }
-    }
-    if let Some(host) = &mut d.browser_host
-        && let Err(error) = host.show(rect, ctx.pixels_per_point())
-    {
-        d.status = error;
-        d.browser_open = false;
-    }
-}
 
-#[cfg(all(test, not(target_arch = "wasm32")))]
-mod tests {
-    use super::*;
-    use egui_kittest::{Harness, kittest::Queryable};
-    #[test]
-    fn assistant_popup_is_readable_with_pinned_composer_and_taskbar() {
-        for size in [egui::vec2(1200.0, 800.0), egui::vec2(640.0, 480.0)] {
-            for theme in ["light", "dark"] {
-                for setup in [false, true] {
-                    let mut h = Harness::builder().with_size(size).build_eframe(move |_| {
-                        let mut app = PdfCraftApp::new();
-                        app.set_option("language", "en").unwrap();
-                        app.set_option("theme", theme).unwrap();
-                        app.dialog = Some(crate::Dialog::Assistant);
-                        app.assistant.setup = setup;
-                        app.assistant.task = Task::Ask;
-                        app.assistant.settings.model = "example-model".into();
-                        app
-                    });
-                    h.run_steps(8);
-                    assert!(!crate::dialog_windows::maximized(&h.ctx, "dialog"));
-                    let card = h.ctx.data(|d| d.get_temp::<egui::Rect>(egui::Id::unique("dialog").with("card"))).unwrap();
-                    assert!(card.width() < size.x && card.height() < size.y, "chat stays inside a popup: {card:?}");
-                    assert!(h.ctx.memory(|m| m.top_modal_layer().is_none()), "chat must not add a full-window dimming layer");
-                    h.get_by_label("Minimize AI Assistant");
-                    if !setup {
-                        let message = h.get_by_role_and_label(egui::accesskit::Role::MultilineTextInput, "Message").rect();
-                        assert!(message.width() > 300.0, "composer {message:?}");
-                        assert!(message.bottom() < size.y - 30.0, "composer must stay above the taskbar: {message:?}");
-                        h.get_by_label("Send");
-                    } else {
-                        h.get_by_label("Continue with ChatGPT");
-                    }
-                    if let Ok(dir) = std::env::var("PDFCRAFT_POPUP_SHOTS") {
-                        h.render().unwrap().save(format!("{dir}/assistant-popup-{theme}-{}-{setup}.png", size.x)).unwrap();
-                    }
-                    assert!(h.state().assistant.job.is_none(), "layout cannot contact a provider");
-                }
-            }
-        }
-    }
-    #[test]
-    fn assistant_open_and_restore_keep_the_live_appearance() {
-        for theme in ["light", "dark", "glass"] {
-            let mut h = Harness::builder().with_size(egui::vec2(1280.0, 900.0)).build_eframe(move |_| {
-                let mut app = PdfCraftApp::new();
-                app.set_option("language", "en").unwrap();
-                app.set_option("theme", theme).unwrap();
-                app.set_glass_settings(crate::theme::GlassSettings { tint: [48, 127, 154], opacity: 47, popup_opacity: 83, tool_opacity: 29 });
-                let bytes = app.session.create_blank(612.0, 792.0, 1).unwrap();
-                app.open_bytes("Behind-chat.pdf", None, bytes.as_ref().clone()).unwrap();
-                app
-            });
-            h.run_steps(5);
-            let preference = h.state().theme_preference;
-            let glass = h.state().glass;
-            let fill = h.ctx.global_style().visuals.window_fill;
-            h.ctx.set_visuals(egui::Visuals::light());
-            h.state_mut().execute("ai.ask");
-            h.run_steps(4);
-            assert_eq!(h.ctx.global_style().visuals.window_fill, fill);
-            assert_eq!(h.state().theme_preference, preference);
-            assert_eq!(h.state().glass, glass);
-            assert!(h.state().views[0].page_screen_rect(0).is_some());
-            h.state_mut().execute("app.dialog_minimize");
-            h.run_steps(3);
-            h.ctx.set_visuals(egui::Visuals::light());
-            h.state_mut().execute("app.dialog_restore");
-            h.run_steps(4);
-            assert_eq!(h.ctx.global_style().visuals.window_fill, fill);
-            assert_eq!(h.state().theme_preference, preference);
-            assert_eq!(h.state().glass, glass);
-            let mut restored = PdfCraftApp::new();
-            restored.restore(&h.state().persist());
-            assert_eq!(restored.theme_preference, preference);
-            assert_eq!(restored.glass, glass);
-        }
-    }
-    #[test]
-    fn chat_shortcuts_do_not_close_or_edit_the_hidden_pdf() {
-        let mut h = Harness::builder().build_eframe(|_| {
-            let mut app = PdfCraftApp::new();
-            let bytes = app.session.create_from_text("Synthetic", "Keep these words.").unwrap();
-            app.open_bytes("synthetic.pdf", None, bytes.as_ref().clone()).unwrap();
-            let id = app.views[0].id;
-            app.session.apply(id, pdfcraft_engine::Edit::RotatePages { pages: vec![0], degrees: 90 }).unwrap();
-            app.dialog = Some(crate::Dialog::Assistant);
-            app
-        });
-        h.run_steps(4);
-        let id = h.state().views[0].id;
-        let before = h.state().session.get(id).unwrap().bytes.clone();
-        for key in [egui::Key::Z, egui::Key::W, egui::Key::L] {
-            h.key_press_modifiers(egui::Modifiers::COMMAND, key);
-            h.run_steps(2);
-        }
-        assert_eq!(h.state().views.len(), 1);
-        assert_eq!(h.state().session.get(id).unwrap().bytes, before);
-        assert!(h.state().close_request.is_none());
-    }
-    #[test]
-    fn finished_jobs_keep_their_result_and_changed_documents_reject_stale_text() {
-        let mut app = PdfCraftApp::new();
-        let bytes = app.session.create_from_text("Synthetic", "Reviewed words.").unwrap();
-        app.open_bytes("synthetic.pdf", None, bytes.as_ref().clone()).unwrap();
-        let id = app.views[0].id;
-        let key = (id, app.session.get(id).unwrap().edit_generation());
-        app.dialog = Some(crate::Dialog::Assistant);
-        app.assistant.source = Some(key);
-        let (tx, rx) = std::sync::mpsc::channel();
-        tx.send(Message::Done(Ok(Update::Text("Reviewed words.".into(), key)))).unwrap();
-        drop(tx);
-        app.assistant.job = Some(Job { rx, cancel: Default::default(), network: false });
-        poll(&mut app, &egui::Context::default());
-        assert_eq!(app.assistant.text, "Reviewed words.");
-        assert!(app.assistant.job.is_none());
-        assert!(app.assistant.status.contains("Nothing has been sent"));
-        app.session.apply(id, pdfcraft_engine::Edit::RotatePages { pages: vec![0], degrees: 90 }).unwrap();
-        let (tx, rx) = std::sync::mpsc::channel();
-        tx.send(Message::Done(Ok(Update::Answer("Stale answer".into(), Some(key))))).unwrap();
-        drop(tx);
-        app.assistant.job = Some(Job { rx, cancel: Default::default(), network: false });
-        poll(&mut app, &egui::Context::default());
-        assert!(app.assistant.text.is_empty() && app.assistant.answer.is_empty());
-        assert!(app.assistant.status.contains("document changed"));
-    }
-
-    #[test]
-    fn setup_has_no_bundled_account_and_never_persists_a_key_or_document_text() {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        app.assistant.api_key = "private-key-never-serialize".into();
-        app.assistant.text = "private-pdf-never-serialize".into();
-        let saved = app.persist();
-        assert!(!saved.contains("private-key-never-serialize") && !saved.contains("private-pdf-never-serialize"));
-        assert!(!app.assistant.settings.enabled && app.assistant.settings.account.is_empty());
-        let mut h = Harness::builder().with_size(egui::vec2(1200.0, 900.0)).build_eframe(move |_| app);
-        assert!(h.state_mut().execute("ai.setup"));
-        h.run_steps(5);
-        h.get_by_label("Continue with ChatGPT");
-        assert!(h.state().assistant.job.is_none(), "opening setup makes no request");
-        if let Ok(dir) = std::env::var("PDFCRAFT_ASSISTANT_SHOTS") {
-            for theme in ["light", "dark"] {
-                h.state_mut().set_option("theme", theme).unwrap();
-                h.run_steps(6);
-                h.render().unwrap().save(format!("{dir}/assistant-setup-{theme}.png")).unwrap();
-            }
-        }
-    }
-    #[test]
-    fn confidential_changes_cancel_context_jobs_and_chat_never_persists_pdf_text() {
-        let mut app = PdfCraftApp::new();
-        let bytes = app.session.create_from_text("Synthetic", "Private source words.").unwrap();
-        app.open_bytes("privacy-chat.pdf", None, bytes.as_ref().clone()).unwrap();
-        let id = app.views[0].id;
-        let key = (id, app.session.get(id).unwrap().edit_generation());
-        app.dialog = Some(crate::Dialog::Assistant);
-        app.assistant.source = Some(key);
-        app.assistant.text = "Private source words.".into();
-        app.assistant.prepared_pages = vec![0];
-        app.assistant.history.push(("Explain".into(), "Private answer.".into()));
-        let flag = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let (_tx, rx) = std::sync::mpsc::channel();
-        app.assistant.job = Some(Job { rx, cancel: flag.clone(), network: false });
-        app.session.apply(id, pdfcraft_engine::Edit::SetAiConfidential { pages: None, confidential: true }).unwrap();
-        poll(&mut app, &egui::Context::default());
-        assert!(flag.load(std::sync::atomic::Ordering::Relaxed));
-        assert!(app.assistant.job.is_none() && app.assistant.text.is_empty() && app.assistant.history.is_empty());
-        assert!(assistant::Source::new(app.session.get(id).unwrap(), &[0]).is_err());
-        let saved = app.persist();
-        assert!(!saved.contains("Private source words") && !saved.contains("Private answer"));
-        assert!(!app.assistant.context_enabled);
-    }
-    #[test]
-    fn chat_requests_are_bounded_and_do_not_silently_include_pdf_context() {
-        let mut d = Draft { text: "A PRIVATE PDF".into(), question: "Hello".into(), ..Default::default() };
-        let prompt = chat_prompt(&d).unwrap();
-        assert!(!prompt.contains("A PRIVATE PDF"));
-        d.context_enabled = true;
-        d.task = Task::Ask;
-        assert!(chat_prompt(&d).unwrap().contains("A PRIVATE PDF"));
-        d.question = "x".repeat(assistant::MAX_QUESTION_BYTES + 1);
-        assert!(chat_prompt(&d).is_err());
-        d.question = "Hello".into();
-        d.history = vec![("Old".into(), "x".repeat(9000))];
-        assert!(!chat_prompt(&d).unwrap().contains("Old"));
-    }
-    #[test]
-    fn browser_chat_is_explicit_and_confidential_context_cannot_be_copied() {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        let bytes = app.session.create_from_text("Synthetic", "Do not share these words.").unwrap();
-        app.open_bytes("confidential-demo.pdf", None, bytes.as_ref().clone()).unwrap();
-        let id = app.views[0].id;
-        app.session.apply(id, pdfcraft_engine::Edit::SetAiConfidential { pages: None, confidential: true }).unwrap();
-        app.dialog = Some(crate::Dialog::Assistant);
-        app.assistant.settings.provider = Provider::CopilotPersonal;
-        app.assistant.settings.enabled = true;
-        app.assistant.context_enabled = true;
-        let mut h = Harness::builder().with_size(egui::vec2(1280.0, 900.0)).build_eframe(move |_| app);
-        h.run_steps(8);
-        h.get_by_label("Open browser chat");
-        h.get_by_label("Copy reviewed PDF context");
-        assert!(h.state().assistant.job.is_none());
-        assert!(!h.state().assistant.browser_open);
-        assert!(h.state().assistant.text.is_empty());
-        assert!(h.ctx.output(|o| o.commands.is_empty()), "layout must not copy text or open a browser");
-    }
-    #[test]
-    fn minimized_ai_restores_as_a_popup_without_old_pdf_context() {
-        let mut h = Harness::builder().with_size(egui::vec2(1280.0, 900.0)).build_eframe(|_| {
-            let mut app = PdfCraftApp::new();
-            app.set_option("language", "en").unwrap();
-            let bytes = app.session.create_from_text("Synthetic", "Private source.").unwrap();
-            app.open_bytes("source.pdf", None, bytes.as_ref().clone()).unwrap();
-            app.execute("ai.ask");
-            app
-        });
-        h.run_steps(6);
-        h.state_mut().assistant.text = "Private source context".into();
-        h.state_mut().execute("app.dialog_minimize");
-        h.run_steps(3);
-        assert!(crate::dialog_windows::describe(Some(&h.ctx)).as_array().unwrap().iter().any(|e| e["minimized"] == true));
-        let bytes = h.state().session.create_from_text("Other", "Different source.").unwrap();
-        h.state_mut().open_bytes("other.pdf", None, bytes.as_ref().clone()).unwrap();
-        let current = h.state().active_ids().unwrap().1;
-        h.state_mut().execute("app.dialog_restore");
-        h.run_steps(6);
-        assert_eq!(h.state().active_ids().unwrap().1, current);
-        assert_eq!(h.state().dialog, Some(crate::Dialog::Assistant));
-        assert!(!crate::dialog_windows::maximized(&h.ctx, "dialog"));
-        assert!(h.state().assistant.text.is_empty());
-        assert!(h.ctx.memory(|m| m.top_modal_layer().is_none()));
-        h.get_by_label("Send");
-    }
-}

@@ -82,6 +82,11 @@ pub(crate) mod certificate_ui;
 mod ai_connect_ui;
 /// Lion PDF: Print Production (preflight and output inspection).
 mod production_ui;
+/// Lion PDF: the egui helpers and colours its own dialogs draw with.
+mod theme;
+mod widgets;
+/// Lion PDF: the AI assistant.
+mod assistant_ui;
 /// Lion PDF: Create a PDF (the template gallery) and Save as template.
 mod templates_ui;
 
@@ -365,6 +370,9 @@ pub struct PdfCraftApp {
     pub(crate) document_actions: Option<js_ui::DocumentActionsDraft>,
     /// Lion PDF: the open Print Production dialog.
     pub(crate) production: Option<production_ui::Draft>,
+    /// Lion PDF: the AI assistant, its settings, and whether it is open.
+    pub(crate) assistant: assistant_ui::Draft,
+    pub(crate) assistant_open: bool,
     pub(crate) ai_connect_folder: Option<std::path::PathBuf>,
     /// The suite the Appearance page reads its themes from: an in-memory one, as PdfCraft keeps
     /// its own appearance in its settings rather than in the suite's shared selection.

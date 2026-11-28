@@ -424,7 +424,7 @@ fn ocr_verify_screen_controls_keyboard_and_accept() {
         let id = app.active_ids().unwrap().1;
         let job = app.session.ocr_job(id, &[0], OcrSettings::default()).unwrap();
         let page =
-            OcrPage { already_on_page: 0, page: 0, words: vec![placed("Helo", 40.0), placed("wrold", 95.0)], skipped: None, notes: Vec::new() };
+            OcrPage { already_on_page: 0, page: 0, words: vec![placed("Helo", 40.0), placed("wrold", 95.0)], skipped: None, notes: Vec::new(), correction: Default::default(), crop: None };
         app.ocr_verify.load(id, job.guard.clone(), vec![page]);
     }
     h.run_steps(3);
@@ -476,7 +476,7 @@ fn ocr_verify_screen_empty_walk() {
         let app = h.state_mut();
         let id = app.active_ids().unwrap().1;
         let job = app.session.ocr_job(id, &[0], OcrSettings::default()).unwrap();
-        let page = OcrPage { already_on_page: 0, page: 0, words: vec![placed("Fine", 95.0)], skipped: None, notes: Vec::new() };
+        let page = OcrPage { already_on_page: 0, page: 0, words: vec![placed("Fine", 95.0)], skipped: None, notes: Vec::new(), correction: Default::default(), crop: None };
         app.ocr_verify.load(id, job.guard.clone(), vec![page]);
     }
     h.run_steps(3);

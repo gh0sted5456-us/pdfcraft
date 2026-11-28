@@ -4,7 +4,7 @@ use craft::behavior::IconId;
 use craft::keymap::CommandRef;
 use craft::menu::ThemeChoice;
 use craft::theme::ModeChoice;
-use craft::ui::buttons::{Button, IconButton};
+use craft::ui::buttons::IconButton;
 use craft::ui::contract::{Bind, Outcome as _, Props as _, Show as _, ShowContainer as _};
 use craft::ui::menu::{Menu, MenuItem};
 use craft::ui::popover::DropVeil;

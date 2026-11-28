@@ -65,6 +65,7 @@ pub fn shared() -> Arc<I18n> {
 pub fn english_name_for_code(code: &str) -> &str {
     match code {
         "en" => "English",
+        "en-gb" => "English (UK)",
         "ja" => "Japanese",
         "zh-hans" => "Simplified Chinese",
         "zh-hant" => "Traditional Chinese",
@@ -119,11 +120,13 @@ pub struct LangInfo {
 }
 
 /// How many languages [`LANGUAGES`] lists.
-const LANGUAGE_COUNT: usize = 36;
+const LANGUAGE_COUNT: usize = 37;
 
 /// The languages PdfCraft offers. English first: it is the fallback and the source language.
 pub static LANGUAGES: [LangInfo; LANGUAGE_COUNT] = [
     LangInfo { code: "en", rtl: false },
+    // Lion PDF: British English, from the overlay catalog `i18n-lion/en-gb.tsv` (see build.rs).
+    LangInfo { code: "en-gb", rtl: false },
     LangInfo { code: "ja", rtl: false },
     // Simplified Chinese; `zh`, `zh-CN`, `zh-SG` and `zh-Hans-*` locales resolve here (see `candidates`).
     LangInfo { code: "zh-hans", rtl: false },
@@ -283,14 +286,19 @@ impl Lang {
     /// Latin-script fallback with the other Latin names when a script's face is missing, rather
     /// than sorting it into a block of unrenderable labels.
     pub fn for_picker_by(mut shown: impl FnMut(Lang) -> &'static str) -> Vec<Lang> {
-        let mut rest: Vec<Lang> = Lang::all().filter(|l| l.code() != Lang::EN.code()).collect();
+        let mut rest: Vec<Lang> = Lang::all().filter(|l| !matches!(l.code(), "en" | "en-gb")).collect();
         rest.sort_by_cached_key(|l| name_sort_key(shown(*l)));
-        std::iter::once(Lang::EN).chain(rest).collect()
+        // Lion PDF: British English beside the source language.
+        [Some(Lang::EN), Lang::from_code("en-gb")].into_iter().flatten().chain(rest).collect()
     }
 
     /// The language's name in itself (its `@id language.name` row), shown in the Preferences
     /// dropdown.
     pub fn name(self) -> &'static str {
+        // Lion PDF offers British English too, so the source language says which English it is.
+        if self.code() == Lang::EN.code() {
+            return "English (US)";
+        }
         self.i18n().name(self.lang)
     }
 
@@ -744,7 +752,9 @@ mod picker_order_tests {
         let order = Lang::for_picker();
         assert_eq!(order.first().map(|l| l.code()), Some(Lang::EN.code()));
         assert_eq!(order.len(), Lang::all().count());
-        let keys: Vec<String> = order[1..].iter().map(|l| name_sort_key(l.name())).collect();
+        // Lion PDF: British English follows the source language.
+        assert_eq!(order.get(1).map(|l| l.code()), Some("en-gb"));
+        let keys: Vec<String> = order[2..].iter().map(|l| name_sort_key(l.name())).collect();
         assert!(keys.windows(2).all(|w| w[0] <= w[1]), "{keys:?}");
         assert_eq!(name_sort_key("Čeština"), "cestina");
         assert_eq!(name_sort_key("Türkçe"), "turkce");

@@ -329,6 +329,8 @@ impl PdfCraftApp {
             ai_connect_open: false,
             document_actions: None,
             production: None,
+            assistant: Default::default(),
+            assistant_open: false,
             ai_connect_folder: None,
             suite: craft::theme_store::SuiteClient::memory(),
             reading_colors: Default::default(),

@@ -533,7 +533,8 @@ mod tests {
         gallery.poll(&ctx);
         gallery.poll(&ctx);
         assert!(gallery.ready.as_ref().is_some_and(|p| p.pages == 1), "{:?}", gallery.error);
-        gallery.take(Choice { selected: STARTERS[1].id.into(), ..gallery.choice.clone() });
+        let other = STARTERS.iter().find(|s| s.id != "blank").map(|s| s.id).unwrap_or_default();
+        gallery.take(Choice { selected: other.into(), ..gallery.choice.clone() });
         assert!(gallery.ready.is_none(), "a new selection waits for its own preview");
         gallery.poll(&ctx);
         gallery.poll(&ctx);

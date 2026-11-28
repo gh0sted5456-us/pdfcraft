@@ -477,7 +477,6 @@ pub const COMMANDS: &[CommandSpec] = &[
     c("sign.timestamp", "Timestamp", None, None, Document, "clock-3"),
     c("sign.remove", "Remove signature…", None, None, Document, "eraser"),
     c("optimize.audit", "Audit space usage", None, None, Document, "gauge"),
-    c("app.language_spelling", "Language and spelling", EDIT, None, Nothing, "languages"),
     c("tools.document_actions", "Document actions", None, None, Modification, "file-code"),
     c("preflight.run", "Preflight", None, None, Document, "file-check"),
     c("prepress.output_preview", "Output preview", None, None, Document, "layers"),

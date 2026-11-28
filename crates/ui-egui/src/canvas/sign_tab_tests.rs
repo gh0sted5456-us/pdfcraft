@@ -11,6 +11,8 @@ const RECT: [f64; 4] = [20.0, 110.0, 140.0, 180.0];
 /// `rect`. Each test changes the one thing it is about.
 fn listing(name: &str, page: usize, rect: [f64; 4]) -> SignatureInfo {
     SignatureInfo {
+        protection: None,
+        integrity_valid: false,
         field: name.into(),
         signed: false,
         page: Some(page),
@@ -57,6 +59,7 @@ fn field(name: &str, page: usize, rect: [f64; 4]) -> FormField {
         quadding: 0,
         tooltip: None,
         widgets: vec![FormWidget {
+            no_rotate: false,
             mouse_up_script: None,
             mouse_down: false,
             obj: pdfcraft_cos::ObjRef::new(4, 0),
