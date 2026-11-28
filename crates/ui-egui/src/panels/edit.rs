@@ -18,7 +18,7 @@ use super::{Availability, PdfCraftApp, ToolGroup, ToolItem, catalog};
 const EDIT_PAGE_BUTTONS: [&str; 4] = ["page.rotate", "page.insert", "page.delete", "page.extract"];
 
 /// Add content items shown before More.
-const EDIT_CONTENT_SHOWN: usize = 6;
+const EDIT_CONTENT_SHOWN: usize = 5;
 
 /// Other options: the tools Acrobat's Edit panel links to.
 const EDIT_OTHER_TOOLS: [&str; 3] = ["combine", "redact", "form"];
@@ -315,20 +315,6 @@ fn format_section(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         }
         panel(app, ui, i, Target::Draft(Box::new(draft)), None, &[]);
         return;
-    }
-    // Selected vector lines and shapes: their width and colour.
-    let paths = app.active_ids().and_then(|(i, _)| {
-        let (_, objects) = app.views[i].objects.paths()?;
-        Some((i, objects.len(), objects.first()?.outline.clone()?))
-    });
-    if let Some((i, count, look)) = paths {
-        if let Some(style) = crate::object_ui::line_panel(ui, count, &look)
-            && let Some(edit) = app.views[i].objects.style_edit(style)
-        {
-            app.apply_edit(edit);
-        }
-        ui.add_space(6.0);
-        ui.separator();
     }
     let image = app.active_ids().and_then(|(i, id)| {
         let (page, index) = app.views[i].session.content.selected?;

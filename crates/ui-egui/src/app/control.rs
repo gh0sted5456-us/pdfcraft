@@ -48,42 +48,6 @@ impl PdfCraftApp {
             ("update_check_at_start", _) => {
                 self.update_check_at_start = value.parse::<bool>().map_err(|_| "update_check_at_start must be true or false")?;
             }
-            ("glass-background", _) => self.glass_background.set_encoded(value)?,
-            ("glass-background-opacity", _) => {
-                self.glass_background.opacity =
-                    value.parse::<u8>().ok().filter(|v| *v <= 100).ok_or("glass-background-opacity must be 0 to 100 percent")?;
-            }
-            ("glass-opacity" | "glass-popup-opacity" | "glass-tool-opacity", _) => {
-                let minimum = if key == "glass-tool-opacity" { 0 } else { 35 };
-                let opacity = value
-                    .parse::<u8>()
-                    .ok()
-                    .filter(|v| (minimum..=100).contains(v))
-                    .ok_or_else(|| format!("{key} must be {minimum} to 100 percent"))?;
-                let mut glass = self.glass;
-                match key {
-                    "glass-popup-opacity" => glass.popup_opacity = opacity,
-                    "glass-tool-opacity" => glass.tool_opacity = opacity,
-                    _ => glass.opacity = opacity,
-                }
-                self.set_glass_settings(glass);
-            }
-            ("glass-tint", _) => {
-                let hex = value.strip_prefix('#').unwrap_or(value);
-                if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
-                    return Err("glass-tint must be #rrggbb".into());
-                }
-                let rgb = u32::from_str_radix(hex, 16).map_err(|_| "glass-tint must be #rrggbb")?;
-                self.set_glass_settings(theme::GlassSettings { tint: [(rgb >> 16) as u8, (rgb >> 8) as u8, rgb as u8], ..self.glass });
-            }
-            ("graphics-renderer", _) => {
-                self.graphics.renderer = crate::graphics::GraphicsRenderer::parse(value).ok_or("graphics-renderer must be auto, wgpu or gl")?;
-            }
-            ("fps-limit", _) => {
-                let fps =
-                    if value == "display" { 0 } else { value.parse::<u16>().map_err(|_| "fps-limit must be display or an allowed FPS value")? };
-                self.set_fps_limit(fps)?;
-            }
             ("scroll_speed", _) => {
                 self.scroll_speed = scroll_speed::ScrollSpeed::parse(value).ok_or("scroll_speed must be slow, normal, or fast")?;
             }
@@ -95,14 +59,6 @@ impl PdfCraftApp {
                 // The control channel and the command line take the names in any case, as before the port.
                 let motion = crate::settings::motion_from_name(&value.to_ascii_lowercase()).ok_or("animation_effects must be system, on, or off")?;
                 self.set_motion(motion);
-            }
-            ("auto_ocr", _) => {
-                let enabled = match value {
-                    "on" | "true" => true,
-                    "off" | "false" => false,
-                    _ => return Err("auto_ocr must be on or off".into()),
-                };
-                self.set_auto_ocr(enabled);
             }
             ("panel", _) => {
                 let panel = match value {
@@ -242,10 +198,6 @@ impl PdfCraftApp {
                 self.view_defaults =
                     self.view_defaults.with_zoom(value).ok_or("default-zoom must be fit-width, fit-page or a percentage from 8 to 6400")?;
             }
-            ("resize-zoom", _) => {
-                self.view_defaults.resize_zoom = serde_json::from_value(serde_json::Value::String(value.into()))
-                    .map_err(|_| "resize-zoom must be fit-width, fit-page or keep-zoom")?;
-            }
             ("always-default-view", _) => {
                 self.always_default_view = match value {
                     "on" => true,
@@ -369,11 +321,6 @@ impl PdfCraftApp {
                 }
             }
             ("notice", Some(v)) => v.notice_dismissed = value == "off",
-            ("quick", _) if value == "group-select" => {
-                if !self.activate_group_select() {
-                    return Err("finish or correct the open text before selecting a group".into());
-                }
-            }
             ("quick", _) => {
                 // `--quick select|hand|note|freetext|highlight|underline|strikeout|ink|line|arrow|square|circle`
                 self.quick_tool = match value {
@@ -446,27 +393,12 @@ impl PdfCraftApp {
                 };
             }
             ("ui-scale", _) => self.ui_scale = ui_scale::parse(value)?,
-            // `--signature-badges false`: no validation outline and mark over signed signatures.
-            ("signature-badges", _) => {
-                self.show_signature_badges = match value {
-                    "true" => true,
-                    "false" => false,
-                    _ => return Err("signature-badges must be true or false".into()),
-                };
-            }
             // `--secured-notice false`: no notice above the pages that a document is secured.
             ("secured-notice", _) => {
                 self.show_secured_notice = match value {
                     "true" => true,
                     "false" => false,
                     _ => return Err("secured-notice must be true or false".into()),
-                };
-            }
-            ("show-community", _) => {
-                self.show_community = match value {
-                    "true" => true,
-                    "false" => false,
-                    _ => return Err("show-community must be true or false".into()),
                 };
             }
             ("system-title-bar", _) => {

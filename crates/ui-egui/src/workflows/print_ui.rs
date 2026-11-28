@@ -555,8 +555,6 @@ impl PdfCraftApp {
         let sent = match self.print_draft.printer.clone() {
             #[cfg(target_arch = "wasm32")]
             Some(printer) if printer == crate::web_print::BROWSER_PRINTER => {
-                // Printing runs Will Print scripts; read page geometry after those edits.
-                let Some(doc) = self.session.get(id) else { return false };
                 let sizes: Vec<(f64, f64)> = doc.info.pages.iter().map(|p| (f64::from(p.width), f64::from(p.height))).collect();
                 let sheets = print::layout(&sizes, &settings).map_err(|e| e.to_string())?;
                 self.print_in_browser(name, bytes, sheets.iter().map(|s| s.size).collect())

@@ -119,8 +119,8 @@ fn release(h: &mut Harness<'static, PdfCraftApp>, to: Pos2, modifiers: Modifiers
     h.run_steps(1);
 }
 
-fn assert_saved_order(h: &mut Harness<'static, PdfCraftApp>, expected: &[&str]) {
-    let app = h.state_mut();
+fn assert_saved_order(h: &Harness<'static, PdfCraftApp>, expected: &[&str]) {
+    let app = h.state();
     let bytes = app.session.save_bytes(app.views[0].id).unwrap();
     let mut reopened = crate::control::new_app();
     reopened.open_bytes(&egui::Context::default(), "saved.pdf", None, bytes.as_ref().clone()).unwrap();
@@ -163,7 +163,7 @@ fn check_undo_cancels_drag(copying: bool) {
     h.redo();
     h.run_steps(2);
     assert_eq!(page_texts(h.state()), changed);
-    assert_saved_order(&mut h, &changed);
+    assert_saved_order(&h, &changed);
 }
 
 #[test]
@@ -189,7 +189,7 @@ fn redo_cancels_an_organize_drag_before_pointer_release() {
     release(&mut h, to, modifiers);
     let expected = ["Page 2", "Page 3", "Page 4", "Page 1"];
     assert_eq!(page_texts(h.state()), expected, "Redo cancels the old drag even though its source index remains valid");
-    assert_saved_order(&mut h, &expected);
+    assert_saved_order(&h, &expected);
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn deleting_a_page_cancels_an_organize_drag_before_pointer_release() {
     release(&mut h, to, modifiers);
     let expected = ["Page 2", "Page 3", "Page 4"];
     assert_eq!(page_texts(h.state()), expected, "a page edit cancels the old drag before indices shift");
-    assert_saved_order(&mut h, &expected);
+    assert_saved_order(&h, &expected);
 }
 
 /// Replacement already starts a fresh view; valid old indices must not survive its reset.
@@ -222,5 +222,5 @@ fn replacing_a_document_cancels_an_organize_drag_before_pointer_release() {
     h.run_steps(2);
     release(&mut h, to, modifiers);
     assert_eq!(page_texts(h.state()), expected, "releasing the old drag must not reorder replacement pages");
-    assert_saved_order(&mut h, &expected);
+    assert_saved_order(&h, &expected);
 }

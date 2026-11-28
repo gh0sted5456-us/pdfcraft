@@ -9,8 +9,6 @@ pub(crate) enum Action {
     /// Close a tab, by its view key (`DocView::view_key`: split view can show one document in two
     /// tabs).
     Close(u64),
-    /// Lion PDF: move a tab to a window of its own.
-    Detach(DocId),
     Reopen,
     Reveal(DocId),
     Rename(DocId),
@@ -60,9 +58,6 @@ impl crate::PdfCraftApp {
                 if let Some(i) = self.tab_with_key(tab) {
                     self.request_close_tab(ctx, i);
                 }
-            }
-            Action::Detach(id) => {
-                self.request_detach_tab(id, None);
             }
             Action::Split { tab, down } => {
                 if let Some(i) = self.tab_with_key(tab) {

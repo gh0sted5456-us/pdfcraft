@@ -149,32 +149,3 @@ impl PdfCraftApp {
         }
     }
 }
-
-#[cfg(test)]
-mod viewport_tests {
-    use super::*;
-    use egui::Plugin as _;
-
-    #[test]
-    fn control_input_remains_in_its_attached_window() {
-        let shared = Arc::new(Mutex::new(Shared::default()));
-        shared.lock().unwrap().inject.push_back(RequestBatches {
-            request: 1,
-            epoch: 0,
-            started: false,
-            since: web_time::Instant::now(),
-            release: Vec::new(),
-            batches: VecDeque::from([vec![egui::Event::Text("root only".into())]]),
-        });
-        let mut plugin = ControlPlugin { shared: shared.clone(), viewport: egui::ViewportId::ROOT };
-        let ctx = egui::Context::default();
-        let mut child = egui::RawInput { viewport_id: egui::ViewportId::from_hash_of("child"), ..Default::default() };
-        plugin.input_hook(&ctx, &mut child);
-        assert!(child.events.is_empty());
-        assert_eq!(shared.lock().unwrap().inject.len(), 1);
-        let mut root = egui::RawInput::default();
-        plugin.input_hook(&ctx, &mut root);
-        assert_eq!(root.events, vec![egui::Event::Text("root only".into())]);
-        assert!(shared.lock().unwrap().inject.is_empty());
-    }
-}

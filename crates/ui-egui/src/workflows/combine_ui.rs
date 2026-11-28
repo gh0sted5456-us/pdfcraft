@@ -141,5 +141,3 @@ impl CombineTab {
 
 #[cfg(test)]
 mod tests;
-
-pub(crate) use parts::natural;

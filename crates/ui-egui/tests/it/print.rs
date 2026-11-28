@@ -421,7 +421,6 @@ fn print_is_disabled_while_the_page_range_is_invalid() {
 fn cut_stack_dialog_previews_saves_and_refuses_duplex() {
     use pdfcraft_engine::print::{PageOrder, spool::Duplex};
     let mut h = harness();
-    h.state_mut().printer_source = Some(std::sync::Arc::new(Vec::new));
     // Ten source pages, generated using the headless engine.
     let bytes = h.state().session.create_blank(200.0, 300.0, 10).unwrap();
     let ctx_h = h.ctx.clone();

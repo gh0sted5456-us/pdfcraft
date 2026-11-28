@@ -143,8 +143,7 @@ impl PdfCraftApp {
         let mark = if dirty { " •" } else { "" };
         let titled = |name: Option<String>| {
             name.or_else(|| self.combine_showing().then(|| tl!("Combine files").to_owned()))
-                // Lion PDF: the name alone (and •), or the app's own name.
-                .map_or_else(|| crate::APP_NAME.to_owned(), |name| format!("{name}{mark}"))
+                .map_or_else(|| "PdfCraft".to_owned(), |name| format!("{name}{mark} — PdfCraft"))
         };
         let title = titled(front.and_then(|i| crate::canvas::tab_label(self, i)));
         // The web page's title is what an embedding host reads to tell which file opened, so it
@@ -294,7 +293,6 @@ impl PdfCraftApp {
             last_frame_active: None,
             mode: Mode::AllTools,
             default_mode: Mode::AllTools,
-            preferences_category: PreferencesCategory::default(),
             view_defaults: Default::default(),
             highlight_fields: true,
             units: Default::default(),
@@ -328,7 +326,6 @@ impl PdfCraftApp {
             full_screen_escape_exits: true,
             full_screen_fill: true,
             language: i18n::AUTO.to_string(),
-            spelling: Default::default(),
             ui_scale: None,
             title_bar_choice: Default::default(),
             flatten_fill_sign_on_save: false,
@@ -368,7 +365,6 @@ impl PdfCraftApp {
             session_keeper: Default::default(),
             reload_changed_files: true,
             update_check_at_start: true,
-            show_signature_badges: true,
             show_secured_notice: true,
             text_links: true,
             always_default_view: false,
@@ -411,16 +407,10 @@ impl PdfCraftApp {
             summarize_dialog: None,
             sign_draft: None,
             presign: None,
-            remove_sig: None,
-            timestamp_server: pdfcraft_platform::timestamp::DEFAULT_SERVER.into(),
-            timestamp_run: None,
-            timestamp_error: None,
             digital_ids: Vec::new(),
             sig_open: Default::default(),
             a11y_options: a11y_ui::A11yOptions::default(),
             ocr_draft: ocr_ui::OcrDraft::default(),
-            ocr_correction: Default::default(),
-            auto_ocr: true,
             ocr_run: None,
             ocr_batch: None,
             #[cfg(target_arch = "wasm32")]
@@ -458,8 +448,6 @@ impl PdfCraftApp {
             combine_zoom: 1.0,
             organize_zoom: 1.0,
             image_import: None,
-            template_gallery: None,
-            template_export: None,
             custom_stamps: Vec::new(),
             stamp_dialog: None,
             optimize_run: None,
@@ -495,7 +483,6 @@ impl PdfCraftApp {
             convert_colours_draft: Default::default(),
             hairlines_draft: Default::default(),
             text_style_draft: Default::default(),
-            certificate_draft: Default::default(),
             boxes_draft: Default::default(),
             marks_draft: Default::default(),
             marks_preview: None,
@@ -749,36 +736,10 @@ impl eframe::App for PdfCraftApp {
         self.guarded_frame(&ctx, |app| app.ui_unguarded(ui));
         self.end_ui();
     }
-
-    /// Lion PDF: Glass paints its own surface behind the window.
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        if self.theme_preference == ThemePreference::Glass {
-            self.glass.surface().to_normalized_gamma_f32()
-        } else {
-            theme::Tokens::for_kind(self.theme).pasteboard.to_normalized_gamma_f32()
-        }
-    }
 }
 
 impl PdfCraftApp {
-    /// Lion PDF: Windows draws the native title bar and border in the theme's colours.
-    #[cfg(target_os = "windows")]
-    fn sync_native_frame_colours(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
-        if ctx.viewport_id() != egui::ViewportId::ROOT || self.native_frame_theme == Some(self.theme) {
-            return;
-        }
-        use winit::platform::windows::{Color, WindowExtWindows};
-        if let Some(window) = frame.winit_window() {
-            let t = theme::Tokens::for_kind(self.theme);
-            let color = |c: egui::Color32| Color::from_rgb(c.r(), c.g(), c.b());
-            window.set_title_background_color(Some(color(t.titlebar)));
-            window.set_title_text_color(color(t.text));
-            window.set_border_color(Some(color(t.titlebar)));
-            self.native_frame_theme = Some(self.theme);
-        }
-    }
-
-    fn logic_unguarded(&mut self, ctx: &egui::Context, _frame: &eframe::Frame) {
+    fn logic_unguarded(&mut self, ctx: &egui::Context) {
         #[cfg(test)]
         self.injected_panic(crate::frame_guard::FramePart::Logic);
         #[cfg(not(target_arch = "wasm32"))]
@@ -794,7 +755,6 @@ impl PdfCraftApp {
         {
             self.poll_pending_opens(ctx);
             self.poll_pending_destinations();
-            self.poll_folder_step();
         }
         self.check_restored_recent();
         // Showing a document hides the Combine files tab.
@@ -853,7 +813,6 @@ impl PdfCraftApp {
         self.poll_ocr(ctx);
         self.poll_optimize();
         self.poll_scan_clean();
-        self.poll_timestamp();
         self.poll_action();
         // The OCR Verify screen's runs and re-reads may have finished while no frame was drawn.
         let verify = self.verify_jobs.counts();
@@ -870,7 +829,7 @@ impl PdfCraftApp {
         self.sync_titles(ctx);
     }
 
-    fn ui_unguarded(&mut self, ui: &mut egui::Ui, _frame: &eframe::Frame) {
+    fn ui_unguarded(&mut self, ui: &mut egui::Ui) {
         #[cfg(test)]
         self.injected_panic(crate::frame_guard::FramePart::Ui);
         let ctx = ui.ctx().clone();
@@ -948,46 +907,6 @@ impl PdfCraftApp {
         // Whichever way another tab came to the front, it shows instead of the expanded view.
         if self.all_tools_full && self.all_tools_tab != self.shown_tab() {
             self.all_tools_full = false;
-        }
-    }
-}
-
-impl PdfCraftApp {
-    pub(crate) fn window_frame_layout(&self) -> Option<window_controls::Layout> {
-        if cfg!(target_os = "windows") && (self.theme_preference == ThemePreference::Glass || !self.system_title_bar) {
-            Some(self.window_controls.clone().unwrap_or_default())
-        } else {
-            self.window_controls.clone().filter(|_| !self.system_title_bar)
-        }
-    }
-}
-
-impl PdfCraftApp {
-    /// The prompt's error for a document encrypted with certificates: none the first time;
-    /// once a digital ID has been tried, that none of them opens it.
-    fn certificate_error(&self) -> Option<String> {
-        (!self.session.identities().is_empty()).then(|| "None of your digital IDs can open this document.".to_string())
-    }
-}
-
-impl PdfCraftApp {
-    pub(crate) fn apply_theme(&self, ctx: &egui::Context) {
-        if self.theme_preference == ThemePreference::Glass {
-            theme::apply_glass(ctx, self.glass);
-        } else {
-            theme::apply(ctx, self.theme);
-        }
-        ctx.request_repaint();
-    }
-}
-
-impl PdfCraftApp {
-    pub fn set_glass_settings(&mut self, settings: theme::GlassSettings) {
-        self.glass = settings.normalized();
-        if self.theme_preference == ThemePreference::Glass
-            && let Some(ctx) = &self.ctx
-        {
-            self.apply_theme(ctx);
         }
     }
 }

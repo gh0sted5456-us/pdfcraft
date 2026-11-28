@@ -592,6 +592,8 @@ pub(crate) fn edit_text_press(
                         forwarded.owner = Owner::Picture { index: target.index };
                         crate::tools::edit_text_ui::picture_press(session, doc, &forwarded, geo)
                     }
+                    // Lion PDF: vector paths are picked as objects (they have no text or picture editor).
+                    pdfcraft_engine::ObjectKind::Path => crate::tools::object_ui::objects_press(session, doc, info, press, geo),
                     pdfcraft_engine::ObjectKind::Added => {
                         forwarded.owner = Owner::Added { index: target.index };
                         let edit_on_click = matches!(tool, QuickTool::AddText | QuickTool::EditText);

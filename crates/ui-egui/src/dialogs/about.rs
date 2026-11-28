@@ -5,22 +5,17 @@ use craft::ui::patterns::form_dialogs::{AboutImage, AboutInfo, AboutLink, AboutT
 
 use crate::PdfCraftApp;
 
-/// The ArtCraft mark, unmodified (AGENTS.md §1.2); the framework draws it through its SVG picture.
-const MARK: &[u8] = include_bytes!("../../../../docs/brand/artcraft-mark.svg");
-/// The ArtCraft wordmark for a light theme.
-const LOGO: &[u8] = include_bytes!("../../../../docs/brand/artcraft-logo.svg");
-/// The ArtCraft wordmark for a dark theme, which the light one would not read on.
-const LOGO_WHITE: &[u8] = include_bytes!("../../../../docs/brand/artcraft-logo-white.svg");
+/// Lion PDF's mark: the lion of the app icon.
+const MARK: &[u8] = include_bytes!("../../../../assets/app-icon/pdfcraft.svg");
 
-/// What the About tab shows: PdfCraft's name, blurb and version, the ArtCraft brand, and the community links.
+/// What the About tab shows: Lion PDF's name, blurb and version, its mark, and the project links.
 fn info() -> AboutInfo {
     let info = AboutInfo::new(
-        "PdfCraft",
-        tl!("A clean-room, open-source PDF application written in Rust. MIT OR Apache-2.0."),
+        "Lion PDF",
+        tl!("A personal fork of PdfCraft, the clean-room, open-source PDF application written in Rust. MIT OR Apache-2.0."),
         pdfcraft_engine::build_info::version(),
     )
-    .mark(AboutImage::svg("ArtCraft", MARK))
-    .part_of(AboutImage::svg("ArtCraft", LOGO).dark(LOGO_WHITE))
+    .mark(AboutImage::svg("Lion PDF", MARK))
     .built_with("Rendering: hayro (bootstrap) · UI: egui · Icons: Lucide (ISC) · Fonts: Inter, JetBrains Mono, Dancing Script (OFL)");
     info.links(pdfcraft_engine::links::LINKS.iter().enumerate().map(|(i, l)| {
         let label = if i == 0 { tl!("Join our Discord") } else { tl!(l.label) };

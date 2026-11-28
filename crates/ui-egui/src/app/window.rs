@@ -83,32 +83,3 @@ impl PdfCraftApp {
         }
     }
 }
-
-#[cfg(all(test, target_os = "windows"))]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn windows_frame_changes_preserve_normal_client_size() {
-        for app_frame in [false, true] {
-            for (maximized, minimized, fullscreen) in [(false, false, false), (true, false, false), (false, true, false), (false, false, true)] {
-                let ctx = egui::Context::default();
-                let mut app = PdfCraftApp::new();
-                app.system_title_bar = !app_frame;
-                app.app_frame_shown = Some(!app_frame);
-                let size = egui::vec2(1000.0, 700.0);
-                let mut raw = egui::RawInput::default();
-                let info = raw.viewports.entry(egui::ViewportId::ROOT).or_default();
-                info.inner_rect = Some(egui::Rect::from_min_size(egui::pos2(26.0, 27.0), size));
-                info.maximized = Some(maximized);
-                info.minimized = Some(minimized);
-                info.fullscreen = Some(fullscreen);
-                let commands =
-                    ctx.run_logic(&raw, |ctx| app.sync_window_frame(ctx)).viewport_commands.remove(&egui::ViewportId::ROOT).unwrap_or_default();
-                assert!(commands.contains(&egui::ViewportCommand::Decorations(!app_frame)));
-                assert_eq!(commands.contains(&egui::ViewportCommand::InnerSize(size)), !maximized && !minimized && !fullscreen, "{commands:?}");
-                assert!(ctx.run_logic(&raw, |ctx| app.sync_window_frame(ctx)).viewport_commands.values().all(Vec::is_empty));
-            }
-        }
-    }
-}

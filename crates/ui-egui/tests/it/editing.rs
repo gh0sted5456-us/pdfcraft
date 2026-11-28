@@ -391,7 +391,6 @@ fn organize_local_actions_respect_document_permissions() {
     assert!(h.get_by_label("Rotate page 2 clockwise").accesskit_node().is_disabled());
     assert!(h.get_by_label("Rotate page 2 counterclockwise").accesskit_node().is_disabled());
     assert!(h.get_by_label("Delete page 2").accesskit_node().is_disabled());
-    assert!(h.get_by_label("Lock page 2").accesskit_node().is_disabled());
     let app = h.state();
     let view = &app.views[app.active.unwrap()];
     assert_eq!(view.target_pages(), [1]);
@@ -4406,7 +4405,7 @@ fn text_tool_mixed_style_row_grows_in_the_editor_and_saved_pdf() {
     }
     h.key_press_modifiers(Modifiers::COMMAND, Key::Enter);
     h.run_steps(3);
-    let state = h.state_mut();
+    let state = h.state();
     let doc = state.session.get(state.views[0].id).unwrap();
     assert_eq!(doc.text_blocks(0)[0].editor_text, replacement);
     assert_eq!(doc.text_blocks(0)[0].rows.len(), 1);
@@ -5962,7 +5961,7 @@ fn check_added_text_drag(panel_open: bool) {
             },
         )
         .unwrap();
-    let original = h.state_mut().session.save_bytes(id).unwrap();
+    let original = h.state().session.save_bytes(id).unwrap();
     h = paragraph_drag_harness(original.as_ref().clone(), 0);
     h.state_mut().set_left_open(panel_open);
     h.run_steps(4);
@@ -6941,7 +6940,7 @@ fn inline_editor_preserves_source_font_and_previews_live_bounds() {
     h.run_steps(3);
     assert!(dirty(&h));
     assert_eq!(h.state().session.get(id).unwrap().text_blocks(0)[0].rect, measured);
-    let bytes = h.state_mut().session.save_bytes(id).unwrap();
+    let bytes = h.state().session.save_bytes(id).unwrap();
     let mut reopened = pdfcraft_engine::Session::new();
     let reopened_id = reopened.open("again.pdf", None, bytes, None).unwrap();
     assert_eq!(reopened.get(reopened_id).unwrap().text_blocks(0)[0].rect, measured);
@@ -7108,7 +7107,7 @@ fn cropped_image_corner_resize_keeps_opposite_corner_and_scales_crop() {
         }
         assert_eq!(text(h.state().session.get(id).unwrap()), original_text, "image resizing leaves captions in place");
     }
-    let saved = h.state_mut().session.save_bytes(id).unwrap();
+    let saved = h.state().session.save_bytes(id).unwrap();
     let mut reopened = pdfcraft_engine::Session::new();
     let re = reopened.open("again.pdf", None, saved, None).unwrap();
     assert_eq!(reopened.get(re).unwrap().page_images(0), h.state().session.get(id).unwrap().page_images(0));
@@ -8207,7 +8206,6 @@ fn a_drag_first_seen_on_the_next_page_lets_the_picked_picture_go() {
 /// With the pointer on the Pages panel, Delete is the panel's: a page goes, though a picture is
 /// selected on the pages.
 #[test]
-#[ignore = "Lion PDF: its docked Pages panel does not take Delete under the pointer yet (follow-up)"]
 fn delete_with_the_pointer_on_the_pages_panel_deletes_a_page() {
     let mut h = picture_pages(false);
     h.set_option("panel", "pages").unwrap();
@@ -8556,10 +8554,6 @@ fn page_properties_sets_the_tab_order_of_the_selected_pages() {
     assert!(!h.get_by_label("OK").accesskit_node().is_disabled(), "opens on the order the pages have");
     h.get_by_label("Use Column Order").click();
     h.run_steps(2);
-    h.get_by_label("Minimize Page Properties").click();
-    h.run_steps(3);
-    h.get_by_label("Taskbar: Restore Page Properties").click();
-    h.run_steps(3);
     h.get_by_label("OK").click();
     h.run_steps(3);
     assert!(h.state().dialogs.is_empty());
@@ -9619,10 +9613,6 @@ fn printer_marks_are_added_from_the_dialog_and_removed() {
     h.run_steps(2);
     assert!(!h.state().dialogs.is_empty(), "Printer marks is open");
     h.get_by_label("All marks");
-    h.get_by_label("Minimize Add printer marks").click();
-    h.run_steps(3);
-    h.get_by_label("Taskbar: Restore Add printer marks").click();
-    h.run_steps(3);
     h.get_by_label("Add").click();
     h.run_steps(3);
     let doc = h.state().session.get(id).unwrap();
@@ -11666,229 +11656,4 @@ fn a_modified_click_away_from_a_cropped_picture_applies_its_crop() {
         let visible = h.state().session.get(doc_id).unwrap().page_images(0)[0].visible_rect.unwrap();
         assert!(keep.iter().zip(visible).all(|(a, b)| (a - b).abs() < 0.5), "{mods:?}: the crop is applied: {visible:?}");
     }
-}
-
-#[test]
-fn organize_padlock_sits_beside_delete() {
-    let mut h = organize(3);
-    h.get_by_label("Page 2").hover();
-    h.run_steps(2);
-    let delete = h.get_by_label("Delete page 2").rect();
-    let lock = h.get_by_label("Lock page 2").rect();
-    assert!((delete.center().y - lock.center().y).abs() < 1.0);
-    assert!((lock.left() - delete.right() - 3.0).abs() < 1.0);
-}
-
-#[test]
-fn organize_padlocks_toggle_one_page_preserve_selection_and_undo() {
-    let mut h = organize(3);
-    h.get_by_label("Select page 1").click();
-    h.run_steps(2);
-    h.get_by_label("Select page 3").click();
-    h.run_steps(2);
-    let id = h.state().views[0].id;
-    h.get_by_label("Lock page 2").click();
-    h.run_steps(3);
-    assert_eq!(h.state().session.get(id).unwrap().protected_pages(), [1]);
-    assert_eq!(h.state().views[0].target_pages(), [0, 2]);
-    assert!(h.state_mut().session.apply(id, pdfcraft_engine::Edit::DeletePages { pages: vec![1] }).is_err());
-    h.get_by_label("Unlock page 2").click();
-    h.run_steps(3);
-    assert!(h.state().session.get(id).unwrap().protected_pages().is_empty());
-    assert_eq!(h.state().views[0].target_pages(), [0, 2]);
-    h.key_press_modifiers(Modifiers::COMMAND, Key::Z);
-    h.run_steps(3);
-    assert_eq!(h.state().session.get(id).unwrap().protected_pages(), [1]);
-    let bytes = h.state_mut().session.save_bytes(id).unwrap();
-    h.state_mut().open_bytes("locked.pdf", None, bytes.as_ref().clone()).unwrap();
-    h.state_mut().set_option("organize", "on").unwrap();
-    h.run_steps(4);
-    let id = h.state().views.last().unwrap().id;
-    assert_eq!(h.state().session.get(id).unwrap().protected_pages(), [1]);
-    h.get_by_label("Unlock page 2").click();
-    h.run_steps(3);
-    assert!(h.state().session.get(id).unwrap().protected_pages().is_empty());
-    if let Some(path) = std::env::var_os("PDFCRAFT_ORGANIZE_SNAPSHOT") {
-        let _gpu = gpu();
-        h.get_by_label("Lock page 2").click();
-        for theme in ["dark", "light"] {
-            h.state_mut().set_option("theme", theme).unwrap();
-            h.run_steps(4);
-            h.render().unwrap().save(std::path::Path::new(&path).with_file_name(format!("page-locks-{theme}.png"))).unwrap();
-        }
-    }
-}
-
-#[test]
-fn organize_dragging_a_padlock_keeps_pages_and_selection() {
-    let mut h = organize(3);
-    h.get_by_label("Select page 1").click();
-    h.run_steps(2);
-    h.get_by_label("Select page 3").click();
-    h.run_steps(2);
-    let from = h.get_by_label("Lock page 2").rect().center();
-    let to = h.get_by_label("Page 3").rect().right_center();
-    drag(&mut h, from, to);
-    assert_eq!(page_texts(h.state()), ["Page 1", "Page 2", "Page 3"]);
-    assert_eq!(h.state().views[0].target_pages(), [0, 2]);
-    let id = h.state().views[0].id;
-    assert!(h.state().session.get(id).unwrap().protected_pages().is_empty());
-    assert!(!h.state().session.get(id).unwrap().dirty);
-    h.get_by_label("Lock page 2").click();
-    h.run_steps(3);
-    let from = h.get_by_label("Unlock page 2").rect().center();
-    drag(&mut h, from, to);
-    assert_eq!(page_texts(h.state()), ["Page 1", "Page 2", "Page 3"]);
-    assert_eq!(h.state().views[0].target_pages(), [0, 2]);
-    assert_eq!(h.state().session.get(id).unwrap().protected_pages(), [1]);
-}
-
-#[test]
-fn organize_cut_then_normal_save_removes_page_content_and_keeps_clipboard() {
-    let out = temp_path("cut-save.pdf");
-    let mut h = organize(4);
-    h.state_mut().save_override = Some(out.to_string_lossy().into_owned());
-    assert!(h.state_mut().save_active(pdfcraft_ui_egui::SaveTarget::As));
-    let original = std::fs::read(&out).unwrap();
-    h.state_mut().views[0].select_pages(&[1, 2, 3]);
-    assert!(h.state_mut().execute("page.cut"));
-    assert!(h.state_mut().save_active(pdfcraft_ui_egui::SaveTarget::InPlace));
-    let saved = std::fs::read(&out).unwrap();
-    assert!(saved.len() < original.len());
-    assert!(!saved.windows(b"(Page 2)".len()).any(|w| w == b"(Page 2)"));
-    assert_eq!(page_texts(h.state()), ["Page 1"]);
-    assert!(!dirty(&h));
-    assert!(h.state_mut().execute("page.paste"));
-    assert_eq!(page_texts(h.state()), ["Page 1", "Page 2", "Page 3", "Page 4"]);
-    let _ = std::fs::remove_file(out);
-}
-
-#[test]
-fn a_page_drag_can_hover_another_tab_and_copy_or_move_into_its_grid() {
-    let _gpu = std::env::var_os("PDFCRAFT_SHOTS").map(|_| crate::gpu());
-    for moving in [false, true] {
-        let mut h = organize(3);
-        let source = h.state().views[0].id;
-        h.state_mut().open_bytes("destination.pdf", None, fixture(2)).unwrap();
-        let target = h.state().views[1].id;
-        h.state_mut().active = Some(0);
-        h.state_mut().views[0].select_pages(&[0, 2]);
-        h.run_steps(3);
-        let from = h.get_by_label("Page 1").rect().center();
-        let tab = h.get_by_label("destination.pdf").rect().center();
-        h.hover_at(from);
-        h.run_steps(1);
-        h.drag_at(from);
-        h.run_steps(1);
-        h.hover_at(from + egui::vec2(12.0, 0.0));
-        h.run_steps(2);
-        h.hover_at(tab);
-        h.run_steps(40);
-        assert_eq!(h.state().active_ids().map(|(_, id)| id), Some(target), "hovering switches to the destination");
-        assert!(h.state().views[1].organize);
-        let to = h.get_by_label("Page 1").rect().right_center() - egui::vec2(10.0, 0.0);
-        if moving {
-            h.event(egui::Event::ModifiersChanged(Modifiers::SHIFT));
-        }
-        h.hover_at(to);
-        h.run_steps(3);
-        if let Ok(dir) = std::env::var("PDFCRAFT_SHOTS") {
-            h.render().unwrap().save(format!("{dir}/cross-document-insertion.png")).unwrap();
-        }
-        h.event(egui::Event::PointerButton {
-            pos: to,
-            button: egui::PointerButton::Primary,
-            pressed: false,
-            modifiers: if moving { Modifiers::SHIFT } else { Modifiers::NONE },
-        });
-        h.run_steps(4);
-        assert_eq!(h.state().session.get(source).unwrap().info.pages.len(), if moving { 1 } else { 3 });
-        assert_eq!(h.state().session.get(target).unwrap().info.pages.len(), 4);
-        assert_eq!(texts_of(h.state(), 1), ["Page 1", "Page 1", "Page 3", "Page 2"]);
-        assert_eq!(h.state().views[1].target_pages(), [1, 2]);
-        h.state_mut().session.undo(target).unwrap();
-        assert_eq!(h.state().session.get(target).unwrap().info.pages.len(), 2);
-    }
-}
-
-#[test]
-fn releasing_a_page_drag_outside_the_grid_does_not_reorder_pages() {
-    let mut h = organize(3);
-    let before = page_texts(h.state());
-    let from = h.get_by_label("Page 1").rect().center();
-    page_drag(&mut h, from, egui::pos2(600.0, 10.0), Modifiers::NONE);
-    assert_eq!(page_texts(h.state()), before);
-}
-
-#[test]
-fn organize_can_insert_selected_pages_from_another_open_pdf_without_a_picker() {
-    let mut h = organize(3);
-    h.state_mut().views[0].select_pages(&[0, 2]);
-    h.state_mut().open_bytes("destination.pdf", None, fixture(2)).unwrap();
-    h.state_mut().views[1].organize = true;
-    h.run_steps(3);
-    h.get_by_label("Insert").click();
-    h.run_steps(2);
-    h.get_by_label_contains("Insert selected pages from an open PDF").click();
-    h.run_steps(2);
-    h.get_by_label("doc.pdf (2 pages)").click();
-    h.run_steps(3);
-    assert_eq!(texts_of(h.state(), 1), ["Page 1", "Page 1", "Page 3", "Page 2"]);
-    assert_eq!(texts_of(h.state(), 0), ["Page 1", "Page 2", "Page 3"]);
-}
-
-#[test]
-fn save_prompt_centers_the_message_and_colored_actions_in_both_themes() {
-    let _gpu = crate::gpu();
-    for theme in ["light", "dark"] {
-        let mut h = dirty_prompt();
-        h.state_mut().set_option("theme", theme).unwrap();
-        h.run_steps(4);
-        let title = h.get_by_label_contains("Save changes to").rect();
-        let warning = h.get_by_label("Your changes will be lost if you don't save them.").rect();
-        let discard = h.get_by_label("Exit").rect();
-        let cancel = h.get_by_label("Cancel").rect();
-        let save = h.get_by_label("Save").rect();
-        assert!((warning.center().x - title.center().x).abs() < 2.0);
-        assert!(((discard.left() + save.right()) * 0.5 - title.center().x).abs() < 2.0);
-        assert!(warning.top() > title.bottom() + 16.0);
-        assert!(cancel.top() > warning.bottom() + 24.0);
-        assert!((discard.center().y - save.center().y).abs() < 0.1);
-        assert!((cancel.center().y - save.center().y).abs() < 0.1);
-        assert!(((cancel.left() - discard.right()) - (save.left() - cancel.right())).abs() < 0.1);
-        let idle = h.render().unwrap();
-        h.hover_at(save.center());
-        h.run_steps(12);
-        let hovered = h.render().unwrap();
-        let pixel = |image: &image::RgbaImage| image.get_pixel((save.left() + 10.0) as u32, save.center().y as u32).0;
-        assert_ne!(pixel(&idle), pixel(&hovered), "Save gains a matte green fill on hover");
-        h.get_by_label("Saves document");
-        h.hover_at(cancel.center());
-        h.run_steps(12);
-        h.get_by_label("Return to document");
-        if let Ok(dir) = std::env::var("PDFCRAFT_DIALOG_PREVIEW_DIR") {
-            idle.save(std::path::Path::new(&dir).join(format!("save-prompt-{theme}.png"))).unwrap();
-            hovered.save(std::path::Path::new(&dir).join(format!("save-prompt-{theme}-hover.png"))).unwrap();
-        }
-    }
-}
-
-#[test]
-fn page_properties_refuses_stale_page_choices_after_taskbar_restore() {
-    let mut h = organize(3);
-    h.state_mut().views[0].select_pages(&[0]);
-    assert!(h.state_mut().execute("page.properties"));
-    h.run_steps(3);
-    h.get_by_label("Use Column Order").click();
-    h.run_steps(2);
-    h.get_by_label("Minimize Page Properties").click();
-    h.run_steps(3);
-    assert!(h.state_mut().apply_edit(pdfcraft_engine::Edit::DeletePages { pages: vec![0] }));
-    h.run_steps(3);
-    h.state_mut().execute("app.dialog_restore");
-    h.run_steps(4);
-    assert_eq!(h.state().dialog, None);
-    assert!(h.state().toast.as_ref().unwrap().0.contains("The PDF changed while this dialog was minimized"));
-    let doc = h.state().session.get(h.state().views[0].id).unwrap();
-    assert_eq!(doc.tab_orders(), [pdfcraft_engine::TabOrder::Annotations; 2]);
 }

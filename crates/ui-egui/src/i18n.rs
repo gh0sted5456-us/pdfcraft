@@ -119,13 +119,11 @@ pub struct LangInfo {
 }
 
 /// How many languages [`LANGUAGES`] lists.
-const LANGUAGE_COUNT: usize = 37;
+const LANGUAGE_COUNT: usize = 36;
 
 /// The languages PdfCraft offers. English first: it is the fallback and the source language.
 pub static LANGUAGES: [LangInfo; LANGUAGE_COUNT] = [
     LangInfo { code: "en", rtl: false },
-    // Lion PDF: British English, from the overlay catalog `i18n-lion/en-gb.tsv` (see build.rs).
-    LangInfo { code: "en-gb", rtl: false },
     LangInfo { code: "ja", rtl: false },
     // Simplified Chinese; `zh`, `zh-CN`, `zh-SG` and `zh-Hans-*` locales resolve here (see `candidates`).
     LangInfo { code: "zh-hans", rtl: false },
@@ -255,10 +253,6 @@ impl Lang {
 
     /// A language by its exact code (any case): one of [`LANGUAGES`] whose catalogs are embedded.
     pub fn from_code(code: &str) -> Option<Lang> {
-        // Lion PDF: US English is offered as "English (US)" beside British English.
-        if code.eq_ignore_ascii_case("en-us") {
-            return Some(Self::EN);
-        }
         let info = LANGUAGES.iter().find(|l| l.code.eq_ignore_ascii_case(code))?;
         I18N.from_code(info.code).map(|lang| Lang { lang, catalogs: None })
     }
@@ -289,18 +283,14 @@ impl Lang {
     /// Latin-script fallback with the other Latin names when a script's face is missing, rather
     /// than sorting it into a block of unrenderable labels.
     pub fn for_picker_by(mut shown: impl FnMut(Lang) -> &'static str) -> Vec<Lang> {
-        let mut rest: Vec<Lang> = Lang::all().filter(|l| !matches!(l.code(), "en" | "en-gb")).collect();
+        let mut rest: Vec<Lang> = Lang::all().filter(|l| l.code() != Lang::EN.code()).collect();
         rest.sort_by_cached_key(|l| name_sort_key(shown(*l)));
-        [Some(Lang::EN), Lang::from_code("en-gb")].into_iter().flatten().chain(rest).collect()
+        std::iter::once(Lang::EN).chain(rest).collect()
     }
 
     /// The language's name in itself (its `@id language.name` row), shown in the Preferences
     /// dropdown.
     pub fn name(self) -> &'static str {
-        // Lion PDF offers British English too, so the source language says which English it is.
-        if self.code() == Lang::EN.code() {
-            return "English (US)";
-        }
         self.i18n().name(self.lang)
     }
 
@@ -311,7 +301,7 @@ impl Lang {
     }
 
     /// The name to show in the language picker: the native name when the current fonts can draw
-    /// it, otherwise the English name. With strict missing-glyph checks, a
+    /// it, otherwise the English name. With egui 0.37's default `MissingGlyphPolicy::Panic`, a
     /// native name whose script has no face (for example Hindi in a build without a Devanagari
     /// face and with installed fonts turned off) would otherwise abort while the list opens.
     pub fn picker_name(self, drawable: impl FnOnce(&str) -> bool) -> &'static str {
@@ -754,8 +744,7 @@ mod picker_order_tests {
         let order = Lang::for_picker();
         assert_eq!(order.first().map(|l| l.code()), Some(Lang::EN.code()));
         assert_eq!(order.len(), Lang::all().count());
-        assert_eq!(order.get(1).map(|l| l.code()), Some("en-gb"));
-        let keys: Vec<String> = order[2..].iter().map(|l| name_sort_key(l.name())).collect();
+        let keys: Vec<String> = order[1..].iter().map(|l| name_sort_key(l.name())).collect();
         assert!(keys.windows(2).all(|w| w[0] <= w[1]), "{keys:?}");
         assert_eq!(name_sort_key("Čeština"), "cestina");
         assert_eq!(name_sort_key("Türkçe"), "turkce");

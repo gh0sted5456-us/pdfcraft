@@ -27,8 +27,10 @@
 // PLAN: apps/pdfcraft/Cargo.toml needs `craft = { workspace = true, features = ["automation", "window", "platform", "settings", "host", "ui"] }`; the manifest is not in this set's Files table.
 // PLAN: forms-02's `reorder_keys` wiring names no signature this set can call; its owner wires it here.
 
-// Desktop builds use the GUI subsystem; diagnostics remain available in the log file.
-#![cfg_attr(windows, windows_subsystem = "windows")]
+// Release builds on Windows are GUI-subsystem programs, so launching the app doesn't open a console
+// window next to it (#57). `--version` and diagnostics then go nowhere when started from a terminal
+// (std ignores the missing console handles, so nothing fails); debug builds keep the console.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 use std::cell::Cell;
@@ -66,7 +68,6 @@ Opens the files in the PdfCraft desktop app.
 Options:
   --two-paged                 open command-line PDFs in noncontinuous two-page view
   --new-window                open a window of its own instead of passing the files to a running PdfCraft
-  --refresh-thumbnails        refresh Windows thumbnail caches and exit (no-op elsewhere)
   --create-images [images…]   put the images in one PDF and ask for the page DPI
   --combine files…            add the files to the Combine files tab, of a running PdfCraft if there is one
   --control <PORT>            enable the UI control channel on 127.0.0.1:<PORT> (0: a free port)
@@ -192,18 +193,12 @@ fn main() -> eframe::Result {
             let _ = std::io::Write::write_fmt(&mut std::io::stderr(), format_args!("pdfcraft: {report}\n"));
         }
     }));
-    // Lion PDF: an argument that is not UTF-8 is skipped with a warning rather than a panic.
-    let mut startup = startup::Arguments::parse_skipping(std::env::args_os().skip(1).map(text_arg));
+    let mut startup = startup::Arguments::parse(std::env::args().skip(1));
     if startup.version {
         return print_and_exit(&format!("pdfcraft {}", pdfcraft_engine::build_info::version()));
     }
     if startup.help {
         return print_and_exit(USAGE);
-    }
-    if startup.refresh_thumbnails {
-        #[cfg(windows)]
-        pdfcraft_thumbnails::windows::refresh_shell_cache();
-        return Ok(());
     }
     startup.files = rejoin_split_paths(startup.files, |p| std::path::Path::new(p).is_file());
     let may_hand_off = startup.may_hand_off();
@@ -294,10 +289,23 @@ fn main() -> eframe::Result {
     }
 }
 
-use pdfcraft_ui_egui::graphics::GraphicsRenderer as RendererChoice;
+/// Which renderer to start with, from `PDFCRAFT_RENDERER`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RendererChoice {
+    /// wgpu, then OpenGL if wgpu can't start (unset, or anything unrecognised).
+    Auto,
+    /// wgpu only (`wgpu`): a failure is reported, not worked around.
+    Wgpu,
+    /// OpenGL only (`gl`, `opengl` or `glow`): for drivers where wgpu starts but misbehaves.
+    Gl,
+}
 
-fn renderer_choice(value: Option<&str>, saved: RendererChoice) -> RendererChoice {
-    value.and_then(RendererChoice::parse).unwrap_or(saved)
+fn renderer_choice(value: Option<&str>) -> RendererChoice {
+    match value.map(|v| v.trim().to_ascii_lowercase()).as_deref() {
+        Some("wgpu") => RendererChoice::Wgpu,
+        Some("gl" | "opengl" | "glow") => RendererChoice::Gl,
+        _ => RendererChoice::Auto,
+    }
 }
 
 /// The control server's port and token from `--control <PORT>`, `--control-token`,
@@ -350,8 +358,7 @@ fn retry_with_gl(choice: RendererChoice, app_started: bool) -> bool {
 /// The window and renderer settings for one run.
 fn native_options(integrated: bool, renderer: eframe::Renderer) -> eframe::NativeOptions {
     let mut viewport = egui::ViewportBuilder::default()
-        .with_title(pdfcraft_ui_egui::APP_NAME)
-        .with_transparent(true)
+        .with_title("PdfCraft")
         .with_inner_size([1440.0, 920.0])
         .with_min_inner_size(pdfcraft_ui_egui::MIN_WINDOW_SIZE)
         .with_drag_and_drop(true)
@@ -387,14 +394,6 @@ fn native_options(integrated: bool, renderer: eframe::Renderer) -> eframe::Nativ
     native.system_font_fallback = false;
     if renderer == eframe::Renderer::Wgpu {
         configure_gpu(&mut native);
-        #[cfg(windows)]
-        if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &native.wgpu_options.wgpu_setup {
-            // This style is creation-only; OpenGL compatibility keeps its redirection surface.
-            native.viewport.no_redirection_bitmap = Some(
-                !setup.instance_descriptor.backends.intersects(eframe::wgpu::Backends::GL)
-                    && setup.instance_descriptor.backend_options.dx12.presentation_system == eframe::wgpu::Dx12SwapchainKind::DxgiFromVisual,
-            );
-        }
     }
     native
 }
@@ -402,7 +401,6 @@ fn native_options(integrated: bool, renderer: eframe::Renderer) -> eframe::Nativ
 /// What the command line asked for, kept so a second run (with OpenGL) can start the same way.
 #[derive(Clone)]
 struct Launch {
-    resume_update: Option<String>,
     files: Vec<String>,
     options: Vec<(String, String)>,
     /// The control server's port and token, when `--control` asked for one.
@@ -499,7 +497,6 @@ fn app_creator<'a>(
     launch: Launch,
     started: Rc<Cell<bool>>,
     instance: Option<&'a single_instance::Server>,
-    graphics_runtime: std::sync::Arc<pdfcraft_ui_egui::graphics::GraphicsRuntime>,
     #[cfg(target_os = "macos")] apple_events: &'a apple_events::AppleEvents,
 ) -> eframe::AppCreator<'a> {
     let Launch { files, options, control, create_images, combine, frame, lang, two_paged } = launch;
@@ -529,9 +526,7 @@ fn app_creator<'a>(
         if let Some(window) = cc.winit_window() {
             set_taskbar_icon(window);
         }
-        app.update_source = Some(std::sync::Arc::new(updates::latest_release));
-        app.update_download = Some(std::sync::Arc::new(update_download::download));
-        app.update_install = Some(std::sync::Arc::new(update_download::install));
+        app.set_startup_update_check(true);
         app.printer_source = Some(pdfcraft_ui_egui::system_printers());
         app.two_sided_source = Some(pdfcraft_ui_egui::system_two_sided());
         app.os_key_store_ids = cfg!(any(target_os = "macos", target_os = "windows"));
@@ -570,11 +565,6 @@ fn app_creator<'a>(
             app.notify(warning.clone());
         }
         let defer_layout = two_paged && !files.is_empty() && !create_images;
-        if let Some(path) = resume_update
-            && let Err(error) = update_download::resume(&mut app, std::path::Path::new(&path))
-        {
-            app.notify(error);
-        }
         if create_images {
             if let Err(e) = app.begin_image_import_paths(&cc.egui_ctx, &files) {
                 app.notify(e);
@@ -594,16 +584,7 @@ fn app_creator<'a>(
                 log::warn!("--{k} {v}: {e}");
             }
         }
-        // Windows tear-off uses native egui viewports. Other platforms retain their existing
-        // lifecycle (in particular macOS app-level Quit) until it is qualified there.
-        #[cfg(target_os = "windows")]
-        {
-            Ok(Box::new(pdfcraft_ui_egui::tab_windows::NativeWindows::new(app)))
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            Ok(Box::new(app))
-        }
+        Ok(Box::new(app))
     })
 }
 
@@ -691,7 +672,7 @@ fn configure_gpu(native: &mut eframe::NativeOptions) {
         }
     }
     if cfg!(target_os = "windows") && std::env::var_os("WGPU_BACKEND").is_none() {
-        setup.instance_descriptor.backends = eframe::wgpu::Backends::DX12;
+        setup.instance_descriptor.backends = eframe::wgpu::Backends::DX12 | eframe::wgpu::Backends::GL;
     }
     if cfg!(target_os = "windows") {
         setup.instance_descriptor.backend_options.dx12.presentation_system = dx12_presentation(eframe::wgpu::Dx12SwapchainKind::from_env());
@@ -853,19 +834,3 @@ fn pick_adapter(adapters: &[(u32, u32, eframe::wgpu::DeviceType)], displays: &[D
 
 #[cfg(test)]
 mod tests;
-
-/// An argument as text. `std::env::args` panics on one that isn't UTF-8, which a Latin-1 or
-/// Shift-JIS file name on Linux is. The app opens paths as `str`, so such a name can't be opened:
-/// it is logged and becomes `None`, keeping its place so a flag's value never shifts onto the
-/// next argument (`--control <name> report.pdf` must not make the PDF the control file).
-fn text_arg(arg: std::ffi::OsString) -> Option<String> {
-    arg.into_string().map_err(|bad| log::warn!("skipping the argument `{}`: it is not UTF-8, so PdfCraft can't use it", bad.to_string_lossy())).ok()
-}
-
-fn initial_renderer(choice: RendererChoice) -> eframe::Renderer {
-    if choice == RendererChoice::Gl { eframe::Renderer::Glow } else { eframe::Renderer::Wgpu }
-}
-
-mod update_download;
-
-mod updates;

@@ -168,7 +168,7 @@ fn browser_language_list_is_followed_in_order() {
     assert_eq!(first_supported_tag(["it-IT", "en-US"]), Lang::from_code("it"));
     assert_eq!(first_supported_tag(["xx-YY", "ja", "fr-FR"]), Some(JA()));
     assert_eq!(first_supported_tag(["zh-TW"]), Lang::from_code("zh-hant"));
-    assert_eq!(first_supported_tag(["en-GB", "fr-FR"]), Lang::from_code("en-gb"));
+    assert_eq!(first_supported_tag(["en-GB", "fr-FR"]), Some(Lang::EN));
     assert_eq!(first_supported_tag([" pt-PT "]), Lang::from_code("pt-br"));
     let long = std::iter::repeat_n("xx", 10_000).chain(["fr"]);
     assert_eq!(first_supported_tag(long), None, "only the first tags are read");

@@ -60,7 +60,6 @@ pub enum RightPanel {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum QuickTool {
     Select,
-    GroupSelect,
     Hand,
     /// A commenting tool (Add comments).
     Comment(comments::CommentTool),
@@ -117,8 +116,6 @@ pub struct CommentClip {
     pub count: usize,
 }
 
-/// Page Properties: the document and pages it applies to (0-based), and their tab order as they
-/// have it (`None` when they differ) and as chosen (`None` until one is chosen).
 /// Copied pages: their document's name and bytes (as it was when copied) and the pages.
 #[derive(Clone, Debug)]
 pub struct PageClip {
@@ -282,7 +279,7 @@ pub const RECENT_FILES_DEFAULT: usize = 12;
 /// The most Preferences can ask to keep.
 pub const RECENT_FILES_MAX: usize = 50;
 
-#[derive(Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct RecentFile {
     pub name: String,
     pub path: String,

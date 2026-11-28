@@ -144,7 +144,7 @@ const fn c(
     id: &'static str,
     label: &'static str,
     menu: Option<&'static str>,
-    pub shortcut: Option<Shortcut>,
+    shortcut: Option<Shortcut>,
     needs: Needs,
     icon: &'static str,
 ) -> CommandSpec {
@@ -156,7 +156,7 @@ const fn ct(
     id: &'static str,
     label: &'static str,
     menu: Option<&'static str>,
-    pub shortcut: Option<Shortcut>,
+    shortcut: Option<Shortcut>,
     needs: Needs,
     icon: &'static str,
 ) -> CommandSpec {

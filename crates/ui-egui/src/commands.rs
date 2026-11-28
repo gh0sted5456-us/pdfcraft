@@ -301,9 +301,6 @@ impl PdfCraftApp {
                 "comment.paste" => self.comment_clipboard.is_some(),
                 "view.previous_view" => self.active.and_then(|i| self.views.get(i)).is_some_and(|v| !v.back.is_empty()),
                 "view.next_view" => self.active.and_then(|i| self.views.get(i)).is_some_and(|v| !v.forward.is_empty()),
-                "file.detach_tab" => self.active_ids().is_some_and(|(_, id)| self.can_detach_tab(id)),
-                // A browser gives the page a file's bytes, never its folder.
-                "file.open_next_in_folder" | "file.open_previous_in_folder" => !cfg!(target_arch = "wasm32"),
                 _ => true,
             }
     }
@@ -411,8 +408,6 @@ impl PdfCraftApp {
                 Some(p) => self.open_recent(&p),
                 None => self.notify_tr("No recent files"),
             },
-            "file.open_next_in_folder" => self.open_pdf_beside(true),
-            "file.open_previous_in_folder" => self.open_pdf_beside(false),
             "file.clear_recent" if self.recent.is_empty() => self.notify_tr("No recent files"),
             "file.clear_recent" => self.recent.clear(),
             "file.pin_folder" => self.pin_folder_dialog(),
@@ -437,14 +432,8 @@ impl PdfCraftApp {
             "file.word_count" => self.open_word_count(),
             "protect.properties" => self.open_properties(ctx, PropsTab::Security),
             // A restricted document's security changes once its permissions password is entered.
-            "protect.password" | "protect.certificate" | "protect.remove"
-                if self.active_ids().and_then(|(_, id)| self.session.get(id)).is_some_and(|d| d.can_unlock()) =>
-            {
-                let then = match id {
-                    "protect.password" => "protect.password",
-                    "protect.certificate" => "protect.certificate",
-                    _ => "protect.remove",
-                };
+            "protect.password" | "protect.remove" if self.active_ids().and_then(|(_, id)| self.session.get(id)).is_some_and(|d| d.can_unlock()) => {
+                let then = if id == "protect.password" { "protect.password" } else { "protect.remove" };
                 self.request_unlock(Some(then));
             }
             "protect.unlock" => self.request_unlock(None),
@@ -471,11 +460,6 @@ impl PdfCraftApp {
             "actions.distribution" => crate::actions_ui::open_wizard(self, ctx, Some("Prepare for Distribution")),
             "actions.optimize_scans" => crate::actions_ui::open_wizard(self, ctx, Some("Optimize Scanned Documents")),
             "create.blank" => self.create_blank(),
-            "create.custom" => {
-                self.new_paper = self.default_paper.clone();
-                self.dialog = Some(Dialog::NewPaper);
-            }
-            "export.choose" => self.dialog = Some(Dialog::ExportTo),
             "create.file" => self.open_dialog(),
             "create.multiple" => self.create_multiple_dialog(),
             "create.multiple_separate" => self.create_multiple_separate_dialog(),
@@ -681,7 +665,11 @@ impl PdfCraftApp {
             "page.cut" => self.copy_pages(ctx, true),
             "page.paste" => self.paste_pages(ctx),
             "page.duplicate" => {
-                self.apply_edit(ctx, Edit::DuplicatePages { pages: targets, at: None });
+                self.apply_edit(ctx, Edit::DuplicatePages { pages: targets, at: None, field_conflicts: pdfcraft_engine::FieldConflicts::Merge });
+            }
+            // Lion PDF (#2228): the copies' form fields get names of their own.
+            "page.duplicate_renaming_fields" => {
+                self.apply_edit(ctx, Edit::DuplicatePages { pages: targets, at: None, field_conflicts: pdfcraft_engine::FieldConflicts::Rename });
             }
             // Two or more selected pages reverse among themselves; otherwise the whole document.
             "page.reverse" => {
@@ -922,11 +910,6 @@ impl PdfCraftApp {
                 self.apply_trusted_certificates(certs);
                 self.choose_right_panel(Some(RightPanel::Signatures));
             }
-            "sign.timestamp" => {
-                self.timestamp_error = None;
-                self.dialog = Some(Dialog::Timestamp);
-            }
-            "sign.remove" => self.start_remove_signature(None),
             "sign.panel" => self.choose_right_panel(Some(RightPanel::Signatures)),
             "form.export_data" => self.export_data_dialog(ctx, false, true),
             "form.merge_data" => self.merge_data_dialog(),

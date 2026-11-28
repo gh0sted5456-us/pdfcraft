@@ -45,7 +45,6 @@ enum Act {
     Edit(Box<Edit>),
     View(ViewAction),
     Command(&'static str),
-    Transfer(pdfcraft_engine::DocId, Vec<usize>, usize),
 }
 
 /// One line of the panel's list.
@@ -88,24 +87,10 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     let Some((index, id)) = app.active_ids() else { return };
     let Some(doc) = app.session.get(id) else { return };
     let info = &doc.info;
-    let editable = doc.allows_assembly() && doc.certification().is_none();
+    let editable = doc.allows_assembly();
     let n = info.pages.len();
-    let protected = doc.protected_pages();
-    let signed = doc.signed_protected_pages();
-    let choosing = app.sign_draft.as_ref().is_some_and(|d| d.choosing_pages == Some(id));
-    let mut choice = None;
-    let sources: Vec<_> = app
-        .views
-        .iter()
-        .filter(|v| v.id != id)
-        .filter_map(|v| {
-            let doc = app.session.get(v.id)?;
-            doc.allows_assembly().then(|| (v.id, doc.name.clone(), v.target_pages()))
-        })
-        .collect();
     let mut act: Option<Act> = None;
     let Some(view) = app.views.get_mut(index) else { return };
-    view.organize_pick = choosing;
 
     caption_row(ui, tl!("Pages selected"), true);
     let current = view.current();

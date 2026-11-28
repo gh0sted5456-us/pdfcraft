@@ -58,55 +58,6 @@ pub fn byte_count(n: usize) -> String {
     crate::i18n::trn(crate::i18n::current(), n as u64, "{n} byte", "{n} bytes")
 }
 
-impl PdfCraftApp {
-    /// Text alignment owns these keys before the document-wide shortcuts (Ctrl+L is full screen).
-    pub(crate) fn text_alignment_keys(&mut self, ctx: &egui::Context) {
-        use egui::{Key, Modifiers};
-        use pdfcraft_engine::{AddedContent, Edit, TextAlign};
-        let Some((i, id)) = self.active_ids() else { return };
-        let view = &self.views[i];
-        let selected = self.session.get(id).and_then(|doc| {
-            let (page, index) = view.content.selected?;
-            let item = doc.added().iter().filter(|a| a.page == page).nth(index)?;
-            match &item.content {
-                AddedContent::Text(text) => Some((page, index, text.clone())),
-                _ => None,
-            }
-        });
-        if view.line_editor.is_none() && view.content.draft.is_none() && selected.is_none() {
-            return;
-        }
-        let focused = ctx.memory(|m| m.focused());
-        let editing = view.line_editor.is_some() && focused == Some(crate::edit_text_ui::input_id(view.place()))
-            || view.content.draft.is_some() && focused == Some(crate::content_ui::input_id());
-        if ctx.text_edit_focused() && !editing || ctx.input(|input| input.modifiers.shift || input.modifiers.alt) {
-            return;
-        }
-        let align = ctx.input_mut(|input| {
-            [(Key::L, TextAlign::Left), (Key::E, TextAlign::Center), (Key::R, TextAlign::Right)]
-                .into_iter()
-                .find_map(|(key, align)| input.consume_key(Modifiers::COMMAND, key).then_some(align))
-        });
-        let Some(align) = align else { return };
-        if let Some(mut editor) = self.views[i].line_editor.clone() {
-            if editor.look.align != align {
-                editor.look.align = align;
-                self.apply_line_format(i, editor, Some(ctx));
-            }
-        } else if let Some(draft) = self.views[i].content.draft.as_mut() {
-            draft.style.align = align;
-            self.text_style.align = align;
-        } else if let Some((page, index, mut text)) = selected
-            && text.align != align
-        {
-            text.align = align;
-            if self.apply_edit(Edit::UpdateContent { page, index, content: AddedContent::Text(text) }) {
-                self.text_style.align = align;
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod human_size_tests {
     use super::human_size;

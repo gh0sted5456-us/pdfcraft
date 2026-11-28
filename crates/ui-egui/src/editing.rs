@@ -1132,9 +1132,6 @@ fn content_page(edit: &Edit) -> Option<usize> {
     match edit {
         Edit::MoveObjects { page, .. }
         | Edit::DeleteObjects { page, .. }
-        | Edit::DeletePaths { page, .. }
-        | Edit::StylePaths { page, .. }
-        | Edit::MovePathPoint { page, .. }
         | Edit::EditTextLine { page, .. }
         | Edit::EditTextBlock { page, .. }
         | Edit::EditPageImage { page, .. }
@@ -1757,7 +1754,6 @@ mod content_page_tests {
     fn single_page_content_edits_map_to_their_page() {
         let moved = Edit::MoveObjects { page: 3, objects: vec![ObjectTarget { kind: ObjectKind::Text, index: 0 }], offset: [1.0, 0.0] };
         assert_eq!(content_page(&moved), Some(3));
-        assert_eq!(content_page(&Edit::DeleteObjects { page: 3, objects: vec![] }), Some(3));
         assert_eq!(content_page(&Edit::RotatePages { pages: vec![0], degrees: 90 }), None);
         assert_eq!(content_page(&Edit::SetInfo { key: "Title".into(), value: "x".into() }), None);
     }

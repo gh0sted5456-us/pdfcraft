@@ -1,4 +1,4 @@
-//! Export a PDF ▸ Image (PNG, JPEG, TIFF), Text and Excel (Acrobat's Export a PDF tool).
+//! Export a PDF ▸ Image (PNG, JPEG, TIFF) and Text (Acrobat's Export a PDF tool, first formats).
 //!
 //! The export runs as a job and reports progress in the notice bar; the files go through the host's
 //! file service, which downloads them on the web.
@@ -30,8 +30,6 @@ pub enum ExportKind {
     Text,
     /// Export all images: the images pages use, as files.
     AllImages,
-    /// Excel: the pages on one sheet or a sheet each, saved as one workbook.
-    Excel,
 }
 
 impl ExportKind {
@@ -54,13 +52,11 @@ pub struct ExportDraft {
     pub format: ImageFormat,
     /// Export all images ▸ skip images with fewer pixels than this on their shorter side.
     pub min_side: u32,
-    /// Excel ▸ one sheet for the whole document (the default) or a sheet per page.
-    pub sheets: XlsxSheets,
 }
 
 impl Default for ExportDraft {
     fn default() -> Self {
-        Self { dpi: 150.0, range: PageRange::default(), format: ImageFormat::Png, min_side: 0, sheets: XlsxSheets::default() }
+        Self { dpi: 150.0, range: PageRange::default(), format: ImageFormat::Png, min_side: 0 }
     }
 }
 
@@ -197,8 +193,7 @@ pub(crate) fn pass(ctx: &egui::Context, app: &mut PdfCraftApp) {
 }
 
 /// Write the files (`name`, bytes) produced for `pages`, reporting progress.
-#[allow(clippy::too_many_arguments)]
-fn run(
+struct ExportTask<'a> {
     src: ExportSource,
     kind: ExportKind,
     dpi: f64,
@@ -243,8 +238,8 @@ fn run(task: ExportTask<'_>, mut sink: impl FnMut(&str, Vec<u8>) -> Result<(), S
     }
     let mut ex = Exporter::from_source(src);
     match kind {
-        // Handled above (all images) or in `start_export` (Excel).
-        ExportKind::AllImages | ExportKind::Excel => String::new(),
+        // Handled above.
+        ExportKind::AllImages => String::new(),
         ExportKind::Image => {
             set(0);
             // Pages are drawn several at once and handed over in order: the progress counts the
@@ -303,19 +298,6 @@ impl PdfCraftApp {
             return;
         }
         let Some(doc) = self.session.get(id) else { return };
-        // Excel: one workbook of the pages chosen, written through the save dialog.
-        if kind == ExportKind::Excel {
-            let stem = doc.name.trim_end_matches(".pdf").trim_end_matches(".PDF").to_string();
-            let pages = self.export_draft.range.pages(doc.info.pages.len());
-            let folder = doc.path.clone();
-            let export = doc.export_xlsx_checked(self.export_draft.sheets, Some(&pages));
-            if !export.truncated_pages.is_empty() {
-                self.notify("Export stopped: some page contents exceed export limits. The original PDF is unchanged.");
-                return;
-            }
-            self.save_export_file(&stem, "xlsx", folder, export.bytes);
-            return;
-        }
         let src = doc.export_source();
         let stem = doc.name.trim_end_matches(".pdf").trim_end_matches(".PDF").to_string();
         let current = self.views[view].current();

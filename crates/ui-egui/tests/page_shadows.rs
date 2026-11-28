@@ -142,9 +142,6 @@ fn rendered_page_content_is_identical_with_and_without_decoration() {
     if let Ok(directory) = std::env::var("PDFCRAFT_SHADOW_SCREENSHOTS") {
         enabled.save(format!("{directory}/page-shadows-enabled.png")).unwrap();
         disabled.save(format!("{directory}/page-shadows-disabled.png")).unwrap();
-        h.state_mut().set_option("dialog", "preferences").unwrap();
-        h.run_steps(3);
-        h.render().unwrap().save(format!("{directory}/page-shadows-preferences.png")).unwrap();
     }
 }
 

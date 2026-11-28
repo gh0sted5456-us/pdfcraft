@@ -71,14 +71,8 @@ fn doc<'a>(h: &'a Harness<'static, PdfCraftApp>) -> &'a pdfcraft_engine::Documen
     s.session.get(s.views[0].id).unwrap()
 }
 
-fn bytes(h: &mut Harness<'static, PdfCraftApp>) -> Vec<u8> {
-    {
-        let id = h.state().views[0].id;
-        h.state_mut().session.save_bytes(id)
-    }
-    .unwrap()
-    .as_ref()
-    .clone()
+fn bytes(h: &Harness<'static, PdfCraftApp>) -> Vec<u8> {
+    h.state().session.save_bytes(h.state().views[0].id).unwrap().as_ref().clone()
 }
 
 fn select(h: &mut Harness<'static, PdfCraftApp>, names: &[&str]) {
@@ -137,7 +131,7 @@ fn set_tooltip(h: &mut Harness<'static, PdfCraftApp>, text: &str) {
 #[test]
 fn shared_properties_preserve_mixed_values_and_undo_the_whole_change() {
     let mut h = harness();
-    let before = bytes(&mut h);
+    let before = bytes(&h);
     let original = [doc(&h).field_look("alpha").unwrap(), doc(&h).field_look("beta").unwrap()];
     select(&mut h, &["alpha", "beta"]);
     h.get_by_role_and_label(Role::Dialog, "Shared Field Properties");
@@ -179,7 +173,7 @@ fn shared_properties_preserve_mixed_values_and_undo_the_whole_change() {
     assert_eq!(doc(&h).field_look("beta").unwrap().width, 4.0);
     // The regenerated look also survives a real Save/open round trip.
     let mut s = Session::new();
-    let id = s.open("saved.pdf", None, std::sync::Arc::new(bytes(&mut h)), None).unwrap();
+    let id = s.open("saved.pdf", None, std::sync::Arc::new(bytes(&h)), None).unwrap();
     assert_eq!(s.get(id).unwrap().field_look("beta").unwrap().fill, original[1].fill);
     assert_eq!(s.get(id).unwrap().form.iter().find(|f| f.name == "beta").unwrap().value, ["Lovelace"]);
 }
@@ -187,7 +181,7 @@ fn shared_properties_preserve_mixed_values_and_undo_the_whole_change() {
 #[test]
 fn cancelling_shared_properties_discards_only_the_draft() {
     let mut h = harness();
-    let before = bytes(&mut h);
+    let before = bytes(&h);
     select(&mut h, &["alpha", "beta", "consent"]);
     h.get_by_label("Appearance").click();
     h.run_steps(4);
@@ -236,13 +230,13 @@ fn locked_field_refuses_the_entire_batch_and_keeps_the_draft_for_correction() {
     );
     h.execute("edit.undo");
     h.run_steps(4);
-    assert_eq!(bytes(&mut h), before, "unlock and changes undo together");
+    assert_eq!(bytes(&h), before, "unlock and changes undo together");
 }
 
 #[test]
 fn shared_properties_cannot_apply_to_a_different_active_document() {
     let mut h = harness();
-    let before = bytes(&mut h);
+    let before = bytes(&h);
     select(&mut h, &["alpha", "beta"]);
     click_gate(&mut h, "Required");
     h.run_steps(4);
@@ -251,7 +245,7 @@ fn shared_properties_cannot_apply_to_a_different_active_document() {
     h.run_steps(4);
     h.get_by_label("OK").click();
     h.run_steps(4);
-    assert_eq!(bytes(&mut h), before);
+    assert_eq!(bytes(&h), before);
     let id = h.state().views[1].id;
     assert!(!h.state().session.get(id).unwrap().dirty);
     assert!(shared_open(&h));
@@ -379,5 +373,5 @@ fn shared_properties_preserve_unchecked_changes_made_after_the_dialog_opened() {
     assert_eq!(doc(&h).field_look("beta").unwrap().width, 2.0);
     h.execute("edit.undo");
     h.run_steps(4);
-    assert_eq!(bytes(&mut h), before);
+    assert_eq!(bytes(&h), before);
 }

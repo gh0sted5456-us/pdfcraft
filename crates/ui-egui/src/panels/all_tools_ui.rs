@@ -58,7 +58,7 @@ fn tile(g: &'static ToolGroup, items: &[&'static str]) -> Tile<'static> {
     let note = if items.is_empty() {
         match g.availability {
             Availability::Ready => String::new(),
-            Availability::Planned(_) => tl!("is not available yet").into(),
+            Availability::Planned(m) => format!("{} · {m}", tl!("Planned")),
             Availability::Provider => g.badge.map(|b| tl!(b).to_owned()).unwrap_or_default(),
         }
     } else {

@@ -18,7 +18,7 @@ use crate::{PdfCraftApp, RightPanel};
 pub(super) mod tab_context;
 
 /// The app's name in the menus the layouts write (About, Hide, Quit).
-pub(crate) const APP_NAME: &str = crate::APP_NAME;
+pub(crate) const APP_NAME: &str = "PdfCraft";
 
 /// Menu-only commands. The registry's commands keep their own ids.
 pub(crate) const CUT: &str = "edit.cut";
@@ -98,15 +98,12 @@ const FILE: &[&str] = &[
     "create.blank",
     "file.open",
     "file.open_recent",
-    "file.open_next_in_folder",
-    "file.open_previous_in_folder",
     "file.pin_folder",
     SEP,
     "page.combine",
     SEP,
     "file.save",
     "file.save_as",
-    "create.save_template",
     "file.revert",
     SEP,
     "file.close",
@@ -121,21 +118,9 @@ const FILE: &[&str] = &[
     "print.dialog",
     QUIT,
 ];
-const CREATE: &[&str] = &["create.custom", "create.file", "create.multiple", "create.multiple_separate", "create.images", "create.clipboard"];
-const EXPORT: &[&str] = &[
-    "export.choose",
-    "export.docx",
-    "export.xlsx",
-    "export.pptx",
-    "export.rtf",
-    "export.html",
-    "export.markdown",
-    "export.text",
-    SEP,
-    "export.image",
-    "export.all_images",
-];
-const PROTECT: &[&str] = &["protect.password", "protect.certificate", "protect.remove", "protect.unlock", SEP, "protect.properties"];
+const CREATE: &[&str] = &["create.file", "create.multiple", "create.multiple_separate", "create.images", "create.clipboard"];
+const EXPORT: &[&str] = &["export.docx", "export.pptx", "export.rtf", "export.html", "export.text", SEP, "export.image", "export.all_images"];
+const PROTECT: &[&str] = &["protect.password", "protect.remove", "protect.unlock", SEP, "protect.properties"];
 const EDIT: &[&str] = &[
     "edit.undo",
     "edit.redo",
@@ -160,7 +145,6 @@ const EDIT: &[&str] = &[
     "edit.attach",
     "form.clear",
     SEP,
-    "app.language_spelling",
     "app.preferences",
 ];
 const ZOOM: &[&str] = &[ACTUAL_SIZE, PAGE_LEVEL, FIT_WIDTH, FIT_HEIGHT, "view.fit_visible", SEP, ZOOM_IN, ZOOM_OUT, SEP, "view.marquee_zoom"];
@@ -176,7 +160,7 @@ const DISPLAY: &[&str] = &[
     "view.fit_width_scrolling",
     "view.fit_one_page",
 ];
-const THEMES: &[&str] = &["view.theme.system", "view.theme.light", "view.theme.dark", "view.theme.glass"];
+const THEMES: &[&str] = &["view.theme.system", "view.theme.light", "view.theme.dark"];
 const PANES: &[&str] = &["view.side_panel", "view.tools_pane", "view.split"];
 const PANE_COMMANDS: &[&str] = &["comment.list", "form.fields", "ui.dock.reset"];
 const MODES: &[&str] = &["view.full_screen", "view.read_mode", crate::viewer_prefs::TOGGLE];
@@ -189,7 +173,6 @@ const PAGES: &[&str] = &[
     "page.extract",
     "page.split",
     "page.duplicate",
-    "page.duplicate_renaming_fields",
     "page.delete",
     SEP,
     "page.rotate",
@@ -199,8 +182,8 @@ const PAGES: &[&str] = &[
     SEP,
     "page.crop",
     "page.boxes",
-    "page.properties",
     "page.number",
+    "page.properties",
     SEP,
     "bookmark.add",
     "bookmark.from_structure",
@@ -232,20 +215,9 @@ const SIGN: &[&str] = &[
     "sign.validate",
     "sign.panel",
 ];
-const WINDOW: &[&str] = &["view.next_tab", "view.previous_tab", SEP, "file.detach_tab"];
-const HELP: &[&str] = &[
-    "help.shortcuts",
-    "help.connect_ai",
-    SEP,
-    "help.app_page",
-    "help.github",
-    "help.website",
-    "help.discord",
-    SEP,
-    "help.check_updates",
-    SEP,
-    "help.about",
-];
+const WINDOW: &[&str] = &["view.next_tab", "view.previous_tab"];
+const HELP: &[&str] =
+    &["help.shortcuts", SEP, "help.app_page", "help.github", "help.website", "help.discord", SEP, "help.check_updates", SEP, "help.about"];
 
 /// Where the menu bar lists command `id`: the English titles of its menu and submenu, top menu first,
 /// as [`MenuBar`] builds them. The shortcuts window groups its rows by them. `None` for a command
@@ -494,18 +466,18 @@ impl PdfCraftApp {
     /// View ▸ Tools: the All tools groups, each a submenu of its ready tools that no other menu
     /// lists, sections apart.
     fn tools_menu(&self, used: &[&str], mac: bool) -> Vec<Node> {
-        let mut seen = used.to_vec();
         TOOL_GROUPS
             .iter()
             .filter(|g| g.availability == Availability::Ready)
             .map(|group| {
                 let mut nodes = Vec::new();
+                let mut seen: Vec<&str> = Vec::new();
                 for section in group.sections {
                     nodes.push(Node::Separator);
                     for tool in section.items.iter().filter(|t| t.availability == Availability::Ready) {
                         let actions: &[&'static str] = if tool.actions.is_empty() { std::slice::from_ref(&tool.command) } else { tool.actions };
                         for &id in actions {
-                            if commands::command(id).is_none() || seen.contains(&id) {
+                            if commands::command(id).is_none() || used.contains(&id) || seen.contains(&id) {
                                 continue;
                             }
                             seen.push(id);
@@ -635,8 +607,9 @@ mod tests {
         let items = bar.items();
         let mut keys: Vec<String> = items.iter().map(|it| it.command.key()).collect();
         keys.sort();
-        let twice: Vec<&String> = keys.windows(2).filter(|w| w[0] == w[1]).map(|w| &w[0]).collect();
-        assert!(twice.is_empty(), "no command is listed twice: {twice:?}");
+        let count = keys.len();
+        keys.dedup();
+        assert_eq!(keys.len(), count, "no command is listed twice");
         for spec in commands::COMMANDS.iter().filter(|s| s.menu.is_some()) {
             if spec.id == "file.open_recent" {
                 continue; // A submenu of the recent files.

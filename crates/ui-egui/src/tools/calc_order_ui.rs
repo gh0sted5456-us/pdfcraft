@@ -691,12 +691,10 @@ pub(crate) fn panel(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
         }
         Some(Act::Select(name)) => {
             // Where its first widget is, to show it there.
-            let shown = app.session.get(id).and_then(|doc| {
-                let w = doc.form.iter().find(|g| g.name == name)?.widgets.first()?;
-                let page = w.page?;
-                let rect = if w.no_rotate { pdfcraft_render::upright_rect(w.rect, doc.info.pages.get(page)?.rotation) } else { w.rect };
-                Some((page, rect))
-            });
+            let shown = app
+                .session
+                .get(id)
+                .and_then(|doc| doc.form.iter().find(|g| g.name == name).and_then(|g| g.widgets.first()).and_then(|w| Some((w.page?, w.rect))));
             if let Some(view) = app.views.get_mut(index) {
                 view.session.prepare.select((name, 0), false);
                 if let Some((page, rect)) = shown {

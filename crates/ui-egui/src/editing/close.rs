@@ -20,13 +20,6 @@ impl PdfCraftApp {
         if self.hold_close_for_ocr_review(index) {
             return;
         }
-        // Lion PDF: a PDF whose dialogs are minimized keeps its tab until they are dealt with.
-        if let Some(doc) = self.views.get(index).map(|v| v.id)
-            && self.dialog_shelf.binds(doc)
-        {
-            self.notify("Restore or close this PDF's minimized dialogs before closing the tab.");
-            return;
-        }
         // Text typed into a field counts as an unsaved change. Another tab of the document (split
         // view) keeps the document's changes open, so closing this one asks only about its own.
         if self.asks_before_closing(index)
@@ -46,10 +39,6 @@ impl PdfCraftApp {
     /// While a document is under OCR review, nothing closes: the review comes forward first.
     pub fn close_all(&mut self, ctx: &egui::Context) {
         if self.hold_for_any_ocr_review() {
-            return;
-        }
-        if self.dialog_shelf.holds_document_drafts() {
-            self.notify("Restore or close minimized document dialogs before closing all tabs.");
             return;
         }
         for i in (0..self.views.len()).rev() {

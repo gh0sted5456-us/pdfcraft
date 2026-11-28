@@ -19,7 +19,6 @@ fn gpu() -> std::sync::MutexGuard<'static, ()> {
 
 mod accessibility;
 mod actions;
-mod ai_connect;
 mod animate;
 mod attach_picker_target;
 mod attachment_row;
@@ -28,8 +27,6 @@ mod bookmarks;
 mod bulk_fields;
 mod buttons;
 mod camera;
-mod certificate_signed_version;
-mod checkbox_drag;
 mod column_select;
 mod combine_grid;
 mod commands;
@@ -85,7 +82,6 @@ mod recent_files;
 mod recovery;
 mod redact;
 mod reload;
-mod remove_signature;
 mod scan_clean;
 mod script_noop;
 mod search_position;

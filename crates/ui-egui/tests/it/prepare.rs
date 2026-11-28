@@ -754,9 +754,9 @@ fn button_label_is_editable_without_renaming_the_field() {
     h.get_by_label("OK").click();
     h.run_steps(3);
 
-    let app = h.state_mut();
+    let app = h.state();
     let id = app.views[0].id;
-    let field = app.session.get(id).unwrap().form.iter().find(|f| f.name == "clear_button").unwrap().clone();
+    let field = app.session.get(id).unwrap().form.iter().find(|f| f.name == "clear_button").unwrap();
     let bytes = app.session.save_bytes(id).unwrap();
     let doc = pdfcraft_cos::Document::open(bytes).unwrap();
     let widget = doc.get(field.widgets[0].obj);
@@ -858,7 +858,7 @@ fn choice_alignment(kind: pdfcraft_engine::NewField, label: &str, quadding: i64)
     let changed = field(&h);
     assert_eq!(changed.quadding, quadding);
     assert_eq!((changed.options, changed.value, changed.flags), (original.options, original.value, original.flags));
-    let app = h.state_mut();
+    let app = h.state();
     let id = app.views[0].id;
     assert_eq!(app.session.get(id).unwrap().can_undo(), Some("Change field properties"));
     let bytes = app.session.save_bytes(id).unwrap();
@@ -2111,81 +2111,4 @@ fn with_prepare_open_a_double_click_on_a_field_leaves_the_polygon_unfinished() {
     let polygons = s.session.get(s.views[0].id).unwrap().info.annotations.iter().filter(|a| a.subtype == "Polygon").count();
     assert_eq!(polygons, 0, "the polygon is not finished");
     assert!(!s.views[0].session.comments.tool.drawing().is_empty(), "it is still being clicked out");
-}
-
-// ── Lion PDF ──
-#[test]
-fn no_rotate_widgets_fill_select_move_resize_and_nudge_where_drawn() {
-    for rotation in [0, 90, 180, 270] {
-        let pages = format!("<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [10 20 210 160] /Rotate {rotation} >>");
-        let bytes = pdf_of(&[
-            "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] >> >>",
-            &pages,
-            "<< /Type /Page /Parent 2 0 R /UserUnit 2 /Annots [4 0 R] >>",
-            "<< /Type /Annot /Subtype /Widget /FT /Tx /T (upright) /Rect [50 70 80 90] /F 20 /P 3 0 R >>",
-        ]);
-        let mut h = harness_with("upright.pdf", bytes);
-        let shown = |h: &Harness<'static, PdfCraftApp>| {
-            let app = h.state();
-            let doc = app.session.get(app.views[0].id).unwrap();
-            pdfcraft_ui_egui::forms_ui::field_screen_rect(&app.views[0], &doc.info, &doc.form[0], 0).unwrap()
-        };
-        let r = shown(&h);
-        let app = h.state();
-        let page = &app.session.get(app.views[0].id).unwrap().info.pages[0];
-        let screen = app.views[0].page_screen_rect(0).unwrap();
-        let scale = screen.width() / page.width;
-        let corner = page.user_to_view(50.0, 90.0);
-        let want = egui::Rect::from_min_size(screen.min + egui::vec2(corner[0], corner[1]) * scale, egui::vec2(60.0, 40.0) * scale);
-        assert!(r.min.distance(want.min) < 0.1 && r.max.distance(want.max) < 0.1, "rotation {rotation}: {r:?} vs {want:?}");
-        let highlight = egui::Color32::from_rgba_unmultiplied(0x6E, 0x8E, 0xF5, 48);
-        let highlights: Vec<_> = h
-            .output()
-            .shapes
-            .iter()
-            .filter_map(|s| match &s.shape {
-                egui::Shape::Rect(shape) if shape.fill == highlight => Some(shape.rect),
-                _ => None,
-            })
-            .collect();
-        assert_eq!(highlights, [r], "the highlight follows the visible field");
-        h.hover_at(r.center());
-        h.run_steps(1);
-        h.drag_at(r.center());
-        h.run_steps(1);
-        h.drop_at(r.center());
-        h.run_steps(3);
-        assert_eq!(h.state().views[0].forms.focus.as_ref().map(|f| f.name.as_str()), Some("upright"));
-        h.key_press(egui::Key::Escape);
-        h.run_steps(2);
-        assert!(h.state().views[0].forms.focus.is_none(), "editor closes");
-        h.state_mut().execute("form.prepare");
-        h.run_steps(20);
-        // The 150% page is wider than the canvas after the Inspector opens.
-        h.state_mut().set_option("zoom", "75").unwrap();
-        h.run_steps(20);
-        assert!(h.state().is_preparing());
-        assert!(h.state().session.get(h.state().views[0].id).unwrap().editable());
-        let r = shown(&h);
-        drag(&mut h, r.center(), r.center() + egui::vec2(12.0, 9.0));
-        assert_eq!(h.state().views[0].prepare.selected.as_ref().map(|s| s.0.as_str()), Some("upright"), "rotation {rotation}: selected where drawn");
-        let moved = shown(&h);
-        assert!(moved.min.distance(r.min + egui::vec2(12.0, 9.0)) < 1.0, "rotation {rotation}: move {r:?} -> {moved:?}");
-        drag(&mut h, moved.right_bottom(), moved.right_bottom() + egui::vec2(8.0, 6.0));
-        let resized = shown(&h);
-        assert!(
-            resized.min.distance(moved.min) < 1.0 && resized.max.distance(moved.max + egui::vec2(8.0, 6.0)) < 1.0,
-            "rotation {rotation}: resize {moved:?} -> {resized:?}"
-        );
-        h.key_press(egui::Key::ArrowRight);
-        h.run_steps(3);
-        let nudged = shown(&h);
-        assert!(nudged.min.x > resized.min.x && (nudged.min.y - resized.min.y).abs() < 0.1);
-        h.get_by_role_and_label(Role::Button, "upright").click();
-        h.run_steps(3);
-        let app = h.state();
-        let doc = app.session.get(app.views[0].id).unwrap();
-        let want = pdfcraft_render::upright_rect(doc.form[0].widgets[0].rect, rotation).map(|v| v as f32);
-        assert_eq!(app.views[0].flash.as_ref().map(|(_, r, _)| *r), Some(want), "the Fields panel flashes the drawn box");
-    }
 }

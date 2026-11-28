@@ -42,8 +42,6 @@ fn signature(signed: bool, visible: bool, page: Option<usize>, rect: Option<[f64
         modification: pdfcraft_engine::sign::Modification::None,
         verdict_shown: false,
         details: Vec::new(),
-        integrity_valid: false,
-        protection: None,
     }
 }
 
@@ -677,80 +675,4 @@ fn replace_all_is_one_undo_step_and_counts_pages_whose_matches_had_no_paragraph(
     h.state_mut().undo(&egui::Context::default());
     let doc = h.state().session.get(id).unwrap();
     assert_eq!((doc.undo_depth(), &doc.bytes), (depth, &before), "one undo puts both pages back");
-}
-
-#[test]
-fn signature_hit_target_does_not_require_a_form_cache_row() {
-    let mut s = signature(true, true, Some(0), Some([10.0, 10.0, 100.0, 50.0]));
-    let hit = |r: [f64; 4]| r[0] <= 20.0 && r[2] >= 20.0 && r[1] <= 20.0 && r[3] >= 20.0;
-    assert_eq!(signature_field_at(&[s.clone()], 0, hit).as_deref(), Some("Signature1"));
-    assert!(signature_field_at(&[s.clone()], 1, hit).is_none());
-    s.doc_timestamp = true;
-    assert!(signature_field_at(&[s.clone()], 0, hit).is_none());
-    s.doc_timestamp = false;
-    s.rect = Some([f64::NAN, 0.0, 50.0, 50.0]);
-    assert!(signature_field_at(&[s], 0, hit).is_none());
-}
-
-#[test]
-fn closed_thumbnail_consumers_release_caches_while_main_pixels_are_pending() {
-    let ctx = egui::Context::default();
-    let info = thumbnail_info(2);
-    let mut v = DocView::new(DocId(1), &info, ViewDefaults::default());
-    v.need_thumbnail(0, true);
-    let first = v.prepare_render_queue(&info, 1.0)[0];
-    v.last_queue = vec![first];
-    assert!(v.receive_result(&ctx, solid_result(first, 132, 171)) > 0);
-    v.stale_thumbs.insert(0);
-    v.begin_render_frame();
-    let main = RenderRequest { page: 1, scale: 1.0, tag: 1000, ..Default::default() };
-    v.frame_queue.push(main);
-    v.frame_visible.insert(1);
-    let pending = v.prepare_render_queue(&info, 1.0);
-    assert_eq!(pending, vec![main], "visible page pixels keep priority");
-    assert!(v.thumbs.is_empty(), "closed consumers release their texture even while the main page is missing");
-    assert!(v.stale_thumbs.is_empty());
-    v.last_queue = pending;
-    assert_eq!(v.receive_result(&ctx, solid_result(first, 132, 171)), 0, "late obsolete results stay rejected");
-}
-
-#[test]
-fn resize_policy_ignores_initial_layout_jitter_and_invalid_sizes() {
-    let mut v = view(1, PageLayout::Single, true);
-    v.set_zoom(2.0);
-    v.resize_window(vec2(1000.0, 800.0), ResizeZoom::FitWidth);
-    assert_eq!(v.fit, Fit::None);
-    v.resize_window(vec2(1000.25, 800.0), ResizeZoom::FitWidth);
-    assert_eq!(v.fit, Fit::None);
-    for width in [1000.5, 1000.75] {
-        v.resize_window(vec2(width, 800.0), ResizeZoom::FitWidth);
-    }
-    assert_eq!(v.fit, Fit::Width, "small high-DPI resize steps accumulate");
-    v.set_zoom(2.0);
-    v.resize_window(vec2(f32::NAN, 600.0), ResizeZoom::FitPage);
-    v.resize_window(Vec2::ZERO, ResizeZoom::FitPage);
-    assert_eq!(v.window_size, vec2(1000.75, 800.0));
-    assert_eq!(v.fit, Fit::None);
-    v.resize_window(vec2(600.0, 500.0), ResizeZoom::FitWidth);
-    assert_eq!(v.fit, Fit::Width);
-}
-
-#[test]
-fn presentation_restores_manual_zoom_without_resize_policy_overriding_it() {
-    let mut v = view(1, PageLayout::Single, true);
-    v.set_zoom(2.0);
-    v.resize_window(vec2(1000.0, 800.0), ResizeZoom::FitWidth);
-    v.enter_presentation();
-    v.resize_window(vec2(1920.0, 1080.0), ResizeZoom::KeepZoom);
-    assert_eq!(v.fit, Fit::Page);
-    v.leave_presentation();
-    v.resize_window(vec2(1000.0, 800.0), ResizeZoom::FitWidth);
-    assert_eq!((v.fit, v.zoom), (Fit::None, 2.0));
-    v.resize_window(vec2(800.0, 600.0), ResizeZoom::FitWidth);
-    assert_eq!(v.fit, Fit::Width, "later resizes follow the preference again");
-    v.set_zoom(2.0);
-    v.enter_presentation();
-    v.leave_presentation();
-    v.resize_window(vec2(900.0, 700.0), ResizeZoom::FitWidth);
-    assert_eq!(v.fit, Fit::Width, "no restore resize was expected when dimensions stayed the same");
 }

@@ -526,7 +526,7 @@ impl PageCx<'_> {
     }
 
     /// Top-level comments on this page, in inspection order.
-    pub(crate) fn comments(&self) -> impl Iterator<Item = &Annotation> {
+    pub(super) fn comments(&self) -> impl Iterator<Item = &Annotation> {
         self.info.annotations.iter().filter(move |a| !self.hidden && a.page == self.page && a.is_comment() && a.subtype != "Popup")
     }
 

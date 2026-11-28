@@ -37,8 +37,6 @@ fn listing(name: &str, page: usize, rect: [f64; 4]) -> SignatureInfo {
         modification: pdfcraft_engine::sign::Modification::None,
         details: Vec::new(),
         verdict_shown: false,
-        integrity_valid: false,
-        protection: None,
     }
 }
 
@@ -74,7 +72,6 @@ fn field(name: &str, page: usize, rect: [f64; 4]) -> FormField {
             caption: None,
             list: None,
             round: false,
-            no_rotate: false,
         }],
         actions: Default::default(),
         button: None,

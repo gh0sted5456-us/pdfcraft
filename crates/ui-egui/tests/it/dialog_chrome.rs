@@ -2,11 +2,8 @@
 
 use crate::support::AppHarness as _;
 use egui::accesskit::Role;
-
 use egui_kittest::Harness;
-
 use egui_kittest::kittest::Queryable;
-
 use pdfcraft_ui_egui::PdfCraftApp;
 
 /// A one-page file.

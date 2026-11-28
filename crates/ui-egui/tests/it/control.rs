@@ -941,7 +941,6 @@ fn japanese_controls_and_search_keep_command_ids() {
         return;
     }
     let (mut h, c) = harness();
-    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" })); // Lion PDF: Preferences opens on a category
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "ja" }));
     assert_eq!(ok(&mut h, &c, "ui.state", json!({}))["language"], "ja");
     h.run_steps(2);
@@ -980,7 +979,6 @@ fn german_preferences_and_search_keep_command_ids() {
         return;
     }
     let (mut h, c) = harness();
-    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" })); // Lion PDF: Preferences opens on a category
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "de" }));
     h.run_steps(2);
     click_tab(&mut h, &c, "Konvertieren");
@@ -1021,7 +1019,6 @@ fn ukrainian_preferences_and_search_keep_command_ids() {
         return;
     }
     let (mut h, c) = harness();
-    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" })); // Lion PDF: Preferences opens on a category
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "uk" }));
     ok(&mut h, &c, "ui.command", json!({ "id": "app.preferences" }));
     h.run_steps(2);
@@ -1070,7 +1067,6 @@ fn preferences_menu_and_shortcut_allow_switching_interface_languages() {
         return;
     }
     let (mut h, c) = harness();
-    ok(&mut h, &c, "ui.set", json!({ "key": "preferences-category", "value": "language" })); // Lion PDF: Preferences opens on a category
     ok(&mut h, &c, "ui.set", json!({ "key": "language", "value": "ja" }));
     // The menu bar's Edit menu holds Preferences on Windows and Linux. On macOS the in-window bar
     // takes the Mac layout (`Target::current()`), which moves it to the app menu as Settings….
@@ -1091,7 +1087,7 @@ fn preferences_menu_and_shortcut_allow_switching_interface_languages() {
     h.run_steps(2);
     h.get_by(menu_row(preferences)).click();
     h.run_steps(2);
-    for (current, next, code) in [("日本語", "English (US)", "en"), ("English", "Українська", "uk"), ("Українська", "日本語", "ja")]
+    for (current, next, code) in [("日本語", "English", "en"), ("English", "Українська", "uk"), ("Українська", "日本語", "ja")]
     {
         let selector = ok(&mut h, &c, "ui.inspect", json!({ "query": current }));
         let combo = selector["widgets"].as_array().unwrap().iter().find(|w| w["role"] == "ComboBox").expect("language selector");

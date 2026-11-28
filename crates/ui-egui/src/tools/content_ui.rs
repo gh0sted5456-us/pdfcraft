@@ -302,10 +302,7 @@ impl MoveBackground {
             *self = Self { key, ..Default::default() };
             if let Some((_, page, index)) = key {
                 self.renderer = doc.added_content_preview(page, index).ok().map(|p| p.renderer());
-                if let Ok(preview) = doc.added_content_alone(page, index) {
-                    self.item_bounds = preview.content_bounds();
-                    self.item_renderer = Some(preview.renderer());
-                }
+                self.item_renderer = doc.added_content_alone(page, index).ok().map(|p| p.renderer());
                 self.from = on_page(doc.added(), page).into_iter().find(|(i, _)| *i == index).map(|(_, a)| a.content.rect());
                 self.picture = picture(page, index);
             }
@@ -321,9 +318,7 @@ impl MoveBackground {
         let scale = scale.min(crate::canvas::BASE_SIDE.min(max_side) / p.width.max(p.height).max(1.0));
         let tag = (scale * 1000.0) as u64;
         if self.tag != Some(tag) {
-            let item_side = self.item_bounds.map_or(1.0, |r| ((r[2] - r[0]).max(r[3] - r[1])) as f32).max(1.0);
-            let item_scale = scale.min(crate::canvas::BASE_SIDE.min(max_side) / item_side);
-            for (r, scale) in [(renderer, scale), (item_renderer, item_scale)] {
+            for r in [renderer, item_renderer] {
                 r.set_queue(vec![pdfcraft_render::RenderRequest { page, scale, tag, ..Default::default() }]);
             }
             self.tag = Some(tag);
@@ -1716,14 +1711,6 @@ mod tests {
 
     // PLAN: these fixtures still build `PdfCraftApp::for_unit_tests()`; moving them onto `with_host` with an
     // `EventClipboard` needs the test host recipe (`AppServices::new` arguments), which no owner set provides yet (pdf-hub-w1).
-    #[test]
-    fn a_picture_corner_shrinks_when_only_one_axis_moves() {
-        let rect = Rect::from_min_size(Pos2::new(10.0, 20.0), egui::vec2(100.0, 50.0));
-        let result = dragged(rect, Grab::Corner(false, false), egui::vec2(-25.0, 0.0), true);
-        assert_eq!(result.min, rect.min);
-        assert_eq!(result.size(), egui::vec2(75.0, 37.5));
-    }
-
     #[test]
     fn delivered_pixels_are_bounded_before_cache_or_document_changes() {
         let mut app = crate::PdfCraftApp::for_unit_tests();

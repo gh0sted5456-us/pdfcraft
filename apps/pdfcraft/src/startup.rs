@@ -19,10 +19,6 @@ pub(super) struct Arguments {
     pub two_paged: bool,
     pub version: bool,
     pub help: bool,
-    /// Lion PDF: `--resume-update <file>`, after the updater restarted the app (a new window).
-    pub resume_update: Option<String>,
-    /// Lion PDF: `--refresh-thumbnails` (the installer's): refresh Explorer's thumbnails and exit.
-    pub refresh_thumbnails: bool,
 }
 
 impl Arguments {
@@ -32,18 +28,10 @@ impl Arguments {
         !self.new_window && !self.files.is_empty() && self.options.is_empty() && self.control_port.is_none() && !self.create_images && !self.two_paged
     }
 
-    #[cfg(test)]
     pub fn parse(args: impl IntoIterator<Item = String>) -> Self {
-        Self::parse_skipping(args.into_iter().map(Some))
-    }
-
-    /// The arguments, `None` for one that was skipped (it is not UTF-8): it keeps its place, so
-    /// `--control` gets no value rather than taking the argument after it as its file.
-    pub fn parse_skipping(args: impl IntoIterator<Item = Option<String>>) -> Self {
         let mut parsed = Self::default();
         let mut args = args.into_iter();
         while let Some(a) = args.next() {
-            let Some(a) = a else { continue };
             match a.as_str() {
                 "--version" => {
                     parsed.version = true;
@@ -61,21 +49,13 @@ impl Arguments {
                 // files tab, of the running PdfCraft when there is one.
                 "--combine" => parsed.combine = true,
                 "--new-window" => parsed.new_window = true,
-                "--resume-update" => {
-                    parsed.resume_update = args.next().flatten();
-                    parsed.new_window = true;
-                }
-                "--refresh-thumbnails" => {
-                    parsed.refresh_thumbnails = true;
-                    break;
-                }
                 "--two-paged" => parsed.two_paged = true,
                 flag if flag.starts_with("--two-paged=") => {
                     // It has no value: do not consume the following filename on malformed use.
                     log::warn!("{flag}: use --two-paged without a value");
                 }
                 flag if flag.starts_with("--") => {
-                    let value = args.next().flatten().unwrap_or_default();
+                    let value = args.next().unwrap_or_default();
                     parsed.options.push((flag.trim_start_matches("--").to_string(), value));
                 }
                 _ => parsed.files.push(craft::platform::default_app::path_from_arg(a)),

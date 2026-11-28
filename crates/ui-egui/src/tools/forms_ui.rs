@@ -107,10 +107,8 @@ pub enum FormNotice {
     NoAction(String),
 }
 
-/// Lion PDF: where widget `w` is on screen; a no-rotate widget stays upright on a rotated page.
-pub(crate) fn widget_screen_rect(xf: &PageXform, info: &DocInfo, page: usize, w: &FormWidget) -> Rect {
-    let r = if w.no_rotate { pdfcraft_render::upright_rect(w.rect, info.pages[page].rotation) } else { w.rect };
-    xf.user_rect(info, page, r.map(|v| v as f32))
+fn widget_rect(xf: &PageXform, info: &DocInfo, page: usize, r: [f64; 4]) -> Rect {
+    xf.user_rect(info, page, [r[0] as f32, r[1] as f32, r[2] as f32, r[3] as f32])
 }
 
 /// Where a field's text sits on screen. It is laid out upright in `upright`, the field's screen
@@ -966,7 +964,7 @@ pub fn field_screen_rect(view: &DocView, info: &DocInfo, f: &FormField, widget: 
     let w = f.widgets.get(widget)?;
     let page = w.page?;
     let xf = view.page_xform(page)?;
-    Some(widget_screen_rect(&xf, info, page, w))
+    Some(widget_rect(&xf, info, page, w.rect))
 }
 
 #[cfg(test)]

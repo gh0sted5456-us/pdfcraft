@@ -87,7 +87,6 @@ fn png() -> Vec<u8> {
 }
 
 #[test]
-#[ignore = "Lion PDF: reading colours are a choice list in Preferences, not upstream's preset buttons"]
 fn reading_colours_preference_round_trips() {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 900.0)).build_eframe(|cc| {
         crate::support::install_runtime(&cc.egui_ctx);
@@ -130,7 +129,6 @@ fn reading_colours_preference_round_trips() {
 }
 
 #[test]
-#[ignore = "Lion PDF: reading colours are a choice list in Preferences, not upstream's preset buttons"]
 fn reading_presets_follow_appearance_and_do_not_change_the_interface_theme() {
     let mut h = Harness::builder().with_size(egui::vec2(1400.0, 1000.0)).build_eframe(|cc| {
         crate::support::install_runtime(&cc.egui_ctx);

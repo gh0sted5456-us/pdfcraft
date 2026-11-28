@@ -13,10 +13,6 @@
 //!   catalog) entry per locale that has a `pdfcraft.tsv`. Unset, or not a checkout (a warning),
 //!   it is empty and the interface is English only; with `CRAFT_I18N_REQUIRED=1` (CI and releases)
 //!   that is an error instead. Recipe: craft-i18n's `docs/integration.md`.
-//! - Lion PDF overlay, `i18n-lion/<locale>.tsv`: rows Lion PDF adds or changes. Each locale's
-//!   embedded app catalog is the overlay first, then craft-i18n's rows whose context and source
-//!   the overlay doesn't define (written to `OUT_DIR/i18n/<locale>.tsv`). A locale only the overlay
-//!   has (`en-gb`) is embedded from the overlay alone, with or without `CRAFT_I18N_DIR`.
 
 use std::fmt::Write as _;
 
@@ -65,7 +61,6 @@ fn craft_i18n() -> String {
             Vec::new()
         }
     };
-    let entries = with_lion_overlay(entries);
     let mut o = String::from("/// (locale, shared catalog, PdfCraft's catalog), one entry per locale; `\"\"` for a missing file.\n");
     o.push_str("pub static CRAFT_I18N: &craft_i18n::Embedded = &[\n");
     for (code, shared, app) in entries {
@@ -112,94 +107,6 @@ fn locales(dir: &std::path::Path) -> Result<Vec<Locale>, String> {
     out.sort();
     Ok(out)
 }
-
-/// Lion PDF's overlay catalogs (`i18n-lion/<locale>.tsv`) merged into `entries`: see the module
-/// documentation. A merged catalog is written to `OUT_DIR/i18n/`; an unreadable overlay is a
-/// warning and leaves the craft-i18n catalog as it is.
-fn with_lion_overlay(entries: Vec<Locale>) -> Vec<Locale> {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("i18n-lion");
-    println!("cargo::rerun-if-changed={}", dir.display());
-    let out_dir = std::path::PathBuf::from(std::env::var_os("OUT_DIR").unwrap_or_default()).join("i18n");
-    let _ = std::fs::create_dir_all(&out_dir);
-    let overlay = |code: &str| -> Option<(std::path::PathBuf, String)> {
-        let p = dir.join(format!("{code}.tsv"));
-        println!("cargo::rerun-if-changed={}", p.display());
-        let text = std::fs::read_to_string(&p).ok()?;
-        Some((p, text))
-    };
-    // A row's key, as craft-i18n's parser takes it: (context, source).
-    fn keys(text: &str) -> std::collections::HashSet<(String, String)> {
-        text.lines()
-            .filter(|l| !l.is_empty() && !l.starts_with('#'))
-            .filter_map(|l| {
-                let mut f = l.trim_end_matches('\r').splitn(3, '\t');
-                Some((f.next()?.to_string(), f.next()?.to_string()))
-            })
-            .collect()
-    }
-    let mut out = Vec::new();
-    let mut seen = std::collections::HashSet::new();
-    for (code, shared, app) in entries {
-        seen.insert(code.clone());
-        let Some((_, lion)) = overlay(&code) else {
-            out.push((code, shared, app));
-            continue;
-        };
-        let upstream = match std::fs::read_to_string(&app) {
-            Ok(t) => t,
-            Err(e) => {
-                println!("cargo::warning={}: {e}; the Lion PDF overlay for {code} is not applied", app.display());
-                out.push((code, shared, app));
-                continue;
-            }
-        };
-        let own = keys(&lion);
-        let mut merged = lion.clone();
-        if !merged.ends_with('\n') {
-            merged.push('\n');
-        }
-        for line in upstream.lines() {
-            let kept = line.is_empty() || line.starts_with('#') || {
-                let mut f = line.trim_end_matches('\r').splitn(3, '\t');
-                match (f.next(), f.next()) {
-                    (Some(c), Some(s)) => !own.contains(&(c.to_string(), s.to_string())),
-                    _ => true,
-                }
-            };
-            if kept {
-                merged.push_str(line);
-                merged.push('\n');
-            }
-        }
-        let path = out_dir.join(format!("{code}.tsv"));
-        if let Err(e) = std::fs::write(&path, merged) {
-            println!("cargo::warning={}: {e}; the Lion PDF overlay for {code} is not applied", path.display());
-            out.push((code, shared, app));
-            continue;
-        }
-        out.push((code, shared, path));
-    }
-    // Locales only the overlay has.
-    if let Ok(list) = std::fs::read_dir(&dir) {
-        let mut extra: Vec<_> = list
-            .flatten()
-            .filter_map(|e| e.path().file_stem().and_then(|s| s.to_str()).map(str::to_string))
-            .filter(|code| !seen.contains(code) && STANDALONE_OVERLAYS.contains(&code.as_str()))
-            .collect();
-        extra.sort();
-        for code in extra {
-            if let Some((p, _)) = overlay(&code) {
-                out.push((code, None, p));
-            }
-        }
-    }
-    out.sort();
-    out
-}
-
-/// Overlay locales complete on their own (embedded even without craft-i18n). The others only add
-/// to craft-i18n's catalogs.
-const STANDALONE_OVERLAYS: &[&str] = &["en-gb"];
 
 fn read<T>(path: &std::path::Path, fallback: &str, parse: impl Fn(&str) -> Result<T, String>) -> Option<T> {
     println!("cargo::rerun-if-changed={}", path.display());

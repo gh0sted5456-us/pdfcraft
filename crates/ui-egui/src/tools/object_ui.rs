@@ -100,9 +100,6 @@ impl ObjectSelection {
         self.selected.clear();
         self.pending = None;
         self.select_paragraph = None;
-        self.vertex = None;
-        self.menu = false;
-        self.guides = [None; 2];
     }
 
     /// Select paragraph `block` of `page` as an object at the next `prepare`, as Acrobat does
@@ -121,7 +118,24 @@ impl ObjectSelection {
         if self.generation != Some(generation) {
             self.cache.clear();
             let expected = self.pending.take();
-            let remapped = self.page.zip(expected).and_then(|(page, expected)| remap_objects(doc, page, &expected));
+            let remapped = self.page.zip(expected).and_then(|(page, expected)| {
+                let inventory = doc.editable_objects(page).ok()?;
+                let mut out = Vec::new();
+                for old in expected {
+                    let mut matches = inventory.iter().filter(|o| {
+                        o.target.kind == old.target.kind
+                            && o.content_type == old.content_type
+                            && o.text == old.text
+                            && o.rect.iter().zip(old.rect).all(|(a, b)| (a - b).abs() < 0.01)
+                    });
+                    let object = matches.next()?;
+                    if matches.next().is_some() || out.iter().any(|o: &EditableObject| o.target == object.target) {
+                        return None;
+                    }
+                    out.push(object.clone());
+                }
+                Some(out)
+            });
             if let Some(objects) = remapped {
                 self.selected = objects;
             } else {
@@ -144,47 +158,12 @@ impl ObjectSelection {
 
     /// The move of the whole selection by `offset` (user space). The selection follows it.
     fn move_by(&mut self, page: usize, offset: [f64; 2]) -> Edit {
-        let expected = moved_objects(&self.selected, offset);
+        let mut expected = self.selected.clone();
+        for object in &mut expected {
+            object.rect = [object.rect[0] + offset[0], object.rect[1] + offset[1], object.rect[2] + offset[0], object.rect[3] + offset[1]];
+        }
         self.pending = Some(expected);
         Edit::MoveObjects { page, objects: self.selected.iter().map(|o| o.target).collect(), offset }
-    }
-
-    fn align_edit(&mut self, doc: &Document, how: ObjectAlign) -> Option<Edit> {
-        let page = self.page?;
-        let objects: Vec<_> = self.selected.iter().map(|o| o.target).collect();
-        match doc.object_alignment_offsets(page, &objects, how) {
-            Ok(moves) => {
-                let mut expected = self.selected.clone();
-                for object in &mut expected {
-                    if let Some((_, [dx, dy])) = moves.iter().find(|(target, _)| *target == object.target) {
-                        object.rect = [object.rect[0] + dx, object.rect[1] + dy, object.rect[2] + dx, object.rect[3] + dy];
-                        for p in object.outline.iter_mut().flat_map(|o| o.points.iter_mut()) {
-                            *p = [p[0] + dx, p[1] + dy];
-                        }
-                    }
-                }
-                self.pending = Some(expected);
-                Some(Edit::AlignObjects { page, objects, how })
-            }
-            Err(error) => {
-                self.notice = Some(error);
-                None
-            }
-        }
-    }
-
-    /// The selected vector paths and their page, when the selection is made of paths only.
-    pub(crate) fn paths(&self) -> Option<(usize, &[EditableObject])> {
-        let page = self.page?;
-        (!self.selected.is_empty() && self.selected.iter().all(|o| o.target.kind == ObjectKind::Path)).then_some((page, self.selected.as_slice()))
-    }
-
-    /// Format the selected paths; the selection follows (a path is known by its points).
-    pub(crate) fn style_edit(&mut self, style: PathStyle) -> Option<Edit> {
-        let (page, objects) = self.paths()?;
-        let paths = objects.iter().map(|o| o.target.index).collect();
-        self.pending = Some(self.selected.clone());
-        Some(Edit::StylePaths { page, paths, style })
     }
 
     /// The objects of `page` that can be selected together, as `doc.editable_objects` lists them, or
@@ -194,40 +173,6 @@ impl ObjectSelection {
             self.cache.clear();
         }
         self.cache.entry(page).or_insert_with(|| doc.editable_objects(page)).clone()
-    }
-
-    pub(crate) fn cached_objects(&self, page: usize) -> &[EditableObject] {
-        self.cache.get(&page).and_then(|result| result.as_ref().ok()).map(Vec::as_slice).unwrap_or_default()
-    }
-
-    pub(crate) fn prepare_drag(&mut self, xf: &PageXform, ptr: &PagePointer, page: usize, doc: &Document) {
-        if !self.input_blocked && ptr.pressed().is_some_and(|p| xf.rect.contains(p)) {
-            let _ = self.inventory(doc, page);
-        }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn snap_drag(
-        &mut self,
-        ui: &egui::Ui,
-        xf: &PageXform,
-        page: usize,
-        info: &DocInfo,
-        moving: Rect,
-        excluded: &[ObjectTarget],
-        delta: egui::Vec2,
-    ) -> egui::Vec2 {
-        self.guide_page = Some(page);
-        self.guides = [None; 2];
-        if self.input_blocked || ui.input(|i| i.modifiers.alt) {
-            return delta;
-        }
-        let Some(Ok(objects)) = self.cache.get(&page) else { return delta };
-        let excluded: std::collections::BTreeSet<_> = excluded.iter().copied().collect();
-        let targets = objects.iter().filter(|o| !excluded.contains(&o.target)).map(|o| screen(xf, info, page, o));
-        let snap = crate::alignment::snap(moving, delta, targets);
-        self.guides = snap.guides;
-        snap.delta
     }
 }
 
@@ -275,16 +220,10 @@ pub(crate) fn select_all(view: &mut DocView, doc: &Document) {
 /// page-sized background picture does not hide editable labels or added notes, and within each
 /// kind the last, as the single-item tools take it.
 fn object_at(xf: &PageXform, info: &DocInfo, page: usize, objects: &[EditableObject], p: Pos2) -> Option<ObjectTarget> {
-    hit_object(objects, xf, info, page, p).map(|o| o.target)
-}
-
-/// Lion PDF: added content over text over vector paths (on their line) over pictures.
-fn hit_object<'a>(objects: &'a [EditableObject], xf: &PageXform, info: &DocInfo, page: usize, p: Pos2) -> Option<&'a EditableObject> {
-    [ObjectKind::Added, ObjectKind::Text]
+    [ObjectKind::Added, ObjectKind::Text, ObjectKind::Image]
         .into_iter()
         .find_map(|kind| objects.iter().rev().find(|o| o.target.kind == kind && screen(xf, info, page, o).expand(2.0).contains(p)))
-        .or_else(|| objects.iter().rev().find(|o| near_path(xf, info, page, o, p)))
-        .or_else(|| objects.iter().rev().find(|o| o.target.kind == ObjectKind::Image && screen(xf, info, page, o).expand(2.0).contains(p)))
+        .map(|o| o.target)
 }
 
 /// A press with Shift or ⌘ at `p` on `page`, whatever lies there: the object under it among the
@@ -641,28 +580,6 @@ pub(crate) fn accent_ink(ui: &egui::Ui, share: f32) -> craft::ui::style::DataCol
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn selection_labels_and_refusals_are_translated_in_every_catalog() {
-        for language in crate::i18n::LANGUAGES.iter().filter(|l| !l.code.starts_with("en")) {
-            let lang = crate::i18n::Lang::from_code(language.code).unwrap();
-            for label in [
-                "Drag the selection to move it. Esc clears the selection.",
-                "Shift-click to select several objects. Drag empty space to select an area.",
-                "Select at most 1000 objects at a time.",
-                "Finish or discard the text being edited before selecting several objects.",
-                "Move object",
-                "Move objects",
-                "Vertical text cannot be moved with this selection.",
-                "Text used as a clipping path cannot be moved with this selection.",
-                "These objects could not be moved. Select them again and try a smaller move.",
-                "This page contains objects that cannot be selected together.",
-            ] {
-                assert_ne!(crate::i18n::tr(lang, label), label, "{}: {label}", language.code);
-            }
-            assert_ne!(crate::i18n::trn(lang, 2, "{n} object selected", "{n} objects selected"), "2 objects selected", "{}", language.code);
-        }
-    }
 
     fn t(kind: ObjectKind, index: usize) -> ObjectTarget {
         ObjectTarget { kind, index }

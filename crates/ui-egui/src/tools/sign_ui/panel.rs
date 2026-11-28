@@ -74,8 +74,6 @@ pub enum PanelAction {
     ExportCertificate(Box<Certificate>),
     /// Certificate Viewer for the signer's chain (signer first).
     ViewCertificate(Vec<Certificate>),
-    /// Remove Signature, with this field chosen.
-    Remove(String),
 }
 
 /// A row of the Signatures tree: a signature's head, or one line of what its open head shows.
@@ -235,9 +233,6 @@ fn line_row<'a>(s: &SignatureInfo, child: &Child, action: &'a RefCell<Option<Pan
             row = row.below(Button::new(tl!("View signed version")), move |out| {
                 if out.clicked() {
                     *action.borrow_mut() = Some(PanelAction::ViewSigned { len, revision });
-                }
-                if !s.doc_timestamp && ui.button(tl!("Remove signature…")).clicked() {
-                    action = Some(PanelAction::Remove(s.field.clone()));
                 }
             });
             if let Some(c) = &s.certificate {

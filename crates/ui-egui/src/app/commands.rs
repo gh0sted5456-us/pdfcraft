@@ -19,14 +19,15 @@ impl PdfCraftApp {
             self.execute(ctx, command);
             return;
         }
-        // Keep development roadmap details out of the application.
+        // Not implemented yet: say which milestone ships it.
         let when = pdfcraft_engine::catalog::TOOL_GROUPS
             .iter()
             .flat_map(|g| g.sections.iter().flat_map(|s| s.items.iter()))
             .find(|i| i.command == command)
             .map(|i| match i.availability {
+                pdfcraft_engine::catalog::Availability::Planned(m) => crate::i18n::fmt(tl!("ships in milestone {m}"), &[("m", m)]),
                 pdfcraft_engine::catalog::Availability::Provider => tl!("needs an AI provider (off by default)").to_string(),
-                _ => tl!("is not available yet").to_string(),
+                pdfcraft_engine::catalog::Availability::Ready => tl!("is available").to_string(),
             })
             .unwrap_or_else(|| tl!("is not available yet").to_string());
         self.notify_fmt("`{command}` {when}", &[("command", command), ("when", &when)]);
@@ -167,9 +168,6 @@ impl PdfCraftApp {
             if self.right().is_none() {
                 self.set_right(before);
             }
-            if self.right.is_some() {
-                self.pending_panel_reveals.push(docking::Panel::Inspector);
-            }
         }
     }
 
@@ -181,7 +179,6 @@ impl PdfCraftApp {
         self.set_right(panel);
         if let Some(panel) = panel {
             self.last_right = panel;
-            self.pending_panel_reveals.push(docking::Panel::Inspector);
         }
     }
 

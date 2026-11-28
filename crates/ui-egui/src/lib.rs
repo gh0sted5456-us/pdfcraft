@@ -21,9 +21,6 @@ pub const UPDATE_APP: craft::update::app::App = craft::update::app::App {
 /// PdfCraft as the framework's services know it (the host, About, recovery).
 pub const APP_INFO: craft::host::AppInfo = craft::host::AppInfo { id: "pdfcraft", name: "PdfCraft", version: env!("CARGO_PKG_VERSION") };
 
-/// The personal fork's display name; storage and update identities remain compatible.
-pub const APP_NAME: &str = "Lion PDF";
-
 /// Translate an English UI string into the current language (see [`i18n`]).
 macro_rules! tl {
     ($s:expr) => {
@@ -88,8 +85,6 @@ pub use recovery::AUTOSAVE_SECS;
 pub use workflows::js_dialogs::JsDialog;
 pub use workflows::ocr_verify::{OcrVerify, Phase};
 
-#[cfg(not(target_arch = "wasm32"))]
-mod ai_connect_ui;
 mod app;
 pub(crate) mod brand;
 pub(crate) mod colour_picker;
@@ -434,10 +429,6 @@ pub struct PdfCraftApp {
     /// Preferences: ask for a newer release when the desktop app starts (#5737). Off, the app
     /// asks only from Help ▸ Check for updates.
     pub update_check_at_start: bool,
-    /// Preferences: draw the validation outline and mark over signed signature widgets. Off
-    /// leaves the signer's own appearance uncovered; validation and the Signatures panel are
-    /// unchanged (#4221). Kept in the settings.
-    pub show_signature_badges: bool,
     /// Preferences: tell the user, above the pages, that a document is secured (its security
     /// settings restrict changes). Off only hides that notice (#4035); kept in the settings.
     pub show_secured_notice: bool,
@@ -535,10 +526,6 @@ pub struct PdfCraftApp {
     /// A dynamic form's preSign step, run when signing a field began: the document and its undo
     /// depth after the step. Taken back if signing ends without a signature.
     pub(crate) presign: Option<(DocId, usize)>,
-    pub remove_sig: Option<crate::sign_ui::RemoveSigDraft>,
-    pub timestamp_server: String,
-    pub(crate) timestamp_run: Option<timestamp_ui::TimestampRun>,
-    pub(crate) timestamp_error: Option<String>,
     /// Digital ID files the user has created or added.
     pub digital_ids: Vec<DigitalIdEntry>,
     /// Signatures panel: expanded entries (field names).
@@ -547,8 +534,6 @@ pub struct PdfCraftApp {
     pub a11y_options: a11y_ui::A11yOptions,
     /// Scan & OCR: the Recognize Text choices and the running job.
     pub ocr_draft: ocr_ui::OcrDraft,
-    pub ocr_correction: ocr_correct::Draft,
-    pub auto_ocr: bool,
     pub ocr_run: Option<ocr_ui::OcrRun>,
     pub ocr_batch: Option<std::sync::Arc<JobCount>>,
     /// Pages being recognized, by document.
@@ -693,7 +678,6 @@ pub struct PdfCraftApp {
     pub hairlines_draft: hairlines_ui::HairlinesDraft,
     /// New bookmarks from text styles dialog state (#1693).
     pub text_style_draft: bookmark_styles_ui::TextStyleDraft,
-    pub certificate_draft: certificate_ui::CertificateDraft,
     /// Set Page Boxes dialog state.
     pub boxes_draft: pageboxes::BoxesDraft,
     /// Header & footer / watermark / background dialog state.
@@ -758,51 +742,3 @@ pub struct PdfCraftApp {
     /// An absolute GoToR target waiting for approval, before any target-file I/O (#1364).
     pub pending_remote_link: Option<PendingRemoteLink>,
 }
-
-mod alignment;
-
-mod glass_background;
-
-#[cfg(target_os = "windows")]
-mod assistant_browser;
-
-mod assistant_ui;
-
-mod dialog_windows;
-
-mod paper_ui;
-
-pub mod graphics;
-mod preferences_ui;
-
-mod production_ui;
-
-mod templates_ui;
-
-pub use preferences_ui::PreferencesCategory;
-
-pub mod docking;
-
-mod ocr_correct;
-
-mod page_transfer_ui;
-
-mod spelling_ui;
-
-mod timestamp_ui;
-
-mod group_select;
-
-pub use certificate_ui::{CertificateDraft, Recipient};
-
-pub use sign_ui::SignProtection;
-
-mod folder_step;
-
-pub mod app_icon;
-
-mod certificate_ui;
-
-pub mod tab_windows;
-
-mod window_drop;

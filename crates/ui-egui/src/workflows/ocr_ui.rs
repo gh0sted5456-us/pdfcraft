@@ -61,11 +61,6 @@ pub struct OcrDraft {
     /// Batch: where the searchable copies go (None: ask each time). Remembered from the last
     /// batch's folder pick, so a repeated export into the same place does not re-ask.
     pub output_folder: Option<String>,
-    /// Lion PDF: crop pages to the paper found on them, this many points outside it.
-    pub auto_crop: bool,
-    pub crop_margin: f64,
-    /// Lion PDF: read the words (off: correct the pages only).
-    pub recognize: bool,
 }
 
 impl Default for OcrDraft {
@@ -74,15 +69,13 @@ impl Default for OcrDraft {
             pages: OcrPages::All,
             from: 1,
             to: 1,
-            // Lion PDF: the document language starts as the system's.
-            language: pdfcraft_engine::ocr::language_for_locale(sys_locale::get_locale().as_deref()).into(),
+            language: "en".into(),
             dpi: 300,
             text_pages: false,
             engine: EngineChoice::default(),
             strategy: MergeStrategy::default(),
-            // Lion PDF: orientation and skew are corrected by default, as `OcrSettings` says.
-            auto_rotate: true,
-            deskew: true,
+            auto_rotate: false,
+            deskew: false,
             denoise: false,
             binarize: false,
             output_mode: OutputMode::default(),
@@ -90,9 +83,6 @@ impl Default for OcrDraft {
             skip_text_pages: true,
             force_ocr: false,
             output_folder: None,
-            auto_crop: false,
-            crop_margin: 2.0,
-            recognize: true,
         }
     }
 }
@@ -111,12 +101,8 @@ impl OcrDraft {
             binarize: self.binarize,
             output_mode: self.output_mode,
             skip_text_files: self.skip_text_files,
-            // Lion PDF: correcting scans (no recognition) also processes pages that already have text.
-            skip_text_pages: self.recognize && self.skip_text_pages && !self.text_pages,
+            skip_text_pages: self.skip_text_pages && !self.text_pages,
             force_ocr: self.force_ocr,
-            auto_crop: self.auto_crop,
-            crop_margin: self.crop_margin,
-            recognize: self.recognize,
             ..Default::default()
         }
     }
@@ -251,7 +237,7 @@ pub(crate) fn keep_asking_while_probing(ctx: &egui::Context) {
 }
 
 /// Every engine the dialog offers, in its order.
-const ENGINES: [EngineChoice; 3] = [EngineChoice::Auto, EngineChoice::Ocrs, EngineChoice::Tesseract];
+const ENGINES: [EngineChoice; 4] = [EngineChoice::Lion, EngineChoice::Auto, EngineChoice::Ocrs, EngineChoice::Tesseract];
 
 /// The resolutions "Downsample to" offers.
 const DPI_CHOICES: [u32; 4] = [600, 300, 150, 72];
@@ -369,6 +355,7 @@ fn recognize_dialog(fields: &mut DialogFields, count: usize, current: usize) -> 
 
     let languages = LANGUAGES.iter().map(|(code, name)| ((*code).to_string(), tl!(*name).into())).collect();
     let engine_names = |choice: EngineChoice| match choice {
+        EngineChoice::Lion => tl!("Lion PDF"),
         EngineChoice::Auto => tl!("Automatic"),
         EngineChoice::Ocrs => tl!("Built-in"),
         EngineChoice::Tesseract => tl!("Tesseract"),
@@ -1064,10 +1051,6 @@ impl PdfCraftApp {
         }
         let read = found.iter().filter(|p| p.skipped.is_none()).count();
         let skipped = found.len() - read;
-        // Lion PDF: pages its engine corrected (turned, straightened or cropped), and whether
-        // this was Scan & OCR ▸ Correct scans (no recognition).
-        let corrected = found.iter().filter(|p| p.skipped.is_none() && p.changed()).count();
-        let recognizing = automatic || self.ocr_draft.recognize;
         // The guard refuses a result that no longer fits its document (the user edited, or
         // redacted, while the worker was out); its reason says so.
         match self.session.apply_ocr_checked(doc, &found, &guard) {
@@ -1087,14 +1070,7 @@ impl PdfCraftApp {
                     crate::i18n::fmt(tl!("Recognized {n} words"), &[("n", &words.to_string())])
                 };
                 let pages_part = if read == 1 { tl!("1 page").to_string() } else { crate::i18n::fmt(tl!("{n} pages"), &[("n", &read.to_string())]) };
-                let mut msg = if recognizing {
-                    crate::i18n::fmt(tl!("{words} on {pages}"), &[("words", &words_part), ("pages", &pages_part)])
-                } else {
-                    crate::i18n::fmt(tl!("Enhanced {n} pages"), &[("n", &corrected.to_string())])
-                };
-                if recognizing && corrected > 0 {
-                    msg.push_str(&crate::i18n::fmt(tl!("; corrected {n} pages"), &[("n", &corrected.to_string())]));
-                }
+                let mut msg = crate::i18n::fmt(tl!("{words} on {pages}"), &[("words", &words_part), ("pages", &pages_part)]);
                 if skipped > 0 {
                     msg.push_str(&if skipped == 1 {
                         crate::i18n::fmt(tl!("; 1 page already had text"), &[])
@@ -1207,141 +1183,6 @@ fn failed(e: &str) -> String {
 #[cfg(not(target_arch = "wasm32"))]
 fn recognize_guarded<T>(recognize: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
     pdfcraft_engine::guard(recognize).unwrap_or_else(|panic| Err(failed(&panic)))
-}
-
-// ── Lion PDF: automatic recognition of scans, its preference, and the scan prompt ──
-
-pub(crate) fn toggle(ui: &mut egui::Ui, app: &mut PdfCraftApp) {
-    let mut enabled = app.auto_ocr;
-    if ui
-        .add(crate::widgets::checkbox(&mut enabled, tl!("Recognize scanned text automatically")))
-        .on_hover_text(tl!("Read the text of a scanned page when it is edited."))
-        .changed()
-    {
-        app.set_auto_ocr(enabled);
-    }
-}
-
-/// Preferences ▸ Scan & OCR: automatic recognition and the choices Recognize Text starts with.
-pub(crate) fn preferences(ui: &mut egui::Ui, app: &mut PdfCraftApp) {
-    toggle(ui, app);
-    ui.add_space(12.0);
-    let d = &mut app.ocr_draft;
-    egui::Grid::new("ocr-preferences").num_columns(2).min_col_width(110.0).spacing([12.0, 8.0]).show(ui, |ui| {
-        let language = ui.label(tl!("Document language"));
-        let name = LANGUAGES.iter().find(|l| l.0 == d.language).map_or("English", |l| l.1);
-        craft_ui::ComboBox::from_id_salt("ocr-pref-language")
-            .selected_text(tl!(name))
-            .width(220.0)
-            .show_ui(ui, |ui| {
-                for (code, name) in LANGUAGES {
-                    ui.selectable_value(&mut d.language, (*code).to_string(), tl!(*name));
-                }
-            })
-            .response
-            .labelled_by(language.id);
-        ui.end_row();
-        let resolution = ui.label(tl!("Downsample to"));
-        craft_ui::ComboBox::from_id_salt("ocr-pref-dpi")
-            .selected_text(format!("{} dpi", d.dpi))
-            .width(220.0)
-            .show_ui(ui, |ui| {
-                for v in [600, 300, 150, 72] {
-                    ui.selectable_value(&mut d.dpi, v, format!("{v} dpi"));
-                }
-            })
-            .response
-            .labelled_by(resolution.id);
-        ui.end_row();
-    });
-    ui.add_space(4.0);
-    ui.add(crate::widgets::checkbox(&mut d.auto_rotate, tl!("Correct page orientation")));
-    ui.add(crate::widgets::checkbox(&mut d.deskew, tl!("Straighten skewed pages")));
-    ui.add(crate::widgets::checkbox(&mut d.auto_crop, tl!("Crop to the scanned paper")));
-    ui.add(crate::widgets::checkbox(&mut d.text_pages, tl!("Also recognize pages that already have text")))
-        .on_hover_text(tl!("Pictures on those pages are recognized too; words already in the page's text are not added again"));
-}
-
-/// The scan prompt: recognize the current page, or every page.
-pub(crate) fn scan_prompt_body(ui: &mut egui::Ui, app: &mut PdfCraftApp) -> (Option<bool>, bool) {
-    crate::widgets::dialog_heading(ui, tl!("Scanned text detected"));
-    ui.add_space(8.0);
-    ui.label(tl!("Recognize text on this page or throughout the document?"));
-    ui.add_space(8.0);
-    toggle(ui, app);
-    ui.add_space(8.0);
-    let mut all = None;
-    let mut cancel = false;
-    crate::widgets::dialog_footer(ui, |ui| {
-        if crate::widgets::dialog_button(ui, tl!("Current page"), crate::widgets::DialogAction::Confirm).clicked() {
-            all = Some(false);
-        }
-        if crate::widgets::dialog_button(ui, tl!("All pages"), crate::widgets::DialogAction::Confirm).clicked() {
-            all = Some(true);
-        }
-        if crate::widgets::dialog_button(ui, tl!("Cancel"), crate::widgets::DialogAction::Cancel).clicked() {
-            cancel = true;
-        }
-    });
-    (all, cancel)
-}
-
-impl PdfCraftApp {
-    pub(crate) fn set_auto_ocr(&mut self, enabled: bool) {
-        if enabled && !self.auto_ocr {
-            for view in &mut self.views {
-                view.auto_ocr_tried.clear();
-                view.auto_ocr_skipped.clear();
-            }
-        }
-        self.auto_ocr = enabled;
-    }
-
-    /// Lion PDF: Edit on a scanned page asks first ("Scanned text detected": this page or all
-    /// of them) while the preference is on, rather than reading it unasked. The page is found as
-    /// upstream's automatic Edit OCR finds it ([`Self::scan_to_read`]), and asked about once.
-    pub(crate) fn prompt_scan_ocr(&mut self) {
-        if !self.auto_ocr || self.palette_open {
-            return;
-        }
-        let Some(scan) = self.scan_to_read() else { return };
-        let view = &self.views[scan.view];
-        if view.line_editor.is_some() || view.pending_edit.is_some() || view.snapshot.is_some() {
-            return;
-        }
-        let Some(document) = self.session.get(scan.doc) else { return };
-        // Only a page with no text of its own, and not one a signature protects.
-        if document.protected_pages().contains(&scan.page) || !document.text_blocks(scan.page).is_empty() {
-            self.views[scan.view].auto_ocr_skipped.insert(scan.page, scan.generation);
-            return;
-        }
-        let settings = self.ocr_draft.settings();
-        if pdfcraft_engine::ocr::engine_unavailable_reason(settings.engine).is_some()
-            || (settings.engine == EngineChoice::Lion && !pdfcraft_engine::ocr::available_for(&settings.language))
-        {
-            self.await_ocr_models(&scan);
-            return;
-        }
-        self.views[scan.view].auto_ocr_tried.insert(scan.page);
-        self.dialog = Some(crate::Dialog::RecognizeScan { doc: scan.doc, page: scan.page, generation: scan.generation });
-    }
-
-    /// The scan prompt's answer: read page `page` of `doc`, or all its pages.
-    pub(crate) fn recognize_scan(&mut self, doc: DocId, page: usize, generation: u64, all: bool) {
-        if self.active_ids().map(|(_, id)| id) != Some(doc) || self.session.get(doc).is_none_or(|d| d.edit_generation() != generation) {
-            self.notify_tr("The document changed while text was being recognized, so the result was discarded. Run Recognize text again.");
-            return;
-        }
-        let mut settings = self.ocr_draft.settings();
-        settings.skip_text_pages = true;
-        settings.native_text_only = true;
-        settings.recognize = true;
-        settings.auto_rotate = false;
-        settings.deskew = false;
-        settings.auto_crop = false;
-        let pages = if all { Vec::new() } else { vec![page] };
-        self.start_ocr_pages(doc, &pages, settings, false);
-    }
 }
 
 #[cfg(test)]

@@ -92,7 +92,7 @@ fn tool_row(g: &'static ToolGroup, pinned: bool) -> ListRow<'static> {
     row = if pinned { row.trailing_part(PIN, face, pin_name) } else { row.trailing_part_revealed(PIN, face, pin_name) };
     let tip = match g.availability {
         Availability::Ready => tl!("Available").to_string(),
-        Availability::Planned(_) => tl!("is not available yet").into(),
+        Availability::Planned(m) => format!("{} {m} — {}", tl!("Planned for milestone"), tl!("open to see what it will include")),
         Availability::Provider => tl!("Optional: needs an AI provider you configure").into(),
     };
     row.tooltip(tip)

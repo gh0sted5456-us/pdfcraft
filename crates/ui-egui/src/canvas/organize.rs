@@ -109,7 +109,7 @@ fn commit_reorder(view: &mut DocView, mut pages: Vec<usize>, to: usize, copy: bo
     if copy {
         // The copies land at the gap as it is: nothing leaves its place.
         let gap = gap_of(&pages, to);
-        view.session.pending_edit = Some(Edit::DuplicatePages { pages, at: Some(gap) });
+        view.session.pending_edit = Some(Edit::DuplicatePages { pages, at: Some(gap), field_conflicts: pdfcraft_engine::FieldConflicts::Merge });
         view.selected = Selection::new((gap..gap + count).collect(), Some(gap), Some(gap));
         return;
     }
@@ -149,9 +149,7 @@ fn page_menu(ui: &mut egui::Ui, view: &mut DocView, editable: bool) {
 /// ⌘-click toggles, ⇧-click extends; double-click opens the page.
 pub(super) fn organize_grid(view: &mut DocView, doc: &pdfcraft_engine::Document, cx: &mut GridCx<'_>) {
     let info = &doc.info;
-    // Lion PDF: a certified document's pages, and the grid opened to pick pages for signing,
-    // can't be rearranged; locked pages can't be deleted.
-    let editable = doc.allows_assembly() && doc.certification().is_none() && !view.organize_pick;
+    let editable = doc.allows_assembly();
     let dirty = doc.dirty;
     let n = info.pages.len();
     let targets = view.target_pages();

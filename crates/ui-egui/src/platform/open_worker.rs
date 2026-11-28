@@ -68,27 +68,10 @@ pub(crate) fn read_recovery_copy(path: &std::path::Path) -> std::io::Result<Vec<
 
 fn prepare(job: Job, cancel: &Cancel) -> ResultKind {
     let bytes = match &job.input {
-        Input::Path(path) => {
-            // Lion PDF: a template is read no further than its size limit.
-            let template = job.name.to_ascii_lowercase().ends_with(".pdfcraft-template");
-            let read = if template {
-                use std::io::Read as _;
-                std::fs::File::open(path).and_then(|file| {
-                    let mut bytes = Vec::new();
-                    file.take(pdfcraft_engine::templates::MAX_BYTES as u64 + 1).read_to_end(&mut bytes)?;
-                    Ok(bytes)
-                })
-            } else {
-                std::fs::read(path)
-            };
-            match read {
-                Ok(bytes) if template && bytes.len() > pdfcraft_engine::templates::MAX_BYTES => {
-                    return ResultKind::ReadFailed("A template must not exceed 64 MiB".into());
-                }
-                Ok(bytes) => Arc::new(bytes),
-                Err(error) => return ResultKind::ReadFailed(error.to_string()),
-            }
-        }
+        Input::Path(path) => match std::fs::read(path) {
+            Ok(bytes) => Arc::new(bytes),
+            Err(error) => return ResultKind::ReadFailed(error.to_string()),
+        },
         Input::RemotePath(path) => match pdfcraft_engine::read_remote_document(path) {
             Ok(bytes) => Arc::new(bytes),
             Err(error) => return ResultKind::RemoteFailed(error.to_string()),

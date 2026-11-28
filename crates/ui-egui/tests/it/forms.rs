@@ -1449,7 +1449,7 @@ mod revert_tests {
         assert_eq!(files.file(&path), Some(saved.clone()), "rejection leaves the saved file untouched");
         assert!(h.execute("file.revert"));
         h.run_steps(2);
-        h.get_by_role_and_label(egui::accesskit::Role::Button, "Revert").click();
+        h.get_all_by_label("Revert").last().expect("confirmation button").click();
         h.run_steps(4);
         assert!(h.state().views[0].session.forms.focus.is_none() && h.state().views[0].session.pending_edit.is_none());
         assert_eq!(h.state().first_dirty(), None, "Revert discards rejected typing too");

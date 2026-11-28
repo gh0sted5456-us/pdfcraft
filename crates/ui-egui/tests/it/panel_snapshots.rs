@@ -210,9 +210,6 @@ fn open(p: RightPanel) -> (Harness<'static, PdfCraftApp>, &'static str) {
             // as a new query is, the current match is the first from the page in view.
             h.state_mut().views[0].rerun_find();
             h.run_steps(2);
-            // Search finishes asynchronously; pin the selected result that the snapshot describes.
-            h.get_by_label("…Panel sample Draft notes…").click();
-            h.run_steps(2);
             return (h, "search");
         }
         RightPanel::Compare => {

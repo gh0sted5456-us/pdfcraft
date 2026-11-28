@@ -156,6 +156,11 @@ fn language_name(code: &str, name: &str) -> String {
 /// say what they do. Automatic's description names the Strategy that combines the two.
 fn engine_entries() -> Vec<Entry<EngineChoice>> {
     [
+        (
+            EngineChoice::Lion,
+            engine_label(EngineChoice::Lion),
+            tl!("Lion PDF's engine: accented Latin, Japanese and Chinese, with page orientation and deskew"),
+        ),
         (EngineChoice::Auto, engine_label(EngineChoice::Auto), tl!("Both engines, combined as the Strategy says")),
         (EngineChoice::Ocrs, engine_label(EngineChoice::Ocrs), tl!("The built-in engine (pure Rust)")),
         (EngineChoice::Tesseract, engine_label(EngineChoice::Tesseract), tl!("The tesseract program, run as an external process")),
@@ -174,6 +179,7 @@ fn engine_entries() -> Vec<Entry<EngineChoice>> {
 /// The Engine dropdown's text.
 fn engine_label(engine: EngineChoice) -> &'static str {
     match engine {
+        EngineChoice::Lion => "Lion PDF",
         EngineChoice::Auto => tl!("Automatic"),
         EngineChoice::Ocrs => tl!("Built-in"),
         EngineChoice::Tesseract => "Tesseract",

@@ -118,7 +118,6 @@ impl crate::PdfCraftApp {
             "quick_tool": match self.quick_tool {
                 crate::QuickTool::Measure(t) => format!("measure-{}", t.name()),
                 crate::QuickTool::Select => "select".to_string(),
-                crate::QuickTool::GroupSelect => "group-select".to_string(),
                 crate::QuickTool::Hand => "hand".to_string(),
                 crate::QuickTool::Crop => "crop".to_string(),
                 crate::QuickTool::EnhanceCamera => "enhance-camera".to_string(),
@@ -161,9 +160,6 @@ impl crate::PdfCraftApp {
             "theme": format!("{:?}", self.root_env(ctx).resolved(ctx).mode),
             "theme_preference": format!("{:?}", self.theme_preference),
             "show_page_edge_shadows": self.show_page_edge_shadows,
-            "graphics": self.graphics,
-            "glass": self.glass,
-            "glass_background": {"enabled": self.glass_background.has_image(), "opacity": self.glass_background.opacity},
             "language": self.language,
             "notice": notice,
             "progress": progress,
@@ -188,7 +184,6 @@ impl crate::PdfCraftApp {
             .iter()
             .map(|c| json!({ "id": c.id, "label": c.label, "menu": c.menu, "enabled": self.command_enabled(c), "shortcut": c.shortcut_for(cfg!(target_os = "macos")).map(|s| s.label(cfg!(target_os = "macos"))) }))
             .collect();
-        list.push(json!({"id": "ui.dock", "label": "Panel layout", "enabled": true, "params": "action: docking action"}));
         list.push(json!({"id": "ui.panel", "label": "Side panel", "enabled": true, "params": "panel: tools or side; open: boolean; width: number (clamped to the panel's limits)"}));
         json!({ "commands": list })
     }
@@ -213,9 +208,5 @@ impl crate::PdfCraftApp {
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn open(&mut self, _path: &str) -> Result<Value, String> {
         Err("ui.open needs a file system; on the web, drop the file on the page".into())
-    }
-
-    fn dock(&mut self, reset: bool, params: &Value) -> Reply {
-        crate::docking::command(self, reset, params)
     }
 }

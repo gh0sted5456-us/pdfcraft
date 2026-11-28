@@ -202,6 +202,10 @@ impl PrepareView {
     }
 }
 
+fn screen_rect(xf: &PageXform, info: &DocInfo, page: usize, r: [f64; 4]) -> Rect {
+    xf.user_rect(info, page, [r[0] as f32, r[1] as f32, r[2] as f32, r[3] as f32])
+}
+
 fn to_user(xf: &PageXform, info: &DocInfo, page: usize, p: Pos2) -> [f64; 2] {
     let (vx, vy) = xf.screen_to_view(p);
     let u = info.pages[page].view_to_user(vx, vy);

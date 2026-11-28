@@ -10,10 +10,10 @@ use craft::update::stack_dialogs::{CheckChoice, UpdateCheckDialog};
 #[cfg(not(target_arch = "wasm32"))]
 use craft::update::updater::{Action, Status};
 
-use crate::{PdfCraftApp, theme, widgets};
+use crate::PdfCraftApp;
 
 /// Where every PdfCraft release is listed.
-pub const RELEASES_PAGE: &str = "https://github.com/gh0sted5456-us/pdfcraft/releases";
+pub const RELEASES_PAGE: &str = "https://github.com/storytold/pdfcraft/releases";
 
 impl PdfCraftApp {
     /// Whether the app asks for a newer release on its first frame (off until the desktop app turns it on).
@@ -25,10 +25,6 @@ impl PdfCraftApp {
     /// Help ▸ Check for updates: ask for the latest release. The result dialog opens while the
     /// updater's status is not idle ([`Self::update_logic`]).
     pub fn check_for_updates(&mut self) {
-        let Some(source) = self.update_source.clone() else {
-            self.open_url(RELEASES_PAGE);
-            return;
-        };
         #[cfg(not(target_arch = "wasm32"))]
         self.updater.check_now();
         #[cfg(target_arch = "wasm32")]

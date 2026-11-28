@@ -177,9 +177,6 @@ impl PdfCraftApp {
     }
 
     /// Previewing and expanding files.
-    // Rust 1.95's clippy (the release toolchain) asks to fold these `if`s into match guards,
-    // which would send the unmatched case on to the later arms.
-    #[allow(clippy::collapsible_match)]
     fn combine_preview_action(&mut self, action: RowAction) {
         let ids: Vec<u64> = self.combine_draft.iter().map(|f| f.id).collect();
         match action {

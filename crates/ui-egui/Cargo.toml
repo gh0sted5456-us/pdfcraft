@@ -31,9 +31,7 @@ pdfcraft-render = { workspace = true }
 pdfcraft-model = { workspace = true }
 pdfcraft-platform = { workspace = true }
 egui = { workspace = true, features = ["bytemuck", "default_fonts", "monochrome_emoji_fonts"] }
-egui_extras = { workspace = true, features = ["image"] }
-# Decode the personal lion with egui's image loader (the existing image crate, PNG only).
-image = { version = "0.25", default-features = false, features = ["png"] }
+egui_extras = { workspace = true }
 # `glow` is always on: `eframe::App::on_exit` takes a GL context when that feature is enabled.
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "glow", "accesskit", "persistence", "links", "clipboard"] }
 serde = { workspace = true }
@@ -51,10 +49,9 @@ bytemuck = { version = "1", features = ["extern_crate_alloc"] }
 rfd = { workspace = true }
 craft-image-codecs = { workspace = true }
 base64 = "0.23"
-# Right-to-left file names in the chrome (egui shapes but does not reorder); already in the tree.
+# Unicode bidi paragraph segmentation for right-to-left comment wrapping; egui 0.37's epaint owns
+# display reordering. Already in the tree through egui’s epaint.
 unicode-bidi = "0.3"
-# OCR defaults to the OS/browser locale, including languages without a UI translation.
-sys-locale = { version = "0.3", features = ["js"] }
 # Checks that an installed fallback font parses and has the glyphs, and reads the vertical metrics
 # that put fallback faces on the interface's baseline (#1676); the same skrifa egui uses.
 skrifa = "0.44"
@@ -81,12 +78,11 @@ plist = "1.10"
 rustix = { version = "1.1.6", features = ["fs"] }
 
 [target.'cfg(windows)'.dependencies]
-# Safe access to the existing native window's title-bar colours; already used by eframe.
-winit = { version = "0.30", default-features = false }
+# Auto interface language: the Windows display language, without starting a process.
+sys-locale = "0.3"
 # Region ▸ Measurement system for the default Units, read from the registry without starting reg.exe;
 # where the pointer is while files are dragged over the window (winit doesn't say).
 winsafe = { version = "0.0.29", default-features = false, features = ["advapi", "user"] }
-wry = { version = "=0.57.1", default-features = false, features = ["os-webview"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 rfd = { workspace = true, features = ["file-handle-inner"] }
