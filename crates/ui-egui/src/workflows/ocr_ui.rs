@@ -9,7 +9,8 @@ use craft::pages::{PageRange, PageScope};
 use craft::ui::buttons::Button;
 use craft::ui::contract::{Bind, Show as _, clicked};
 use craft::ui::display::Text;
-use craft::ui::patterns::form_dialogs::{DialogFields, HostedParamDialog, Param, ParamDialog, ParamKind};
+use craft::ui::patterns::form_dialogs::{DialogFields, FieldValue, HostedParamDialog, Param, ParamDialog, ParamKind};
+use craft::ui::value_drag::SliderScale;
 use craft::ui::runtime::env::Label;
 use pdfcraft_engine::DocId;
 use pdfcraft_engine::ocr::{EngineChoice, LANGUAGES, MergeStrategy, OcrGuard, OcrPage, OcrSettings, OutputMode};
@@ -50,6 +51,11 @@ pub struct OcrDraft {
     pub deskew: bool,
     pub denoise: bool,
     pub binarize: bool,
+    /// Lion PDF: crop each page to the scanned paper, `crop_margin` points outside it.
+    pub auto_crop: bool,
+    pub crop_margin: f64,
+    /// Lion PDF: read the words (off: correct the pages only, Scan & OCR ▸ Correct scans).
+    pub recognize: bool,
     /// What Accept produces.
     pub output_mode: OutputMode,
     /// Batch: leave files that already contain text alone.
@@ -78,6 +84,9 @@ impl Default for OcrDraft {
             deskew: false,
             denoise: false,
             binarize: false,
+            auto_crop: false,
+            crop_margin: 2.0,
+            recognize: true,
             output_mode: OutputMode::default(),
             skip_text_files: false,
             skip_text_pages: true,
@@ -101,8 +110,12 @@ impl OcrDraft {
             binarize: self.binarize,
             output_mode: self.output_mode,
             skip_text_files: self.skip_text_files,
-            skip_text_pages: self.skip_text_pages && !self.text_pages,
+            // Lion PDF: correcting scans (no recognition) also processes pages that already have text.
+            skip_text_pages: self.recognize && self.skip_text_pages && !self.text_pages,
             force_ocr: self.force_ocr,
+            auto_crop: self.auto_crop,
+            crop_margin: self.crop_margin,
+            recognize: self.recognize,
             ..Default::default()
         }
     }
@@ -126,9 +139,13 @@ impl OcrDraft {
         if let Some(m) = v["output_mode"].as_str() {
             self.output_mode = OutputMode::parse(m);
         }
-        for (key, flag) in
-            [("auto_rotate", &mut self.auto_rotate), ("deskew", &mut self.deskew), ("denoise", &mut self.denoise), ("binarize", &mut self.binarize)]
-        {
+        for (key, flag) in [
+            ("auto_rotate", &mut self.auto_rotate),
+            ("deskew", &mut self.deskew),
+            ("denoise", &mut self.denoise),
+            ("binarize", &mut self.binarize),
+            ("auto_crop", &mut self.auto_crop),
+        ] {
             if let Some(on) = v[key].as_bool() {
                 *flag = on;
             }
@@ -139,6 +156,9 @@ impl OcrDraft {
             if let Some(on) = v[key].as_bool() {
                 *flag = on;
             }
+        }
+        if let Some(margin) = v["crop_margin"].as_f64().filter(|m| m.is_finite()) {
+            self.crop_margin = margin.clamp(0.0, 20.0);
         }
         if let Some(f) = v["output_folder"].as_str().filter(|f| !f.is_empty()) {
             self.output_folder = Some(f.to_string());
@@ -156,6 +176,8 @@ impl OcrDraft {
             "deskew": self.deskew,
             "denoise": self.denoise,
             "binarize": self.binarize,
+            "auto_crop": self.auto_crop,
+            "crop_margin": self.crop_margin,
             "skip_text_files": self.skip_text_files,
             "skip_text_pages": self.skip_text_pages,
             "force_ocr": self.force_ocr,
@@ -289,6 +311,9 @@ fn fields_from(d: &OcrDraft, count: usize) -> DialogFields {
     f.set("deskew", d.deskew);
     f.set("denoise", d.denoise);
     f.set("binarize", d.binarize);
+    f.set("auto_crop", d.auto_crop);
+    f.set("crop_margin", FieldValue::Number(d.crop_margin));
+    f.set("recognize", d.recognize);
     f.set("skip_text_pages", d.skip_text_pages);
     f.set("skip_text_files", d.skip_text_files);
     f.set("force_ocr", d.force_ocr);
@@ -333,6 +358,8 @@ fn draft_from(d: &mut OcrDraft, fields: &DialogFields, count: usize) {
         ("deskew", &mut d.deskew),
         ("denoise", &mut d.denoise),
         ("binarize", &mut d.binarize),
+        ("auto_crop", &mut d.auto_crop),
+        ("recognize", &mut d.recognize),
         ("skip_text_pages", &mut d.skip_text_pages),
         ("skip_text_files", &mut d.skip_text_files),
         ("force_ocr", &mut d.force_ocr),
@@ -340,6 +367,9 @@ fn draft_from(d: &mut OcrDraft, fields: &DialogFields, count: usize) {
         if let Some(on) = fields.bool(key) {
             *flag = on;
         }
+    }
+    if let Some(margin) = fields.number("crop_margin").filter(|m| m.is_finite()) {
+        d.crop_margin = margin.clamp(0.0, 20.0);
     }
     if let Some(folder) = fields.text("output_folder") {
         d.output_folder = (!folder.is_empty()).then(|| folder.to_string());
@@ -421,6 +451,13 @@ fn recognize_dialog(fields: &mut DialogFields, count: usize, current: usize) -> 
         flag("deskew", tl!("Straighten skewed text lines"), None),
         flag("denoise", tl!("Remove scan speckle"), None),
         flag("binarize", tl!("Black and white (binarize)"), None),
+        // Lion PDF: scan correction, done by Lion PDF's engine before the words are read.
+        Param::section(tl!("Scan correction")),
+        flag("auto_crop", tl!("Crop scanner borders to the paper edge"), None),
+        Param::new("crop_margin", tl!("Margin outside the paper (pt)"), ParamKind::range(0.0, 20.0, 2.0, SliderScale::Linear))
+            .decimals(1)
+            .visible_when("auto_crop", true),
+        flag("recognize", tl!("Add searchable text"), Some(tl!("Off: the pages are only turned, straightened and cropped"))),
         Param::section(tl!("Skip")),
         flag(
             "skip_text_pages",
@@ -465,8 +502,11 @@ fn recognize_dialog(fields: &mut DialogFields, count: usize, current: usize) -> 
     #[cfg(not(target_arch = "wasm32"))]
     let download_notice: Option<String> = None;
 
-    let mut dialog = ParamDialog::new("ocr.recognize", tl!("Recognize Text"), params)
-        .ok_label(Label::from(tl!("Recognize text")))
+    // Lion PDF: the dialog's correction mode (Scan & OCR ▸ Correct scans).
+    let recognizing = fields.bool("recognize").unwrap_or(true);
+    let (title, ok) = if recognizing { (tl!("Recognize Text"), tl!("Recognize text")) } else { (tl!("Scan correction"), tl!("Correct scans")) };
+    let mut dialog = ParamDialog::new("ocr.recognize", title, params)
+        .ok_label(Label::from(ok))
         .ok_enabled(reason.is_none())
         .values(Bind::bound(fields));
     if let Some(note) = download_notice.or_else(|| reason.clone()) {

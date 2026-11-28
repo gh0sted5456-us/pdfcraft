@@ -302,6 +302,8 @@ impl PdfCraftApp {
                 "comment.paste" => self.comment_clipboard.is_some(),
                 "view.previous_view" => self.active.and_then(|i| self.views.get(i)).is_some_and(|v| !v.back.is_empty()),
                 "view.next_view" => self.active.and_then(|i| self.views.get(i)).is_some_and(|v| !v.forward.is_empty()),
+                // Lion PDF: a browser gives the page a file's bytes, never its folder.
+                "file.open_next_in_folder" | "file.open_previous_in_folder" => !cfg!(target_arch = "wasm32"),
                 _ => true,
             }
     }
@@ -778,8 +780,25 @@ impl PdfCraftApp {
                 self.apply_edit(ctx, Edit::RemoveMarks { kind });
             }
             "export.image" => crate::export_ui::open(self, ctx, crate::export_ui::ExportKind::Image),
+            "export.xlsx" => crate::export_ui::open(self, ctx, crate::export_ui::ExportKind::Excel),
+            "export.choose" => crate::export_ui::open_choice(self, ctx),
+            "create.new" => self.begin_template_gallery(),
+            "create.save_template" => self.begin_template_export(ctx),
+            "create.custom" => crate::lion_create::open_custom_page(self, ctx),
+            "file.open_next_in_folder" => self.open_pdf_beside(ctx, true),
+            "file.open_previous_in_folder" => self.open_pdf_beside(ctx, false),
+            "ai.confidential" | "ai.confidential_clear" | "ai.confidential_pages" | "ai.confidential_pages_clear" => {
+                let pages = id.contains("pages").then(|| self.active.and_then(|i| self.views.get(i)).map(|v| v.target_pages()).unwrap_or_default());
+                self.apply_edit(ctx, pdfcraft_engine::Edit::SetAiConfidential { pages, confidential: !id.ends_with("clear") });
+            }
             "export.text" => crate::export_ui::open(self, ctx, crate::export_ui::ExportKind::Text),
             "ocr.recognize" => self.open_recognize_text(ctx),
+            // Lion PDF: the Recognize Text dialog in its correction mode.
+            "ocr.correct_scans" => {
+                self.ocr_draft.recognize = false;
+                self.ocr_draft.auto_crop = true;
+                self.open_recognize_text(ctx);
+            }
             "ocr.enhance" => self.open_enhance_scan(ctx),
             "ocr.recognize_batch" => self.ocr_files_dialog(),
             "ocr.correct" => self.ocr_verify.open = true,
@@ -843,6 +862,8 @@ impl PdfCraftApp {
             "export.docx" => self.export_office_dialog(ctx, pdfcraft_engine::compare::OfficeFormat::Docx),
             "export.pptx" => self.export_office_dialog(ctx, pdfcraft_engine::compare::OfficeFormat::Pptx),
             "export.html" => self.export_office_dialog(ctx, pdfcraft_engine::compare::OfficeFormat::Html),
+            // Lion PDF.
+            "export.markdown" => self.export_office_dialog(ctx, pdfcraft_engine::compare::OfficeFormat::Markdown),
             "export.rtf" => self.export_office_dialog(ctx, pdfcraft_engine::compare::OfficeFormat::Rtf),
             "ocr.enhance_camera" => {
                 // The corners start on the document's edges when they can be found, else

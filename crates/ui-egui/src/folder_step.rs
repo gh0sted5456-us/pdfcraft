@@ -6,7 +6,7 @@ use std::cmp::Ordering;
 
 use crate::PdfCraftApp;
 #[cfg(not(target_arch = "wasm32"))]
-use crate::combine_ui::natural;
+use craft::docpath::names::natural_cmp as natural;
 
 /// Of the file names in a folder, the PDF after `current` (before it when `forward` is false):
 /// names ending in `.pdf` in any case, not hidden ones, in natural order ("scan2" before
@@ -70,8 +70,9 @@ impl PdfCraftApp {
     /// Open the PDF after the active document's file in its folder (before it when `forward` is
     /// false). It opens like any other file, in its own tab, so the document shown keeps its tab
     /// and its unsaved changes; a file already open comes to the front. The folder is read on a
-    /// worker, so a slow network drive never holds the frame (inline in tests, like the opens).
-    pub(crate) fn open_pdf_beside(&mut self, forward: bool) {
+    /// worker, so a slow network drive never holds the frame; without a running frame (tests) it is
+    /// read in place.
+    pub(crate) fn open_pdf_beside(&mut self, ctx: &egui::Context, forward: bool) {
         #[cfg(not(target_arch = "wasm32"))]
         {
             if self.folder_step.is_some() {
@@ -81,19 +82,17 @@ impl PdfCraftApp {
                 self.notify_tr("This document isn't in a folder yet: save it first");
                 return;
             };
-            let inline = self.ctx.is_none() || self.run_inline;
+            let inline = cfg!(test) || ctx.cumulative_pass_nr() == 0;
             let (sender, receiver) = std::sync::mpsc::channel();
             let scan = path.clone();
-            let ctx = self.ctx.clone();
+            let repaint = ctx.clone();
             let work = move || {
                 let _ = sender.send(pdf_beside_on_disk(std::path::Path::new(&scan), forward));
-                if let Some(ctx) = ctx {
-                    ctx.request_repaint();
-                }
+                repaint.request_repaint();
             };
             if inline {
                 work();
-            } else if let Err(e) = std::thread::Builder::new().name("pdfcraft-folder-step".into()).spawn(work) {
+            } else if let Err(e) = std::thread::Builder::new().name("lion-folder-step".into()).spawn(work) {
                 let folder = std::path::Path::new(&path).parent().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default();
                 self.notify_fmt("Couldn't read {name}: {e}", &[("name", &folder), ("e", &e.to_string())]);
                 return;
@@ -105,7 +104,7 @@ impl PdfCraftApp {
             }
         }
         #[cfg(target_arch = "wasm32")]
-        let _ = forward;
+        let _ = (ctx, forward);
     }
 
     /// Act on a finished folder scan, if there is one.
@@ -123,7 +122,12 @@ impl PdfCraftApp {
         };
         let Some(FolderStep { path, forward, .. }) = self.folder_step.take() else { return };
         // A slow scan must not reopen a folder after the user moved to another document.
-        if !self.active_ids().and_then(|(_, id)| self.session.get(id)).and_then(|d| d.path.as_deref()).is_some_and(|p| crate::same_file(p, &path)) {
+        if !self
+            .active_ids()
+            .and_then(|(_, id)| self.session.get(id))
+            .and_then(|d| d.path.as_deref())
+            .is_some_and(|p| crate::same_file(p, &path))
+        {
             return;
         }
         match done {

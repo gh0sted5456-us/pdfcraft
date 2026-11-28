@@ -98,12 +98,15 @@ const FILE: &[&str] = &[
     "create.blank",
     "file.open",
     "file.open_recent",
+    "file.open_next_in_folder",
+    "file.open_previous_in_folder",
     "file.pin_folder",
     SEP,
     "page.combine",
     SEP,
     "file.save",
     "file.save_as",
+    "create.save_template",
     "file.revert",
     SEP,
     "file.close",
@@ -118,8 +121,20 @@ const FILE: &[&str] = &[
     "print.dialog",
     QUIT,
 ];
-const CREATE: &[&str] = &["create.file", "create.multiple", "create.multiple_separate", "create.images", "create.clipboard"];
-const EXPORT: &[&str] = &["export.docx", "export.pptx", "export.rtf", "export.html", "export.text", SEP, "export.image", "export.all_images"];
+const CREATE: &[&str] = &["create.new", "create.custom", "create.file", "create.multiple", "create.multiple_separate", "create.images", "create.clipboard"];
+const EXPORT: &[&str] = &[
+    "export.choose",
+    "export.docx",
+    "export.xlsx",
+    "export.pptx",
+    "export.rtf",
+    "export.html",
+    "export.markdown",
+    "export.text",
+    SEP,
+    "export.image",
+    "export.all_images",
+];
 const PROTECT: &[&str] = &["protect.password", "protect.remove", "protect.unlock", SEP, "protect.properties"];
 const EDIT: &[&str] = &[
     "edit.undo",
@@ -173,6 +188,7 @@ const PAGES: &[&str] = &[
     "page.extract",
     "page.split",
     "page.duplicate",
+    "page.duplicate_renaming_fields",
     "page.delete",
     SEP,
     "page.rotate",
@@ -217,7 +233,7 @@ const SIGN: &[&str] = &[
 ];
 const WINDOW: &[&str] = &["view.next_tab", "view.previous_tab"];
 const HELP: &[&str] =
-    &["help.shortcuts", SEP, "help.app_page", "help.github", "help.website", "help.discord", SEP, "help.check_updates", SEP, "help.about"];
+    &["help.shortcuts", "help.connect_ai", SEP, "help.app_page", "help.github", "help.website", "help.discord", SEP, "help.check_updates", SEP, "help.about"];
 
 /// Where the menu bar lists command `id`: the English titles of its menu and submenu, top menu first,
 /// as [`MenuBar`] builds them. The shortcuts window groups its rows by them. `None` for a command

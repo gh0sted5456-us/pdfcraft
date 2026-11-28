@@ -319,6 +319,9 @@ impl PdfCraftApp {
             theme_preference: craft::theme::ModeChoice::System,
             glass: false,
             glass_settings: Default::default(),
+            #[cfg(not(target_arch = "wasm32"))]
+            folder_step: None,
+            template_gallery: None,
             suite: craft::theme_store::SuiteClient::memory(),
             reading_colors: Default::default(),
             show_page_edge_shadows: true,
@@ -818,6 +821,8 @@ impl PdfCraftApp {
         }
         self.process_pending_edits(ctx);
         self.poll_export();
+        #[cfg(not(target_arch = "wasm32"))]
+        self.poll_folder_step();
         self.auto_ocr_scanned_page(ctx);
         self.poll_ocr(ctx);
         self.poll_optimize();

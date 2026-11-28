@@ -44,6 +44,8 @@ fn windows(app: &mut PdfCraftApp, ui: &mut egui::Ui) {
     crate::redact_ui::dialogs::show_search(app, ui);
     crate::redact_ui::dialogs::show_hidden(app, ui);
     crate::sign_ui::dialog::show(app, ui);
+    // Lion PDF.
+    crate::templates_ui::show(app, ui);
 
     crate::sign_ui::cert_viewer::show(app, ui);
 }
@@ -101,6 +103,9 @@ fn results(app: &mut PdfCraftApp, ctx: &egui::Context) {
     crate::a11y_ui::pass(ctx, app);
     crate::actions_ui::pass(app);
     crate::export_ui::pass(ctx, app);
+    // Lion PDF.
+    app.custom_page_pass();
+    app.template_export_pass();
     crate::compare_ui::pass(app, ctx);
     // Shell.
     app.recovery_pass(ctx);

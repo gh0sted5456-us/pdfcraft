@@ -66,6 +66,12 @@ pub mod i18n;
 pub mod viewer_prefs;
 /// Lion PDF's look: the Lion theme and Glass.
 pub mod lion_theme;
+/// Lion PDF: File ▸ Open next / previous PDF in folder.
+mod folder_step;
+/// Lion PDF: Create ▸ Custom page.
+mod lion_create;
+/// Lion PDF: Create a PDF (the template gallery) and Save as template.
+mod templates_ui;
 
 /// The personal fork's display name; storage and update identities remain compatible.
 pub const APP_NAME: &str = "Lion PDF";
@@ -328,6 +334,11 @@ pub struct PdfCraftApp {
     pub glass: bool,
     /// Lion PDF: Glass's tint and opacities.
     pub glass_settings: lion_theme::GlassSettings,
+    /// Lion PDF: a folder scan for File ▸ Open next / previous PDF in folder.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) folder_step: Option<folder_step::FolderStep>,
+    /// Lion PDF: the open template gallery (File ▸ Create a PDF).
+    pub(crate) template_gallery: Option<templates_ui::TemplateGallery>,
     /// The suite the Appearance page reads its themes from: an in-memory one, as PdfCraft keeps
     /// its own appearance in its settings rather than in the suite's shared selection.
     pub(crate) suite: craft::theme_store::SuiteClient,

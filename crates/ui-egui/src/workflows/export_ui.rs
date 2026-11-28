@@ -1,4 +1,4 @@
-//! Export a PDF ▸ Image (PNG, JPEG, TIFF) and Text (Acrobat's Export a PDF tool, first formats).
+//! Export a PDF ▸ Image (PNG, JPEG, TIFF), Text and Excel (Acrobat's Export a PDF tool).
 //!
 //! The export runs as a job and reports progress in the notice bar; the files go through the host's
 //! file service, which downloads them on the web.
@@ -15,6 +15,7 @@ use craft::ui::dialog::{DialogResult, dialog_id};
 use craft::ui::patterns::form_dialogs::{DialogFields, FieldValue, HostedParamDialog, Param, ParamDialog, ParamKind};
 use craft::ui::runtime::env::Label;
 use craft::ui::value_drag::SliderScale;
+use pdfcraft_engine::compare::XlsxSheets;
 use pdfcraft_engine::export::{ExportSource, Exporter, ImageFormat};
 
 use super::job_count::JobCount;
@@ -30,10 +31,12 @@ pub enum ExportKind {
     Text,
     /// Export all images: the images pages use, as files.
     AllImages,
+    /// Lion PDF: Excel, the pages on one sheet or a sheet each, saved as one workbook.
+    Excel,
 }
 
 impl ExportKind {
-    const ALL: [ExportKind; 3] = [ExportKind::Image, ExportKind::Text, ExportKind::AllImages];
+    const ALL: [ExportKind; 4] = [ExportKind::Image, ExportKind::Text, ExportKind::AllImages, ExportKind::Excel];
 
     /// The dialog's key: the command that opens it. Each kind has its own so a result says which it answers.
     fn key(self) -> &'static str {
@@ -41,6 +44,7 @@ impl ExportKind {
             ExportKind::Image => "export.image",
             ExportKind::Text => "export.text",
             ExportKind::AllImages => "export.all_images",
+            ExportKind::Excel => "export.xlsx",
         }
     }
 }
@@ -52,11 +56,13 @@ pub struct ExportDraft {
     pub format: ImageFormat,
     /// Export all images ▸ skip images with fewer pixels than this on their shorter side.
     pub min_side: u32,
+    /// Excel ▸ one sheet for the whole document (the default) or a sheet per page.
+    pub sheets: XlsxSheets,
 }
 
 impl Default for ExportDraft {
     fn default() -> Self {
-        Self { dpi: 150.0, range: PageRange::default(), format: ImageFormat::Png, min_side: 0 }
+        Self { dpi: 150.0, range: PageRange::default(), format: ImageFormat::Png, min_side: 0, sheets: XlsxSheets::default() }
     }
 }
 
@@ -106,6 +112,13 @@ fn params(kind: ExportKind, count: usize, current: usize) -> Vec<Param> {
             let sides = MIN_SIDES.iter().map(|n| (n.to_string(), Label::from(min_side_label(*n)))).collect();
             rows.push(Param::new("min", tl!("Exclude images smaller than"), ParamKind::choice(sides, Some("0".into()))));
         }
+        ExportKind::Excel => {
+            let sheets = vec![
+                ("whole".to_string(), Label::from(tl!("One sheet for the whole document"))),
+                ("page".to_string(), Label::from(tl!("One sheet per page"))),
+            ];
+            rows.push(Param::new("sheets", tl!("Sheets"), ParamKind::choice(sheets, Some("whole".into()))));
+        }
         ExportKind::Text => {}
     }
     rows.push(PageRangeOptions::param("pages", tl!("Pages"), count, current, PageRangeChoices::Acrobat));
@@ -121,6 +134,7 @@ fn fields_of(d: &ExportDraft) -> DialogFields {
         fields.set("quality", FieldValue::Number(f64::from(quality)));
     }
     fields.set("min", FieldValue::Text(d.min_side.to_string()));
+    fields.set("sheets", FieldValue::Text(if d.sheets == XlsxSheets::PerPage { "page" } else { "whole" }.into()));
     fields.set("pages", PageRangeOptions::field_value(&d.range));
     fields
 }
@@ -148,6 +162,11 @@ pub(crate) fn open(app: &mut PdfCraftApp, ctx: &egui::Context, kind: ExportKind)
                 tl!("Export All Images"),
                 tl!("Each image once, named after the document and page. JPEG images are saved unchanged; others as PNG.").to_string(),
             ),
+            ExportKind::Excel => (
+                tl!("Export to Excel"),
+                tl!("Tables become cells; numbers, amounts, percentages and dates become values Excel can compute with, shown as on the page.")
+                    .to_string(),
+            ),
         };
         ParamDialog::new(kind.key(), title, params(kind, count, current))
             .values(Bind::bound(fields))
@@ -164,8 +183,51 @@ pub(crate) fn open_kind(app: &PdfCraftApp) -> Option<ExportKind> {
     ExportKind::ALL.into_iter().find(|k| app.dialogs.get_by_id::<HostedParamDialog>(dialog_id(k.key())).is_some())
 }
 
+/// Lion PDF ▸ File ▸ Export to…: the formats, each the command that exports to it.
+const CHOICES: [(&str, &str); 9] = [
+    ("export.docx", "Microsoft Word (.docx)"),
+    ("export.xlsx", "Excel spreadsheet (.xlsx)"),
+    ("export.pptx", "PowerPoint (.pptx)"),
+    ("export.rtf", "Rich Text (.rtf)"),
+    ("export.html", "Web page (.html)"),
+    ("export.markdown", "Markdown (.md)"),
+    ("export.text", "Plain text (.txt)"),
+    ("export.image", "Images (.png / .jpg / .tiff)"),
+    ("create.save_template", "Reusable Lion PDF template"),
+];
+
+/// The format Export to… opened on: the one chosen last.
+fn last_choice() -> &'static std::sync::Mutex<String> {
+    static LAST: std::sync::OnceLock<std::sync::Mutex<String>> = std::sync::OnceLock::new();
+    LAST.get_or_init(|| std::sync::Mutex::new(CHOICES[0].0.to_string()))
+}
+
+/// Lion PDF ▸ File ▸ Export to…: one dialog that names every format.
+pub(crate) fn open_choice(app: &mut PdfCraftApp, ctx: &egui::Context) {
+    let mut fields = DialogFields::new();
+    let last = last_choice().lock().map(|l| l.clone()).unwrap_or_default();
+    fields.set("format", FieldValue::Text(last));
+    let dialog = HostedParamDialog::new(ctx, "export.choose", fields, |fields| {
+        let options = CHOICES.iter().map(|(id, label)| (id.to_string(), Label::from(tl!(label)))).collect();
+        let rows = vec![Param::new("format", tl!("Format"), ParamKind::choice(options, Some(CHOICES[0].0.into())))];
+        ParamDialog::new("export.choose", tl!("Export to"), rows)
+            .values(Bind::bound(fields))
+            .ok_label(tl!("Continue").into())
+            .footer_note(tl!("Scans need OCR before editable text export. Complex layouts and fonts may change during conversion."))
+    });
+    crate::dialogs::host::open(app, dialog);
+}
+
 /// Takes what the Export dialogs answered this pass: OK stores the values and starts the export.
 pub(crate) fn pass(ctx: &egui::Context, app: &mut PdfCraftApp) {
+    if let Some(DialogResult::Ok(result)) = app.dialogs.take_by_id::<HostedParamDialog>(dialog_id("export.choose"))
+        && let Some(command) = result.fields.text("format").and_then(|f| CHOICES.iter().find(|(id, _)| *id == f)).map(|(id, _)| *id)
+    {
+        if let Ok(mut last) = last_choice().lock() {
+            *last = command.to_string();
+        }
+        app.execute(ctx, command);
+    }
     for kind in ExportKind::ALL {
         let Some(DialogResult::Ok(result)) = app.dialogs.take_by_id::<HostedParamDialog>(dialog_id(kind.key())) else { continue };
         let f = &result.fields;
@@ -178,6 +240,11 @@ pub(crate) fn pass(ctx: &egui::Context, app: &mut PdfCraftApp) {
         }
         if let Some(n) = f.text("min").and_then(|t| t.parse::<u32>().ok()) {
             d.min_side = n;
+        }
+        match f.text("sheets") {
+            Some("page") => d.sheets = XlsxSheets::PerPage,
+            Some(_) => d.sheets = XlsxSheets::WholeDocument,
+            None => {}
         }
         match f.text("format") {
             Some("jpeg") => {
@@ -238,8 +305,8 @@ fn run(task: ExportTask<'_>, mut sink: impl FnMut(&str, Vec<u8>) -> Result<(), S
     }
     let mut ex = Exporter::from_source(src);
     match kind {
-        // Handled above.
-        ExportKind::AllImages => String::new(),
+        // Handled above (all images) or in `start_export` (Excel).
+        ExportKind::AllImages | ExportKind::Excel => String::new(),
         ExportKind::Image => {
             set(0);
             // Pages are drawn several at once and handed over in order: the progress counts the
@@ -298,6 +365,31 @@ impl PdfCraftApp {
             return;
         }
         let Some(doc) = self.session.get(id) else { return };
+        // Lion PDF: Excel is one workbook of the pages chosen, written through the save dialog.
+        if kind == ExportKind::Excel {
+            let current = self.views[view].current();
+            let pages = self.export_draft.range.pages(doc.info.pages.len(), current, &[]);
+            let export = doc.export_xlsx_checked(self.export_draft.sheets, Some(&pages));
+            if !export.truncated_pages.is_empty() {
+                self.notify(tl!("Export stopped: some page contents exceed export limits. The original PDF is unchanged."));
+                return;
+            }
+            let stem = doc.name.trim_end_matches(".pdf").trim_end_matches(".PDF").to_string();
+            let folder = doc.path.as_deref().and_then(|p| std::path::Path::new(p).parent()).map(std::path::Path::to_path_buf);
+            let mut request = PickRequest::save("export.office").title(tl!("Export")).filter("XLSX", &["xlsx"]).file_name(format!("{stem}.xlsx"));
+            if let Some(folder) = folder {
+                request = request.default_directory(folder);
+            }
+            let bytes = export.bytes;
+            self.pick_file(request, None, move |app, _, picked| {
+                let Some(path) = picked.first_path() else { return };
+                match app.host.files().write(&path, &bytes, WriteIntent::SaveAs) {
+                    Ok(_) => app.notify_fmt("Exported to {path}", &[("path", &path.display().to_string())]),
+                    Err(e) => app.notify_fmt("Couldn't write {name}: {e}", &[("name", &path.display().to_string()), ("e", &e.to_string())]),
+                }
+            });
+            return;
+        }
         let src = doc.export_source();
         let stem = doc.name.trim_end_matches(".pdf").trim_end_matches(".PDF").to_string();
         let current = self.views[view].current();
