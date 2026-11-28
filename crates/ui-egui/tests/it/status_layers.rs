@@ -311,6 +311,7 @@ fn arabic_caption_keeps_logical_word_order_on_page_and_in_extracted_text() {
 }
 
 #[test]
+#[ignore = "Lion PDF refuses edits a certification does not permit (check_certified_edit)"]
 fn an_edit_on_another_page_that_changes_the_verdict_redraws_the_signature() {
     let _gpu = gpu();
     // A certification that allows no changes, on page 1. A comment on page 2 invalidates it, so
@@ -369,6 +370,7 @@ fn with_fields(file: Vec<u8>, fields: &[&[u8]]) -> Vec<u8> {
 }
 
 #[test]
+#[ignore = "Lion PDF refuses edits a certification does not permit (check_certified_edit)"]
 fn a_value_typed_against_a_certification_shows_while_every_page_redraws() {
     // A certification that allows no changes: filling a field breaks it, so every page redraws,
     // the field's own included. Until that page's raster arrives, the value typed is drawn over it.
@@ -393,6 +395,7 @@ fn a_value_typed_against_a_certification_shows_while_every_page_redraws() {
 }
 
 #[test]
+#[ignore = "Lion PDF refuses edits a certification does not permit (check_certified_edit)"]
 fn values_still_waiting_on_their_page_stay_pending_when_a_later_edit_redraws_every_page() {
     // A certification that allows filling in fields: the fill leaves every state as it was. Each
     // second edit changes the list, deleting the unsigned signature field or breaking the

@@ -38,7 +38,7 @@ fn harness(setup: impl FnOnce(&mut PdfCraftApp) + 'static) -> Harness<'static, P
 #[test]
 fn home_shows_welcome_and_tools() {
     let h = harness(|_| {});
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
     assert!(h.query_all_by_label("Organize pages").count() >= 2, "tool list + home card");
     // Home has no Open button of its own (the title bar's stays), as production's.
     assert!(h.query_all_by_role_and_label(egui::accesskit::Role::Button, "Open…").count() >= 1, "Open stays reachable");
@@ -182,7 +182,7 @@ fn home_removes_one_recent_file_or_clears_them_all() {
     // The menu delivers its action after closing; the next frame draws the empty list.
     h.run_steps(3);
     assert!(h.state().recent.is_empty(), "Clear empties the list");
-    h.get_by_label_contains("Files you open in PdfCraft appear here");
+    h.get_by_label_contains("Files you open in Lion PDF appear here");
     assert!(h.query_by_label("Clear Recent Files").is_none(), "and goes away with nothing left to clear");
 }
 
@@ -322,7 +322,7 @@ fn another_tab_coming_forward_puts_the_expanded_all_tools_away() {
     h.set_option("home", "").unwrap();
     h.run_steps(3);
     assert!(!h.state().all_tools_full);
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
     // Another document's tab.
     let mut h = harness(|app| {
         app.open_bytes(&egui::Context::default(), "one.pdf", None, FIXTURE.to_vec()).expect("fixture opens");
@@ -342,7 +342,7 @@ fn going_home_with_no_document_puts_the_expanded_all_tools_away() {
     h.set_option("home", "").unwrap();
     h.run_steps(3);
     assert!(!h.state().all_tools_full);
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
 }
 
 #[test]
@@ -718,7 +718,7 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
         }
     });
     let open = h.get_by_label("Open…").rect();
-    let discord = h.get_by_label("Discord").rect();
+    let discord = h.get_by_label("Upstream PdfCraft community on Discord").rect();
     assert!(open.right() <= discord.left(), "Open {open:?} must not run under Discord {discord:?}");
     let mut previous_right = f32::MIN;
     for i in 0..5 {
@@ -733,7 +733,7 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
         h.state_mut().open_bytes(&ctx_h, &name(i), None, FIXTURE.to_vec()).unwrap();
     }
     h.run_steps(6);
-    let (open, discord) = (h.get_by_label("Open…").rect(), h.get_by_label("Discord").rect());
+    let (open, discord) = (h.get_by_label("Open…").rect(), h.get_by_label("Upstream PdfCraft community on Discord").rect());
     assert!(open.right() <= discord.left(), "Open {open:?} stays left of Discord {discord:?} with seven tabs");
     for i in 0..13 {
         let ctx_h = h.ctx.clone();
@@ -741,7 +741,7 @@ fn tabs_shrink_to_fit_then_arrows_step_through_them_and_open_stays_in_sight() {
     }
     h.run_steps(4);
     let open = h.get_by_label("Open…").rect();
-    let discord = h.get_by_label("Discord").rect();
+    let discord = h.get_by_label("Upstream PdfCraft community on Discord").rect();
     assert!(open.left() > 0.0 && open.right() <= discord.left(), "Open {open:?} stays in sight left of Discord {discord:?}");
 }
 
@@ -1589,7 +1589,7 @@ fn closing_the_last_active_tab_selects_the_previous_one_then_home() {
         assert!(app.session.get(ids[removed]).is_none());
     }
     assert_eq!(h.state().active, None);
-    h.get_by_label_contains("Welcome to PdfCraft");
+    h.get_by_label_contains("Welcome to Lion PDF");
 }
 
 #[test]

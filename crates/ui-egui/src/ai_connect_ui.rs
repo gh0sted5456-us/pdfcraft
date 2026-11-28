@@ -51,6 +51,11 @@ fn copy_block(ui: &mut egui::Ui, id: &str, text: &str) -> bool {
 const CHOOSE: usize = 2;
 
 impl PdfCraftApp {
+    /// The folder Connect AI assistants offers the assistant (tests and automation choose it ahead).
+    pub fn set_ai_connect_folder(&mut self, folder: PathBuf) {
+        self.ai_connect_folder = Some(folder);
+    }
+
     /// Help ▸ Connect AI assistants…
     pub(crate) fn open_ai_connect(&mut self) {
         self.ai_connect_open = true;

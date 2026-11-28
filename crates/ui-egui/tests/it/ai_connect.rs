@@ -6,10 +6,11 @@ use egui_kittest::kittest::{By, Queryable};
 use pdfcraft_ui_egui::PdfCraftApp;
 
 fn harness(folder: std::path::PathBuf) -> Harness<'static, PdfCraftApp> {
-    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 900.0)).build_eframe(move |_cc| {
-        let mut app = PdfCraftApp::new();
-        app.set_option("language", "en").unwrap();
-        app.ai_connect_folder = Some(folder);
+    let mut h = Harness::builder().with_size(egui::vec2(1200.0, 900.0)).build_eframe(move |cc| {
+        crate::support::install_runtime(&cc.egui_ctx);
+        let mut app = crate::control::new_app();
+        app.set_option(&egui::Context::default(), "language", "en").unwrap();
+        app.set_ai_connect_folder(folder);
         app
     });
     h.run_steps(4);
@@ -28,11 +29,12 @@ fn connect_ai_shows_settings_for_the_chosen_folder_and_copies_them() {
     let folder = std::env::temp_dir().join("lion-pdf-ai-connect-test");
     std::fs::create_dir_all(&folder).unwrap();
     let mut h = harness(folder.clone());
-    assert!(h.state_mut().execute("help.connect_ai"));
+    let ctx = h.ctx.clone();
+    assert!(h.state_mut().execute(&ctx, "help.connect_ai"));
     h.run_steps(3);
-    h.get_by_label("Title: Connect AI assistants");
+    assert!(h.query_all_by_label_contains("Connect AI assistants").next().is_some(), "the dialog is open");
     h.get_by_label_contains("Lion PDF starts nothing");
-    h.get_by_label(&folder.display().to_string());
+    assert!(h.query_all_by_label(&folder.display().to_string()).next().is_some(), "the folder is shown");
     assert_eq!(h.query_all(By::new().role(Role::Button).label("Copy")).count(), 2, "Claude Desktop and Claude Code");
 
     h.query_all(By::new().role(Role::Button).label("Copy")).next().unwrap().click();
@@ -60,9 +62,10 @@ fn connect_ai_shows_settings_for_the_chosen_folder_and_copies_them() {
     let command = command.expect("Copy puts the Claude Code command on the clipboard");
     assert!(command.starts_with("claude mcp add --scope user lion-pdf -- "), "{command}");
 
-    h.get_by_role_and_label(Role::Button, "Done").click();
+    // The footer's Close (the title band has a close action too).
+    h.query_all(By::new().role(Role::Button).label("Close")).last().unwrap().click();
     h.run_steps(3);
-    assert!(h.state().dialog.is_none(), "Done closes the dialog");
+    assert!(h.query_by_label_contains("Lion PDF starts nothing").is_none(), "Close closes the dialog");
 }
 
 #[test]
